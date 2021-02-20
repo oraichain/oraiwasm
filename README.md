@@ -1,0 +1,2 @@
+# oraiwasm
+Oraichain smart contracts
