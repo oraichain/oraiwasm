@@ -1,0 +1,1 @@
+5ab3c13c12bf5f949c06f550b63ba68e50e1ec0a8e0c26cacb4bb6a4b28c2426  testcase_price.wasm
