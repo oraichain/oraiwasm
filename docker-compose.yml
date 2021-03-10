@@ -1,6 +1,7 @@
 version: '3.3'
 services:
   rust:
+    container_name: oraiwasm_build
     image: cosmwasm/rust-optimizer:0.10.7
     entrypoint: tail -f /dev/null
     volumes:
@@ -8,6 +9,7 @@ services:
       - ./smart-contracts:/code
 
   simulate:
+    container_name: oraiwasm_simulate
     image: orai/cosmwasm-simulate:0.11-slim
     tty: true 
     volumes:
