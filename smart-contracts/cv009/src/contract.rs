@@ -1,8 +1,8 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, SpecialQuery};
+use crate::msg::{HandleMsg, InitMsg, Input, QueryMsg, SpecialQuery};
 use cosmwasm_std::{
-    to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, MessageInfo, Querier,
-    StdResult, Storage,
+    from_slice, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, MessageInfo,
+    Querier, StdResult, Storage,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -40,11 +40,13 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     input: String,
 ) -> StdResult<String> {
-    // create specialquery with default empty string
+    let msg_vec = input.as_bytes();
+    let msg: Input = from_slice(&msg_vec).unwrap();
     let req = SpecialQuery::Fetch {
         url: "http://209.97.154.247:5000/cv009".to_string(),
-        body: input.to_string(),
+        body: format!("image={}&name={}&model={}", msg.image, msg.name, msg.model),
         method: "POST".to_string(),
+        authorization: "".to_string(),
     }
     .into();
     let response: Binary = deps.querier.custom_query(&req)?;

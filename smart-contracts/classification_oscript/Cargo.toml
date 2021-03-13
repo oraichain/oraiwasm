@@ -1,7 +1,7 @@
 [package]
 authors = ["ducpl <ducphamle212@gmail.com"]
 edition = "2018"
-name = "classification-oscript"
+name = "classification_oscript"
 version = "0.1.0"
 
 exclude = [

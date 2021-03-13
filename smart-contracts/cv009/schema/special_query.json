@@ -12,9 +12,21 @@
         "fetch": {
           "type": "object",
           "required": [
+            "authorization",
+            "body",
+            "method",
             "url"
           ],
           "properties": {
+            "authorization": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            },
+            "method": {
+              "type": "string"
+            },
             "url": {
               "type": "string"
             }

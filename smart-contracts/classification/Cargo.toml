@@ -1,5 +1,5 @@
 [package]
-authors = ["ducpl <ducphamle212@gmail.com"]
+authors = ["Le Duc Pham <ducphamle212@gmail.com>"]
 edition = "2018"
 name = "classification"
 version = "0.1.0"

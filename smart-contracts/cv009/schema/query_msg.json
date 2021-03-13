@@ -5,13 +5,42 @@
     {
       "type": "object",
       "required": [
-        "get_price"
+        "get"
       ],
       "properties": {
-        "get_price": {
-          "type": "object"
+        "get": {
+          "type": "object",
+          "required": [
+            "input"
+          ],
+          "properties": {
+            "input": {
+              "$ref": "#/definitions/Input"
+            }
+          }
         }
       }
     }
-  ]
+  ],
+  "definitions": {
+    "Input": {
+      "type": "object",
+      "required": [
+        "image",
+        "model",
+        "name"
+      ],
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      }
+    }
+  }
 }

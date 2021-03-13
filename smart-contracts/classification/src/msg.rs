@@ -7,6 +7,22 @@ pub struct InitMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+pub struct Input {
+    pub image: String,
+    pub model: String,
+    pub name: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct Output {
+    pub code: i64,
+    pub message: String,
+    pub data: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum HandleMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -23,6 +39,7 @@ pub enum SpecialQuery {
         url: String,
         body: String,
         method: String,
+        authorization: String,
     },
 }
 impl CustomQuery for SpecialQuery {}

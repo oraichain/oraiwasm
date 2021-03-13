@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::msg::{DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg, SpecialQuery};
+use crate::msg::{DataSourceQueryMsg, HandleMsg, InitMsg, Input, QueryMsg, SpecialQuery};
 use cosmwasm_std::{
     to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, InitResponse, MessageInfo,
     Querier, StdResult, Storage,
@@ -50,7 +50,7 @@ fn classification_testcase<S: Storage, A: Api, Q: Querier>(
     if output.is_empty() {
         return Ok(String::new());
     }
-    let msg = DataSourceQueryMsg::Get { input };
+    let msg = DataSourceQueryMsg::Get { input: input };
     let data_source: String = deps.querier.query_wasm_smart(contract, &msg)?;
     // basic validation for the data source result
     // create specialquery with to handle the data source

@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+  "classification",
+  "cv009",
+  "classification_testcase",
+  "classification_oscript",
+]
