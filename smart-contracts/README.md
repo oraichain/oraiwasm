@@ -40,11 +40,11 @@ rustup default 1.47.0-x86_64-unknown-linux-gnu
 Enter a smart contract directory and type:
 
 ```bash
-optimize.sh .
+optimize.sh <directory-name>
 ```
 
 Example:
 
 ```bash
-cd datasource_eth && optimize.sh .
+optimize.sh cv009
 ```
