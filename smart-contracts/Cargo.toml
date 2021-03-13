@@ -7,4 +7,8 @@ members = [
   "classification_oscript",
   "nl002",
   "nl008",
+  "sentiment_eng_testcase",
+  "sentiment_eng_oscript",
+  "nl008_testcase",
+  "nl008_oscript",
 ]

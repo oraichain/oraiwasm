@@ -50,6 +50,7 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
     }
     .into();
     let response: Binary = deps.querier.custom_query(&req)?;
-    let data = String::from_utf8(response.to_vec()).unwrap();
+    let mut data = String::from_utf8(response.to_vec()).unwrap();
+    data.pop(); // pop newline character
     Ok(data)
 }
