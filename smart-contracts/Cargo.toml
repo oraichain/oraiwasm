@@ -5,4 +5,6 @@ members = [
   "cv009",
   "classification_testcase",
   "classification_oscript",
+  "nl002",
+  "nl008",
 ]
