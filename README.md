@@ -1,8 +1,6 @@
 # oraiwasm
 Oraichain smart contracts
 
-## Start and enter the container to start playing with the smart contracts
-
 ## Remote container tutorial to develop inside the container
 
 ### 1. Install VSCode
