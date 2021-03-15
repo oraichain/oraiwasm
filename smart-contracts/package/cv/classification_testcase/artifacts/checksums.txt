@@ -1,1 +1,1 @@
-3d76bb04fe5a734bf865979d31dcf4c8d60724783912dd85c1e2c3d4653a1e5d  classification_testcase.wasm
+34f5076dfb33ac492b36be05cd65eb25b4e225dc3e791ba78aecd4efdbf40f14  classification_testcase.wasm

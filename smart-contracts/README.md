@@ -40,11 +40,11 @@ rustup default 1.47.0-x86_64-unknown-linux-gnu
 Enter a smart contract directory and type:
 
 ```bash
-optimize.sh <directory-name>
+optimize.sh <parent-dir> <dir>
 ```
 
 Example:
 
 ```bash
-optimize.sh cv009
+optimize.sh nlp nl002
 ```
