@@ -9,11 +9,12 @@ echo "Info: RUSTC_WRAPPER=$RUSTC_WRAPPER"
 echo "Info: sccache stats before build"
 sccache -s
 
-contractdir=$1
+contractdir=${1:-nl002}
+parentdir=${2:-nlp}
 
-mkdir -p $PWD/$contractdir/artifacts
+mkdir -p $PWD/package/$parentdir/$contractdir/artifacts
 
-ARTIFACTS=$PWD/$contractdir/artifacts
+ARTIFACTS=$PWD/package/$parentdir/$contractdir/artifacts
 
 WASM_PATH=$PWD/target/wasm32-unknown-unknown/release/
 
@@ -31,7 +32,7 @@ echo "Building contract in $(realpath -m "$contractdir")"
 
   # Linker flag "-s" for stripping (https://github.com/rust-lang/cargo/issues/3483#issuecomment-431209957)
   # Note that shortcuts from .cargo/config are not available in source code packages from crates.io
-  RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown -p $contractdir
+  RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown
 )
 
 # wasm-optimize on all results
