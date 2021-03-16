@@ -43,7 +43,7 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
     let input_vec = input.as_bytes();
     let payload: Input = from_slice(&input_vec).unwrap();
     let req = SpecialQuery::Fetch {
-        url: "http://3.133.142.87/nl006".to_string(),
+        url: "https://100api.orai.dev/nl006".to_string(),
         body: format!(
             "{{\"sent1\":\"{}\", \"sent2\":\"{}\"}}",
             payload.sent1, payload.sent2
