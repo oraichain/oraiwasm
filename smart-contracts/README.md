@@ -26,6 +26,8 @@ Example:
 optimize.sh nlp nl002
 ```
 
+After building, you can start deploying your smart contracts (using either CLI - oraicli from Cosmosjs repo or UI wallet)
+
 ## Generate a smart contract (optional)
 
 There are three types of smart contracts: [data source](https://github.com/oraichain/datasource-contract-template.git), [test case](https://github.com/oraichain/testcase-contract-template.git) and [oracle script](https://github.com/oraichain/oscript-contract-template.git) corresponding to three templates. Please follow the below steps to generate a smart contract. To generate a smart contract, you need a Rust stable version.
