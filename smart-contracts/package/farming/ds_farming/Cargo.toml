@@ -1,7 +1,7 @@
 [package]
-authors = ["tupt <tubackkhoa@gmail.com>"]
+authors = ["Le Duc Pham <ducphamle212@gmail.com>"]
 edition = "2018"
-name = "testcase_price"
+name = "ds_farming"
 version = "0.1.0"
 
 exclude = [

@@ -28,7 +28,7 @@ do
 
     ARTIFACTS=$PWD/package/$parentdir/$contractdir/artifacts
 
-    WASM_PATH=$PWD/target/wasm32-unknown-unknown/release/
+    WASM_PATH=$PWD/target/wasm32-unknown-unknown/release
 
     # There are two cases here
     # 1. All contracts (or one) are included in the root workspace  (eg. `cosmwasm-template`, `cosmwasm-examples`, `cosmwasm-plus`)
@@ -44,7 +44,7 @@ do
 
       # Linker flag "-s" for stripping (https://github.com/rust-lang/cargo/issues/3483#issuecomment-431209957)
       # Note that shortcuts from .cargo/config are not available in source code packages from crates.io
-      RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown
+      RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown -p $contractdir
     )
 
     # wasm-optimize on all results

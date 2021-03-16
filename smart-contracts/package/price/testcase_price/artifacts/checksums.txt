@@ -1,1 +1,1 @@
-f5a3a35d0a9affbbb05527ced7c071ccbcef442e6670f871b622274c2786fba4  testcase_price.wasm
+245197770821a8125be85d11e87ef6183b41d0a5bea0539bc1dec312195a6f31  testcase_price.wasm

@@ -3,4 +3,6 @@
 members = [
   "package/nlp/*",
   "package/cv/*",
+  "package/price/*",
+  "package/farming/*",
 ]
