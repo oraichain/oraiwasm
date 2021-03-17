@@ -44,15 +44,12 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
     let payload: Input = from_slice(&input_vec).unwrap();
     let req = SpecialQuery::Fetch {
         url: "http://143.198.208.118:3000/v1/ai-farming".to_string(),
-        body: format!(
-            "{{\"withdrawFee\": {}}}",
-            payload.withdrawFee),
+        body: format!("{{\"withdrawFee\": {}}}", payload.withdrawFee),
         method: "POST".to_string(),
         authorization: "".to_string(),
     }
     .into();
     let response: Binary = deps.querier.custom_query(&req)?;
-    let mut data = String::from_utf8(response.to_vec()).unwrap();
-    data.pop(); // pop newline character
+    let data = String::from_utf8(response.to_vec()).unwrap();
     Ok(data)
 }

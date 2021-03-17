@@ -3,7 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use nl008::msg::{HandleMsg, InitMsg, QueryMsg, SpecialQuery};
+use ai_farming::msg::{HandleMsg, InitMsg, QueryMsg, SpecialQuery};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

@@ -107,14 +107,16 @@ fn query_aggregation<S: Storage, A: Api, Q: Querier>(
     // final result syntax: a-b-c-d-e-f
     for input in results {
         // have to replace since escape string in rust is \\\" not \"
-        let input_edit = str::replace(&input, "\\\"", "\"");
-        let input_struct: Input = from_slice(&(input_edit.as_bytes())).unwrap();
-        let temp_input = &input_struct.data[..];
+        // let input_edit = str::replace(&input, "\\\"", "\"");
+        // let input_struct: Input = from_slice(&(input_edit.as_bytes())).unwrap();
+        //let temp_input = &input_struct.data[..];
         final_result.push_str("data=");
-        final_result.push_str(&temp_input);
+        final_result.push_str(&input);
         final_result.push('&');
         break;
     }
+    final_result.pop();
+    let input_edit = str::replace(&final_result, "\\\"", "\"");
     // remove the last newline symbol to complete the string
-    Ok(final_result)
+    Ok(input_edit)
 }

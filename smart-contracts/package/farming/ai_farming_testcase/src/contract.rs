@@ -51,5 +51,5 @@ fn test_datasource<S: Storage, A: Api, Q: Querier>(
     let response_vec = response.as_bytes();
     let datasource_output: Output = from_slice(&response_vec).unwrap();
     let output_lower = datasource_output.data;
-    return Ok(output_lower);
+    return Ok(response);
 }
