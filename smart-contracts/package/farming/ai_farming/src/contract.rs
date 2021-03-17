@@ -45,8 +45,8 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
     let req = SpecialQuery::Fetch {
         url: "http://143.198.208.118:3000/v1/ai-farming".to_string(),
         body: format!(
-            "{{\"withdrawFee\": {},\"doHarkWorkFee\": {},\"underlyingBalanceInVault\":{},\"investedBalance\": {}}})",
-            payload.withdrawFee,payload.doHarkWorkFee,payload.underlyingBalanceInVault,payload.investedBalance),
+            "{{\"withdrawFee\": {}}}",
+            payload.withdrawFee),
         method: "POST".to_string(),
         authorization: "".to_string(),
     }

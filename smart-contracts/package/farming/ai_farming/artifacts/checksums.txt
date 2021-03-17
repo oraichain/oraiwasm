@@ -1,2 +1,1 @@
-f49cfa0a13d4c1ad42154a23da39c3bdedb8e5db031795bb5a4fe8f7832d36a6  ai_farming.wasm
-bf83cfbc7d8d8ea5081f102a1a5ce8cd6b7d74c57d0e4f1cd6ff8e95f8d007ff  nl008.wasm
+41d1e1e67ba19296b80163ce98e8b198f8b16536c0c532618b5237d8cffe14d2  ai_farming.wasm

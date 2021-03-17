@@ -1,1 +1,1 @@
-5e62dee7759f4553ca6eedb158de9dbab17544ab4cdfd8eb61a5d59802dbd87c  nl008_testcase.wasm
+f28998967e6f7f450199d095935c6ff10a9d1ec6cafb6a9a64e069f40b39aed2  ai_farming_testcase.wasm

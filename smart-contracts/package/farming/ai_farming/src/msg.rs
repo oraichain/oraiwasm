@@ -8,10 +8,7 @@ pub struct InitMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct Input {
-    pub withdrawFee: String,
-    pub doHarkWorkFee: String,
-    pub underlyingBalanceInVault: String,
-    pub investedBalance: String,
+    pub withdrawFee: String
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
