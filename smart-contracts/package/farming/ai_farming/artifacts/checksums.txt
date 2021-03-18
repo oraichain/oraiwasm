@@ -1,1 +1,1 @@
-afc5c7898b437664c55fa8b1fdc722e5ef2672db7ab25a5e7d2a6650506cf944  ai_farming.wasm
+d8605386b001b89c3a74358bfa7a7da81f927ba16e6bf46007c1ffe19298dede  ai_farming.wasm

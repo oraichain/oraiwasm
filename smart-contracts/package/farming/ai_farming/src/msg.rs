@@ -8,8 +8,18 @@ pub struct InitMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct Input {
-    pub withdrawFee: String,
-    pub test: Test,
+    pub withdrawFee: Data,
+    pub doHarkWorkFee: Data,
+    pub underlyingBalanceInVault: i64,
+    pub investedBalance: Data,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct Data {
+    pub yearn: i64,
+    pub idle: i64,
+    pub compound: i64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -39,4 +49,5 @@ pub enum SpecialQuery {
         authorization: String,
     },
 }
+
 impl CustomQuery for SpecialQuery {}

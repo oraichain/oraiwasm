@@ -44,12 +44,25 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
     let payload: Input = from_slice(&input_vec).unwrap();
     let req = SpecialQuery::Fetch {
         url: "http://143.198.208.118:3000/v1/ai-farming".to_string(),
-        body: format!("{{\"withdrawFee\": {}}}", payload.withdrawFee),
+        body: format!(
+            "{{\"withdrawFee\":{{\"yearn\":{},\"idle\":{},\"compound\":{}}},\"doHarkWorkFee\": {{\"yearn\":{},\"idle\":{},\"compound\":{}}},\"underlyingBalanceInVault\": {},\"investedBalance\": {{\"yearn\":{},\"idle\":{},\"compound\":{}}}}}",
+            payload.withdrawFee.yearn,
+            payload.withdrawFee.idle,
+            payload.withdrawFee.compound,
+            payload.doHarkWorkFee.yearn,
+            payload.doHarkWorkFee.idle,
+            payload.doHarkWorkFee.compound,
+            payload.underlyingBalanceInVault,
+            payload.investedBalance.yearn,
+            payload.investedBalance.idle,
+            payload.investedBalance.compound
+        ),
         method: "POST".to_string(),
         authorization: "".to_string(),
     }
-    .into();
+        .into();
     let response: Binary = deps.querier.custom_query(&req)?;
     let data = String::from_utf8(response.to_vec()).unwrap();
     Ok(data)
 }
+

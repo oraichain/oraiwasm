@@ -19,6 +19,22 @@ pub struct Output {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct Data {
+    pub info: Info,
+    pub weights: Weigth,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct Info {
+    pub currency: String,
+    pub time: String,
+    pub version : String,
+}
+
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct Weigth {
     pub yearn: i64,
     pub idle: i64,
     pub compound: i64,

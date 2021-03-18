@@ -1,1 +1,1 @@
-f2575089d676fb1c822c228f19c93569cffc6db9f10d41e9ed5523ffb70dc6a2  ai_farming_testcase.wasm
+bbe5d1a43c811e522cc18b65190305fc41f385415f45fbf2366d524f72b4d9b5  ai_farming_testcase.wasm
