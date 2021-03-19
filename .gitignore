@@ -12,3 +12,5 @@ Cargo.lock
 
 .registry_cache
 .idea
+
+smart-contracts/package/*/*/.git/
