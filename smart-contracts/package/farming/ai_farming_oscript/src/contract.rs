@@ -1,4 +1,4 @@
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, SpecialQuery};
 use crate::state::{config, config_read, State};
 use crate::{error::ContractError, msg::Input};
 use cosmwasm_std::{
@@ -103,20 +103,29 @@ fn query_aggregation<S: Storage, A: Api, Q: Querier>(
         return Ok(String::new());
     }
     let mut final_result = String::from("");
+    let mut temp = String::from("");
     // original input: {\\\"data\\\":\\\"English\\\",\\\"status\\\":\\\"success\\\"}\\\n
     // final result syntax: a-b-c-d-e-f
     for input in results {
-        // have to replace since escape string in rust is \\\" not \"
-        // let input_edit = str::replace(&input, "\\\"", "\"");
-        // let input_struct: Input = from_slice(&(input_edit.as_bytes())).unwrap();
-        //let temp_input = &input_struct.data[..];
-        final_result.push_str("data=");
-        final_result.push_str(&input);
-        final_result.push('&');
+        // final_result.push_str("{\"data\":");
+        // final_result.push_str(&input);
+        temp.push_str(&input);
+        // final_result.push_str(",");
         break;
     }
-    final_result.pop();
-    let input_edit = str::replace(&final_result, "\\\"", "\"");
+    let req = SpecialQuery::Fetch {
+        // should replace url with a centralized server
+        url: "http://143.198.208.118:3001/v1/hash".to_string(),
+        body: temp,
+        method: "POST".to_string(),
+        authorization: "".to_string(),
+    }.into();
+    let response_bin: Binary = _deps.querier.custom_query(&req)?;
+    let response = String::from_utf8(response_bin.to_vec()).unwrap();
+    final_result.push_str(response.as_str());
+    // final_result.pop();
+    let mut input_edit = str::replace(&final_result, "\\\"", "\"");
+    input_edit = str::replace(&input_edit, "\\\\\"", "\"");
     // remove the last newline symbol to complete the string
     Ok(input_edit)
 }
