@@ -43,7 +43,8 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
     let input_vec = input.as_bytes();
     let payload: Input = from_slice(&input_vec).unwrap();
     let req = SpecialQuery::Fetch {
-        url: "http://143.198.208.118:3000/v1/ai-farming".to_string(),
+        // url: "http://143.198.208.118:3000/v1/ai-farming".to_string(),
+        url: "https://yai.oy300.cloud.edu.au".to_string(),
         body: format!(
             "{{\"withdrawFee\":{{\"yearn\":{},\"idle\":{},\"compound\":{}}},\"doHarkWorkFee\": {{\"yearn\":{},\"idle\":{},\"compound\":{}}},\"underlyingBalanceInVault\": {},\"investedBalance\": {{\"yearn\":{},\"idle\":{},\"compound\":{}}}}}",
             payload.withdrawFee.yearn,
