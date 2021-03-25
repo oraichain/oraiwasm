@@ -49,7 +49,7 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
     }
     .into();
     let response_bin: Binary = deps.querier.custom_query(&req)?;
-    let response = String::from_utf8(response_bin.to_vec()).unwrap();
+    let mut response = String::from_utf8(response_bin.to_vec()).unwrap();
     let response_bytes = response.as_bytes();
     let response_result: Result<Output, StdError> = from_slice(response_bytes);
     if response_result.is_err() {
@@ -59,10 +59,6 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
         // )));
         return Err(response_result.err().unwrap());
     }
-    let response_struct: Output = response_result.unwrap();
-    let response_format = format!(
-        "{{\"data\":{},\"status\":\"success\"}}",
-        response_struct.image_url
-    );
-    Ok(response_format)
+    response.pop();
+    Ok(response)
 }

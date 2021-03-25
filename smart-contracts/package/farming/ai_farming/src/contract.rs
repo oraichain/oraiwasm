@@ -66,4 +66,3 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
     let data = String::from_utf8(response.to_vec()).unwrap();
     Ok(data)
 }
-

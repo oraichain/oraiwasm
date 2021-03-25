@@ -1,1 +1,1 @@
-6403d2cb8c870401f4684e632add58ec9f40d52a90a55c4f58accf5bcae1a05c  ai_farming_oscript.wasm
+5e2170fc61db8e187e280000ead82c1089aebc2effc272308c6ac0141b4b9b9c  ai_farming_oscript.wasm

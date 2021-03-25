@@ -16,7 +16,7 @@ pub struct Input {
 #[serde(rename_all = "snake_case")]
 pub struct Output {
     pub status: String,
-    pub data: String,
+    pub data: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

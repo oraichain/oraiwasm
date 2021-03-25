@@ -41,7 +41,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 fn query_data<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
     _input: String,
-) -> StdResult<Binary> {
+) -> StdResult<String> {
     let req = SpecialQuery::Fetch {
         // should replace url with a centralized server
         url: "https://100api.orai.dev/cv024".to_string(),
@@ -58,7 +58,9 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
             max_length, response_bin.len()
         )));
     }
-    Ok(response_bin)
+    let mut data = String::from_utf8(response_bin.to_vec()).unwrap();
+    data.pop();
+    Ok(data)
 }
 
 #[test]

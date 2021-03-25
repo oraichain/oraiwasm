@@ -68,9 +68,10 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
         return Err(response_result.err().unwrap());
     }
     let response_struct: Output = response_result.unwrap();
+    let data_joined = response_struct.data.join(",");
     let response_format = format!(
         "{{\"data\":{},\"status\":{}}}",
-        response_struct.data, response_struct.status
+        data_joined, response_struct.status
     );
     Ok(response_format)
 }

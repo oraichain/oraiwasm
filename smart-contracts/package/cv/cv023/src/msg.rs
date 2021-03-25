@@ -6,9 +6,10 @@ use serde::{Deserialize, Serialize};
 pub struct InitMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
 pub struct Output {
-    pub image_url: String,
+    pub Hash: String,
+    pub Name: String,
+    pub Size: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
