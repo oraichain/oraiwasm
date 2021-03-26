@@ -15,7 +15,7 @@ optimize <dir>
 Example:
 
 ```bash
-optimize nlp/nl002
+optimize package/nlp/nl002
 ```
 
 After building, you can start deploying your smart contracts (using either CLI - oraicli from Cosmosjs repo or UI wallet)

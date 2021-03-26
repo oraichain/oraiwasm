@@ -31,7 +31,7 @@ echo "Building contract in $(realpath -m "$contractdir")"
 )
 
 wasm=$name.wasm 
-package_folder=package/$contractdir/artifacts/
+package_folder=$contractdir/artifacts/
 # wasm-optimize on all results
 mkdir -p $package_folder
 echo "Optimizing $wasm"
