@@ -67,11 +67,22 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
         // )));
         return Err(response_result.err().unwrap());
     }
-    let response_struct: Output = response_result.unwrap();
+    let mut response_struct: Output = response_result.unwrap();
+    for element in response_struct.data.iter_mut() {
+        let mut element_temp = String::from("");
+        element_temp.push('"');
+        element_temp.push_str(&element);
+        element_temp.push('"');
+        *element = element_temp;
+    }
+    let mut data_arr = String::from("");
+    data_arr.push('[');
     let data_joined = response_struct.data.join(",");
+    data_arr.push_str(&data_joined);
+    data_arr.push(']');
     let response_format = format!(
         "{{\"data\":{},\"status\":{}}}",
-        data_joined, response_struct.status
+        data_arr, response_struct.status
     );
     Ok(response_format)
 }
