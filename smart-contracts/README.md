@@ -4,26 +4,18 @@ This tutorial demonstrates a simple way to generate and build a smart contract t
 
 ## Build a smart contract
 
-### 1. Switch your Rust version to the cosmwasm version to build the smart contracts
-
-Type:
-
-```bash
-rustup default 1.47.0-x86_64-unknown-linux-gnu && cp optimize.sh /usr/local/bin/optimize.sh && chmod +x /usr/local/bin/optimize.sh
-```
-
-### 2. Build the smart contract
+### Build the smart contract
 
 In the /code directory, type:
 
 ```bash
-optimize.sh <parent-dir> <dir>
+optimize <dir>
 ```
 
 Example:
 
 ```bash
-optimize.sh nlp nl002
+optimize nlp/nl002
 ```
 
 After building, you can start deploying your smart contracts (using either CLI - oraicli from Cosmosjs repo or UI wallet)

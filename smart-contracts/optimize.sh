@@ -1,60 +1,50 @@
 #!/bin/bash
 set -o errexit -o nounset -o pipefail
+command -v shellcheck > /dev/null && shellcheck "$0"
 
-parentdir=${1:-nlp}
-contractdir=${2:-nl002}
+export PATH=$PATH:/root/.cargo/bin
 
-if [ ! -d $PWD/package/$parentdir/$contractdir ]
-then
-  echo "directory does not exist"
-else 
-  command -v shellcheck > /dev/null && shellcheck "$0"
+echo "Info: RUSTC_WRAPPER=$RUSTC_WRAPPER"
 
-  export PATH=$PATH:/root/.cargo/bin
+echo "Info: sccache stats before build"
+sccache -s
 
-  echo "Info: RUSTC_WRAPPER=$RUSTC_WRAPPER"
+contractdir="$1"
 
-  echo "Info: sccache stats before build"
-  sccache -s
+# There are two cases here
+# 1. All contracts (or one) are included in the root workspace  (eg. `cosmwasm-template`, `cosmwasm-examples`, `cosmwasm-plus`)
+#    In this case, we pass no argument, just mount the proper directory.
+# 2. Contracts are excluded from the root workspace, but import relative paths from other packages (only `cosmwasm`).
+#    In this case, we mount root workspace and pass in a path `docker run <repo> ./contracts/hackatom`
 
-  mkdir -p $PWD/package/$parentdir/$contractdir/artifacts
+# This parameter allows us to mount a folder into docker container's "/code"
+# and build "/code/contracts/mycontract".
+# Note: if contractdir is "." (default in Docker), this ends up as a noop
 
-  ARTIFACTS=$PWD/package/$parentdir/$contractdir/artifacts
+name=$(basename $contractdir)
 
-  WASM_PATH=$PWD/target/wasm32-unknown-unknown/release
-
-  # There are two cases here
-  # 1. All contracts (or one) are included in the root workspace  (eg. `cosmwasm-template`, `cosmwasm-examples`, `cosmwasm-plus`)
-  #    In this case, we pass no argument, just mount the proper directory.
-  # 2. Contracts are excluded from the root workspace, but import relative paths from other packages (only `cosmwasm`).
-  #    In this case, we mount root workspace and pass in a path `docker run <repo> ./contracts/hackatom`
-
-  # This parameter allows us to mount a folder into docker container's "/code"
-  # and build "/code/contracts/mycontract".
-  # Note: if contractdir is "." (default in Docker), this ends up as a noop
-  echo "Building contract in $(realpath -m "$contractdir")"
-  (
-
+echo "Building contract in $(realpath -m "$contractdir")"
+(
     # Linker flag "-s" for stripping (https://github.com/rust-lang/cargo/issues/3483#issuecomment-431209957)
     # Note that shortcuts from .cargo/config are not available in source code packages from crates.io
-    RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown -p $contractdir
-  )
+    RUSTFLAGS='-C link-arg=-s' cargo build -q --release --target wasm32-unknown-unknown -p $name    
+)
 
-  # wasm-optimize on all results
-  for wasm in $WASM_PATH/$contractdir.wasm; do
-    name=$(basename "$wasm")
-    echo "Optimizing $name"
-    wasm-opt -Os "$wasm" -o $ARTIFACTS/$name
-  done
+wasm=$name.wasm 
+package_folder=package/$contractdir/artifacts/
+# wasm-optimize on all results
+mkdir -p $package_folder
+echo "Optimizing $wasm"
+wasm-opt -Os "target/wasm32-unknown-unknown/release/$wasm" -o "$package_folder/$wasm"
 
-  # create hash
-  (
-    cd $ARTIFACTS/
+
+# create hash
+(    
+    cd $package_folder
     sha256sum -- *.wasm > checksums.txt
-  )
+)
 
-  echo "Info: sccache stats after build"
-  sccache -s
+echo "Info: sccache stats after build"
+sccache -s
 
-  echo "done"
-fi
+echo "done"

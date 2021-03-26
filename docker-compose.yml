@@ -6,6 +6,7 @@ services:
     entrypoint: tail -f /dev/null
     volumes:
       - .registry_cache:/usr/local/cargo/registry:delegated
+      - ./optimize.sh:/usr/local/bin/optimize
       - ./smart-contracts:/code
 
   simulate:
