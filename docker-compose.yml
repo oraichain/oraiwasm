@@ -10,7 +10,7 @@ services:
 
   simulate:
     container_name: oraiwasm_simulate
-    image: orai/cosmwasm-simulate:0.11-slim
+    image: orai/cosmwasm-simulate:0.12-slim
     tty: true 
     volumes:
       - ./smart-contracts:/code
