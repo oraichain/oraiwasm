@@ -29,8 +29,8 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::SetDSources { dsources } => try_update_datasource(deps, info, dsources),
-        HandleMsg::SetTCases { tcases } => try_update_testcase(deps, info, tcases),
+        HandleMsg::SetDataSources { dsources } => try_update_datasource(deps, info, dsources),
+        HandleMsg::SetTestCases { tcases } => try_update_testcase(deps, info, tcases),
     }
 }
 
@@ -96,8 +96,9 @@ fn query_data(deps: Deps, dsource: EntryPoint, input: String) -> StdResult<Binar
         headers: dsource.headers.unwrap_or_default(),
     }
     .into();
-    let data: Binary = deps.querier.custom_query(&req)?;
-    Ok(data)
+
+    deps.querier.custom_query(&req)
+    
 }
 
 fn test_data(deps: Deps, tcase: EntryPoint, input: String, _output: String) -> StdResult<Binary> {

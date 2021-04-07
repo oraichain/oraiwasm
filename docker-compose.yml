@@ -3,8 +3,8 @@ services:
   app:
     image: orai/smart-studio:0.10.9
     entrypoint: tail -f /dev/null
-    ports:
-      - 6069:6069
+    # ports:
+    #   - 6069:6069
     volumes:
       - .registry_cache:/usr/local/cargo/registry:delegated
       - ./smart-contracts:/code
