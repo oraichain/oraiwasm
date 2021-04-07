@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HandleMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "set_d_sources"
+      ],
+      "properties": {
+        "set_d_sources": {
+          "type": "object",
+          "required": [
+            "dsources"
+          ],
+          "properties": {
+            "dsources": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/EntryPoint"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "set_t_cases"
+      ],
+      "properties": {
+        "set_t_cases": {
+          "type": "object",
+          "required": [
+            "tcases"
+          ],
+          "properties": {
+            "tcases": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/EntryPoint"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "EntryPoint": {
+      "type": "object",
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "headers": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "url": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

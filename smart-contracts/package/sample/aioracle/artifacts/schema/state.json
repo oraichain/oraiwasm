@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "State",
+  "type": "object",
+  "required": [
+    "dsources",
+    "owner",
+    "tcases"
+  ],
+  "properties": {
+    "dsources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/EntryPoint"
+      }
+    },
+    "owner": {
+      "$ref": "#/definitions/HumanAddr"
+    },
+    "tcases": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/EntryPoint"
+      }
+    }
+  },
+  "definitions": {
+    "EntryPoint": {
+      "type": "object",
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "headers": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "url": {
+          "type": "string"
+        }
+      }
+    },
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 [package]
 edition = "2018"
-name = "post_data"
+name = "aioracle"
 version = "0.1.0"
 
 exclude = [
