@@ -11,3 +11,5 @@ Cargo.lock
 **/*.rs.bk
 
 .registry_cache
+cosmwasm-simulate
+node_modules

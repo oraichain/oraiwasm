@@ -4,8 +4,6 @@ command -v shellcheck > /dev/null && shellcheck "$0"
 
 export PATH=$PATH:/root/.cargo/bin
 
-echo "Info: RUSTC_WRAPPER=$RUSTC_WRAPPER"
-
 echo "Info: sccache stats before build"
 sccache -s
 
