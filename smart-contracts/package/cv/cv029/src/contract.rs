@@ -2,7 +2,7 @@ use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, Input, PaintType, QueryMsg, SpecialQuery};
 use cosmwasm_std::{
     from_slice, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, MessageInfo,
-    Querier, StdResult, Storage,
+    Querier, StdError, StdResult, Storage,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -41,11 +41,19 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
     input: String,
 ) -> StdResult<String> {
     let input_vec = input.as_bytes();
-    let payload: Input = from_slice(&input_vec).unwrap();
+    let payload: Result<Input, StdError> = from_slice(&input_vec);
+    if payload.is_err() {
+        // return Err(cosmwasm_std::StdError::generic_err(format!(
+        //     "data source result does not pass the test case with result: '{}' while your expected output is: '{}'",
+        //     output_lower, expected_output_lower
+        // )));
+        return Err(payload.err().unwrap());
+    }
+    let payload_input = payload.unwrap();
     // default is van gogh
     let query_url;
     // check if user wants which type of painting
-    match payload.paint_type {
+    match payload_input.paint_type {
         PaintType::VanGogh => query_url = String::from("https://100api.orai.dev/cv029_1"),
         PaintType::Cezanne => query_url = String::from("https://100api.orai.dev/cv029_2"),
         PaintType::Monet => query_url = String::from("https://100api.orai.dev/cv029_3"),
@@ -53,12 +61,13 @@ fn query_data<S: Storage, A: Api, Q: Querier>(
     }
     let req = SpecialQuery::Fetch {
         url: query_url,
-        body: format!("input_source_hash={}", payload.hash),
+        body: format!("input_source_hash={}", payload_input.hash),
         method: "POST".to_string(),
         authorization: "".to_string(),
     }
     .into();
     let response: Binary = deps.querier.custom_query(&req)?;
-    let data = String::from_utf8(response.to_vec()).unwrap();
-    Ok(data)
+    let mut response_str = String::from_utf8(response.to_vec()).unwrap();
+    response_str.pop();
+    Ok(response_str)
 }
