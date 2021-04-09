@@ -1,17 +1,13 @@
 version: '3.3'
 services:
-  rust:
-    container_name: oraiwasm_build
-    image: cosmwasm/rust-optimizer:0.10.7
+  app:
+    image: orai/smart-studio:0.10.9
     entrypoint: tail -f /dev/null
+    # ports:
+    #   - 6069:6069
     volumes:
       - .registry_cache:/usr/local/cargo/registry:delegated
-      - ./optimize.sh:/usr/local/bin/optimize
       - ./smart-contracts:/code
-
-  simulate:
-    container_name: oraiwasm_simulate
-    image: orai/cosmwasm-simulate:0.12-slim
-    tty: true 
-    volumes:
-      - ./smart-contracts:/code
+      # build from cosmwasm-simulate project
+      - ./cosmwasm-simulate:/usr/bin/simulate
+      - ./simple-server:/workspace

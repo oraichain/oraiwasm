@@ -4,8 +4,6 @@ command -v shellcheck > /dev/null && shellcheck "$0"
 
 export PATH=$PATH:/root/.cargo/bin
 
-echo "Info: RUSTC_WRAPPER=$RUSTC_WRAPPER"
-
 echo "Info: sccache stats before build"
 sccache -s
 
@@ -43,6 +41,12 @@ wasm-opt -Os "target/wasm32-unknown-unknown/release/$wasm" -o "$package_folder/$
     cd $package_folder
     sha256sum -- *.wasm > checksums.txt
 )
+
+# # create schema if there is
+# echo "Creating schema in $(realpath -m "$contractdir")"
+# (    
+#     ARTIFACTS_PATH=$package_folder RUSTFLAGS='-C link-arg=-s' cargo run -q --release -p $name --example schema
+# )
 
 echo "Info: sccache stats after build"
 sccache -s
