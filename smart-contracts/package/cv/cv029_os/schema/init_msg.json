@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InitMsg",
+  "type": "object",
+  "required": [
+    "ai_data_source",
+    "testcase"
+  ],
+  "properties": {
+    "ai_data_source": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "testcase": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}
