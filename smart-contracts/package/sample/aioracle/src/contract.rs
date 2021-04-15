@@ -98,7 +98,6 @@ fn query_data(deps: Deps, dsource: EntryPoint, input: String) -> StdResult<Binar
     .into();
 
     deps.querier.custom_query(&req)
-    
 }
 
 fn test_data(deps: Deps, tcase: EntryPoint, input: String, _output: String) -> StdResult<Binary> {
