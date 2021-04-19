@@ -1,1 +1,1 @@
-bcbe7761af65346fd79f4d353247ae5b5df7fb6aa653b9b0df30b87386c3911d  datasource_eth.wasm
+b1cf663e152c89d32b8bcf1a54273f179d7f29e949c7adbcbb4f5a8c8ebdef46  datasource_eth.wasm
