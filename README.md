@@ -21,6 +21,9 @@ docker-compose up -d
 
 # build a smart contract
 ./optimize.sh package/sample/post_data
+
+# run test a function
+cargo test --lib -p nft -- --exact contract::tests::query_tokens_by_owner --show-output
 ```
 
 ### 4. Attach the VScode instance to the running container to develop remotely
