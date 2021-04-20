@@ -11,3 +11,11 @@ services:
       # build from cosmwasm-simulate project
       - ./cosmwasm-simulate:/usr/bin/simulate
       - ./simple-server:/workspace
+
+  rust:
+    container_name: oraiwasm_build
+    image: cosmwasm/rust-optimizer:0.10.7
+    entrypoint: tail -f /dev/null
+    volumes:
+      - .registry_cache:/usr/local/cargo/registry:delegated
+      - ./smart-contracts:/code
