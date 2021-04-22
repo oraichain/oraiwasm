@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, SpecialQuery};
 use cosmwasm_std::{
-    Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, StdResult,
+    to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, StdResult,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -22,23 +22,25 @@ pub fn handle(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Get { input } => query_price(deps, input),
+        QueryMsg::Get { input } => to_binary(&query_price(deps, input)?),
     }
 }
 
-fn query_price(deps: Deps, _input: String) -> StdResult<Binary> {
+fn query_price(deps: Deps, _input: String) -> StdResult<String> {
     // create specialquery with default empty string
     let req = SpecialQuery::Fetch {
         url: "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
             .to_string(),
     }
     .into();
+    // because not support f32, we need to do it manually
+    // dont use String because it will deserialize bytes to base 64
+    let response: Binary = deps.querier.custom_query(&req)?;
+    let data = String::from_utf8(response.to_vec())?;
 
-    deps.querier.custom_query(&req)
-    // let response: Binary = deps.querier.custom_query(&req)?;
-    // let data = String::from_utf8(response.to_vec()).unwrap();
+    Ok(data)
     // let first = data.find(r#""usd":"#).unwrap() + 6;
     // let last = first + data.get(first..).unwrap().find("}").unwrap();
-    // let price = Binary::from(data.get(first..last).unwrap().as_bytes());
+    // let price = data.get(first..last).unwrap().to_string();
     // Ok(price)
 }
