@@ -7,7 +7,7 @@ pub struct EntryPoint {
     pub url: String,
     pub headers: Option<Vec<String>>,
     pub owner: HumanAddr,
-    pub fees: Option<Vec<Coin>>,
+    pub provider_fees: Option<Vec<Coin>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

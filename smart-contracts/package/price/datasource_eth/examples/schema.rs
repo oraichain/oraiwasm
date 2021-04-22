@@ -7,9 +7,6 @@ use datasource_eth::msg::{HandleMsg, InitMsg, QueryMsg, SpecialQuery};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
-    if let Ok(artifacts_path) = var("ARTIFACTS_PATH") {
-        out_dir.push(artifacts_path);
-    }
     out_dir.push("schema");
     create_dir_all(&out_dir).unwrap();
     remove_schemas(&out_dir).unwrap();

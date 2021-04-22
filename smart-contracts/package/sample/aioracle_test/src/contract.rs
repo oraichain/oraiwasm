@@ -229,27 +229,30 @@ fn query_aggregation(results: Vec<String>) -> StdResult<Binary> {
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, HumanAddr};
+    use cosmwasm_std::{coins, from_binary, Coin, HumanAddr};
 
     #[test]
     fn test_update_datasource() {
         let mut deps = mock_dependencies(&[]);
-
+        let fees_str = format!("[{{\"denom\":\"orai\",\"amount\":\"100\"}}]");
+        let fees: Vec<Coin> = from_slice(&fees_str.as_bytes()).unwrap();
+        let fees_clone = fees.clone();
         // init data source
         let mut data_sources = Vec::new();
         let dsource_1 = EntryPoint {
             url: String::from(""),
             headers: None,
             owner: HumanAddr(String::from("orai1k0jntykt7e4g3y88ltc60czgjuqdy4c9g3tg9e")),
-            fees: Some(coins(100, "orai")),
+            provider_fees: Some(fees),
         };
+        println!("fees amount: {}", fees_clone[0].amount);
         let dsource_clone = dsource_1.clone();
         let dsource_clone_2 = dsource_1.clone();
         let dsource_2 = EntryPoint {
             url: String::from("abc"),
             headers: None,
             owner: HumanAddr(String::from("orai1k0jntykt7e4g3y88ltc60czgjuqdy4c9g3tg9e")),
-            fees: Some(coins(100, "orai")),
+            provider_fees: Some(coins(100, "orai")),
         };
         data_sources.push(dsource_1);
         data_sources.push(dsource_2);
@@ -271,7 +274,7 @@ mod tests {
             url: String::from("hello there"),
             headers: None,
             owner: HumanAddr(String::from("orai1k0jntykt7e4g3y88ltc60czgjuqdy4c9g3tg9e")),
-            fees: Some(coins(100, "orai")),
+            provider_fees: Some(coins(100, "orai")),
         };
         let test_dsource_clone = test_dsource.clone();
         let test_dsource_clone_2 = test_dsource.clone();
@@ -292,7 +295,7 @@ mod tests {
             url: String::from("hello ther"),
             headers: None,
             owner: HumanAddr(String::from("orai1k0jntykt7e4g3y88ltc60czgjuqdy4c9g3tg9e")),
-            fees: Some(coins(100, "orai")),
+            provider_fees: Some(coins(100, "orai")),
         };
 
         // assert updating datasource
