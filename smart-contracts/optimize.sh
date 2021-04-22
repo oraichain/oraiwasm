@@ -42,11 +42,15 @@ wasm-opt -Os "target/wasm32-unknown-unknown/release/$wasm" -o "$package_folder/$
     sha256sum -- *.wasm > checksums.txt
 )
 
+build_schema="${2:-true}"
 # create schema if there is
-echo "Creating schema in $(realpath -m "$contractdir")"
-(    
-    ARTIFACTS_PATH=$package_folder RUSTFLAGS='-C link-arg=-s' cargo run -q --release -p $name --example schema
-)
+if [ $build_schema == 'true' ]
+then
+    echo "Creating schema in $(realpath -m "$contractdir")"
+    (    
+        ARTIFACTS_PATH=$package_folder RUSTFLAGS='-C link-arg=-s' cargo run -q --release -p $name --example schema
+    )
+fi
 
 echo "Info: sccache stats after build"
 sccache -s

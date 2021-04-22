@@ -14,3 +14,5 @@ Cargo.lock
 .registry_cache
 cosmwasm-simulate
 node_modules
+**/*.wasm
+**/*.txt
