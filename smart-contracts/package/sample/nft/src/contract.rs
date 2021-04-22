@@ -375,7 +375,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             input,
             output,
             contract,
-        } => to_binary(&test_price(deps, &contract, input, output)?),
+        } => test_price(deps, &contract, input, output),
         QueryMsg::Minter {} => to_binary(&query_minter(deps)?),
         QueryMsg::ContractInfo {} => to_binary(&query_contract_info(deps)?),
         QueryMsg::NftInfo { token_id } => to_binary(&query_nft_info(deps, token_id)?),
@@ -427,11 +427,12 @@ fn test_price(
     contract: &HumanAddr,
     input: String,
     _output: String,
-) -> StdResult<String> {
+) -> StdResult<Binary> {
     let msg = DataSourceQueryMsg::Get { input };
-    let data_source: String = deps.querier.query_wasm_smart(contract, &msg)?;
-    // positive using unwrap, otherwise rather panic than return default value
-    Ok(data_source)
+    match deps.querier.query_wasm_smart(contract, &msg) {
+        Ok(ret) => Ok(ret),
+        Err(err) => Err(err),
+    }
 }
 
 fn query_minter(deps: Deps) -> StdResult<MinterResponse> {
