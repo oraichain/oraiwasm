@@ -48,7 +48,7 @@ if [ $build_schema == 'true' ]
 then
     echo "Creating schema in $(realpath -m "$contractdir")"
     (    
-        ARTIFACTS_PATH=$package_folder RUSTFLAGS='-C link-arg=-s' RUSTC_WRAPPER=sccache cargo run -q --release -p $name --example schema
+        ARTIFACTS_PATH=$package_folder RUSTC_WRAPPER=sccache cargo run -q --release -p $name --example schema
     )
 fi
 
