@@ -25,7 +25,7 @@ echo "Building contract in $(realpath -m "$contractdir")"
 (
     # Linker flag "-s" for stripping (https://github.com/rust-lang/cargo/issues/3483#issuecomment-431209957)
     # Note that shortcuts from .cargo/config are not available in source code packages from crates.io
-    RUSTFLAGS='-C link-arg=-s' cargo build -q --release --target wasm32-unknown-unknown -p $name    
+    RUSTFLAGS='-C link-arg=-s' RUSTC_WRAPPER=sccache cargo build -q --release --target wasm32-unknown-unknown -p $name    
 )
 
 wasm=$name.wasm 
@@ -48,7 +48,7 @@ if [ $build_schema == 'true' ]
 then
     echo "Creating schema in $(realpath -m "$contractdir")"
     (    
-        ARTIFACTS_PATH=$package_folder RUSTFLAGS='-C link-arg=-s' cargo run -q --release -p $name --example schema
+        ARTIFACTS_PATH=$package_folder RUSTFLAGS='-C link-arg=-s' RUSTC_WRAPPER=sccache cargo run -q --release -p $name --example schema
     )
 fi
 
