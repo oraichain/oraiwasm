@@ -1,0 +1,43 @@
+[package]
+name = "marketplace"
+version = "0.1.0"
+authors = ["blockscape <tu@orai.io>"]
+edition = "2018"
+
+exclude = [
+  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+  "contract.wasm",
+  "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'abort'
+incremental = false
+overflow-checks = true
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cosmwasm-std = { version = "0.13.2" }
+cw-storage-plus = {version = "0.5.0", features = ["iterator"]}
+cw20 = "0.5.0"
+cw721 = "0.5.0"
+schemars = "0.7"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.21" }
+
+[dev-dependencies]
+cosmwasm-schema = { version = "0.13.2" }

@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SellNft",
+  "type": "object",
+  "required": [
+    "list_price"
+  ],
+  "properties": {
+    "list_price": {
+      "$ref": "#/definitions/Cw20CoinHuman"
+    }
+  },
+  "definitions": {
+    "Cw20CoinHuman": {
+      "type": "object",
+      "required": [
+        "address",
+        "amount"
+      ],
+      "properties": {
+        "address": {
+          "$ref": "#/definitions/HumanAddr"
+        },
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        }
+      }
+    },
+    "HumanAddr": {
+      "type": "string"
+    },
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}
