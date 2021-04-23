@@ -16,3 +16,4 @@ cosmwasm-simulate
 node_modules
 **/*.wasm
 **/*.txt
+*.log
