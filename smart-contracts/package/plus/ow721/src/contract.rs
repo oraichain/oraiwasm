@@ -18,7 +18,7 @@ use crate::state::{
 use cw_storage_plus::Bound;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:cw721-base";
+const CONTRACT_NAME: &str = "crates.io:ow721";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn init(deps: DepsMut, _env: Env, _info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {

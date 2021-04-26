@@ -7,7 +7,7 @@ use cw721::{
     AllNftInfoResponse, ApprovedForAllResponse, ContractInfoResponse, NftInfoResponse,
     NumTokensResponse, OwnerOfResponse, TokensResponse,
 };
-use nft::msg::{HandleMsg, InitMsg, MinterResponse, QueryMsg};
+use ow721::msg::{HandleMsg, InitMsg, MinterResponse, QueryMsg};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

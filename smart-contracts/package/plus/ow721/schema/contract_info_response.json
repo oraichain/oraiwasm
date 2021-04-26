@@ -1,12 +1,16 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "BuyNft",
+  "title": "ContractInfoResponse",
   "type": "object",
   "required": [
-    "offering_id"
+    "name",
+    "symbol"
   ],
   "properties": {
-    "offering_id": {
+    "name": {
+      "type": "string"
+    },
+    "symbol": {
       "type": "string"
     }
   }

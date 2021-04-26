@@ -4,30 +4,23 @@ The marketplace smart contracts provides a generic platform used for selling and
 
 ## Requirements
 
-* [Go `v1.14+`](https://golang.org/)
-* [Rust `v1.44.1+`](https://rustup.rs/)
-* [Wasmd v0.11.1](https://github.com/CosmWasm/wasmd/tree/v0.11.1)
-* [cosmwasm-plus v0.3.2](https://github.com/CosmWasm/cosmwasm-plus)
-  * [cw20-base](https://github.com/CosmWasm/cosmwasm-plus/tree/master/contracts/cw20-base)
-  * [cosmons](https://github.com/BlockscapeNetwork/hackatom_v/tree/master/contracts/cosmons)
+- [Rust `v1.53.0+`](https://rustup.rs/)
+- [Wasmd v0.13.2](https://github.com/CosmWasm/wasmd/tree/v0.11.1)
 
 ## Setup Environment
 
-1) Follow [the CosmWasm docs](https://docs.cosmwasm.com/getting-started/installation.html) to install `go v1.14+`, `rust v1.44.1+` and `wasmd v0.11.1`
-2) Once you've built `wasmd`, use the `wasmcli` to join the `hackatom-wasm` chain.
+1. Follow [the CosmWasm docs](https://docs.cosmwasm.com/getting-started/installation.html) to install `go v1.14+`, `rust v1.44.1+` and `wasmd v0.11.1`
+2. Once you've built `wasmd`, use the `wasmcli` to join the `hackatom-wasm` chain.
 
 > :information_source: If you want to deploy your own contracts on your own chain, check out the [HOWTO](HOWTO.md).
 
 ```shell
-wasmcli config chain-id hackatom-wasm
-wasmcli config indent true
-wasmcli config keyring-backend test
-wasmcli config node https://rpc.cosmwasm.hub.hackatom.dev:443
-wasmcli config output json
-wasmcli config trust-node true
+# link required contracts
+mkdir contract && cd contract
+ln -s ../../../ow20/artifacts ow20
 ```
 
-3) Create an account with some tokens from the [faucet](https://five.hackatom.org/resources). Otherwise, you won't be able to make any transactions.
+3. Create an account with some tokens from the [faucet](https://five.hackatom.org/resources). Otherwise, you won't be able to make any transactions.
 
 > :information_source: **If you already have an account with funds, you can skip this step.**
 
@@ -36,7 +29,7 @@ wasmcli config trust-node true
 wasmcli keys add myacc
 ```
 
-4) Before you can buy or sell CW721 tokens, you will need some CW20 tokens. You can get them from our faucet: `POST 3.121.232.142:8080/faucet`
+4. Before you can buy or sell CW721 tokens, you will need some CW20 tokens. You can get them from our faucet: `POST 3.121.232.142:8080/faucet`
 
 Example payload:
 
@@ -49,7 +42,7 @@ Example payload:
 ## Contract Addresses
 
 | Contract        | Address                                       |
-|:----------------|:----------------------------------------------|
+| :-------------- | :-------------------------------------------- |
 | marketplace     | cosmos1knqr4zclds5zhn5khkpexkd7nctwe8z0s2qer4 |
 | cw20-base       | cosmos1kfz3mj84atqjld0ge9eccujvqqkqdr4qqs9ud7 |
 | cosmons (cw721) | cosmos1zhh3m9sg5e2qvjgwr49r79pf5pt65yuxvs7cs0 |
