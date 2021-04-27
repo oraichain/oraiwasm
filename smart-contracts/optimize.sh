@@ -35,8 +35,8 @@ build_schema="${2:-false}"
 if [ $build_schema == 'true' ]
 then
     echo "Creating schema in $contractdir"
-    (    
-        RUSTC_WRAPPER=sccache cargo run -q --release -p $name --example schema        
+    (            
+        RUSTC_WRAPPER=sccache cargo run -q --example schema  --target-dir $basedir/target  
     )
 fi
 
