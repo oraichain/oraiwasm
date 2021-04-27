@@ -33,12 +33,35 @@ Puts an NFT token up for sale.
 
 ```shell
 # Execute send_nft action to put token up for sale for specified list_price on the marketplace
-cosmwasm-simulate ow721 '{
+# msg: eyJsaXN0X3ByaWNlIjp7ImFkZHJlc3MiOiJvdzIwIiwiYW1vdW50IjoiNTAifX0=
+cosmwasm-simulate ow721 `{
   "send_nft": {
     "contract": "marketplace",
     "token_id": "123456",
-    "msg": "base64({ list_price: { address: ow20, amount: <INSERT_AMOUNT_WITHOUT_DENOM> }})"
+    "msg": "base64({ "list_price": { "address": "ow20", "amount": "50" }})"
   }
+}`
+
+# Execute receive_nft action to receive token for sale for specified list_price on the marketplace
+# msg: eyJsaXN0X3ByaWNlIjp7ImFkZHJlc3MiOiJvdzIwIiwiYW1vdW50IjoiMSJ9fQ==
+cosmwasm-simulate marketplace '{
+  "receive_nft": {
+     "msg": "base64({ "list_price": { "address": "ow20", "amount": "50" }})",
+     "sender": "fake_sender_addr",
+     "token_id": "123456"
+  }
+}'
+```
+
+## Queries
+
+### Query Offerings
+
+Retrieves a list of all currently listed offerings.
+
+```shell
+cosmwasm-simulate marketplace '{
+  "get_offerings": {}
 }'
 ```
 
@@ -72,16 +95,12 @@ cosmwasm-simulate ow20  '{
     "msg": "base64({ "offering_id": "<INSERT_OFFERING_ID>" })"
   }
 }'
-```
 
-## Queries
-
-### Query Offerings
-
-Retrieves a list of all currently listed offerings.
-
-```shell
 cosmwasm-simulate marketplace '{
-  "get_offerings": {}
+  "receive": {
+     "sender": "fake_sender_addr",
+     "amount": "1",
+     "msg": "base64({"offering_id":"<INSERT_OFFERING_ID>"})",
+  }
 }'
 ```

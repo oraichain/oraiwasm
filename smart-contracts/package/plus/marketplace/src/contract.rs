@@ -252,10 +252,12 @@ mod tests {
 
         let sell_msg = SellNft {
             list_price: Cw20CoinHuman {
-                address: HumanAddr::from("cw20ContractAddr"),
-                amount: Uint128(5),
+                address: HumanAddr::from("ow20"),
+                amount: Uint128(1),
             },
         };
+
+        println!("msg: {}", to_binary(&sell_msg).unwrap());
 
         let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
             sender: HumanAddr::from("seller"),
@@ -267,11 +269,14 @@ mod tests {
         // Offering should be listed
         let res = query(deps.as_ref(), mock_env(), QueryMsg::GetOfferings {}).unwrap();
         let value: OfferingsResponse = from_binary(&res).unwrap();
+
         assert_eq!(1, value.offerings.len());
 
         let buy_msg = BuyNft {
             offering_id: value.offerings[0].id.clone(),
         };
+
+        println!("msg: {}", to_binary(&buy_msg).unwrap());
 
         let msg2 = HandleMsg::Receive(Cw20ReceiveMsg {
             sender: HumanAddr::from("buyer"),
@@ -304,10 +309,12 @@ mod tests {
 
         let sell_msg = SellNft {
             list_price: Cw20CoinHuman {
-                address: HumanAddr::from("cw20ContractAddr"),
-                amount: Uint128(5),
+                address: HumanAddr::from("ow20"),
+                amount: Uint128(50),
             },
         };
+
+        println!("msg :{}", to_binary(&sell_msg).unwrap());
 
         let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
             sender: HumanAddr::from("seller"),
