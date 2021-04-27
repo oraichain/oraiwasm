@@ -17,7 +17,7 @@ use crate::msg::{HandleMsg, InitMsg, MigrateMsg, QueryMsg};
 use crate::state::{balances, balances_read, token_info, token_info_read, MinterData, TokenInfo};
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:cw20-base";
+const CONTRACT_NAME: &str = "crates.io:ow20-base";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn init(

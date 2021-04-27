@@ -9,10 +9,7 @@ The marketplace smart contracts provides a generic platform used for selling and
 
 ## Setup Environment
 
-1. Follow [the CosmWasm docs](https://docs.cosmwasm.com/getting-started/installation.html) to install `go v1.14+`, `rust v1.44.1+` and `wasmd v0.11.1`
-2. Once you've built `wasmd`, use the `wasmcli` to join the `hackatom-wasm` chain.
-
-> :information_source: If you want to deploy your own contracts on your own chain, check out the [HOWTO](HOWTO.md).
+> :docker_compose: If you don't want to setup rust you can use docker-compose
 
 ```shell
 # link required contracts
@@ -20,34 +17,13 @@ mkdir contract && cd contract
 ln -s ../../../ow20/artifacts ow20
 ```
 
-3. Create an account with some tokens from the [faucet](https://five.hackatom.org/resources). Otherwise, you won't be able to make any transactions.
-
-> :information_source: **If you already have an account with funds, you can skip this step.**
-
-```shell
-# Create account and save mnemonics
-wasmcli keys add myacc
-```
-
-4. Before you can buy or sell CW721 tokens, you will need some CW20 tokens. You can get them from our faucet: `POST 3.121.232.142:8080/faucet`
-
-Example payload:
-
-```json
-{
-  "address": "<INSERT_ACCOUNT_ADDRESS>"
-}
-```
-
 ## Contract Addresses
 
-| Contract        | Address                                       |
-| :-------------- | :-------------------------------------------- |
-| marketplace     | cosmos1knqr4zclds5zhn5khkpexkd7nctwe8z0s2qer4 |
-| cw20-base       | cosmos1kfz3mj84atqjld0ge9eccujvqqkqdr4qqs9ud7 |
-| cosmons (cw721) | cosmos1zhh3m9sg5e2qvjgwr49r79pf5pt65yuxvs7cs0 |
-
-## Messages
+| Contract    | Address     |
+| :---------- | :---------- |
+| marketplace | marketplace |
+| ow20        | ow20        |
+| ow721       | ow721       |
 
 ### Sell CW721 Token
 
@@ -57,13 +33,13 @@ Puts an NFT token up for sale.
 
 ```shell
 # Execute send_nft action to put token up for sale for specified list_price on the marketplace
-wasmcli tx wasm execute <CW721_BASE_CONTRACT_ADDR> '{
+cosmwasm-simulate ow721 '{
   "send_nft": {
-    "contract": "<MARKETPLACE_CONTRACT_ADDR>",
-    "token_id": "<TOKEN_ID>",
-    "msg": "BASE64_ENCODED_JSON --> { "list_price": { "address": "<INSERT_CW20_CONTRACT_ADDR>", "amount": "<INSERT_AMOUNT_WITHOUT_DENOM>" }} <--"
+    "contract": "marketplace",
+    "token_id": "123456",
+    "msg": "base64({ list_price: { address: ow20, amount: <INSERT_AMOUNT_WITHOUT_DENOM> }})"
   }
-}' --gas-prices="0.025ucosm" --gas="auto" --gas-adjustment="1.2" -y --from client
+}'
 ```
 
 ### Withdraw CW721 Token Offering
@@ -74,11 +50,11 @@ Withdraws an NFT token offering from the global offerings list and returns the N
 
 ```shell
 # Execute withdraw_nft action to withdraw the token with the specified offering_id from the marketplace
-wasmcli tx wasm execute <MARKETPLACE_CONTRACT_ADDR> '{
+cosmwasm-simulate marketplace '{
   "withdraw_nft": {
     "offering_id": "<INSERT_OFFERING_ID>"
   }
-}' --gas-prices="0.025ucosm" --gas="auto" --gas-adjustment="1.2" -y --from client
+}'
 ```
 
 ### Buy CW721 Token
@@ -89,13 +65,13 @@ Buys an NFT token, transferring funds to the seller and the token to the buyer.
 
 ```shell
 # Execute send action to buy token with the specified offering_id from the marketplace
-wasmcli tx wasm execute <CW20_BASE_CONTRACT_ADDR> '{
+cosmwasm-simulate ow20  '{
   "send": {
-    "contract": "<MARKETPLACE_CONTRACT_ADDR>",
+    "contract": marketplace,
     "amount": "<INSERT_AMOUNT>",
-    "msg": "BASE64_ENCODED_JSON --> { "offering_id": "<INSERT_OFFERING_ID>" } <--"
+    "msg": "base64({ "offering_id": "<INSERT_OFFERING_ID>" })"
   }
-}' --gas-prices="0.025ucosm" --gas="auto" --gas-adjustment="1.2" -y --from client
+}'
 ```
 
 ## Queries
@@ -105,7 +81,7 @@ wasmcli tx wasm execute <CW20_BASE_CONTRACT_ADDR> '{
 Retrieves a list of all currently listed offerings.
 
 ```shell
-wasmcli query wasm contract-state smart <MARKETPLACE_CONTRACT_ADDR> '{
+cosmwasm-simulate marketplace '{
   "get_offerings": {}
 }'
 ```
