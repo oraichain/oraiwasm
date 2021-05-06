@@ -35,15 +35,11 @@
           "type": "object",
           "required": [
             "input",
-            "output",
             "tcase"
           ],
           "properties": {
             "input": {
-              "type": "string"
-            },
-            "output": {
-              "type": "string"
+              "$ref": "#/definitions/EntryPoint"
             },
             "tcase": {
               "$ref": "#/definitions/EntryPoint"
