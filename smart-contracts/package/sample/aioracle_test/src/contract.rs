@@ -2,8 +2,8 @@ use crate::error::ContractError;
 use crate::msg::{EntryPoint, HandleMsg, InitMsg, Input, QueryMsg, SpecialQuery};
 use crate::state::{config, config_read, State};
 use cosmwasm_std::{
-    from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
-    StdError, StdResult,
+    from_binary, from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse,
+    MessageInfo, StdError, StdResult,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -151,11 +151,7 @@ pub fn try_set_testcases(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Get { dsource, input } => query_data(deps, dsource, input),
-        QueryMsg::Test {
-            tcase,
-            input,
-            output,
-        } => test_data(deps, tcase, input, output),
+        QueryMsg::Test { tcase, input } => to_binary(&query_data_testcase(deps, tcase, input)?),
         QueryMsg::GetDataSources {} => query_datasources(deps),
         QueryMsg::GetTestCases {} => query_testcases(deps),
         QueryMsg::Aggregate { results } => query_aggregation(results),
@@ -183,6 +179,24 @@ fn query_data(deps: Deps, dsource: EntryPoint, input: String) -> StdResult<Binar
     .into();
 
     deps.querier.custom_query(&req)
+}
+
+fn query_data_testcase(deps: Deps, tcase: EntryPoint, input: EntryPoint) -> StdResult<String> {
+    // create specialquery with default empty string
+    let req = SpecialQuery::Fetch {
+        url: input.url.clone(),
+        body: tcase.url.to_string(),
+        method: "POST".to_string(),
+        headers: input.headers.unwrap_or_default(),
+    }
+    .into();
+    let result: Binary = deps.querier.custom_query(&req).unwrap();
+    let result_str = String::from_utf8(result.to_vec())?;
+    let mut resp = String::from("");
+    resp.push_str(result_str.as_str());
+    resp.push('&');
+    resp.push_str(tcase.url.as_str());
+    Ok(resp)
 }
 
 fn test_data(deps: Deps, tcase: EntryPoint, input: String, _output: String) -> StdResult<Binary> {
@@ -229,7 +243,7 @@ fn query_aggregation(results: Vec<String>) -> StdResult<Binary> {
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, Coin, HumanAddr};
+    use cosmwasm_std::{coins, from_binary, Api, CanonicalAddr, Coin, HumanAddr};
 
     #[test]
     fn test_update_datasource() {
@@ -245,6 +259,17 @@ mod tests {
             owner: HumanAddr(String::from("orai1k0jntykt7e4g3y88ltc60czgjuqdy4c9g3tg9e")),
             provider_fees: Some(fees),
         };
+        let temp = String::from("orai1k0jntykt7e4g3y88ltc60czgjuqdy4c9g3tg9e");
+        let temp_bytes = temp.as_bytes();
+        let temp_cannonical = CanonicalAddr::from(temp_bytes);
+        println!("cannonical addr: {}", temp_cannonical);
+        deps.api.canonical_length = 44;
+        //let temp_human = deps.api.human_address(&temp_cannonical).unwrap();
+        //println!("human from cannonical: {}", temp_human);
+        println!(
+            "cannonical addr from human addr: {}",
+            deps.api.canonical_address(&dsource_1.owner).unwrap()
+        );
         println!("fees amount: {}", fees_clone[0].amount);
         let dsource_clone = dsource_1.clone();
         let dsource_clone_2 = dsource_1.clone();

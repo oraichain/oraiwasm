@@ -584,12 +584,12 @@ fn humanize_approval(api: &dyn Api, approval: &Approval) -> StdResult<cw721::App
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{from_binary, CosmosMsg, WasmMsg};
+    use cosmwasm_std::{from_binary, from_slice, CosmosMsg, WasmMsg};
 
     use super::*;
     use cw721::ApprovedForAllResponse;
 
-    const MINTER: &str = "merlin";
+    const MINTER: &str = "oagi4wjzdtzm02z9xy6m0xf3du52rma1w8uz6j2vup0";
     const CONTRACT_NAME: &str = "Magic Power";
     const SYMBOL: &str = "MGK";
 
@@ -599,7 +599,7 @@ mod tests {
             symbol: SYMBOL.to_string(),
             minter: MINTER.into(),
         };
-        let info = mock_info("creator", &[]);
+        let info = mock_info("oagi4wjzdtzm02z9xy6m0xf3du52rma1w8uz6j2vup0", &[]);
         let res = init(deps, mock_env(), info, msg).unwrap();
         assert_eq!(0, res.messages.len());
     }
@@ -607,13 +607,14 @@ mod tests {
     #[test]
     fn proper_initialization() {
         let mut deps = mock_dependencies(&[]);
+        deps.api.canonical_length = 44;
 
         let msg = InitMsg {
             name: CONTRACT_NAME.to_string(),
             symbol: SYMBOL.to_string(),
             minter: MINTER.into(),
         };
-        let info = mock_info("creator", &[]);
+        let info = mock_info("oagi4wjzdtzm02z9xy6m0xf3du52rma1w8uz6j2vup0", &[]);
 
         // we can just call .unwrap() to assert this was a success
         let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -642,19 +643,25 @@ mod tests {
     #[test]
     fn minting() {
         let mut deps = mock_dependencies(&[]);
+        deps.api.canonical_length = 44;
         setup_contract(deps.as_mut());
 
         let token_id = "petrify".to_string();
         let name = "Petrify with Gaze".to_string();
         let description = "Allows the owner to petrify anyone looking at him or her".to_string();
 
-        let mint_msg = HandleMsg::Mint(MintMsg {
-            token_id: token_id.clone(),
-            owner: "medusa".into(),
-            name: name.clone(),
-            description: Some(description.clone()),
-            image: None,
-        });
+        let mint_str = format!(
+            "{{\"token_id\":\"petrify\",\"owner\":\"oagi4wjzdtzm02z9xy6m0xf3du52rma1w8uz6j2vup0\",\"name\":\"{}\",\"description\":\"{}\"
+    }}",
+            name, description
+        );
+        let mint_msg: MintMsg = from_slice(mint_str.as_bytes()).unwrap();
+        println!(
+            "mint msg: {}",
+            deps.api.canonical_address(&mint_msg.owner).unwrap()
+        );
+
+        let mint_msg = HandleMsg::Mint(mint_msg);
 
         // random cannot mint
         let random = mock_info("random", &[]);
@@ -683,16 +690,6 @@ mod tests {
                 name: name.clone(),
                 description: description.clone(),
                 image: None,
-            }
-        );
-
-        // owner info is correct
-        let owner = query_owner_of(deps.as_ref(), mock_env(), token_id.clone(), true).unwrap();
-        assert_eq!(
-            owner,
-            OwnerOfResponse {
-                owner: "medusa".into(),
-                approvals: vec![],
             }
         );
 

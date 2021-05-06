@@ -51,8 +51,7 @@ pub enum QueryMsg {
     },
     Test {
         tcase: EntryPoint,
-        input: String,
-        output: String,
+        input: EntryPoint,
     },
     GetDataSources {},
     GetTestCases {},
