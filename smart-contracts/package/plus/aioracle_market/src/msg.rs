@@ -63,6 +63,13 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+pub enum InputMsg {
+    All { input: String },
+    One { url: String, input: String },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 /// An implementation of QueryRequest::Custom to show this works and can be extended in the contract
 pub enum SpecialQuery {
     Fetch {

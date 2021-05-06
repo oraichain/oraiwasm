@@ -1,6 +1,6 @@
-use crate::error::ContractError;
 use crate::msg::{EntryPoint, HandleMsg, InitMsg, Input, QueryMsg, SpecialQuery};
 use crate::state::{config, config_read, State};
+use crate::{error::ContractError, msg::InputMsg};
 use cosmwasm_std::{
     from_binary, from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse,
     MessageInfo, StdError, StdResult,
@@ -169,16 +169,37 @@ fn query_testcases(deps: Deps) -> StdResult<Binary> {
 }
 
 fn query_data(deps: Deps, dsource: EntryPoint, input: String) -> StdResult<Binary> {
-    // create specialquery with default empty string
-    let req = SpecialQuery::Fetch {
-        url: dsource.url,
-        body: input.to_string(),
-        method: "POST".to_string(),
-        headers: dsource.headers.unwrap_or_default(),
-    }
-    .into();
+    let input_msg: InputMsg = from_slice(input.as_bytes()).unwrap();
+    match input_msg {
+        InputMsg::All { input } => {
+            // create specialquery with default empty string
+            let req = SpecialQuery::Fetch {
+                url: dsource.url,
+                body: input.to_string(),
+                method: "POST".to_string(),
+                headers: dsource.headers.unwrap_or_default(),
+            }
+            .into();
 
-    deps.querier.custom_query(&req)
+            deps.querier.custom_query(&req)
+        }
+        InputMsg::One { url, input } => {
+            if url == dsource.url {
+                // create specialquery with default empty string
+                let req = SpecialQuery::Fetch {
+                    url: dsource.url,
+                    body: input.to_string(),
+                    method: "POST".to_string(),
+                    headers: dsource.headers.unwrap_or_default(),
+                }
+                .into();
+
+                deps.querier.custom_query(&req)
+            } else {
+                Ok(to_binary("").unwrap())
+            }
+        }
+    }
 }
 
 fn query_data_testcase(deps: Deps, tcase: EntryPoint, input: EntryPoint) -> StdResult<String> {

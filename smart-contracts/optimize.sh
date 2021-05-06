@@ -8,7 +8,7 @@ sccache -s
 contractdir=$(realpath -m "$1")
 
 basedir=`pwd`
-build_release="${3:-false}"
+build_release="${3:-true}"
 name=$(basename $contractdir)
 cd $contractdir
 echo "Building contract in $contractdir"
