@@ -196,7 +196,7 @@ fn query_data(deps: Deps, dsource: EntryPoint, input: String) -> StdResult<Binar
 
                 deps.querier.custom_query(&req)
             } else {
-                Ok(to_binary("").unwrap())
+                Err(to_binary("").err().unwrap())
             }
         }
     }
