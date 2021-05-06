@@ -2,53 +2,41 @@
 set -o errexit -o nounset -o pipefail
 command -v shellcheck > /dev/null && shellcheck "$0"
 
-export PATH=$PATH:/root/.cargo/bin
-
 echo "Info: sccache stats before build"
 sccache -s
 
-contractdir="$1"
+contractdir=$(realpath -m "$1")
 
-# There are two cases here
-# 1. All contracts (or one) are included in the root workspace  (eg. `cosmwasm-template`, `cosmwasm-examples`, `cosmwasm-plus`)
-#    In this case, we pass no argument, just mount the proper directory.
-# 2. Contracts are excluded from the root workspace, but import relative paths from other packages (only `cosmwasm`).
-#    In this case, we mount root workspace and pass in a path `docker run <repo> ./contracts/hackatom`
-
-# This parameter allows us to mount a folder into docker container's "/code"
-# and build "/code/contracts/mycontract".
-# Note: if contractdir is "." (default in Docker), this ends up as a noop
-
+basedir=`pwd`
+build_release="${3:-false}"
 name=$(basename $contractdir)
-
-echo "Building contract in $(realpath -m "$contractdir")"
+cd $contractdir
+echo "Building contract in $contractdir"
 (
     # Linker flag "-s" for stripping (https://github.com/rust-lang/cargo/issues/3483#issuecomment-431209957)
     # Note that shortcuts from .cargo/config are not available in source code packages from crates.io
-    RUSTFLAGS='-C link-arg=-s' cargo build -q --release --target wasm32-unknown-unknown -p $name    
+    mkdir -p artifacts
+    
+    if [ $build_release == 'true' ]
+    then
+        RUSTFLAGS='-C link-arg=-s' RUSTC_WRAPPER=sccache cargo build -q --release --target-dir $basedir/target --target wasm32-unknown-unknown                 
+        # wasm-optimize on all results        
+        echo "Optimizing $name.wasm"
+        wasm-opt -Os "$basedir/target/wasm32-unknown-unknown/release/$name.wasm" -o artifacts/$name.wasm
+    else 
+        RUSTC_WRAPPER=sccache cargo build -q --target-dir $basedir/target --target wasm32-unknown-unknown
+        echo "RUSTC_WRAPPER=sccache cargo build -q --target-dir $basedir/target --target wasm32-unknown-unknown"
+        cp "$basedir/target/wasm32-unknown-unknown/debug/$name.wasm" artifacts
+    fi 
 )
 
-wasm=$name.wasm 
-package_folder=$contractdir/artifacts/
-# wasm-optimize on all results
-mkdir -p $package_folder
-echo "Optimizing $wasm"
-wasm-opt -Os "target/wasm32-unknown-unknown/release/$wasm" -o "$package_folder/$wasm"
-
-
-# create hash
-(    
-    cd $package_folder
-    sha256sum -- *.wasm > checksums.txt
-)
-
-build_schema="${2:-true}"
+build_schema="${2:-false}"
 # create schema if there is
 if [ $build_schema == 'true' ]
 then
-    echo "Creating schema in $(realpath -m "$contractdir")"
-    (    
-        ARTIFACTS_PATH=$package_folder RUSTFLAGS='-C link-arg=-s' cargo run -q --release -p $name --example schema
+    echo "Creating schema in $contractdir"
+    (            
+        RUSTC_WRAPPER=sccache cargo run -q --example schema  --target-dir $basedir/target  
     )
 fi
 
