@@ -1,8 +1,0 @@
-{
-  "scripts": {
-    "start": "node index"
-  },
-  "dependencies": {
-    "express": "^4.17.1"
-  }
-}

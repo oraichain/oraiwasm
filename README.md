@@ -18,12 +18,16 @@ Below is the image showing how this step should look like:
 
 ```bash
 docker-compose up -d
+docker-compose exec app bash
 
-# build a smart contract
-./optimize.sh package/sample/post_data
+# build a smart contract, second param is schema option
+./optimize.sh package/price/datasource_eth true
 
 # run test a function
 cargo test --lib -p nft -- --exact contract::tests::query_tokens_by_owner --show-output
+
+# simulate
+./simulate package/price/datasource_eth/artifacts/datasource_eth.wasm -c contract 1318
 ```
 
 ### 4. Attach the VScode instance to the running container to develop remotely

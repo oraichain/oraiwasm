@@ -1,1 +1,0 @@
-19fd0018e1a6048cc114e9505e8af164b4a42085c5ea039795fad24c37db500f  oscript_price.wasm

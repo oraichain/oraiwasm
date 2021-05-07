@@ -3,12 +3,7 @@ services:
   app:
     image: orai/smart-studio:0.10.9
     entrypoint: tail -f /dev/null
-    # ports:
-    #   - 6069:6069
-    working_dir: /code
+    ports:
+      - 1318:1318
     volumes:
-      - .registry_cache:/usr/local/cargo/registry:delegated
-      - ./smart-contracts:/code
-      # build from cosmwasm-simulate project
-      - ./cosmwasm-simulate:/usr/bin/simulate
-      - ./simple-server:/workspace
+      - ./:/workspace
