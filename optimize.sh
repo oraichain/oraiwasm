@@ -38,7 +38,7 @@ then
     (            
         RUSTC_WRAPPER=sccache cargo run -q --example schema  --target-dir $basedir/target  
         # put in artifacts for simulator
-        mv schema artifacts
+        rm -rf artifacts/schema && mv schema artifacts
     )
 fi
 
