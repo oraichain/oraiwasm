@@ -19,12 +19,8 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    SetDataSources {
-        dsources: Vec<EntryPoint>,
-    },
-    SetTestCases {
-        tcases: Vec<EntryPoint>,
-    },
+    SetDataSources(Vec<EntryPoint>),
+    SetTestCases(Vec<EntryPoint>),
     UpdateDataSources {
         dsource: EntryPoint,
         dsource_new: EntryPoint,
@@ -37,9 +33,9 @@ pub enum HandleMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Input {
-    pub Hash: String,
-    pub Name: String,
-    pub Size: String,
+    pub hash: String,
+    pub name: String,
+    pub size: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

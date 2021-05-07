@@ -2,8 +2,8 @@ use crate::msg::{EntryPoint, HandleMsg, InitMsg, Input, QueryMsg, SpecialQuery};
 use crate::state::{config, config_read, State};
 use crate::{error::ContractError, msg::InputMsg};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse,
-    MessageInfo, StdError, StdResult,
+    from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
+    StdError, StdResult,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -30,8 +30,8 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::SetDataSources { dsources } => try_set_datasources(deps, info, dsources),
-        HandleMsg::SetTestCases { tcases } => try_set_testcases(deps, info, tcases),
+        HandleMsg::SetDataSources(dsources) => try_set_datasources(deps, info, dsources),
+        HandleMsg::SetTestCases(tcases) => try_set_testcases(deps, info, tcases),
         HandleMsg::UpdateDataSources {
             dsource,
             dsource_new,
@@ -220,19 +220,6 @@ fn query_data_testcase(deps: Deps, tcase: EntryPoint, input: EntryPoint) -> StdR
     Ok(resp)
 }
 
-fn test_data(deps: Deps, tcase: EntryPoint, input: String, _output: String) -> StdResult<Binary> {
-    let req = SpecialQuery::Fetch {
-        url: tcase.url,
-        body: input.to_string(),
-        method: "POST".to_string(),
-        headers: tcase.headers.unwrap_or_default(),
-    }
-    .into();
-    let data: Binary = deps.querier.custom_query(&req)?;
-    // check data with output
-    Ok(data)
-}
-
 fn query_aggregation(results: Vec<String>) -> StdResult<Binary> {
     let mut final_result = String::from("");
     // original input: {\\\"data\\\":\\\"English\\\",\\\"status\\\":\\\"success\\\"}\\\n
@@ -252,7 +239,7 @@ fn query_aggregation(results: Vec<String>) -> StdResult<Binary> {
         }
         let input_struct: Input = response_result.unwrap();
         final_result.push_str("Hash=");
-        final_result.push_str(&input_struct.Hash);
+        final_result.push_str(&input_struct.hash);
         final_result.push('&');
     }
     // remove the last newline symbol to complete the string
