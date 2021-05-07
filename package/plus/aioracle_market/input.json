@@ -1,0 +1,42 @@
+{
+  "init": {
+    "dsources": [
+      {
+        "url": "https://100api.orai.dev/cv065_1",
+        "headers": ["content-type:application/x-www-form-urlencoded"],
+        "owner": "orai14juztjzu02mzawy8z0623vp5029gx6wmxdfdmu",
+        "provider_fees": [{ "denom": "orai", "amount": "100" }],
+        "title": "ArtFlow-WCT",
+        "description": "Unbiased Image Style Transfer via Reversible Neural Flows",
+        "image": "https://raw.githubusercontent.com/pkuanjie/ArtFlow/main/figs/portrait.png"
+      },
+      {
+        "url": "https://100api.orai.dev/cv065_2",
+        "headers": ["content-type:application/x-www-form-urlencoded"],
+        "owner": "orai14juztjzu02mzawy8z0623vp5029gx6wmxdfdmu",
+        "provider_fees": [{ "denom": "orai", "amount": "100" }],
+        "title": "ArtFlow-AdaIN",
+        "description": "Unbiased Image Style Transfer via Reversible Neural Flows",
+        "image": "https://raw.githubusercontent.com/pkuanjie/ArtFlow/main/figs/portrait.png"
+      },
+      {
+        "url": "https://100api.orai.dev/cv065_3",
+        "headers": ["content-type:application/x-www-form-urlencoded"],
+        "owner": "orai14juztjzu02mzawy8z0623vp5029gx6wmxdfdmu",
+        "provider_fees": [{ "denom": "orai", "amount": "100" }],
+        "title": "ArtFlow-AdaIN-Portrait",
+        "description": "Unbiased Image Style Transfer via Reversible Neural Flows",
+        "image": "https://raw.githubusercontent.com/pkuanjie/ArtFlow/main/figs/portrait.png"
+      }
+    ],
+    "tcases": []
+  },
+  "query": {
+    "get": {
+      "one": {
+        "url": "https://100api.orai.dev/cv029_1",
+        "input": "input_source_hash=QmWrx5xFczmd7q23uTVo43RymkDvFrN9BFCKoNrfyHJzfQ"
+      }
+    }
+  }
+}
