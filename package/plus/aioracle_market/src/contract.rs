@@ -30,8 +30,8 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::SetDataSources(dsources) => try_set_datasources(deps, info, dsources),
-        HandleMsg::SetTestCases(tcases) => try_set_testcases(deps, info, tcases),
+        HandleMsg::SetDataSources { dsources } => try_set_datasources(deps, info, dsources),
+        HandleMsg::SetTestCases { tcases } => try_set_testcases(deps, info, tcases),
         HandleMsg::UpdateDataSources {
             dsource,
             dsource_new,
