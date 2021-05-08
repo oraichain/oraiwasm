@@ -37,8 +37,8 @@ Puts an NFT token up for sale.
 cosmwasm-simulate ow721 `{
   "send_nft": {
     "contract": "marketplace",
+    "msg": "base64({ "list_price": { "address": "ow20", "amount": "50" }})",
     "token_id": "123456",
-    "msg": "base64({ "list_price": { "address": "ow20", "amount": "50" }})"
   }
 }`
 
@@ -46,7 +46,7 @@ cosmwasm-simulate ow721 `{
 # msg: eyJsaXN0X3ByaWNlIjp7ImFkZHJlc3MiOiJvdzIwIiwiYW1vdW50IjoiMSJ9fQ==
 cosmwasm-simulate marketplace '{
   "receive_nft": {
-     "msg": "base64({ "list_price": { "address": "ow20", "amount": "50" }})",
+     "msg": "base64({ "list_price": { "address": "ow20", "amount": "1" }})",
      "sender": "fake_sender_addr",
      "token_id": "123456"
   }

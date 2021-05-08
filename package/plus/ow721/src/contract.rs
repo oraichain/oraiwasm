@@ -11,7 +11,7 @@ use cw721::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{DataSourceQueryMsg, HandleMsg, InitMsg, MintMsg, MinterResponse, QueryMsg};
+use crate::msg::{HandleMsg, InitMsg, MintMsg, MinterResponse, QueryMsg};
 use crate::state::{
     increment_tokens, num_tokens, tokens, Approval, TokenInfo, CONTRACT_INFO, MINTER, OPERATORS,
 };
@@ -371,11 +371,6 @@ fn check_can_send(
 
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Test {
-            input,
-            output,
-            contract,
-        } => to_binary(&test_price(deps, &contract, input, output)?),
         QueryMsg::Minter {} => to_binary(&query_minter(deps)?),
         QueryMsg::ContractInfo {} => to_binary(&query_contract_info(deps)?),
         QueryMsg::NftInfo { token_id } => to_binary(&query_nft_info(deps, token_id)?),
@@ -420,18 +415,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_all_tokens(deps, start_after, limit)?)
         }
     }
-}
-
-fn test_price(
-    deps: Deps,
-    contract: &HumanAddr,
-    input: String,
-    _output: String,
-) -> StdResult<String> {
-    let msg = DataSourceQueryMsg::Get { input };
-    let data: String = deps.querier.query_wasm_smart(contract, &msg)?;
-
-    Ok(data)
 }
 
 fn query_minter(deps: Deps) -> StdResult<MinterResponse> {

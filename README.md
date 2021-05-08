@@ -27,7 +27,7 @@ docker-compose exec app bash
 cargo test --lib -p nft -- --exact contract::tests::query_tokens_by_owner --show-output
 
 # simulate
-./simulate package/price/datasource_eth/artifacts/datasource_eth.wasm -c contract 1318
+./simulate package/price/datasource_eth/artifacts/datasource_eth.wasm 1318 -c contract -b '{"address":"tu_addr","amount":"500000"}'
 ```
 
 ### 4. Attach the VScode instance to the running container to develop remotely
