@@ -36,9 +36,7 @@ if [ $build_schema == 'true' ]
 then
     echo "Creating schema in $contractdir"
     (            
-        RUSTC_WRAPPER=sccache cargo run -q --example schema  --target-dir $basedir/target  
-        # put in artifacts for simulator
-        rm -rf artifacts/schema && mv schema artifacts
+        RUSTC_WRAPPER=sccache cargo run -q --example schema  --target-dir $basedir/target          
     )
 fi
 
