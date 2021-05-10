@@ -10,6 +10,7 @@ contractdir=$(realpath -m "$1")
 basedir=`pwd`
 build_release="${3:-true}"
 name=$(basename $contractdir)
+name=${name//-/_}
 cd $contractdir
 echo "Building contract in $contractdir"
 (
@@ -36,9 +37,7 @@ if [ $build_schema == 'true' ]
 then
     echo "Creating schema in $contractdir"
     (            
-        RUSTC_WRAPPER=sccache cargo run -q --example schema  --target-dir $basedir/target  
-        # put in artifacts for simulator
-        rm -rf artifacts/schema && mv schema artifacts
+        RUSTC_WRAPPER=sccache cargo run -q --example schema  --target-dir $basedir/target          
     )
 fi
 

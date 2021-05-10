@@ -10,7 +10,7 @@ fn main() {
     if let Ok(artifacts_path) = var("ARTIFACTS_PATH") {
         out_dir.push(artifacts_path);
     }
-    out_dir.push("schema");
+    out_dir.push("artifacts/schema");
     create_dir_all(&out_dir).unwrap();
     remove_schemas(&out_dir).unwrap();
 
