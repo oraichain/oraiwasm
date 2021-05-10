@@ -1,7 +1,6 @@
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use crate::error::ContractError;
+use crate::msg::{HandleMsg, InitMsg, Input, QueryMsg};
 use crate::state::{config, config_read, State};
-use crate::{error::ContractError, msg::Input};
-use base64::decode;
 use cosmwasm_std::{
     from_slice, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, MessageInfo,
     Querier, StdResult, Storage,
@@ -104,12 +103,10 @@ fn query_aggregation<S: Storage, A: Api, Q: Querier>(
         return Ok(String::new());
     }
     let mut final_result = String::from("");
-    // original input: {\\\"data\\\":\\\"English\\\",\\\"status\\\":\\\"success\\\"}\\\n
-    // final result syntax: a-b-c-d-e-f
     for input in results {
         // have to replace since escape string in rust is \\\" not \"
-        //let bytes = base64::decode(input).unwrap();
-        let input_struct: Input = from_slice(&input.as_bytes()).unwrap();
+        let input_edit = str::replace(&input, "\\\"", "\"");
+        let input_struct: Input = from_slice(&(input_edit.as_bytes())).unwrap();
         final_result.push_str("Hash=");
         final_result.push_str(&input_struct.Hash);
         final_result.push('&');
