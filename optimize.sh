@@ -10,6 +10,7 @@ contractdir=$(realpath -m "$1")
 basedir=`pwd`
 build_release="${3:-true}"
 name=$(basename $contractdir)
+name=${name//-/_}
 cd $contractdir
 echo "Building contract in $contractdir"
 (
