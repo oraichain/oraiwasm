@@ -1,5 +1,5 @@
-use crate::error::ContractError;
 use crate::msg::{DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg};
+use crate::{error::ContractError, msg::Input};
 use cosmwasm_std::{
     to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, InitResponse, MessageInfo,
     Querier, StdResult, Storage,
@@ -36,7 +36,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
             input,
             output,
             contract,
-        } => to_binary(&test_datasource(deps, &contract, input, output)?),
+        } => test_datasource(deps, &contract, input, output),
     }
 }
 
@@ -45,10 +45,20 @@ fn test_datasource<S: Storage, A: Api, Q: Querier>(
     contract: &HumanAddr,
     input: String,
     _output: String,
-) -> StdResult<String> {
+) -> StdResult<Binary> {
     let msg = DataSourceQueryMsg::Get { input };
-    let response: String = deps.querier.query_wasm_smart(contract, &msg)?;
+    let response: Input = deps.querier.query_wasm_smart(contract, &msg)?;
+    let response_str = format!(
+        "Hash={}&Name={}&Size={}",
+        response.Hash, response.Name, response.Size
+    );
+    //let response_bin: Binary = to_binary(&response)?;
+    let resp: String = format!(
+        "{{\"name\":\"\",\"result\":\"{}\",\"status\":\"{}\"}}",
+        response_str, "success"
+    );
+    let resp_bin: Binary = to_binary(&resp).unwrap();
     // check output if empty then we return the response without checking
     // should do some basic checking here with the response and the expected output from the user.
-    Ok(response)
+    Ok(resp_bin)
 }

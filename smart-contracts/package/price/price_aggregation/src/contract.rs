@@ -1,8 +1,10 @@
+use std::fmt::format;
+
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, Output, QueryMsg, SpecialQuery};
+use crate::msg::{HandleMsg, InitMsg, Input, QueryMsg, SpecialQuery};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse,
-    MessageInfo, Querier, StdError, StdResult, Storage,
+    from_slice, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, MessageInfo,
+    Querier, StdResult, Storage,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -38,13 +40,12 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 
 fn query_data<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    _input: String,
+    input: String,
 ) -> StdResult<Binary> {
     let req = SpecialQuery::Fetch {
-        // should replace url with a centralized server
-        url: "https://100api.orai.dev/cv023".to_string(),
+        url: format!("http://lcd.orai.io/airesult/fullreq/{}", input),
         body: String::from(""),
-        method: "POST".to_string(),
+        method: "GET".to_string(),
         authorization: "".to_string(),
     }
     .into();

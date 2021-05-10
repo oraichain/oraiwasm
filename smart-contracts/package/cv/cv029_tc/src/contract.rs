@@ -1,8 +1,8 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, Output, QueryMsg, SpecialQuery};
+use crate::msg::{DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse,
-    MessageInfo, Querier, StdError, StdResult, Storage,
+    to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, InitResponse, MessageInfo,
+    Querier, StdResult, Storage,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -32,22 +32,22 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     msg: QueryMsg,
 ) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Get { input } => query_data(deps, input),
+        QueryMsg::Test {
+            input,
+            output,
+            contract,
+        } => to_binary(&test_datasource(deps, &contract, input, output)?),
     }
 }
 
-fn query_data<S: Storage, A: Api, Q: Querier>(
+fn test_datasource<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    _input: String,
-) -> StdResult<Binary> {
-    let req = SpecialQuery::Fetch {
-        // should replace url with a centralized server
-        url: "https://100api.orai.dev/cv023".to_string(),
-        body: String::from(""),
-        method: "POST".to_string(),
-        authorization: "".to_string(),
-    }
-    .into();
-    let response: Binary = deps.querier.custom_query(&req)?;
+    contract: &HumanAddr,
+    input: String,
+    output: String,
+) -> StdResult<String> {
+    let msg = DataSourceQueryMsg::Get { input };
+    let response: String = deps.querier.query_wasm_smart(contract, &msg)?;
+    // should do some basic checking here with the response and the expected output from the user.
     Ok(response)
 }
