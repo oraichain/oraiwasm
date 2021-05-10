@@ -1,0 +1,6 @@
+{
+  "init": {
+    "counter_offer": [{ "denom": "orai", "amount": "300000" }],
+    "expires": 15000
+  }
+}
