@@ -12,3 +12,5 @@ Cargo.lock
 **/*.wasm
 **/*.txt
 *.log
+
+.registry_cache
