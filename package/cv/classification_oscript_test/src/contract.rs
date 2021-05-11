@@ -127,12 +127,20 @@ fn query_aggregation<S: Storage, A: Api, Q: Querier>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use crate::msg::Data;
     use cosmwasm_std::{coins, from_binary};
+    use cosmwasm_std::{
+        from_slice,
+        testing::{mock_dependencies, mock_env, mock_info},
+    };
 
     #[test]
     fn proper_initialization() {
         let mut deps = mock_dependencies(&[]);
+
+        let test_str:String = format!("[{{\"name\":\"ETH\",\"prices\":\"hello\"}},{{\"name\":\"BTC\",\"prices\":\"hellohello\"}}]");
+        let test: Vec<Data> = from_slice(test_str.as_bytes()).unwrap();
+        println!("test data: {}", test[0].name);
 
         // init data source
         let mut data_sources = Vec::new();

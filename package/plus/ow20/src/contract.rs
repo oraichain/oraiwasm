@@ -267,40 +267,45 @@ pub fn handle_mint(
     recipient: HumanAddr,
     amount: Uint128,
 ) -> Result<HandleResponse, ContractError> {
-    if amount == Uint128::zero() {
-        return Err(ContractError::InvalidZeroAmount {});
-    }
+    // if amount == Uint128::zero() {
+    //     return Err(ContractError::InvalidZeroAmount {});
+    // }
 
-    let mut config = token_info_read(deps.storage).load()?;
-    if config.mint.is_none()
-        || config.mint.as_ref().unwrap().minter != deps.api.canonical_address(&info.sender)?
-    {
-        return Err(ContractError::Unauthorized {});
-    }
+    // let mut config = token_info_read(deps.storage).load()?;
+    // if config.mint.is_none()
+    //     || config.mint.as_ref().unwrap().minter != deps.api.canonical_address(&info.sender)?
+    // {
+    //     return Err(ContractError::Unauthorized {});
+    // }
 
-    // update supply and enforce cap
-    config.total_supply += amount;
-    if let Some(limit) = config.get_cap() {
-        if config.total_supply > limit {
-            return Err(ContractError::CannotExceedCap {});
-        }
-    }
-    token_info(deps.storage).save(&config)?;
+    // // update supply and enforce cap
+    // config.total_supply += amount;
+    // if let Some(limit) = config.get_cap() {
+    //     if config.total_supply > limit {
+    //         return Err(ContractError::CannotExceedCap {});
+    //     }
+    // }
+    // token_info(deps.storage).save(&config)?;
 
-    // add amount to recipient balance
-    let rcpt_raw = deps.api.canonical_address(&recipient)?;
-    balances(deps.storage).update(
-        rcpt_raw.as_slice(),
-        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
-    )?;
+    // // add amount to recipient balance
+    // let rcpt_raw = deps.api.canonical_address(&recipient)?;
+    // balances(deps.storage).update(
+    //     rcpt_raw.as_slice(),
+    //     |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+    // )?;
 
+    // let res = HandleResponse {
+    //     messages: vec![],
+    //     attributes: vec![
+    //         attr("action", "mint"),
+    //         attr("to", recipient),
+    //         attr("amount", amount),
+    //     ],
+    //     data: None,
+    // };
     let res = HandleResponse {
         messages: vec![],
-        attributes: vec![
-            attr("action", "mint"),
-            attr("to", recipient),
-            attr("amount", amount),
-        ],
+        attributes: vec![],
         data: None,
     };
     Ok(res)
