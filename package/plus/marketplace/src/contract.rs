@@ -1,16 +1,20 @@
+use crate::error::ContractError;
+use crate::msg::{BuyNft, HandleMsg, InitMsg, QueryMsg, SellNft};
 use crate::package::{ContractInfoResponse, OfferingsResponse, QueryOfferingsResult};
 use crate::state::{increment_offerings, Offering, CONTRACT_INFO, OFFERINGS};
-use cosmwasm_std::KV;
 use cosmwasm_std::{
     attr, from_binary, to_binary, Api, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
     InitResponse, MessageInfo, Order, StdResult, WasmMsg,
 };
+use cosmwasm_std::{HumanAddr, KV};
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
+use cw_storage_plus::Bound;
 use std::str::from_utf8;
 
-use crate::error::ContractError;
-use crate::msg::{BuyNft, HandleMsg, InitMsg, QueryMsg, SellNft};
+// settings for pagination
+const MAX_LIMIT: u32 = 30;
+const DEFAULT_LIMIT: u32 = 10;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -28,6 +32,7 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
+        HandleMsg::MintNft { contract, msg } => try_handle_mint(deps, info, contract, msg),
         HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, offering_id),
         HandleMsg::Receive(msg) => try_receive(deps, info, msg),
         HandleMsg::ReceiveNft(msg) => try_receive_nft(deps, info, msg),
@@ -35,6 +40,26 @@ pub fn handle(
 }
 
 // ============================== Message Handlers ==============================
+
+pub fn try_handle_mint(
+    _deps: DepsMut,
+    _info: MessageInfo,
+    contract: HumanAddr,
+    msg: Binary,
+) -> Result<HandleResponse, ContractError> {
+    let mint = WasmMsg::Execute {
+        contract_addr: contract.clone(),
+        msg,
+        send: vec![],
+    }
+    .into();
+
+    Ok(HandleResponse {
+        messages: vec![mint],
+        attributes: vec![attr("action", "mint_nft"), attr("contract_addr", contract)],
+        data: None,
+    })
+}
 
 pub fn try_receive(
     deps: DepsMut,
@@ -55,10 +80,12 @@ pub fn try_receive(
     }
 
     // create transfer cw20 msg
+    let seller = deps.api.human_address(&off.seller)?;
     let transfer_cw20_msg = Cw20HandleMsg::Transfer {
-        recipient: deps.api.human_address(&off.seller)?,
+        recipient: seller.clone(),
         amount: rcv_msg.amount,
     };
+
     let exec_cw20_transfer = WasmMsg::Execute {
         contract_addr: info.sender.clone(),
         msg: to_binary(&transfer_cw20_msg)?,
@@ -70,8 +97,9 @@ pub fn try_receive(
         recipient: rcv_msg.sender.clone(),
         token_id: off.token_id.clone(),
     };
+    let contract_addr = deps.api.human_address(&off.contract_addr)?;
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: deps.api.human_address(&off.contract_addr)?,
+        contract_addr: contract_addr.clone(),
         msg: to_binary(&transfer_cw721_msg)?,
         send: vec![],
     };
@@ -93,10 +121,10 @@ pub fn try_receive(
         attributes: vec![
             attr("action", "buy_nft"),
             attr("buyer", rcv_msg.sender),
-            attr("seller", off.seller),
+            attr("seller", seller),
             attr("paid_price", price_string),
             attr("token_id", off.token_id),
-            attr("contract_addr", off.contract_addr),
+            attr("contract_addr", contract_addr),
         ],
         data: None,
     })
@@ -133,7 +161,7 @@ pub fn try_receive_nft(
         attributes: vec![
             attr("action", "sell_nft"),
             attr("original_contract", info.sender),
-            attr("seller", off.seller),
+            attr("seller", rcv_msg.sender),
             attr("list_price", price_string),
             attr("token_id", off.token_id),
         ],
@@ -181,15 +209,28 @@ pub fn try_withdraw(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetOfferings {} => to_binary(&query_offerings(deps)?),
+        QueryMsg::GetOfferings { limit, offset } => {
+            to_binary(&query_offerings(deps, limit, offset)?)
+        }
     }
 }
 
 // ============================== Query Handlers ==============================
 
-fn query_offerings(deps: Deps) -> StdResult<OfferingsResponse> {
+fn query_offerings(
+    deps: Deps,
+    limit: Option<u32>,
+    offset: Option<String>,
+) -> StdResult<OfferingsResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let start = match offset {
+        Some(v) => Some(Bound::Exclusive(v.into())),
+        None => None,
+    };
+
     let res: StdResult<Vec<QueryOfferingsResult>> = OFFERINGS
-        .range(deps.storage, None, None, Order::Ascending)
+        .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
         .map(|kv_item| parse_offering(deps.api, kv_item))
         .collect();
 
@@ -267,7 +308,15 @@ mod tests {
         let _res = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // Offering should be listed
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetOfferings {}).unwrap();
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetOfferings {
+                limit: None,
+                offset: None,
+            },
+        )
+        .unwrap();
         let value: OfferingsResponse = from_binary(&res).unwrap();
 
         assert_eq!(1, value.offerings.len());
@@ -289,7 +338,15 @@ mod tests {
         let _res = handle(deps.as_mut(), mock_env(), info_buy, msg2).unwrap();
 
         // check offerings again. Should be 0
-        let res2 = query(deps.as_ref(), mock_env(), QueryMsg::GetOfferings {}).unwrap();
+        let res2 = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetOfferings {
+                limit: None,
+                offset: None,
+            },
+        )
+        .unwrap();
         let value2: OfferingsResponse = from_binary(&res2).unwrap();
         assert_eq!(0, value2.offerings.len());
     }
@@ -324,7 +381,15 @@ mod tests {
         let _res = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // Offering should be listed
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetOfferings {}).unwrap();
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetOfferings {
+                limit: None,
+                offset: None,
+            },
+        )
+        .unwrap();
         let value: OfferingsResponse = from_binary(&res).unwrap();
         assert_eq!(1, value.offerings.len());
 
@@ -336,7 +401,15 @@ mod tests {
         let _res = handle(deps.as_mut(), mock_env(), withdraw_info, withdraw_msg).unwrap();
 
         // Offering should be removed
-        let res2 = query(deps.as_ref(), mock_env(), QueryMsg::GetOfferings {}).unwrap();
+        let res2 = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetOfferings {
+                limit: None,
+                offset: None,
+            },
+        )
+        .unwrap();
         let value2: OfferingsResponse = from_binary(&res2).unwrap();
         assert_eq!(0, value2.offerings.len());
     }
