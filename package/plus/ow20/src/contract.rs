@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, MigrateResponse, StdError, StdResult, Uint128,
+    attr, to_binary, BankMsg, Binary, Coin, Context, Deps, DepsMut, Env, HandleResponse, HumanAddr,
+    InitResponse, MessageInfo, MigrateResponse, StdError, StdResult, Uint128,
 };
 
 use cw2::{get_contract_version, set_contract_version};
@@ -108,7 +108,78 @@ pub fn handle(
             amount,
             msg,
         } => handle_send_from(deps, env, info, owner, contract, amount, msg),
+        HandleMsg::Swap {} => handle_swap(deps, env, info),
+        HandleMsg::Withdraw { amount } => handle_withdraw(deps, env, info, amount),
     }
+}
+
+pub fn handle_swap(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+) -> Result<HandleResponse, ContractError> {
+    if info.sent_funds.len() == 0 {
+        return Err(ContractError::InvalidSentFundAmount {});
+    }
+    let amount_coin = info.sent_funds[0].clone();
+    if amount_coin.amount == Uint128::zero() {
+        return Err(ContractError::InvalidZeroAmount {});
+    }
+    if !amount_coin.denom.eq(&String::from("orai")) {
+        return Err(ContractError::InvalidDenomAmount {});
+    }
+    // update balance
+    let token_info = token_info_read(deps.storage).load()?;
+    let sender_raw = deps.api.canonical_address(&info.sender)?;
+    let mut accounts = balances(deps.storage);
+    accounts.update(
+        sender_raw.as_slice(),
+        |balance: Option<Uint128>| -> StdResult<_> {
+            Ok(balance.unwrap_or_default() + amount_coin.amount)
+        },
+    )?;
+    // reduce balance of owner
+    accounts.update(
+        token_info.mint.unwrap().minter.as_slice(),
+        |balance: Option<Uint128>| balance.unwrap_or_default() - amount_coin.amount,
+    )?;
+    let mut res: Context = Context::new();
+    res.add_attribute("action", "swap");
+    Ok(res.into())
+}
+
+pub fn handle_withdraw(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    amount: Uint128,
+) -> Result<HandleResponse, ContractError> {
+    if amount == Uint128::zero() {
+        return Err(ContractError::InvalidZeroAmount {});
+    }
+    let token_info = token_info_read(deps.storage).load()?;
+    let withdrawer_raw = deps.api.canonical_address(&info.sender)?;
+    let mut accounts = balances(deps.storage);
+    accounts.update(
+        withdrawer_raw.as_slice(),
+        |balance: Option<Uint128>| -> StdResult<_> { balance.unwrap_or_default() - amount },
+    )?;
+    // reduce balance of owner
+    accounts.update(
+        token_info.mint.unwrap().minter.as_slice(),
+        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+    )?;
+    let mut res = Context::new();
+    res.add_message(BankMsg::Send {
+        from_address: env.contract.address,
+        to_address: info.sender,
+        amount: vec![Coin {
+            denom: String::from("orai"),
+            amount: amount,
+        }],
+    });
+    res.add_attribute("action", "withdraw");
+    Ok(res.into())
 }
 
 pub fn handle_transfer(
@@ -361,7 +432,7 @@ pub fn migrate(
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, Api, CosmosMsg, Order, StdError, WasmMsg};
+    use cosmwasm_std::{coins, from_binary, from_slice, Api, CosmosMsg, Order, StdError, WasmMsg};
 
     use cw2::ContractVersion;
     use cw20::{AllowanceResponse, Expiration};
@@ -439,17 +510,26 @@ mod tests {
     #[test]
     fn proper_initialization() {
         let mut deps = mock_dependencies(&[]);
+        let init_str = format!(
+            "{{\"name\":\"Cash Token\",\"symbol\":\"CASH\",\"decimals\":9,\"initial_balances\":[{{\"address\":\"addr0000\",\"amount\":\"11223344\"}}],\"mint\":{{\"minter\":\"addr0000\",\"cap\":\"100000000\"}}
+    }}"
+        );
+        //     let init_str = format!(
+        //         "{{\"name\":\"Cash Token\",\"symbol\":\"CASH\",\"decimals\":9,\"initial_balances\":[{{\"address\":\"addr0000\",\"amount\":\"11223344\"}}]
+        // }}"
+        //     );
+        let init_msg: InitMsg = from_slice(init_str.as_bytes()).unwrap();
         let amount = Uint128::from(11223344u128);
-        let init_msg = InitMsg {
-            name: "Cash Token".to_string(),
-            symbol: "CASH".to_string(),
-            decimals: 9,
-            initial_balances: vec![Cw20CoinHuman {
-                address: HumanAddr("addr0000".to_string()),
-                amount,
-            }],
-            mint: None,
-        };
+        // let init_msg = InitMsg {
+        //     name: "Cash Token".to_string(),
+        //     symbol: "CASH".to_string(),
+        //     decimals: 9,
+        //     initial_balances: vec![Cw20CoinHuman {
+        //         address: HumanAddr("addr0000".to_string()),
+        //         amount,
+        //     }],
+        //     mint: None,
+        // };
         let info = mock_info(&HumanAddr("creator".to_string()), &[]);
         let env = mock_env();
         let res = init(deps.as_mut(), env.clone(), info.clone(), init_msg).unwrap();

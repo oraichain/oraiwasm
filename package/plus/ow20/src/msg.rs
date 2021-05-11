@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, HumanAddr, StdError, StdResult, Uint128};
+use cosmwasm_std::{Binary, Coin, HumanAddr, StdError, StdResult, Uint128};
 use cw20::{Cw20CoinHuman, Expiration, MinterResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -66,7 +66,9 @@ pub enum HandleMsg {
         amount: Uint128,
     },
     /// Burn is a base message to destroy tokens forever
-    Burn { amount: Uint128 },
+    Burn {
+        amount: Uint128,
+    },
     /// Send is a base message to transfer tokens to a contract and trigger an action
     /// on the receiving contract.
     Send {
@@ -111,8 +113,15 @@ pub enum HandleMsg {
         amount: Uint128,
         msg: Option<Binary>,
     },
+    Swap {},
+    Withdraw {
+        amount: Uint128,
+    },
     /// Only with "approval" extension. Destroys tokens forever
-    BurnFrom { owner: HumanAddr, amount: Uint128 },
+    BurnFrom {
+        owner: HumanAddr,
+        amount: Uint128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

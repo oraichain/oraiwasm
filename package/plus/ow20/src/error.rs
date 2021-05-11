@@ -15,6 +15,12 @@ pub enum ContractError {
     #[error("Invalid zero amount")]
     InvalidZeroAmount {},
 
+    #[error("Invalid denom amount")]
+    InvalidDenomAmount {},
+
+    #[error("Sent funds amount is empty")]
+    InvalidSentFundAmount {},
+
     #[error("Allowance is expired")]
     Expired {},
 
