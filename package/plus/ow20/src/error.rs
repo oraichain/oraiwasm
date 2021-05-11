@@ -24,6 +24,12 @@ pub enum ContractError {
     #[error("Allowance is expired")]
     Expired {},
 
+    #[error("Error swapping tokens using transfer from")]
+    ErrorSwapTransferFrom {},
+
+    #[error("Insufficient funds")]
+    ErrorInsufficientFunds {},
+
     #[error("No allowance for this account")]
     NoAllowance {},
 

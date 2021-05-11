@@ -130,19 +130,19 @@ pub fn handle_swap(
     }
     // update balance
     let token_info = token_info_read(deps.storage).load()?;
-    let sender_raw = deps.api.canonical_address(&info.sender)?;
-    let mut accounts = balances(deps.storage);
-    accounts.update(
-        sender_raw.as_slice(),
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default() + amount_coin.amount)
-        },
-    )?;
-    // reduce balance of owner
-    accounts.update(
-        token_info.mint.unwrap().minter.as_slice(),
-        |balance: Option<Uint128>| balance.unwrap_or_default() - amount_coin.amount,
-    )?;
+    let owner = deps.api.human_address(&token_info.mint.unwrap().minter)?;
+    // transfer tokens from withdrawer to owner
+    let resp = handle_transfer_from(
+        deps,
+        _env.clone(),
+        info.clone(),
+        owner.clone(),
+        info.sender,
+        amount_coin.amount,
+    );
+    if resp.is_err() {
+        return Err(resp.err().unwrap());
+    }
     let mut res: Context = Context::new();
     res.add_attribute("action", "swap");
     Ok(res.into())
@@ -160,6 +160,11 @@ pub fn handle_withdraw(
     let token_info = token_info_read(deps.storage).load()?;
     let withdrawer_raw = deps.api.canonical_address(&info.sender)?;
     let mut accounts = balances(deps.storage);
+    let balance = accounts.load(withdrawer_raw.as_slice())?;
+    // check balance to catch error
+    if balance < amount {
+        return Err(ContractError::ErrorInsufficientFunds {});
+    }
     accounts.update(
         withdrawer_raw.as_slice(),
         |balance: Option<Uint128>| -> StdResult<_> { balance.unwrap_or_default() - amount },
@@ -170,6 +175,8 @@ pub fn handle_withdraw(
         |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
     )?;
     let mut res = Context::new();
+    //let mut res = Context::new();
+    // send native tokens of the same amount from the balance of native contract address to withdrawer
     res.add_message(BankMsg::Send {
         from_address: env.contract.address,
         to_address: info.sender,
