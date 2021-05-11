@@ -41,5 +41,8 @@ pub struct BuyNft {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     // GetOfferings returns a list of all offerings
-    GetOfferings {},
+    GetOfferings {
+        offset: Option<String>,
+        limit: Option<u32>,
+    },
 }

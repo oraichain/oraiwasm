@@ -1,3 +1,5 @@
+use crate::error::ContractError;
+use crate::msg::{BuyNft, HandleMsg, InitMsg, QueryMsg, SellNft};
 use crate::package::{ContractInfoResponse, OfferingsResponse, QueryOfferingsResult};
 use crate::state::{increment_offerings, Offering, CONTRACT_INFO, OFFERINGS};
 use cosmwasm_std::{
@@ -7,10 +9,12 @@ use cosmwasm_std::{
 use cosmwasm_std::{HumanAddr, KV};
 use cw20::{Cw20HandleMsg, Cw20ReceiveMsg};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
+use cw_storage_plus::Bound;
 use std::str::from_utf8;
 
-use crate::error::ContractError;
-use crate::msg::{BuyNft, HandleMsg, InitMsg, QueryMsg, SellNft};
+// settings for pagination
+const MAX_LIMIT: u32 = 30;
+const DEFAULT_LIMIT: u32 = 10;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -205,15 +209,28 @@ pub fn try_withdraw(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetOfferings {} => to_binary(&query_offerings(deps)?),
+        QueryMsg::GetOfferings { limit, offset } => {
+            to_binary(&query_offerings(deps, limit, offset)?)
+        }
     }
 }
 
 // ============================== Query Handlers ==============================
 
-fn query_offerings(deps: Deps) -> StdResult<OfferingsResponse> {
+fn query_offerings(
+    deps: Deps,
+    limit: Option<u32>,
+    offset: Option<String>,
+) -> StdResult<OfferingsResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let start = match offset {
+        Some(v) => Some(Bound::Exclusive(v.into())),
+        None => None,
+    };
+
     let res: StdResult<Vec<QueryOfferingsResult>> = OFFERINGS
-        .range(deps.storage, None, None, Order::Ascending)
+        .range(deps.storage, start, None, Order::Ascending)
+        .take(limit)
         .map(|kv_item| parse_offering(deps.api, kv_item))
         .collect();
 
@@ -291,7 +308,15 @@ mod tests {
         let _res = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // Offering should be listed
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetOfferings {}).unwrap();
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetOfferings {
+                limit: None,
+                offset: None,
+            },
+        )
+        .unwrap();
         let value: OfferingsResponse = from_binary(&res).unwrap();
 
         assert_eq!(1, value.offerings.len());
@@ -313,7 +338,15 @@ mod tests {
         let _res = handle(deps.as_mut(), mock_env(), info_buy, msg2).unwrap();
 
         // check offerings again. Should be 0
-        let res2 = query(deps.as_ref(), mock_env(), QueryMsg::GetOfferings {}).unwrap();
+        let res2 = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetOfferings {
+                limit: None,
+                offset: None,
+            },
+        )
+        .unwrap();
         let value2: OfferingsResponse = from_binary(&res2).unwrap();
         assert_eq!(0, value2.offerings.len());
     }
@@ -348,7 +381,15 @@ mod tests {
         let _res = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // Offering should be listed
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::GetOfferings {}).unwrap();
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetOfferings {
+                limit: None,
+                offset: None,
+            },
+        )
+        .unwrap();
         let value: OfferingsResponse = from_binary(&res).unwrap();
         assert_eq!(1, value.offerings.len());
 
@@ -360,7 +401,15 @@ mod tests {
         let _res = handle(deps.as_mut(), mock_env(), withdraw_info, withdraw_msg).unwrap();
 
         // Offering should be removed
-        let res2 = query(deps.as_ref(), mock_env(), QueryMsg::GetOfferings {}).unwrap();
+        let res2 = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetOfferings {
+                limit: None,
+                offset: None,
+            },
+        )
+        .unwrap();
         let value2: OfferingsResponse = from_binary(&res2).unwrap();
         assert_eq!(0, value2.offerings.len());
     }
