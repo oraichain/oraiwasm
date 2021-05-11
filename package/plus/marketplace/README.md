@@ -129,7 +129,7 @@ Buys an NFT token, transferring funds to the seller and the token to the buyer.
 cosmwasm-simulate handle ow20  '{
   "send": {
     "amount": "<INSERT_AMOUNT>",
-    "contract": marketplace,
+    "contract": "marketplace",
     "msg": {"offering_id": "<INSERT_OFFERING_ID>"}
   }
 }'
