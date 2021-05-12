@@ -130,19 +130,22 @@ pub fn handle_swap(
     }
     // update balance
     let token_info = token_info_read(deps.storage).load()?;
-    let owner = deps.api.human_address(&token_info.mint.unwrap().minter)?;
-    // transfer tokens from withdrawer to owner
-    let resp = handle_transfer_from(
-        deps,
-        _env.clone(),
-        info.clone(),
-        owner.clone(),
-        info.sender,
-        amount_coin.amount,
-    );
-    if resp.is_err() {
-        return Err(resp.err().unwrap());
+    let rcpt_raw = deps.api.canonical_address(&info.sender)?;
+    let mut accounts = balances(deps.storage);
+    let balance = accounts.load(token_info.mint.clone().unwrap().minter.as_slice())?;
+    if balance < amount_coin.amount {
+        return Err(ContractError::InvalidSwapAmount {});
     }
+    accounts.update(
+        token_info.mint.unwrap().minter.as_slice(),
+        |balance: Option<Uint128>| balance.unwrap_or_default() - amount_coin.amount,
+    )?;
+    accounts.update(
+        rcpt_raw.as_slice(),
+        |balance: Option<Uint128>| -> StdResult<_> {
+            Ok(balance.unwrap_or_default() + amount_coin.amount)
+        },
+    )?;
     let mut res: Context = Context::new();
     res.add_attribute("action", "swap");
     Ok(res.into())

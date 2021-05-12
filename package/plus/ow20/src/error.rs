@@ -21,6 +21,9 @@ pub enum ContractError {
     #[error("Sent funds amount is empty")]
     InvalidSentFundAmount {},
 
+    #[error("Your swap amount is larger than the number of current tokens in the contract")]
+    InvalidSwapAmount {},
+
     #[error("Allowance is expired")]
     Expired {},
 
