@@ -77,7 +77,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     match msg {
         QueryMsg::GetDatasource {} => to_binary(&query_datasource(deps)?),
         QueryMsg::GetTestcase {} => to_binary(&query_testcase(deps)?),
-        QueryMsg::Aggregate { results } => to_binary(&query_aggregation(deps, results)?),
+        QueryMsg::Aggregate { results } => query_aggregation(deps, results),
     }
 }
 
@@ -98,11 +98,12 @@ fn query_testcase<S: Storage, A: Api, Q: Querier>(
 fn query_aggregation<S: Storage, A: Api, Q: Querier>(
     _deps: &Extern<S, A, Q>,
     results: Vec<String>,
-) -> StdResult<String> {
+) -> StdResult<Binary> {
     println!("Hello, world!");
+    // let input = String::from(rem_first_and_last(results[0].as_str()));
+    // let input_edit = str::replace(&input, "\\\"", "\"");
     let mut aggregation_result: Vec<Data> = Vec::new();
     let price_data: Vec<Data> = from_slice(results[0].as_bytes())?;
-    let mut result_str = String::from("[");
     for res in price_data {
         // each "-" represents a source price
         let small_res_iter = res.prices.split('-');
@@ -120,9 +121,9 @@ fn query_aggregation<S: Storage, A: Api, Q: Querier>(
             let mut floating: i32 = 0;
             if last.is_some() {
                 let mut last_part = last.unwrap().to_owned();
-                if last_part.len() < 10 {
+                if last_part.len() < 5 {
                     last_part.push_str("0");
-                } else if last_part.len() > 10 {
+                } else if last_part.len() > 5 {
                     last_part = last_part[..5].to_string();
                 }
                 floating = last_part.parse().unwrap();
@@ -140,19 +141,9 @@ fn query_aggregation<S: Storage, A: Api, Q: Querier>(
             prices: final_result,
         };
         aggregation_result.push(data.clone());
-        // prepare result string
-        result_str.push_str(
-            format!(
-                "{{\"name\":\"{}\",\"prices\":\"{}\"}},",
-                data.name, data.prices
-            )
-            .as_str(),
-        );
     }
-    // pop ,
-    result_str.pop();
-    result_str.push(']');
-    Ok(result_str)
+    let result_bin = to_binary(&aggregation_result).unwrap();
+    Ok(result_bin)
 }
 
 #[test]

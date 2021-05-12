@@ -36,7 +36,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
             input,
             output,
             contract,
-        } => to_binary(&test_price(deps, &contract, input, output)?),
+        } => test_price(deps, &contract, input, output),
     }
 }
 
@@ -45,21 +45,14 @@ fn test_price<S: Storage, A: Api, Q: Querier>(
     contract: &HumanAddr,
     input: String,
     _output: String,
-) -> StdResult<String> {
+) -> StdResult<Binary> {
     let msg = DataSourceQueryMsg::Get { input };
     let data_sources: Vec<Data> = deps.querier.query_wasm_smart(contract, &msg)?;
-    // positive using unwrap, otherwise rather panic than return default value
-    let mut resp = String::from("[");
-    for data in data_sources {
-        resp.push_str(
-            format!(
-                "{{\"name\":\"{}\",\"price\":\"{}\"}},",
-                data.name, data.prices
-            )
-            .as_str(),
-        );
-    }
-    resp.pop();
-    resp.push(']');
-    Ok(resp)
+    let response_bin: Binary = to_binary(&data_sources)?;
+    let resp: String = format!(
+        "{{\"name\":\"\",\"result\":\"{}\",\"status\":\"{}\"}}",
+        response_bin, "success"
+    );
+    let resp_bin: Binary = to_binary(&resp).unwrap();
+    Ok(resp_bin)
 }
