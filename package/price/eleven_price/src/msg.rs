@@ -6,41 +6,64 @@ use serde::{Deserialize, Serialize};
 pub struct InitMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct BinanceEth {
+pub struct Data {
+    pub name: String,
+    pub prices: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Binance {
     pub symbol: String,
     pub price: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct CoinbaseEth {
-    pub data: CoinbaseEthData,
+pub struct Coinbase {
+    pub data: CoinbaseData,
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CoinbaseEthData {
+pub struct CoinbaseData {
     pub base: String,
     pub currency: String,
     pub amount: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct BinanceBTC {
-    pub symbol: String,
-    pub price: String,
+pub struct Gate {
+    pub currency_pair: String,
+    pub last: String,
+    pub lowest_ask: String,
+    pub highest_bid: String,
+    pub change_percentage: String,
+    pub base_volume: String,
+    pub quote_volume: String,
+    pub high_24h: String,
+    pub low_24h: String,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CryptoCompare {
+    pub USD: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct CoinbaseBTC {
-    pub data: CoinbaseBTCData,
+pub struct CoinCap {
+    pub data: CoinCapData,
+    pub timestamp: u128,
 }
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct CoinbaseBTCData {
-    pub base: String,
-    pub currency: String,
-    pub amount: String,
+pub struct CoinCapData {
+    pub id: String,
+    pub rank: String,
+    pub symbol: String,
+    pub name: String,
+    pub suppy: String,
+    pub maxSupply: String,
+    pub marketCapUsd: String,
+    pub volumeUsd24Hr: String,
+    pub priceUsd: String,
+    pub changePercent24Hr: String,
+    pub vwap24Hr: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -14,6 +14,14 @@ pub struct Data {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+pub struct Response {
+    pub name: String,
+    pub result: Vec<Data>,
+    pub status: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum HandleMsg {}
 
 // this TestCase does not have input

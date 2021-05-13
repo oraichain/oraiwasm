@@ -1,65 +1,47 @@
-use crate::error::ContractError;
 use crate::msg::{Data, DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg};
+use crate::{error::ContractError, msg::Response};
 use cosmwasm_std::{
-    to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, InitResponse, MessageInfo,
-    Querier, StdResult, Storage,
+    to_binary, Api, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
+    MessageInfo, Querier, StdResult, Storage,
 };
 
-// Note, you can use StdResult in some functions where you do not
-// make use of the custom errors
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    _deps: &mut Extern<S, A, Q>,
-    _env: Env,
-    _info: MessageInfo,
-    _: InitMsg,
-) -> StdResult<InitResponse> {
+pub fn init(deps: DepsMut, _env: Env, _info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
     Ok(InitResponse::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    _: &mut Extern<S, A, Q>,
+pub fn handle(
+    deps: DepsMut,
     _env: Env,
-    _: MessageInfo,
-    _: HandleMsg,
+    info: MessageInfo,
+    msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     Ok(HandleResponse::default())
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    _env: Env,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Test {
             input,
             output,
             contract,
-        } => to_binary(&test_price(deps, &contract, input, output)?),
+        } => test_price(deps, &contract, input, output),
     }
 }
 
-fn test_price<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
+fn test_price(
+    deps: Deps,
     contract: &HumanAddr,
     input: String,
     _output: String,
-) -> StdResult<String> {
+) -> StdResult<Binary> {
     let msg = DataSourceQueryMsg::Get { input };
     let data_sources: Vec<Data> = deps.querier.query_wasm_smart(contract, &msg)?;
-    // positive using unwrap, otherwise rather panic than return default value
-    let mut resp = String::from("[");
-    for data in data_sources {
-        resp.push_str(
-            format!(
-                "{{\"name\":\"{}\",\"price\":\"{}\"}},",
-                data.name, data.prices
-            )
-            .as_str(),
-        );
-    }
-    resp.pop();
-    resp.push(']');
-    Ok(resp)
+    let response = Response {
+        name: String::from(""),
+        result: data_sources,
+        status: String::from("success"),
+    };
+    let resp_bin: Binary = to_binary(&response).unwrap();
+    Ok(resp_bin)
 }
