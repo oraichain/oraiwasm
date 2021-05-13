@@ -1,32 +1,29 @@
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use std::ops::{Add, Sub};
+
+use crate::error::ContractError;
+use crate::msg::{HandleMsg, InitMsg, Input, Output, QueryMsg};
 use crate::state::{config, config_read, State};
-use crate::{error::ContractError, msg::Data};
 use cosmwasm_std::{
-    from_slice, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, MessageInfo,
-    Querier, StdResult, Storage,
+    from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
+    StdResult,
 };
 
-// Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    _env: Env,
-    info: MessageInfo,
-    msg: InitMsg,
-) -> StdResult<InitResponse> {
+pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
     let state = State {
         ai_data_source: msg.ai_data_source,
         testcase: msg.testcase,
         owner: deps.api.canonical_address(&info.sender)?,
     };
-    config(&mut deps.storage).save(&state)?;
+    config(deps.storage).save(&state)?;
 
     Ok(InitResponse::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+// And declare a custom Error variant for the ones where you will want to make use of it
+pub fn handle(
+    deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     msg: HandleMsg,
@@ -37,13 +34,13 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     }
 }
 
-pub fn try_update_datasource<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn try_update_datasource(
+    deps: DepsMut,
     info: MessageInfo,
     name: Vec<String>,
 ) -> Result<HandleResponse, ContractError> {
     let api = &deps.api;
-    config(&mut deps.storage).update(|mut state| -> Result<_, ContractError> {
+    config(deps.storage).update(|mut state| -> Result<_, ContractError> {
         if api.canonical_address(&info.sender)? != state.owner {
             return Err(ContractError::Unauthorized {});
         }
@@ -53,13 +50,13 @@ pub fn try_update_datasource<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse::default())
 }
 
-pub fn try_update_testcase<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+pub fn try_update_testcase(
+    deps: DepsMut,
     info: MessageInfo,
     name: Vec<String>,
 ) -> Result<HandleResponse, ContractError> {
     let api = &deps.api;
-    config(&mut deps.storage).update(|mut state| -> Result<_, ContractError> {
+    config(deps.storage).update(|mut state| -> Result<_, ContractError> {
         if api.canonical_address(&info.sender)? != state.owner {
             return Err(ContractError::Unauthorized {});
         }
@@ -69,76 +66,73 @@ pub fn try_update_testcase<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse::default())
 }
 
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    _env: Env,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetDatasource {} => to_binary(&query_datasource(deps)?),
-        QueryMsg::GetTestcase {} => to_binary(&query_testcase(deps)?),
+        QueryMsg::GetDatasource {} => to_binary(&query_datasources(deps)?),
+        QueryMsg::GetTestcase {} => to_binary(&query_testcases(deps)?),
         QueryMsg::Aggregate { results } => query_aggregation(deps, results),
     }
 }
 
-fn query_datasource<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<Vec<String>> {
-    let state = config_read(&deps.storage).load()?;
-    Ok(state.ai_data_source)
+fn query_datasources(deps: Deps) -> StdResult<Binary> {
+    let state = config_read(deps.storage).load()?;
+    to_binary(&state.ai_data_source)
 }
 
-fn query_testcase<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-) -> StdResult<Vec<String>> {
-    let state = config_read(&deps.storage).load()?;
-    Ok(state.testcase)
+fn query_testcases(deps: Deps) -> StdResult<Binary> {
+    let state = config_read(deps.storage).load()?;
+    to_binary(&state.testcase)
 }
 
-fn query_aggregation<S: Storage, A: Api, Q: Querier>(
-    _deps: &Extern<S, A, Q>,
-    results: Vec<String>,
-) -> StdResult<Binary> {
+fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
     println!("Hello, world!");
-    // let input = String::from(rem_first_and_last(results[0].as_str()));
-    // let input_edit = str::replace(&input, "\\\"", "\"");
-    let mut aggregation_result: Vec<Data> = Vec::new();
-    let price_data: Vec<Data> = from_slice(results[0].as_bytes())?;
+    let mut aggregation_result: Vec<Output> = Vec::new();
+    let price_data: Vec<Input> = from_slice(results[0].as_bytes()).unwrap();
     for res in price_data {
-        // each "-" represents a source price
-        let small_res_iter = res.prices.split('-');
-        // split to calculate mean
-        let mut sum: i32 = 0;
-        let mut floating_sum: i32 = 0;
-        let mut count = 0;
-        for small_res in small_res_iter {
-            // get first item from iterator
-            let mut iter = small_res.split('.');
-            let first = iter.next();
-            let last = iter.next();
-            // will panic instead for forward error with ?
-            let number: i32 = first.unwrap().parse().unwrap();
-            let mut floating: i32 = 0;
-            if last.is_some() {
-                let mut last_part = last.unwrap().to_owned();
-                if last_part.len() < 5 {
-                    last_part.push_str("0");
-                } else if last_part.len() > 5 {
-                    last_part = last_part[..5].to_string();
-                }
-                floating = last_part.parse().unwrap();
+        // split to calculate largest precision of the price
+        let mut largest_precision: usize = 0;
+        for mut price in res.prices.clone() {
+            let dot_pos = price.find('.').unwrap();
+            price = price[dot_pos..].to_string();
+            println!("price to find large precision: {}", price);
+            if price.len() > largest_precision {
+                largest_precision = price.len();
             }
-            sum += number;
-            floating_sum += floating;
+        }
+        let mut sum: u128 = 0;
+        let mut count = 0;
+        for mut price in res.prices {
+            println!("original price: {}", price);
+            let dot_pos = price.find('.').unwrap();
+            // plus one because postiion starts at 0
+            let dot_add = dot_pos.add(largest_precision + 1);
+            if price.len() > dot_add {
+                price.insert(dot_add, '.');
+                price = price[..dot_add].to_string();
+            } else {
+                while price.len() < dot_add {
+                    price.push('0');
+                }
+            }
+            price.remove(dot_pos);
+            let price_int: u128 = price.parse().unwrap();
+            println!("price: {}", price_int);
+            sum += price_int;
             count += 1;
         }
+        println!("sum: {}", sum);
+        let mean = sum / count;
+        let mut mean_price = mean.to_string();
+        while mean_price.len() <= largest_precision {
+            mean_price.insert(0, '0');
+        }
+        println!("mean price len: {}", mean_price);
+        mean_price.insert(mean_price.len().wrapping_sub(largest_precision), '.');
+        println!("mean price: {}", mean_price);
 
-        sum = sum / count;
-        floating_sum = floating_sum / count;
-        let final_result = format!("{}.{}", sum, floating_sum);
-        let data: Data = Data {
+        let data: Output = Output {
             name: res.name,
-            prices: final_result,
+            price: mean_price,
         };
         aggregation_result.push(data.clone());
     }
@@ -148,63 +142,62 @@ fn query_aggregation<S: Storage, A: Api, Q: Querier>(
 
 #[test]
 fn assert_aggregate() {
-    let mut aggregation_result: Vec<Data> = Vec::new();
+    let mut aggregation_result: Vec<Output> = Vec::new();
     let resp = format!(
-        "[{{\"name\":\"ETH\",\"prices\":\"{}-{}\"}},{{\"name\":\"BTC\",\"prices\":\"{}-{}\"}}]",
-        "2222.142999", "5024.242542", "54252.25345213", "2801.2341"
+        "[{{\"name\":\"ETH\",\"prices\":[\"{}\",\"{}\",\"{}\"]}},{{\"name\":\"BTC\",\"prices\":[\"{}\",\"{}\"]}}]",
+        "0.00000000000018900", "0.00000001305", "0.00000000006", "2801.2341", "200.1"
     );
-    let price_data: Vec<Data> = from_slice(resp.as_bytes()).unwrap();
-    let mut result_str = String::from("[");
+    let price_data: Vec<Input> = from_slice(resp.as_bytes()).unwrap();
     for res in price_data {
-        // each "-" represents a source price
-        let small_res_iter = res.prices.split('-');
-        // split to calculate mean
-        let mut sum: i32 = 0;
-        let mut floating_sum: i32 = 0;
-        let mut count = 0;
-        for small_res in small_res_iter {
-            // get first item from iterator
-            let mut iter = small_res.split('.');
-            let first = iter.next();
-            let last = iter.next();
-            // will panic instead for forward error with ?
-            let number: i32 = first.unwrap().parse().unwrap();
-            let mut floating: i32 = 0;
-            if last.is_some() {
-                let mut last_part = last.unwrap().to_owned();
-                if last_part.len() < 10 {
-                    last_part.push_str("0");
-                } else if last_part.len() > 10 {
-                    last_part = last_part[..10].to_string();
-                }
-                floating = last_part.parse().unwrap();
+        // split to calculate largest precision of the price
+        let mut largest_precision: usize = 0;
+        for mut price in res.prices.clone() {
+            let dot_pos = price.find('.').unwrap();
+            price = price[dot_pos..].to_string();
+            println!("price to find large precision: {}", price);
+            if price.len() > largest_precision {
+                largest_precision = price.len();
             }
-            sum += number;
-            floating_sum += floating;
+        }
+        let mut sum: u128 = 0;
+        let mut count = 0;
+        for mut price in res.prices {
+            println!("original price: {}", price);
+            let dot_pos = price.find('.').unwrap();
+            // plus one because postiion starts at 0
+            let dot_add = dot_pos.add(largest_precision + 1);
+            if price.len() > dot_add {
+                price.insert(dot_add, '.');
+                price = price[..dot_add].to_string();
+            } else {
+                while price.len() < dot_add {
+                    price.push('0');
+                }
+            }
+            price.remove(dot_pos);
+            let price_int: u128 = price.parse().unwrap();
+            println!("price: {}", price_int);
+            sum += price_int;
             count += 1;
         }
+        println!("sum: {}", sum);
+        let mean = sum / count;
+        let mut mean_price = mean.to_string();
+        while mean_price.len() <= largest_precision {
+            mean_price.insert(0, '0');
+        }
+        println!("mean price len: {}", mean_price);
+        mean_price.insert(mean_price.len().wrapping_sub(largest_precision), '.');
+        println!("mean price: {}", mean_price);
 
-        sum = sum / count;
-        floating_sum = floating_sum / count;
-        let final_result = format!("{}.{}", sum, floating_sum);
-        let data: Data = Data {
+        let data: Output = Output {
             name: res.name,
-            prices: final_result,
+            price: mean_price,
         };
         aggregation_result.push(data.clone());
-        // prepare result string
-        result_str.push_str(
-            format!(
-                "{{\"name\":\"{}\",\"prices\":\"{}\"}},",
-                data.name, data.prices
-            )
-            .as_str(),
-        );
     }
-    // pop ,
-    result_str.pop();
-    result_str.push(']');
-    // let msg_string = String::from("result=positive&result=negative");
-    // assert_eq!(msg_string, final_result);
-    println!("Result: {}", result_str);
+    for result in aggregation_result {
+        println!("name: {}", result.name);
+        println!("result: {}", result.price);
+    }
 }

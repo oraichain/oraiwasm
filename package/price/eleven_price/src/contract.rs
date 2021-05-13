@@ -44,22 +44,19 @@ fn query_data(deps: Deps, input: String) -> StdResult<Binary> {
     methods.insert("coincap", query_coincap);
     let list_source = vec!["binance", "coinbase", "gate", "crypto-compare", "coincap"];
     let mut list_data: Vec<Data> = Vec::new();
-
     for symbol in list_symbols {
-        let mut prices = String::from("");
+        let mut prices: Vec<String> = Vec::new();
         for source in list_source.clone() {
             let price = match methods.get(source) {
                 Some(f) => f(deps, symbol),
                 None => String::from("none"),
             };
             if price != String::from("none") {
-                prices.push_str(price.as_str());
-                prices.push('-');
+                prices.push(price);
             };
         }
         // check if the symbol we want is gettable or not. If empty => cannot get
-        if prices != String::from("") {
-            prices.pop();
+        if prices.len() > 0 {
             let data: Data = Data {
                 name: String::from(symbol),
                 prices: prices.clone(),

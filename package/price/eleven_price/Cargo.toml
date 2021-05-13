@@ -30,9 +30,6 @@ rpath = false
 
 cosmwasm-std = {version = "0.13.2", features = ["iterator"]}
 cosmwasm-storage = {version = "0.13.2", features = ["iterator"]}
-cw0 = "0.5.0"
-cw2 = "0.5.0"
-cw20 = "0.5.0"
 schemars = "0.7"
 serde = {version = "1.0.103", default-features = false, features = ["derive"]}
 thiserror = {version = "1.0.20"}

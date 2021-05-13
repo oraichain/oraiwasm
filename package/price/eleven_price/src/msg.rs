@@ -8,7 +8,7 @@ pub struct InitMsg {}
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Data {
     pub name: String,
-    pub prices: String,
+    pub prices: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
