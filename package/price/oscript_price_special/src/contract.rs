@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub};
+use std::ops::Add;
 
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, Input, Output, QueryMsg};

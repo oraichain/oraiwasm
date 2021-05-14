@@ -3,8 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use oscript_price_eleven::msg::{HandleMsg, InitMsg, QueryMsg};
-use oscript_price_eleven::state::State;
+use oscript_price_special::msg::{HandleMsg, InitMsg, QueryMsg};
+use oscript_price_special::state::State;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

@@ -1,20 +1,25 @@
 use crate::msg::{Data, DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg};
 use crate::{error::ContractError, msg::Response};
 use cosmwasm_std::{
-    to_binary, Api, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, Querier, StdResult, Storage,
+    to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
+    StdResult,
 };
 
-pub fn init(deps: DepsMut, _env: Env, _info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+pub fn init(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: InitMsg,
+) -> StdResult<InitResponse> {
     Ok(InitResponse::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
 pub fn handle(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
-    msg: HandleMsg,
+    _info: MessageInfo,
+    _msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     Ok(HandleResponse::default())
 }
@@ -39,7 +44,7 @@ fn test_price(
     let data_sources: Vec<Data> = deps.querier.query_wasm_smart(contract, &msg)?;
     let response = Response {
         name: String::from(""),
-        result: data_sources,
+        result: to_binary(&data_sources).unwrap(),
         status: String::from("success"),
     };
     let resp_bin: Binary = to_binary(&response).unwrap();

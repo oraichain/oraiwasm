@@ -1,4 +1,4 @@
-use std::{fmt::format, vec};
+use std::vec;
 
 use crate::msg::{CryptoCompare, Data, Gate, HandleMsg, InitMsg, QueryMsg, SpecialQuery};
 use crate::{
@@ -6,22 +6,27 @@ use crate::{
     msg::{Binance, CoinCap, Coinbase},
 };
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse,
-    MessageInfo, StdError, StdResult,
+    from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
+    StdError, StdResult,
 };
 
 use std::collections::HashMap;
 
-pub fn init(deps: DepsMut, _env: Env, _info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+pub fn init(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: InitMsg,
+) -> StdResult<InitResponse> {
     Ok(InitResponse::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
 pub fn handle(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
-    msg: HandleMsg,
+    _info: MessageInfo,
+    _msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     Ok(HandleResponse::default())
 }
@@ -32,7 +37,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_data(deps: Deps, input: String) -> StdResult<Binary> {
+fn query_data(deps: Deps, _input: String) -> StdResult<Binary> {
     let list_symbols = vec![
         "BTC", "ETH", "BNB", "XRP", "DOGE", "USDT", "LINK", "UNI", "USDC", "BUSD", "ORAI", "DAI",
     ];
@@ -190,7 +195,7 @@ fn query_price(deps: Deps, url: String) -> String {
 #[cfg(test)]
 mod tests {
     use crate::msg::Data;
-    use cosmwasm_std::{from_slice, testing::mock_dependencies};
+    use cosmwasm_std::from_slice;
 
     #[test]
     fn proper_initialization() {
