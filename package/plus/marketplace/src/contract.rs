@@ -1,10 +1,10 @@
 use crate::error::ContractError;
-use crate::msg::{BuyNft, HandleMsg, InitMsg, QueryMsg, SellNft};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, SellNft};
 use crate::package::{ContractInfoResponse, OfferingsResponse, QueryOfferingsResult};
 use crate::state::{increment_offerings, Offering, CONTRACT_INFO, OFFERINGS};
 use cosmwasm_std::{
     attr, from_binary, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, InitResponse, MessageInfo, Order, StdResult, Uint128, WasmMsg,
+    HandleResponse, InitResponse, MessageInfo, Order, StdResult, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
@@ -64,7 +64,7 @@ pub fn try_buy(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    offering_id: String,
+    offering_id: u64,
 ) -> Result<HandleResponse, ContractError> {
     // collect buyer amount from sent_funds
     if info.sent_funds.len() == 0 {
@@ -77,7 +77,7 @@ pub fn try_buy(
     }
 
     // check if offering exists
-    let off = OFFERINGS.load(deps.storage, &offering_id)?;
+    let off = OFFERINGS.load(deps.storage, &offering_id.to_string())?;
 
     // check for enough coins
     if amount.lt(&off.price) {
@@ -117,7 +117,7 @@ pub fn try_buy(
     let cosmos_msgs = vec![bank_msg, cw721_transfer_cosmos_msg];
 
     //delete offering
-    OFFERINGS.remove(deps.storage, &offering_id);
+    OFFERINGS.remove(deps.storage, &offering_id.to_string());
 
     let price_string = format!("{} {}", amount, info.sender);
 
@@ -167,7 +167,7 @@ pub fn try_receive_nft(
             attr("action", "sell_nft"),
             attr("original_contract", info.sender),
             attr("seller", rcv_msg.sender),
-            attr("list_price", price_string),
+            attr("price", price_string),
             attr("token_id", off.token_id),
         ],
         data: None,
@@ -177,10 +177,11 @@ pub fn try_receive_nft(
 pub fn try_withdraw(
     deps: DepsMut,
     info: MessageInfo,
-    offering_id: String,
+    offering_id: u64,
 ) -> Result<HandleResponse, ContractError> {
     // check if token_id is currently sold by the requesting address
-    let off = OFFERINGS.load(deps.storage, &offering_id)?;
+    let storage_key = offering_id.to_string();
+    let off = OFFERINGS.load(deps.storage, &storage_key)?;
     if off.seller == deps.api.canonical_address(&info.sender)? {
         // transfer token back to original owner
         let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
@@ -197,7 +198,7 @@ pub fn try_withdraw(
         let cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![exec_cw721_transfer.into()];
 
         // remove offering
-        OFFERINGS.remove(deps.storage, &offering_id);
+        OFFERINGS.remove(deps.storage, &storage_key);
 
         return Ok(HandleResponse {
             messages: cw721_transfer_cosmos_msg,
@@ -234,7 +235,7 @@ fn query_offerings(
     };
 
     let res: StdResult<Vec<QueryOfferingsResult>> = OFFERINGS
-        .range(deps.storage, start, None, Order::Ascending)
+        .range(deps.storage, start, None, Order::Descending)
         .take(limit)
         .map(|kv_item| parse_offering(deps.api, kv_item))
         .collect();
@@ -246,9 +247,9 @@ fn query_offerings(
 
 fn parse_offering(api: &dyn Api, item: StdResult<KV<Offering>>) -> StdResult<QueryOfferingsResult> {
     item.and_then(|(k, offering)| {
-        let id = from_utf8(&k)?;
+        let id: u64 = from_utf8(&k)?.parse().unwrap();
         Ok(QueryOfferingsResult {
-            id: id.to_string(),
+            id: id,
             token_id: offering.token_id,
             price: offering.price,
             contract_addr: api.human_address(&offering.contract_addr)?,
@@ -264,7 +265,6 @@ mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coin, coins, from_binary, HumanAddr, Uint128};
-    use cw20::Cw20CoinHuman;
 
     //     #[test]
     //     fn proper_initialization() {
@@ -322,7 +322,7 @@ mod tests {
         assert_eq!(1, value.offerings.len());
 
         let msg2 = HandleMsg::BuyNft {
-            offering_id: value.offerings[0].id.clone(),
+            offering_id: value.offerings[0].id,
         };
 
         let info_buy = mock_info("cw20ContractAddr", &coins(5, "orai"));

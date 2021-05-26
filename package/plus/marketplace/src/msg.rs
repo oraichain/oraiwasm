@@ -1,6 +1,5 @@
 use cosmwasm_std::{Binary, HumanAddr, Uint128};
 
-use cw20::{Cw20CoinHuman, Cw20ReceiveMsg};
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -14,10 +13,10 @@ pub struct InitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     WithdrawNft {
-        offering_id: String,
+        offering_id: u64,
     },
     BuyNft {
-        offering_id: String,
+        offering_id: u64,
     },
     ReceiveNft(Cw721ReceiveMsg),
     /// Mint a new NFT, can only be called by the contract minter

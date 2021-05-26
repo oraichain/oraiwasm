@@ -1,5 +1,4 @@
 use cosmwasm_std::{HumanAddr, Uint128};
-use cw20::Cw20CoinHuman;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +9,7 @@ pub struct ContractInfoResponse {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct QueryOfferingsResult {
-    pub id: String,
+    pub id: u64,
     pub token_id: String,
     pub price: Uint128,
     pub contract_addr: HumanAddr,

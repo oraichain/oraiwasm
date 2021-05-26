@@ -71,7 +71,7 @@ cosmwasm-simulate handle marketplace `{
   }
 }`
 
-# Execute send_nft action to put token up for sale for specified list_price on the marketplace
+# Execute send_nft action to put token up for sale for specified_price on the marketplace
 # msg in base64 format: eyJsaXN0X3ByaWNlIjp7ImFkZHJlc3MiOiJvdzIwIiwiYW1vdW50IjoiNTAifX0=
 cosmwasm-simulate handle ow721 `{
   "send_nft": {
@@ -117,6 +117,6 @@ Buys an NFT token, transferring funds to the seller and the token to the buyer.
 ```shell
 # Execute send action to buy token with the specified offering_id from the marketplace
 # msg in base64 format: eyJvZmZlcmluZ19pZCI6IjEifQ==
-cosmwasm-simulate handle marketplace '{"buy":{"offering_id":"1"}}'
+cosmwasm-simulate handle marketplace '{"buy_nft":{"offering_id":"1"}}'
 
 ```
