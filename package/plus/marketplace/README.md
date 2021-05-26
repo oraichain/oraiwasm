@@ -46,15 +46,6 @@ cosmwasm-simulate init ow721 '{
   "symbol": "NFT"
 }'
 
-# Init ow20
-cosmwasm-simulate init ow20 `{
-  "decimals": 6,
-  "initial_balances": [{ "address": "fake_sender_addr", "amount": "300000" }],
-  "mint": { "minter": "fake_sender_addr", "cap": "300000" },
-  "name": "OW20 Token",
-  "symbol": "ORAI"
-}'
-
 ```
 
 ### Sell CW721 Token
@@ -85,7 +76,7 @@ cosmwasm-simulate handle marketplace `{
 cosmwasm-simulate handle ow721 `{
   "send_nft": {
     "contract": "marketplace",
-    "msg": {"list_price": {"address": "ow20", "amount": "50"}},
+    "msg": {"price": "50"},
     "token_id": "123456"
   }
 }`
@@ -126,12 +117,6 @@ Buys an NFT token, transferring funds to the seller and the token to the buyer.
 ```shell
 # Execute send action to buy token with the specified offering_id from the marketplace
 # msg in base64 format: eyJvZmZlcmluZ19pZCI6IjEifQ==
-cosmwasm-simulate handle ow20  '{
-  "send": {
-    "amount": "<INSERT_AMOUNT>",
-    "contract": "marketplace",
-    "msg": {"offering_id": "<INSERT_OFFERING_ID>"}
-  }
-}'
+cosmwasm-simulate handle marketplace '{"buy":{"offering_id":"1"}}'
 
 ```

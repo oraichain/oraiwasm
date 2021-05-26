@@ -85,6 +85,11 @@ pub fn handle(
             amount,
             msg,
         } => handle_send(deps, env, info, contract, amount, msg),
+        HandleMsg::SendNative {
+            contract,
+            rcpt,
+            msg,
+        } => handle_send_native(deps, env, info, contract, rcpt, msg),
         HandleMsg::Mint { recipient, amount } => handle_mint(deps, env, info, recipient, amount),
         HandleMsg::IncreaseAllowance {
             spender,
@@ -109,7 +114,7 @@ pub fn handle(
             msg,
         } => handle_send_from(deps, env, info, owner, contract, amount, msg),
         HandleMsg::Swap {} => handle_swap(deps, env, info),
-        HandleMsg::Withdraw { amount } => handle_withdraw(deps, env, info, amount),
+        HandleMsg::Withdraw { amount, addr } => handle_withdraw(deps, env, info, amount, addr),
     }
 }
 
@@ -156,12 +161,13 @@ pub fn handle_withdraw(
     env: Env,
     info: MessageInfo,
     amount: Uint128,
+    addr: HumanAddr,
 ) -> Result<HandleResponse, ContractError> {
     if amount == Uint128::zero() {
         return Err(ContractError::InvalidZeroAmount {});
     }
     let token_info = token_info_read(deps.storage).load()?;
-    let withdrawer_raw = deps.api.canonical_address(&info.sender)?;
+    let withdrawer_raw = deps.api.canonical_address(&addr)?;
     let mut accounts = balances(deps.storage);
     let balance = accounts.load(withdrawer_raw.as_slice())?;
     // check balance to catch error
@@ -182,7 +188,7 @@ pub fn handle_withdraw(
     // send native tokens of the same amount from the balance of native contract address to withdrawer
     res.add_message(BankMsg::Send {
         from_address: env.contract.address,
-        to_address: info.sender,
+        to_address: addr,
         amount: vec![Coin {
             denom: String::from("orai"),
             amount: amount,
@@ -199,9 +205,9 @@ pub fn handle_transfer(
     recipient: HumanAddr,
     amount: Uint128,
 ) -> Result<HandleResponse, ContractError> {
-    if amount == Uint128::zero() {
-        return Err(ContractError::InvalidZeroAmount {});
-    }
+    // if amount == Uint128::zero() {
+    //     return Err(ContractError::InvalidZeroAmount {});
+    // }
 
     let rcpt_raw = deps.api.canonical_address(&recipient)?;
     let sender_raw = deps.api.canonical_address(&info.sender)?;
@@ -322,9 +328,9 @@ pub fn handle_send(
     amount: Uint128,
     msg: Option<Binary>,
 ) -> Result<HandleResponse, ContractError> {
-    if amount == Uint128::zero() {
-        return Err(ContractError::InvalidZeroAmount {});
-    }
+    // if amount == Uint128::zero() {
+    //     return Err(ContractError::InvalidZeroAmount {});
+    // }
 
     let rcpt_raw = deps.api.canonical_address(&contract)?;
     let sender_raw = deps.api.canonical_address(&info.sender)?;
@@ -357,6 +363,59 @@ pub fn handle_send(
 
     let res = HandleResponse {
         messages: vec![msg],
+        attributes: attrs,
+        data: None,
+    };
+    Ok(res)
+}
+
+pub fn handle_send_native(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    contract: HumanAddr,
+    rcpt: HumanAddr,
+    msg: Option<Binary>,
+) -> Result<HandleResponse, ContractError> {
+    let amount = info.sent_funds[0].amount;
+    if info.sent_funds.len() == 0 {
+        return Err(ContractError::InvalidSentFundAmount {});
+    }
+    if !info.sent_funds[0].denom.eq(&String::from("orai")) {
+        return Err(ContractError::InvalidDenomAmount {});
+    }
+
+    let rcpt_raw = deps.api.canonical_address(&contract)?;
+    let sender_raw = deps.api.canonical_address(&info.sender)?;
+
+    let sender = deps.api.human_address(&sender_raw)?;
+    let attrs = vec![
+        attr("action", "send"),
+        attr("from", &sender),
+        attr("to", &contract),
+        attr("amount", amount),
+    ];
+
+    // create a send message
+    let msg = Cw20ReceiveMsg {
+        sender,
+        amount,
+        msg,
+    }
+    .into_cosmos_msg(contract)?;
+
+    let bank_msg = BankMsg::Send {
+        from_address: env.contract.address,
+        to_address: rcpt,
+        amount: vec![Coin {
+            denom: String::from("orai"),
+            amount: amount,
+        }],
+    }
+    .into();
+
+    let res = HandleResponse {
+        messages: vec![bank_msg, msg],
         attributes: attrs,
         data: None,
     };

@@ -633,9 +633,13 @@ mod tests {
         let description = "Allows the owner to petrify anyone looking at him or her".to_string();
 
         let mint_str = format!(
-            "{{\"token_id\":\"petrify\",\"owner\":\"oagi4wjzdtzm02z9xy6m0xf3du52rma1w8uz6j2vup0\",\"name\":\"{}\",\"description\":\"{}\"
+            "{{\"token_id\":\"petrify\",\"owner\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"{}\",\"description\":\"{}\"
     }}",
             name, description
+        );
+        println!(
+            "length count: {}",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".len()
         );
         let mint_msg: MintMsg = from_slice(mint_str.as_bytes()).unwrap();
         println!(
