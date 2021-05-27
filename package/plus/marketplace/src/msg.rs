@@ -45,5 +45,6 @@ pub enum QueryMsg {
     GetOfferings {
         offset: Option<String>,
         limit: Option<u32>,
+        order: Option<u8>,
     },
 }

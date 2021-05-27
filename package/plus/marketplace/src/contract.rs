@@ -77,7 +77,12 @@ pub fn try_buy(
     }
 
     // check if offering exists
-    let off = OFFERINGS.load(deps.storage, &offering_id.to_string())?;
+    let off_result = OFFERINGS.load(deps.storage, &offering_id.to_string());
+    // check if offering exists or not
+    if off_result.is_err() {
+        return Err(ContractError::InvalidGetOffering {});
+    }
+    let off: Offering = off_result?;
 
     // check for enough coins
     if amount.lt(&off.price) {
@@ -85,7 +90,12 @@ pub fn try_buy(
     }
 
     // create transfer msg to send ORAI to the seller
-    let seller = deps.api.human_address(&off.seller)?;
+    let seller_result = deps.api.human_address(&off.seller);
+    // check if when parsing to human address there is an error
+    if seller_result.is_err() {
+        return Err(ContractError::InvalidSellerAddr {});
+    }
+    let seller: HumanAddr = seller_result?;
     let bank_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address,
         to_address: seller.clone(),
@@ -101,7 +111,11 @@ pub fn try_buy(
         recipient: info.sender.clone(),
         token_id: off.token_id.clone(),
     };
-    let contract_addr = deps.api.human_address(&off.contract_addr)?;
+    let contract_addr_result = deps.api.human_address(&off.contract_addr);
+    if contract_addr_result.is_err() {
+        return Err(ContractError::InvalidContractAddr {});
+    }
+    let contract_addr: HumanAddr = contract_addr_result?;
     let exec_cw721_transfer = WasmMsg::Execute {
         contract_addr: contract_addr.clone(),
         msg: to_binary(&transfer_cw721_msg)?,
@@ -215,9 +229,11 @@ pub fn try_withdraw(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetOfferings { limit, offset } => {
-            to_binary(&query_offerings(deps, limit, offset)?)
-        }
+        QueryMsg::GetOfferings {
+            limit,
+            offset,
+            order,
+        } => to_binary(&query_offerings(deps, limit, offset, order)?),
     }
 }
 
@@ -227,15 +243,21 @@ fn query_offerings(
     deps: Deps,
     limit: Option<u32>,
     offset: Option<String>,
+    order: Option<u8>,
 ) -> StdResult<OfferingsResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = match offset {
         Some(v) => Some(Bound::Exclusive(v.into())),
         None => None,
     };
+    let order_enum: Order = match order {
+        Some(num) if num == 1 => Order::Ascending,
+        Some(num) => Order::Descending,
+        None => Order::Descending,
+    };
 
     let res: StdResult<Vec<QueryOfferingsResult>> = OFFERINGS
-        .range(deps.storage, start, None, Order::Descending)
+        .range(deps.storage, start, None, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(deps.api, kv_item))
         .collect();
@@ -297,6 +319,7 @@ mod tests {
         let info = mock_info("anyone", &vec![coin(5, "orai")]);
 
         let sell_msg = SellNft { price: Uint128(1) };
+        let sell_msg_second = SellNft { price: Uint128(2) };
 
         println!("msg: {}", to_binary(&sell_msg).unwrap());
 
@@ -305,7 +328,14 @@ mod tests {
             token_id: String::from("SellableNFT"),
             msg: to_binary(&sell_msg).ok(),
         });
-        let _res = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        let msg_second = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+            sender: HumanAddr::from("seller"),
+            token_id: String::from("SellableNFT"),
+            msg: to_binary(&sell_msg_second).ok(),
+        });
+        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+        let _res_second = handle(deps.as_mut(), mock_env(), info, msg_second).unwrap();
 
         // Offering should be listed
         let res = query(
@@ -314,12 +344,14 @@ mod tests {
             QueryMsg::GetOfferings {
                 limit: None,
                 offset: None,
+                order: None,
             },
         )
         .unwrap();
         let value: OfferingsResponse = from_binary(&res).unwrap();
+        println!("value: {} {}", value.offerings[0].id, value.offerings[1].id);
 
-        assert_eq!(1, value.offerings.len());
+        assert_eq!(2, value.offerings.len());
 
         let msg2 = HandleMsg::BuyNft {
             offering_id: value.offerings[0].id,
@@ -336,11 +368,12 @@ mod tests {
             QueryMsg::GetOfferings {
                 limit: None,
                 offset: None,
+                order: None,
             },
         )
         .unwrap();
         let value2: OfferingsResponse = from_binary(&res2).unwrap();
-        assert_eq!(0, value2.offerings.len());
+        assert_eq!(1, value2.offerings.len());
     }
 
     #[test]
@@ -374,6 +407,7 @@ mod tests {
             QueryMsg::GetOfferings {
                 limit: None,
                 offset: None,
+                order: None,
             },
         )
         .unwrap();
@@ -394,6 +428,7 @@ mod tests {
             QueryMsg::GetOfferings {
                 limit: None,
                 offset: None,
+                order: None,
             },
         )
         .unwrap();

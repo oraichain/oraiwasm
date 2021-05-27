@@ -24,4 +24,13 @@ pub enum ContractError {
 
     #[error("Sent funds amount is empty")]
     InvalidSentFundAmount {},
+
+    #[error("There is an error while collecting the offering")]
+    InvalidGetOffering {},
+
+    #[error("The offering seller address is invalid")]
+    InvalidSellerAddr {},
+
+    #[error("The offering contract address is invalid")]
+    InvalidContractAddr {},
 }
