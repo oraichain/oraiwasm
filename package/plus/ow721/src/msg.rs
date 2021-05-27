@@ -27,6 +27,10 @@ pub enum HandleMsg {
         recipient: HumanAddr,
         token_id: String,
     },
+    // ChangeMinter is a base message for the OW721 owner to change the minter
+    ChangeMinter {
+        minter: HumanAddr,
+    },
     /// Send is a base message to transfer a token to a contract and trigger an action
     /// on the receiving contract.
     SendNft {
@@ -53,7 +57,9 @@ pub enum HandleMsg {
         expires: Option<Expiration>,
     },
     /// Remove previously granted ApproveAll permission
-    RevokeAll { operator: HumanAddr },
+    RevokeAll {
+        operator: HumanAddr,
+    },
 
     /// Mint a new NFT, can only be called by the contract minter
     Mint(MintMsg),

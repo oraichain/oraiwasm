@@ -14,6 +14,7 @@ use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, MintMsg, MinterResponse, QueryMsg};
 use crate::state::{
     increment_tokens, num_tokens, tokens, Approval, TokenInfo, CONTRACT_INFO, MINTER, OPERATORS,
+    OWNER,
 };
 use cw_storage_plus::Bound;
 
@@ -21,7 +22,12 @@ use cw_storage_plus::Bound;
 const CONTRACT_NAME: &str = "crates.io:ow721";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub fn init(deps: DepsMut, _env: Env, _info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+pub fn init(
+    deps: DepsMut,
+    _env: Env,
+    msg_info: MessageInfo,
+    msg: InitMsg,
+) -> StdResult<InitResponse> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let info = ContractInfoResponse {
@@ -30,7 +36,9 @@ pub fn init(deps: DepsMut, _env: Env, _info: MessageInfo, msg: InitMsg) -> StdRe
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     let minter = deps.api.canonical_address(&msg.minter)?;
+    let owner = deps.api.canonical_address(&msg_info.sender)?;
     MINTER.save(deps.storage, &minter)?;
+    OWNER.save(deps.storage, &owner)?;
     Ok(InitResponse::default())
 }
 
@@ -63,6 +71,7 @@ pub fn handle(
             token_id,
             msg,
         } => handle_send_nft(deps, env, info, contract, token_id, msg),
+        HandleMsg::ChangeMinter { minter } => handle_change_minter(deps, env, info, minter),
     }
 }
 
@@ -302,6 +311,30 @@ pub fn handle_revoke_all(
             attr("action", "revoke_all"),
             attr("sender", info.sender),
             attr("operator", operator),
+        ],
+        data: None,
+    })
+}
+
+pub fn handle_change_minter(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    minter: HumanAddr,
+) -> Result<HandleResponse, ContractError> {
+    let owner_raw = deps.api.canonical_address(&info.sender)?;
+    let owner = OWNER.load(deps.storage)?;
+    if !owner.eq(&owner_raw) {
+        return Err(ContractError::Unauthorized {});
+    }
+    let minter = deps.api.canonical_address(&minter)?;
+    MINTER.save(deps.storage, &minter)?;
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("action", "change_minter"),
+            attr("minter", minter),
+            attr("owner", info.sender),
         ],
         data: None,
     })

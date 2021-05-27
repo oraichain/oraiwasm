@@ -30,6 +30,7 @@ pub struct Approval {
 
 pub const CONTRACT_INFO: Item<ContractInfoResponse> = Item::new("nft_info");
 pub const MINTER: Item<CanonicalAddr> = Item::new("minter");
+pub const OWNER: Item<CanonicalAddr> = Item::new("owner");
 pub const TOKEN_COUNT: Item<u64> = Item::new("num_tokens");
 
 // pub const TOKENS: Map<&str, TokenInfo> = Map::new("tokens");

@@ -252,7 +252,7 @@ fn query_offerings(
     };
     let order_enum: Order = match order {
         Some(num) if num == 1 => Order::Ascending,
-        Some(num) => Order::Descending,
+        Some(_num) => Order::Descending,
         None => Order::Descending,
     };
 
