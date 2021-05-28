@@ -13,8 +13,8 @@ use std::convert::TryInto;
 use std::usize;
 
 // settings for pagination
-const MAX_LIMIT: u32 = 30;
-const DEFAULT_LIMIT: u32 = 10;
+const MAX_LIMIT: u8 = 30;
+const DEFAULT_LIMIT: u8 = 10;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -242,22 +242,32 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 fn query_offerings(
     deps: Deps,
-    limit: Option<u32>,
-    offset: Option<String>,
+    limit: Option<u8>,
+    offset: Option<u64>,
     order: Option<u8>,
 ) -> StdResult<OfferingsResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = match offset {
-        Some(v) => Some(Bound::Exclusive(v.into())),
-        None => None,
-    };
-    let order_enum: Order = match order {
-        Some(num) if num == 1 => Order::Ascending,
-        _ => Order::Descending,
+
+    let mut min: Option<Bound> = None;
+    let mut max: Option<Bound> = None;
+    let mut order_enum = Order::Descending;
+    if let Some(num) = order {
+        if num == 1 {
+            order_enum = Order::Ascending;
+        }
+    }
+
+    // if there is offset, assign to min or max
+    if let Some(offset) = offset {
+        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        match order_enum {
+            Order::Ascending => min = offset_value,
+            Order::Descending => max = offset_value,
+        }
     };
 
     let res: StdResult<Vec<QueryOfferingsResult>> = OFFERINGS
-        .range(deps.storage, start, None, order_enum)
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(deps.api, kv_item))
         .collect();
@@ -289,6 +299,45 @@ mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coin, coins, from_binary, HumanAddr, Uint128};
+
+    #[test]
+    fn sort_offering() {
+        let mut deps = mock_dependencies(&coins(5, "orai"));
+
+        let msg = InitMsg {
+            name: String::from("test market"),
+        };
+        let info = mock_info("creator", &vec![coin(5, "orai")]);
+        let _res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        // beneficiary can release it
+        let info = mock_info("anyone", &vec![coin(50000000, "orai")]);
+
+        for i in 1..100 {
+            let sell_msg = SellNft { price: Uint128(i) };
+            let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+                sender: HumanAddr::from("seller"),
+                token_id: String::from(format!("SellableNFT {}", i)),
+                msg: to_binary(&sell_msg).ok(),
+            });
+            let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+        }
+
+        // Offering should be listed
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetOfferings {
+                limit: Some(MAX_LIMIT),
+                offset: Some(40),
+                order: Some(1),
+            },
+        )
+        .unwrap();
+        let value: OfferingsResponse = from_binary(&res).unwrap();
+        let ids: Vec<u64> = value.offerings.iter().map(|f| f.id).collect();
+        println!("value: {:?}", ids);
+    }
 
     //     #[test]
     //     fn proper_initialization() {
@@ -383,45 +432,6 @@ mod tests {
         .unwrap();
         let value2: OfferingsResponse = from_binary(&res2).unwrap();
         assert_eq!(1, value2.offerings.len());
-    }
-
-    #[test]
-    fn sort_offering() {
-        let mut deps = mock_dependencies(&coins(5, "orai"));
-
-        let msg = InitMsg {
-            name: String::from("test market"),
-        };
-        let info = mock_info("creator", &vec![coin(5, "orai")]);
-        let _res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // beneficiary can release it
-        let info = mock_info("anyone", &vec![coin(50000000, "orai")]);
-
-        for i in 1..100 {
-            let sell_msg = SellNft { price: Uint128(i) };
-            let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-                sender: HumanAddr::from("seller"),
-                token_id: String::from(format!("SellableNFT {}", i)),
-                msg: to_binary(&sell_msg).ok(),
-            });
-            let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
-        }
-
-        // Offering should be listed
-        let res = query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::GetOfferings {
-                limit: Some(MAX_LIMIT),
-                offset: None,
-                order: None,
-            },
-        )
-        .unwrap();
-        let value: OfferingsResponse = from_binary(&res).unwrap();
-        let ids: Vec<u64> = value.offerings.iter().map(|f| f.id).collect();
-        println!("value: {:?}", ids);
     }
 
     #[test]

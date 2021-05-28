@@ -35,7 +35,7 @@ pub struct SellNft {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct BuyNft {
-    pub offering_id: String,
+    pub offering_id: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -43,8 +43,8 @@ pub struct BuyNft {
 pub enum QueryMsg {
     // GetOfferings returns a list of all offerings
     GetOfferings {
-        offset: Option<String>,
-        limit: Option<u32>,
+        offset: Option<u64>,
+        limit: Option<u8>,
         order: Option<u8>,
     },
 }
