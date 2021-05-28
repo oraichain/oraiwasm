@@ -334,8 +334,12 @@ mod tests {
             token_id: String::from("SellableNFT"),
             msg: to_binary(&sell_msg_second).ok(),
         });
-        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
-        let _res_second = handle(deps.as_mut(), mock_env(), info, msg_second).unwrap();
+        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let _res_second = handle(deps.as_mut(), mock_env(), info.clone(), msg_second).unwrap();
+
+        for x in 0..300 {
+            let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        }
 
         // Offering should be listed
         let res = query(
@@ -349,7 +353,10 @@ mod tests {
         )
         .unwrap();
         let value: OfferingsResponse = from_binary(&res).unwrap();
-        println!("value: {} {}", value.offerings[0].id, value.offerings[1].id);
+        for offering in value.offerings.clone() {
+            println!("value: {}", offering.id);
+        }
+        println!("length: {}", value.offerings.len());
 
         assert_eq!(2, value.offerings.len());
 
