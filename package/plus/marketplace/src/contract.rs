@@ -9,7 +9,8 @@ use cosmwasm_std::{
 use cosmwasm_std::{HumanAddr, KV};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use cw_storage_plus::Bound;
-use std::str::from_utf8;
+use std::convert::TryInto;
+use std::usize;
 
 // settings for pagination
 const MAX_LIMIT: u32 = 30;
@@ -77,7 +78,7 @@ pub fn try_buy(
     }
 
     // check if offering exists
-    let off_result = OFFERINGS.load(deps.storage, &offering_id.to_string());
+    let off_result = OFFERINGS.load(deps.storage, &offering_id.to_be_bytes());
     // check if offering exists or not
     if off_result.is_err() {
         return Err(ContractError::InvalidGetOffering {});
@@ -131,7 +132,7 @@ pub fn try_buy(
     let cosmos_msgs = vec![bank_msg, cw721_transfer_cosmos_msg];
 
     //delete offering
-    OFFERINGS.remove(deps.storage, &offering_id.to_string());
+    OFFERINGS.remove(deps.storage, &offering_id.to_be_bytes());
 
     let price_string = format!("{} {}", amount, info.sender);
 
@@ -161,7 +162,7 @@ pub fn try_receive_nft(
 
     // check if same token Id form same original contract is already on sale
     // get OFFERING_COUNT
-    let id = increment_offerings(deps.storage)?.to_string();
+    let offering_id = increment_offerings(deps.storage)?;
 
     // save Offering
     let off = Offering {
@@ -171,7 +172,7 @@ pub fn try_receive_nft(
         price: msg.price.clone(),
     };
 
-    OFFERINGS.save(deps.storage, &id, &off)?;
+    OFFERINGS.save(deps.storage, &offering_id.to_be_bytes(), &off)?;
 
     let price_string = format!("{}", msg.price);
 
@@ -194,7 +195,7 @@ pub fn try_withdraw(
     offering_id: u64,
 ) -> Result<HandleResponse, ContractError> {
     // check if token_id is currently sold by the requesting address
-    let storage_key = offering_id.to_string();
+    let storage_key = offering_id.to_be_bytes();
     let off = OFFERINGS.load(deps.storage, &storage_key)?;
     if off.seller == deps.api.canonical_address(&info.sender)? {
         // transfer token back to original owner
@@ -252,8 +253,7 @@ fn query_offerings(
     };
     let order_enum: Order = match order {
         Some(num) if num == 1 => Order::Ascending,
-        Some(_num) => Order::Descending,
-        None => Order::Descending,
+        _ => Order::Descending,
     };
 
     let res: StdResult<Vec<QueryOfferingsResult>> = OFFERINGS
@@ -269,9 +269,11 @@ fn query_offerings(
 
 fn parse_offering(api: &dyn Api, item: StdResult<KV<Offering>>) -> StdResult<QueryOfferingsResult> {
     item.and_then(|(k, offering)| {
-        let id: u64 = from_utf8(&k)?.parse().unwrap();
+        // will panic if length is greater than 8, but we can make sure it is u64
+        // try_into will box vector to fixed array
+        let id: u64 = u64::from_be_bytes(k.try_into().unwrap());
         Ok(QueryOfferingsResult {
-            id: id,
+            id,
             token_id: offering.token_id,
             price: offering.price,
             contract_addr: api.human_address(&offering.contract_addr)?,
@@ -374,6 +376,45 @@ mod tests {
         .unwrap();
         let value2: OfferingsResponse = from_binary(&res2).unwrap();
         assert_eq!(1, value2.offerings.len());
+    }
+
+    #[test]
+    fn sort_offering() {
+        let mut deps = mock_dependencies(&coins(5, "orai"));
+
+        let msg = InitMsg {
+            name: String::from("test market"),
+        };
+        let info = mock_info("creator", &vec![coin(5, "orai")]);
+        let _res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        // beneficiary can release it
+        let info = mock_info("anyone", &vec![coin(50000000, "orai")]);
+
+        for i in 1..100 {
+            let sell_msg = SellNft { price: Uint128(i) };
+            let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+                sender: HumanAddr::from("seller"),
+                token_id: String::from(format!("SellableNFT {}", i)),
+                msg: to_binary(&sell_msg).ok(),
+            });
+            let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+        }
+
+        // Offering should be listed
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetOfferings {
+                limit: Some(MAX_LIMIT),
+                offset: None,
+                order: None,
+            },
+        )
+        .unwrap();
+        let value: OfferingsResponse = from_binary(&res).unwrap();
+        let ids: Vec<u64> = value.offerings.iter().map(|f| f.id).collect();
+        println!("value: {:?}", ids);
     }
 
     #[test]
