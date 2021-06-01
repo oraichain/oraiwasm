@@ -433,13 +433,13 @@ pub fn query_nonce(deps: Deps, orai_addr: HumanAddr) -> StdResult<Binary> {
             "Error parsing Oraichain address to collect nonce",
         ));
     }
-    let nonce_bin = to_binary(&nonce.unwrap()).unwrap();
+    let nonce_bin = to_binary(&nonce.unwrap())?;
     Ok(nonce_bin)
 }
 
 fn query_owner(deps: Deps) -> StdResult<Binary> {
     let owner = owner_read(deps.storage).load()?;
-    let owner_bin = to_binary(&owner.owner).unwrap();
+    let owner_bin = to_binary(&owner.owner)?;
     Ok(owner_bin)
 }
 
