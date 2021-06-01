@@ -63,6 +63,9 @@ pub enum QueryMsg {
         order: Option<u8>,
     },
     Owner {},
+    Nonce {
+        orai_addr: HumanAddr,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
