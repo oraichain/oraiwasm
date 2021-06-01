@@ -54,8 +54,15 @@ pub struct LockNft {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     // GetCount returns the current count as a json-encoded number
-    CheckLock { token_id: String },
-    QueryPubKey { pub_key: Binary },
+    CheckLock {
+        token_id: String,
+    },
+    QueryPubKeys {
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
+    Owner {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -98,4 +105,16 @@ pub enum Expiration {
     AtTime(u64),
     /// Never will never expire. Used to express the empty variant
     Never {},
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct PubKeyResponse {
+    pub pub_keys: Vec<PubKey>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct PubKey {
+    pub pub_key: Binary,
 }

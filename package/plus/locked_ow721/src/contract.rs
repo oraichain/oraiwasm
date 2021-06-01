@@ -3,22 +3,28 @@ use std::vec;
 use crate::{
     error::ContractError,
     msg::{
-        HandleMsg, InitMsg, LockNft, NftQueryMsg, OwnerOfResponse, QueryMsg, UnlockNft, UnlockRaw,
+        HandleMsg, InitMsg, LockNft, NftQueryMsg, OwnerOfResponse, PubKey, PubKeyResponse,
+        QueryMsg, UnlockNft, UnlockRaw,
     },
     state::{owner, owner_read, Locked, Owner, ALLOWED, LOCKED, NONCES},
 };
 use cosmwasm_std::{
-    attr, from_binary, to_binary, to_vec, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
-    HumanAddr, InitResponse, MessageInfo, StdError, StdResult, WasmMsg,
+    attr, from_binary, to_binary, to_vec, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
+    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, WasmMsg, KV,
 };
 
 // ******************************** TODO: ADD change allowed pub key **************************
 
 use cosmwasm_crypto::ed25519_verify;
+use cw_storage_plus::Bound;
 
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 
 use sha2::{Digest, Sha256};
+
+// settings for pagination
+const MAX_LIMIT: u8 = 100;
+const DEFAULT_LIMIT: u8 = 100;
 
 // make use of the custom errors
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
@@ -403,8 +409,19 @@ fn check_pubkey(deps: &DepsMut, info: &MessageInfo, pub_key: &Binary) -> Result<
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::CheckLock { token_id } => query_lock(deps, token_id),
-        QueryMsg::QueryPubKey { pub_key } => query_pubkey(deps, pub_key),
+        QueryMsg::Owner {} => query_owner(deps),
+        QueryMsg::QueryPubKeys {
+            limit,
+            offset,
+            order,
+        } => to_binary(&query_pubkeys(deps, limit, offset, order)?),
     }
+}
+
+fn query_owner(deps: Deps) -> StdResult<Binary> {
+    let owner = owner_read(deps.storage).load()?;
+    let owner_bin = to_binary(&owner.owner).unwrap();
+    Ok(owner_bin)
 }
 
 fn query_lock(deps: Deps, token_id: String) -> StdResult<Binary> {
@@ -418,12 +435,50 @@ fn query_lock(deps: Deps, token_id: String) -> StdResult<Binary> {
     Ok(locked_binary)
 }
 
-fn query_pubkey(deps: Deps, pub_key: Binary) -> StdResult<Binary> {
-    let pub_key_result = ALLOWED.load(deps.storage, &pub_key.as_slice());
-    if pub_key_result.is_err() {
-        return Ok(to_binary(&false).unwrap());
+fn query_pubkeys(
+    deps: Deps,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<PubKeyResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+
+    let mut min: Option<Bound> = None;
+    let mut max: Option<Bound> = None;
+    let mut order_enum = Order::Descending;
+    if let Some(num) = order {
+        if num == 1 {
+            order_enum = Order::Ascending;
+        }
     }
-    Ok(to_binary(&true).unwrap())
+
+    // if there is offset, assign to min or max
+    if let Some(offset) = offset {
+        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        match order_enum {
+            Order::Ascending => min = offset_value,
+            Order::Descending => max = offset_value,
+        }
+    };
+
+    let res: StdResult<Vec<PubKey>> = ALLOWED
+        .range(deps.storage, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| parse_pubkey(deps.api, kv_item))
+        .collect();
+
+    Ok(PubKeyResponse {
+        pub_keys: res?, // Placeholder
+    })
+}
+
+fn parse_pubkey(_api: &dyn Api, item: StdResult<KV<bool>>) -> StdResult<PubKey> {
+    item.and_then(|(k, _enabled)| {
+        // will panic if length is greater than 8, but we can make sure it is u64
+        // try_into will box vector to fixed array
+        let pub_key = Binary::from(k);
+        Ok(PubKey { pub_key })
+    })
 }
 
 #[cfg(test)]
@@ -617,5 +672,30 @@ mod tests {
         let result = ed25519_verify(hash_str.as_bytes(), &Binary::from_base64("4ZHQXB9lX+i9/L4MYiRichB19tWxtnnjZ36bA5gImwEFE39GOsO5I6PoSr1QAXKzP/wzYdb0UgHApvoHCO74Cg==").unwrap(), &Binary::from_base64("gGIs+4/KTst6aJ135OtCoQgyyDkGmgsje531UIoDDL0=").unwrap());
         let is_verified = result.unwrap();
         println!("is verified: {}", is_verified);
+    }
+
+    #[test]
+    fn test_query_pubkeys() {
+        let mut deps = mock_dependencies(&[]);
+        deps.api.canonical_length = 44;
+        setup_contract(deps.as_mut());
+
+        // Offering should be listed
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::QueryPubKeys {
+                limit: None,
+                offset: None,
+                order: None,
+            },
+        )
+        .unwrap();
+        let value: PubKeyResponse = from_binary(&res).unwrap();
+        for pub_key in value.pub_keys.clone() {
+            let pub_val = pub_key.pub_key;
+            println!("result: {}", pub_val.to_base64());
+        }
+        println!("length: {}", value.pub_keys.len());
     }
 }
