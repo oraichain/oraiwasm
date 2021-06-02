@@ -101,7 +101,7 @@ pub fn try_lock(
         return Err(ContractError::NftLocked {});
     }
     // check authorization
-    if !info.sender.eq(&HumanAddr::from(msg.nft_addr.clone())) {
+    if !info.sender.eq(&HumanAddr::from(msg.nft_addr.as_str())) {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -131,15 +131,16 @@ pub fn try_unlock(
     let can_unlock = check_can_unlock(
         &deps.as_ref(),
         &env,
-        unlock_msg.token_id.clone(),
-        unlock_msg.nft_addr.clone().to_string(),
+        &unlock_msg.token_id.as_str(),
+        &unlock_msg.nft_addr.as_str(),
     );
     if can_unlock.is_err() {
         return Err(can_unlock.err().unwrap());
     }
+    let unlock_msg_addr = &unlock_msg;
 
     // check pub key valid and enabled
-    let pub_key_result = ALLOWED.load(deps.storage, unlock_msg.pub_key.as_slice());
+    let pub_key_result = ALLOWED.load(deps.storage, unlock_msg_addr.pub_key.as_slice());
     if pub_key_result.is_err() {
         return Err(ContractError::PubKeyNotFound {});
     }
@@ -148,18 +149,17 @@ pub fn try_unlock(
         return Err(ContractError::PubKeyDisabled {});
     }
     // get nonce to hash the message
-    let nonce_result = get_nonce(deps.as_ref(), unlock_msg.orai_addr.to_string());
+    let nonce_result = get_nonce(deps.as_ref(), &unlock_msg.orai_addr.as_str());
     if nonce_result.is_err() {
         return Err(nonce_result.err().unwrap());
     }
     let nonce = nonce_result.unwrap();
-    let unlock_msg_clone = unlock_msg.clone();
 
     // create unlock raw message
     let unlock_raw = UnlockRaw {
-        nft_addr: unlock_msg_clone.nft_addr.to_string(),
-        token_id: unlock_msg_clone.token_id,
-        orai_addr: unlock_msg_clone.orai_addr.to_string(),
+        nft_addr: (&unlock_msg).nft_addr.to_string(),
+        token_id: (&unlock_msg).token_id.to_string(),
+        orai_addr: (&unlock_msg).orai_addr.to_string(),
         nonce,
     };
     let unlock_vec_result = to_vec(&unlock_raw);
@@ -188,16 +188,16 @@ pub fn try_unlock(
     }
 
     // increase nonce to prevent others from reusing the signature & message
-    NONCES.save(deps.storage, unlock_msg.orai_addr.as_str(), &(nonce + 1))?;
+    NONCES.save(deps.storage, &unlock_msg.orai_addr.as_str(), &(nonce + 1))?;
 
     // transfer token back to original owner
     let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
-        recipient: HumanAddr::from(unlock_msg.clone().orai_addr),
-        token_id: unlock_msg.token_id.clone(),
+        recipient: HumanAddr::from(&unlock_msg.orai_addr),
+        token_id: String::from(&unlock_msg.token_id),
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: HumanAddr::from(unlock_msg.clone().nft_addr),
+        contract_addr: HumanAddr::from(&unlock_msg.nft_addr),
         msg: to_binary(&transfer_cw721_msg)?,
         send: vec![],
     };
@@ -216,9 +216,9 @@ pub fn try_unlock(
             attr("action", "unlock"),
             attr("invoker", info.sender),
             attr("locked_addr", env.contract.address),
-            attr("new_owner", unlock_msg.clone().token_id),
-            attr("token_id", unlock_msg.clone().token_id),
-            attr("unlocked_nft_addr", unlock_msg.nft_addr),
+            attr("new_owner", &unlock_msg.token_id),
+            attr("token_id", &unlock_msg.token_id),
+            attr("unlocked_nft_addr", &unlock_msg.nft_addr),
         ],
         data: None,
     });
@@ -231,7 +231,7 @@ pub fn try_emergency_unlock(
     token_id: String,
     nft_addr: String,
 ) -> Result<HandleResponse, ContractError> {
-    let can_unlock = check_can_unlock(&deps.as_ref(), &env, token_id.clone(), nft_addr);
+    let can_unlock = check_can_unlock(&deps.as_ref(), &env, token_id.as_str(), nft_addr.as_str());
     if can_unlock.is_err() {
         return Err(can_unlock.err().unwrap());
     }
@@ -245,12 +245,12 @@ pub fn try_emergency_unlock(
 
     // transfer token back to original owner
     let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
-        recipient: HumanAddr::from(locked.clone().orai_addr),
-        token_id: token_id.clone(),
+        recipient: HumanAddr::from(locked.orai_addr.as_str()),
+        token_id: token_id.to_owned(),
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: HumanAddr::from(locked.clone().nft_addr),
+        contract_addr: HumanAddr::from(locked.nft_addr.as_str()),
         msg: to_binary(&transfer_cw721_msg)?,
         send: vec![],
     };
@@ -281,11 +281,11 @@ pub fn try_emergency_unlock(
 fn check_can_unlock(
     deps: &Deps,
     env: &Env,
-    token_id: String,
-    nft_addr: String,
+    token_id: &str,
+    nft_addr: &str,
 ) -> Result<Locked, ContractError> {
     // check if token_id is currently sold by the requesting address
-    let locked_result = LOCKED.load(deps.storage, &token_id.clone());
+    let locked_result = LOCKED.load(deps.storage, &token_id);
     if locked_result.is_err() {
         return Err(ContractError::LockedNotFound {});
     }
@@ -293,7 +293,7 @@ fn check_can_unlock(
 
     // check if the provided NFT in the NFT contract is actually locked (check owner. If the owner is this contract address => pass)
     let msg = NftQueryMsg::OwnerOf {
-        token_id,
+        token_id: String::from(token_id),
         include_expired: None,
     };
 
@@ -410,9 +410,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn get_nonce(deps: Deps, orai_addr: String) -> Result<u64, ContractError> {
+fn get_nonce(deps: Deps, orai_addr: &str) -> Result<u64, ContractError> {
     // get nonce
-    let nonce = NONCES.may_load(deps.storage, orai_addr.as_str());
+    let nonce = NONCES.may_load(deps.storage, orai_addr);
     // if error then we add new nonce for the given
     if nonce.is_err() {
         return Err(ContractError::NonceFailed {});
@@ -426,7 +426,7 @@ fn get_nonce(deps: Deps, orai_addr: String) -> Result<u64, ContractError> {
 }
 
 pub fn query_nonce(deps: Deps, orai_addr: HumanAddr) -> StdResult<Binary> {
-    let nonce = get_nonce(deps, orai_addr.to_string());
+    let nonce = get_nonce(deps, orai_addr.as_str());
     if nonce.is_err() {
         return Err(StdError::parse_err(
             "Oraichain address string",
