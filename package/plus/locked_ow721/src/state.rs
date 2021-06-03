@@ -44,4 +44,4 @@ pub fn nonce_read(storage: &dyn Storage) -> ReadonlySingleton<Nonce> {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Nonce(pub u64);
 
-pub const NONCES: Map<&str, bool> = Map::new("nonces");
+pub const OTHER_CHAIN_NONCES: Map<&str, bool> = Map::new("mapped_nonces_other_chains");

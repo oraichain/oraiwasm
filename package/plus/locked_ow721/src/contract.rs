@@ -4,7 +4,10 @@ use crate::{
         HandleMsg, InitMsg, LockNft, NftQueryMsg, NonceResponse, OwnerOfResponse, PubKey,
         PubKeyResponse, QueryMsg, UnlockNft, UnlockRaw,
     },
-    state::{nonce, nonce_read, owner, owner_read, Locked, Nonce, Owner, ALLOWED, LOCKED, NONCES},
+    state::{
+        nonce, nonce_read, owner, owner_read, Locked, Nonce, Owner, ALLOWED, LOCKED,
+        OTHER_CHAIN_NONCES,
+    },
 };
 use cosmwasm_std::{
     attr, from_binary, to_binary, to_vec, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
@@ -35,7 +38,6 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     for pub_key in msg.pub_keys {
         ALLOWED.save(deps.storage, &pub_key.as_slice(), &true)?;
     }
-    NONCES.save(deps.storage, "0", &false)?;
     nonce(deps.storage).save(&Nonce(0))?;
 
     Ok(InitResponse::default())
@@ -51,9 +53,11 @@ pub fn handle(
     match msg {
         HandleMsg::ReceiveNft(msg) => try_lock(deps, info, msg),
         HandleMsg::Unlock { unlock_msg } => try_unlock(deps, env, info, unlock_msg),
-        HandleMsg::EmergencyUnlock { token_id, nft_addr } => {
-            try_emergency_unlock(deps, env, info, token_id, nft_addr)
-        }
+        HandleMsg::EmergencyUnlock {
+            token_id,
+            nft_addr,
+            nonce,
+        } => try_emergency_unlock(deps, env, info, token_id, nft_addr, nonce),
         HandleMsg::ChangeOwner { new_owner } => change_owner(deps, info, new_owner),
         HandleMsg::AddPubKey { pub_key } => add_pubkey(deps, info, pub_key),
         HandleMsg::RemovePubKey { pub_key } => remove_pubkey(deps, info, pub_key),
@@ -117,8 +121,6 @@ pub fn try_lock(
     let locked_key = get_locked_key(msg.token_id.as_str(), msg.nft_addr.as_str());
 
     LOCKED.save(deps.storage, locked_key.as_str(), &locked)?;
-    // set current nonce as false to get ready to be unlocked. Once unlocked, it will be changed to true
-    NONCES.save(deps.storage, nonce_u64.to_string().as_str(), &false)?;
 
     // increase nonce to prevent using the lock data two times
     let new_nonce: Nonce = Nonce(nonce_u64 + 1);
@@ -158,7 +160,7 @@ pub fn try_unlock(
     if !is_enabled {
         return Err(ContractError::PubKeyDisabled {});
     }
-    let nonce_val = get_full_nonce(deps.as_ref(), can_unlock.unwrap().nonce)?;
+    let nonce_val = get_full_nonce(deps.as_ref(), unlock_msg.nonce)?;
     if nonce_val.is_unlocked {
         return Err(ContractError::InvalidNonce {});
     }
@@ -167,7 +169,7 @@ pub fn try_unlock(
         nft_addr: (&unlock_msg).nft_addr.to_string(),
         token_id: (&unlock_msg).token_id.to_string(),
         orai_addr: (&unlock_msg).orai_addr.to_string(),
-        nonce: nonce_val.nonce,
+        nonce: unlock_msg.nonce,
     };
     let unlock_vec_result = to_vec(&unlock_raw);
     if unlock_vec_result.is_err() {
@@ -195,7 +197,7 @@ pub fn try_unlock(
     }
 
     // increase nonce to prevent others from reusing the signature & message
-    NONCES.save(deps.storage, unlock_raw.nonce.to_string().as_str(), &true)?;
+    OTHER_CHAIN_NONCES.save(deps.storage, unlock_msg.nonce.to_string().as_str(), &true)?;
 
     // transfer token back to original owner
     let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
@@ -237,6 +239,7 @@ pub fn try_emergency_unlock(
     info: MessageInfo,
     token_id: String,
     nft_addr: String,
+    nonce: u64,
 ) -> Result<HandleResponse, ContractError> {
     let can_unlock = check_can_unlock(&deps.as_ref(), &env, token_id.as_str(), nft_addr.as_str());
     if can_unlock.is_err() {
@@ -250,7 +253,7 @@ pub fn try_emergency_unlock(
         return Err(ContractError::Unauthorized {});
     }
 
-    NONCES.save(deps.storage, locked.nonce.to_string().as_str(), &true)?;
+    OTHER_CHAIN_NONCES.save(deps.storage, nonce.to_string().as_str(), &true)?;
 
     // transfer token back to original owner
     let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
@@ -436,7 +439,7 @@ fn get_nonce(deps: Deps) -> Result<u64, ContractError> {
 }
 
 fn get_full_nonce(deps: Deps, nonce: u64) -> Result<NonceResponse, StdError> {
-    let nonce_result = NONCES.may_load(deps.storage, nonce.to_string().as_str());
+    let nonce_result = OTHER_CHAIN_NONCES.may_load(deps.storage, nonce.to_string().as_str());
     if nonce_result.is_err() {
         return Err(nonce_result.err().unwrap());
     }
@@ -467,17 +470,6 @@ pub fn query_nonce(deps: Deps) -> StdResult<Binary> {
 }
 
 pub fn query_nonce_val(deps: Deps, nonce: u64) -> StdResult<Binary> {
-    let latest_nonce_result = get_nonce(deps);
-    if latest_nonce_result.is_err() {
-        return Err(StdError::generic_err(
-            "cannot get the latest nonce value. Something wrong happened",
-        ));
-    }
-    if nonce.gt(&latest_nonce_result.unwrap()) {
-        return Err(StdError::generic_err(
-            "The latest nonce is smaller than the given nonce",
-        ));
-    }
     let nonce_res_result = get_full_nonce(deps, nonce);
     if nonce_res_result.is_err() {
         return Err(nonce_res_result.err().unwrap());

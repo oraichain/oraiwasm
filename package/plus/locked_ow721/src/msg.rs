@@ -17,6 +17,7 @@ pub struct UnlockNft {
     pub pub_key: Binary,
     pub nft_addr: HumanAddr,
     pub orai_addr: HumanAddr,
+    pub nonce: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -32,13 +33,29 @@ pub struct UnlockRaw {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     ReceiveNft(Cw721ReceiveMsg),
-    Unlock { unlock_msg: UnlockNft },
-    EmergencyUnlock { token_id: String, nft_addr: String },
-    ChangeOwner { new_owner: String },
-    AddPubKey { pub_key: Binary },
-    RemovePubKey { pub_key: Binary },
-    DisablePubKey { pub_key: Binary },
-    EnablePubKey { pub_key: Binary },
+    Unlock {
+        unlock_msg: UnlockNft,
+    },
+    EmergencyUnlock {
+        token_id: String,
+        nft_addr: String,
+        nonce: u64,
+    },
+    ChangeOwner {
+        new_owner: String,
+    },
+    AddPubKey {
+        pub_key: Binary,
+    },
+    RemovePubKey {
+        pub_key: Binary,
+    },
+    DisablePubKey {
+        pub_key: Binary,
+    },
+    EnablePubKey {
+        pub_key: Binary,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
