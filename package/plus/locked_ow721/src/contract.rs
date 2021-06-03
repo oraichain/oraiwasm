@@ -1,12 +1,10 @@
-use std::vec;
-
 use crate::{
     error::ContractError,
     msg::{
-        HandleMsg, InitMsg, LockNft, NftQueryMsg, OwnerOfResponse, PubKey, PubKeyResponse,
-        QueryMsg, UnlockNft, UnlockRaw,
+        HandleMsg, InitMsg, LockNft, NftQueryMsg, NonceResponse, OwnerOfResponse, PubKey,
+        PubKeyResponse, QueryMsg, UnlockNft, UnlockRaw,
     },
-    state::{owner, owner_read, Locked, Owner, ALLOWED, LOCKED, NONCES},
+    state::{nonce, nonce_read, owner, owner_read, Locked, Nonce, Owner, ALLOWED, LOCKED, NONCES},
 };
 use cosmwasm_std::{
     attr, from_binary, to_binary, to_vec, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
@@ -24,6 +22,7 @@ use sha2::{Digest, Sha256};
 
 // settings for pagination
 const MAX_LIMIT: u8 = 100;
+const DELIMITER: &'static str = "&";
 const DEFAULT_LIMIT: u8 = 100;
 
 // make use of the custom errors
@@ -36,6 +35,8 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     for pub_key in msg.pub_keys {
         ALLOWED.save(deps.storage, &pub_key.as_slice(), &true)?;
     }
+    NONCES.save(deps.storage, "0", &false)?;
+    nonce(deps.storage).save(&Nonce(0))?;
 
     Ok(InitResponse::default())
 }
@@ -94,25 +95,34 @@ pub fn try_lock(
         Some(bin) => Ok(from_binary(&bin)?),
         None => Err(ContractError::NoData {}),
     }?;
-
-    // check if locked object exists. If yes then we will not create a new lock object
-    let locked_load = LOCKED.load(deps.storage, &msg.token_id);
-    if !locked_load.is_err() {
-        return Err(ContractError::NftLocked {});
-    }
     // check authorization
     if !info.sender.eq(&HumanAddr::from(msg.nft_addr.as_str())) {
         return Err(ContractError::Unauthorized {});
     }
+
+    // get nonce and store into the locked object
+    let nonce_result = nonce_read(deps.storage).load();
+    if nonce_result.is_err() {
+        return Err(ContractError::NonceFailed {});
+    }
+    let nonce_u64 = nonce_result?.0;
 
     // save locked
     let locked = Locked {
         bsc_addr: msg.bsc_addr,
         orai_addr: msg.orai_addr.to_string(),
         nft_addr: info.sender.to_string(),
+        nonce: nonce_u64,
     };
+    let locked_key = get_locked_key(msg.token_id.as_str(), msg.nft_addr.as_str());
 
-    LOCKED.save(deps.storage, &msg.token_id, &locked)?;
+    LOCKED.save(deps.storage, locked_key.as_str(), &locked)?;
+    // set current nonce as false to get ready to be unlocked. Once unlocked, it will be changed to true
+    NONCES.save(deps.storage, nonce_u64.to_string().as_str(), &false)?;
+
+    // increase nonce to prevent using the lock data two times
+    let new_nonce: Nonce = Nonce(nonce_u64 + 1);
+    nonce(deps.storage).save(&new_nonce)?;
 
     Ok(HandleResponse {
         messages: Vec::new(),
@@ -148,19 +158,16 @@ pub fn try_unlock(
     if !is_enabled {
         return Err(ContractError::PubKeyDisabled {});
     }
-    // get nonce to hash the message
-    let nonce_result = get_nonce(deps.as_ref(), &unlock_msg.orai_addr.as_str());
-    if nonce_result.is_err() {
-        return Err(nonce_result.err().unwrap());
+    let nonce_val = get_full_nonce(deps.as_ref(), can_unlock.unwrap().nonce)?;
+    if nonce_val.is_unlocked {
+        return Err(ContractError::InvalidNonce {});
     }
-    let nonce = nonce_result.unwrap();
-
     // create unlock raw message
     let unlock_raw = UnlockRaw {
         nft_addr: (&unlock_msg).nft_addr.to_string(),
         token_id: (&unlock_msg).token_id.to_string(),
         orai_addr: (&unlock_msg).orai_addr.to_string(),
-        nonce,
+        nonce: nonce_val.nonce,
     };
     let unlock_vec_result = to_vec(&unlock_raw);
     if unlock_vec_result.is_err() {
@@ -188,7 +195,7 @@ pub fn try_unlock(
     }
 
     // increase nonce to prevent others from reusing the signature & message
-    NONCES.save(deps.storage, &unlock_msg.orai_addr.as_str(), &(nonce + 1))?;
+    NONCES.save(deps.storage, unlock_raw.nonce.to_string().as_str(), &true)?;
 
     // transfer token back to original owner
     let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
@@ -207,8 +214,8 @@ pub fn try_unlock(
     // // update nft state from locked to unlocked
     // LOCKED.save(deps.storage, &token_id, &locked)?;
 
-    // remove locked tokens
-    LOCKED.remove(deps.storage, &unlock_msg.token_id);
+    // // remove locked tokens
+    // LOCKED.remove(deps.storage, &unlock_msg.token_id);
 
     return Ok(HandleResponse {
         messages: cw721_transfer_cosmos_msg,
@@ -239,9 +246,11 @@ pub fn try_emergency_unlock(
     // only the owner of this locked contract address can invoke this emergency lock
     let locked = can_unlock.unwrap();
     let owner = owner_read(deps.storage).load()?;
-    if owner.owner.eq(&info.sender.to_string()) {
+    if !owner.owner.eq(&info.sender.to_string()) {
         return Err(ContractError::Unauthorized {});
     }
+
+    NONCES.save(deps.storage, locked.nonce.to_string().as_str(), &true)?;
 
     // transfer token back to original owner
     let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
@@ -257,11 +266,11 @@ pub fn try_emergency_unlock(
 
     let cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![exec_cw721_transfer.into()];
 
-    // // update nft state from locked to unlocked
-    // LOCKED.save(deps.storage, &token_id, &locked)?;
+    // // // update nft state from locked to unlocked
+    // // LOCKED.save(deps.storage, &token_id, &locked)?;
 
-    // remove locked tokens
-    LOCKED.remove(deps.storage, &token_id);
+    // // remove locked tokens
+    // LOCKED.remove(deps.storage, &token_id);
 
     return Ok(HandleResponse {
         messages: cw721_transfer_cosmos_msg,
@@ -284,8 +293,9 @@ fn check_can_unlock(
     token_id: &str,
     nft_addr: &str,
 ) -> Result<Locked, ContractError> {
-    // check if token_id is currently sold by the requesting address
-    let locked_result = LOCKED.load(deps.storage, &token_id);
+    // check if token_id is currently sold by the requesting address\
+    let locked_key = get_locked_key(token_id, nft_addr);
+    let locked_result = LOCKED.load(deps.storage, locked_key.as_str());
     if locked_result.is_err() {
         return Err(ContractError::LockedNotFound {});
     }
@@ -397,43 +407,82 @@ fn check_pubkey(deps: &DepsMut, info: &MessageInfo, pub_key: &Binary) -> Result<
     Ok(())
 }
 
+fn get_locked_key(token_id: &str, nft_addr: &str) -> String {
+    return format!("{}{}{}", token_id, DELIMITER, nft_addr);
+}
+
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::CheckLock { token_id } => query_lock(deps, token_id),
+        QueryMsg::CheckLock { token_id, nft_addr } => query_lock(deps, token_id, nft_addr),
         QueryMsg::Owner {} => query_owner(deps),
         QueryMsg::QueryPubKeys {
             limit,
             offset,
             order,
         } => to_binary(&query_pubkeys(deps, limit, offset, order)?),
-        QueryMsg::Nonce { orai_addr } => query_nonce(deps, orai_addr),
+        QueryMsg::LatestNonce {} => query_nonce(deps),
+        QueryMsg::NonceVal { nonce } => query_nonce_val(deps, nonce),
     }
 }
 
-fn get_nonce(deps: Deps, orai_addr: &str) -> Result<u64, ContractError> {
+fn get_nonce(deps: Deps) -> Result<u64, ContractError> {
     // get nonce
-    let nonce = NONCES.may_load(deps.storage, orai_addr);
+    let nonce = nonce_read(deps.storage).load();
     // if error then we add new nonce for the given
     if nonce.is_err() {
         return Err(ContractError::NonceFailed {});
     }
-    // check if given orai addr has nonce or not. If not => default nonce is 1 since we automatically increase the nonce to 1
-    let nonce_final = match nonce.unwrap() {
-        Some(nonce_num) => nonce_num,
-        None => 0u64,
-    };
-    Ok(nonce_final)
+    Ok(nonce.unwrap().0)
 }
 
-pub fn query_nonce(deps: Deps, orai_addr: HumanAddr) -> StdResult<Binary> {
-    let nonce = get_nonce(deps, orai_addr.as_str());
-    if nonce.is_err() {
-        return Err(StdError::parse_err(
-            "Oraichain address string",
-            "Error parsing Oraichain address to collect nonce",
+fn get_full_nonce(deps: Deps, nonce: u64) -> Result<NonceResponse, StdError> {
+    let nonce_result = NONCES.may_load(deps.storage, nonce.to_string().as_str());
+    if nonce_result.is_err() {
+        return Err(nonce_result.err().unwrap());
+    }
+    let nonce_val = match nonce_result.unwrap() {
+        Some(val) => val,
+        None => false,
+    };
+    let nonce_res: NonceResponse = NonceResponse {
+        nonce,
+        is_unlocked: nonce_val,
+    };
+    Ok(nonce_res)
+}
+
+pub fn query_nonce(deps: Deps) -> StdResult<Binary> {
+    let nonce_result = get_nonce(deps);
+    if nonce_result.is_err() {
+        return Err(StdError::generic_err(
+            "cannot get the latest nonce value. Something wrong happened",
         ));
     }
-    let nonce_bin = to_binary(&nonce.unwrap())?;
+    let nonce_res_result = get_full_nonce(deps, nonce_result.unwrap());
+    if nonce_res_result.is_err() {
+        return Err(nonce_res_result.err().unwrap());
+    }
+    let nonce_bin = to_binary(&nonce_res_result.unwrap())?;
+    Ok(nonce_bin)
+}
+
+pub fn query_nonce_val(deps: Deps, nonce: u64) -> StdResult<Binary> {
+    let latest_nonce_result = get_nonce(deps);
+    if latest_nonce_result.is_err() {
+        return Err(StdError::generic_err(
+            "cannot get the latest nonce value. Something wrong happened",
+        ));
+    }
+    if nonce.gt(&latest_nonce_result.unwrap()) {
+        return Err(StdError::generic_err(
+            "The latest nonce is smaller than the given nonce",
+        ));
+    }
+    let nonce_res_result = get_full_nonce(deps, nonce);
+    if nonce_res_result.is_err() {
+        return Err(nonce_res_result.err().unwrap());
+    }
+    let nonce_bin = to_binary(&nonce_res_result.unwrap())?;
     Ok(nonce_bin)
 }
 
@@ -443,8 +492,9 @@ fn query_owner(deps: Deps) -> StdResult<Binary> {
     Ok(owner_bin)
 }
 
-fn query_lock(deps: Deps, token_id: String) -> StdResult<Binary> {
-    let locked_result = LOCKED.load(deps.storage, token_id.as_str());
+fn query_lock(deps: Deps, token_id: String, nft_addr: String) -> StdResult<Binary> {
+    let locked_key = get_locked_key(token_id.as_str(), nft_addr.as_str());
+    let locked_result = LOCKED.load(deps.storage, locked_key.as_str());
     if locked_result.is_err() {
         return Err(locked_result.err().unwrap());
     }

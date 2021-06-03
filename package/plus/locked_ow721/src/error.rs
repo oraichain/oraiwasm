@@ -8,6 +8,8 @@ pub enum ContractError {
 
     #[error("Unauthorized")]
     Unauthorized {},
+    #[error("This NFT with the given nonce has been unlocked once already, you cannot use the same nonce to unlock it")]
+    InvalidNonce {},
 
     #[error("The signature or public key format is invalid")]
     FailedFormat {},

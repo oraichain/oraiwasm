@@ -56,6 +56,7 @@ pub enum QueryMsg {
     // GetCount returns the current count as a json-encoded number
     CheckLock {
         token_id: String,
+        nft_addr: String,
     },
     QueryPubKeys {
         offset: Option<u64>,
@@ -63,9 +64,17 @@ pub enum QueryMsg {
         order: Option<u8>,
     },
     Owner {},
-    Nonce {
-        orai_addr: HumanAddr,
+    LatestNonce {},
+    NonceVal {
+        nonce: u64,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct NonceResponse {
+    pub nonce: u64,
+    pub is_unlocked: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
