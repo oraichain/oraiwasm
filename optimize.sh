@@ -28,7 +28,7 @@ echo "Building contract in $contractdir"
         RUSTC_WRAPPER=sccache cargo build -q --target-dir $basedir/target --target wasm32-unknown-unknown
         echo "RUSTC_WRAPPER=sccache cargo build -q --target-dir $basedir/target --target wasm32-unknown-unknown"
         cp "$basedir/target/wasm32-unknown-unknown/debug/$name.wasm" artifacts
-    fi 
+    fi     
 )
 
 build_schema="${2:-false}"
@@ -43,5 +43,8 @@ fi
 
 echo "Info: sccache stats after build"
 sccache -s
+
+# show content
+du -hd1 artifacts/$name.wasm
 
 echo "done"

@@ -1,3 +1,7 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use sha2::Digest;
+
 use crate::{
     error::ContractError,
     msg::{
@@ -10,18 +14,15 @@ use crate::{
     },
 };
 use cosmwasm_std::{
-    attr, from_binary, to_binary, to_vec, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, WasmMsg, KV,
+    attr, from_binary, to_binary, to_vec, Api, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Order, Pair, Response, StdError, StdResult, WasmMsg,
 };
 
 // ******************************** TODO: ADD change allowed pub key **************************
 
-use cosmwasm_crypto::ed25519_verify;
 use cw_storage_plus::Bound;
 
-use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
-
-use sha2::{Digest, Sha256};
+use cw721::{Cw721ExecuteMsg, Cw721ReceiveMsg};
 
 // settings for pagination
 const MAX_LIMIT: u8 = 100;
@@ -29,7 +30,13 @@ const DELIMITER: &'static str = "&";
 const DEFAULT_LIMIT: u8 = 100;
 
 // make use of the custom errors
-pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InitMsg,
+) -> StdResult<Response> {
     let state = Owner {
         owner: info.sender.to_string(),
     };
@@ -40,16 +47,17 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     }
     nonce(deps.storage).save(&Nonce(0))?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     match msg {
         HandleMsg::ReceiveNft(msg) => try_lock(deps, info, msg),
         HandleMsg::Unlock { unlock_msg } => try_unlock(deps, env, info, unlock_msg),
@@ -70,7 +78,7 @@ pub fn change_owner(
     deps: DepsMut,
     info: MessageInfo,
     new_owner: String,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let mut owner_read = owner_read(deps.storage).load()?;
     // if the invoker is not the owner then return error
     if !owner_read.owner.eq(&info.sender.to_string()) {
@@ -80,7 +88,8 @@ pub fn change_owner(
     owner_read.owner = new_owner;
     owner(deps.storage).save(&owner_read)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
+        submessages: vec![],
         messages: Vec::new(),
         attributes: vec![
             attr("old_owner", old_owner),
@@ -94,13 +103,13 @@ pub fn try_lock(
     deps: DepsMut,
     info: MessageInfo,
     rcv_msg: Cw721ReceiveMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let msg: LockNft = match rcv_msg.msg {
         Some(bin) => Ok(from_binary(&bin)?),
         None => Err(ContractError::NoData {}),
     }?;
     // check authorization
-    if !info.sender.eq(&HumanAddr::from(msg.nft_addr.as_str())) {
+    if !info.sender.as_str().eq(msg.nft_addr.as_str()) {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -126,7 +135,8 @@ pub fn try_lock(
     let new_nonce: Nonce = Nonce(nonce_u64 + 1);
     nonce(deps.storage).save(&new_nonce)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
+        submessages: vec![],
         messages: Vec::new(),
         attributes: vec![],
         data: None,
@@ -138,7 +148,7 @@ pub fn try_unlock(
     env: Env,
     info: MessageInfo,
     unlock_msg: UnlockNft,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // check if the nft id can be unlocked
     let can_unlock = check_can_unlock(
         &deps.as_ref(),
@@ -178,12 +188,13 @@ pub fn try_unlock(
     let unlock_vec = unlock_vec_result.unwrap();
 
     // hash the message
-    let hash = Sha256::digest(&unlock_vec);
+    let hash = sha2::Sha256::digest(&unlock_vec);
     let hash_str = format!("{:x}", hash);
 
     // verify signature
-    let result = ed25519_verify(
-        hash_str.as_bytes(),
+    let result = deps.api.ed25519_verify(
+        // hash_str.as_bytes(),
+        &hash_str.as_bytes(),
         &unlock_msg.signature,
         &unlock_msg.pub_key,
     );
@@ -200,13 +211,13 @@ pub fn try_unlock(
     OTHER_CHAIN_NONCES.save(deps.storage, unlock_msg.nonce.to_string().as_str(), &true)?;
 
     // transfer token back to original owner
-    let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
-        recipient: HumanAddr::from(&unlock_msg.orai_addr),
+    let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
+        recipient: unlock_msg.orai_addr,
         token_id: String::from(&unlock_msg.token_id),
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: HumanAddr::from(&unlock_msg.nft_addr),
+        contract_addr: unlock_msg.nft_addr,
         msg: to_binary(&transfer_cw721_msg)?,
         send: vec![],
     };
@@ -219,7 +230,8 @@ pub fn try_unlock(
     // // remove locked tokens
     // LOCKED.remove(deps.storage, &unlock_msg.token_id);
 
-    return Ok(HandleResponse {
+    return Ok(Response {
+        submessages: vec![],
         messages: cw721_transfer_cosmos_msg,
         attributes: vec![
             attr("action", "unlock"),
@@ -227,7 +239,7 @@ pub fn try_unlock(
             attr("locked_addr", env.contract.address),
             attr("new_owner", &unlock_msg.token_id),
             attr("token_id", &unlock_msg.token_id),
-            attr("unlocked_nft_addr", &unlock_msg.nft_addr),
+            // attr("unlocked_nft_addr", &unlock_msg.nft_addr),
         ],
         data: None,
     });
@@ -240,7 +252,7 @@ pub fn try_emergency_unlock(
     token_id: String,
     nft_addr: String,
     nonce: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let can_unlock = check_can_unlock(&deps.as_ref(), &env, token_id.as_str(), nft_addr.as_str());
     if can_unlock.is_err() {
         return Err(can_unlock.err().unwrap());
@@ -256,13 +268,13 @@ pub fn try_emergency_unlock(
     OTHER_CHAIN_NONCES.save(deps.storage, nonce.to_string().as_str(), &true)?;
 
     // transfer token back to original owner
-    let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
-        recipient: HumanAddr::from(locked.orai_addr.as_str()),
+    let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
+        recipient: locked.orai_addr,
         token_id: token_id.to_owned(),
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: HumanAddr::from(locked.nft_addr.as_str()),
+        contract_addr: locked.nft_addr,
         msg: to_binary(&transfer_cw721_msg)?,
         send: vec![],
     };
@@ -275,15 +287,16 @@ pub fn try_emergency_unlock(
     // // remove locked tokens
     // LOCKED.remove(deps.storage, &token_id);
 
-    return Ok(HandleResponse {
+    return Ok(Response {
+        submessages: vec![],
         messages: cw721_transfer_cosmos_msg,
         attributes: vec![
             attr("action", "emergency_unlock"),
             attr("invoker", info.sender),
             attr("locked_addr", env.contract.address),
-            attr("new_owner", locked.orai_addr),
+            // attr("new_owner", locked.orai_addr),
             attr("token_id", token_id),
-            attr("unlocked_nft_addr", locked.nft_addr),
+            // attr("unlocked_nft_addr", locked.nft_addr),
         ],
         data: None,
     });
@@ -328,7 +341,7 @@ pub fn add_pubkey(
     deps: DepsMut,
     info: MessageInfo,
     pub_key: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let pub_key_result = ALLOWED.load(deps.storage, &pub_key);
     if !pub_key_result.is_err() {
         return Err(ContractError::PubKeyExists {});
@@ -339,7 +352,8 @@ pub fn add_pubkey(
         return Err(ContractError::Unauthorized {});
     }
     ALLOWED.save(deps.storage, &pub_key.as_slice(), &true)?;
-    Ok(HandleResponse {
+    Ok(Response {
+        submessages: vec![],
         messages: vec![],
         attributes: vec![],
         data: None,
@@ -350,13 +364,14 @@ pub fn remove_pubkey(
     deps: DepsMut,
     info: MessageInfo,
     pub_key: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let check_result = check_pubkey(&deps, &info, &pub_key);
     if check_result.is_err() {
         return Err(check_result.err().unwrap());
     }
     ALLOWED.remove(deps.storage, &pub_key.as_slice());
-    Ok(HandleResponse {
+    Ok(Response {
+        submessages: vec![],
         messages: vec![],
         attributes: vec![],
         data: None,
@@ -367,13 +382,14 @@ pub fn disable_pubkey(
     deps: DepsMut,
     info: MessageInfo,
     pub_key: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let check_result = check_pubkey(&deps, &info, &pub_key);
     if check_result.is_err() {
         return Err(check_result.err().unwrap());
     }
     ALLOWED.save(deps.storage, &pub_key.as_slice(), &false)?;
-    Ok(HandleResponse {
+    Ok(Response {
+        submessages: vec![],
         messages: vec![],
         attributes: vec![],
         data: None,
@@ -384,13 +400,14 @@ pub fn enable_pubkey(
     deps: DepsMut,
     info: MessageInfo,
     pub_key: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let check_result = check_pubkey(&deps, &info, &pub_key);
     if check_result.is_err() {
         return Err(check_result.err().unwrap());
     }
     ALLOWED.save(deps.storage, &pub_key.as_slice(), &true)?;
-    Ok(HandleResponse {
+    Ok(Response {
+        submessages: vec![],
         messages: vec![],
         attributes: vec![],
         data: None,
@@ -414,6 +431,7 @@ fn get_locked_key(token_id: &str, nft_addr: &str) -> String {
     return format!("{}{}{}", token_id, DELIMITER, nft_addr);
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::CheckLock { token_id, nft_addr } => query_lock(deps, token_id, nft_addr),
@@ -533,7 +551,7 @@ fn query_pubkeys(
     })
 }
 
-fn parse_pubkey(_api: &dyn Api, item: StdResult<KV<bool>>) -> StdResult<PubKey> {
+fn parse_pubkey(_api: &dyn Api, item: StdResult<Pair<bool>>) -> StdResult<PubKey> {
     item.and_then(|(k, _enabled)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array
@@ -547,7 +565,7 @@ mod tests {
 
     // use core::slice::SlicePattern;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use sha2::Sha256;
+    use sha2::Digest;
 
     use super::*;
 
@@ -559,7 +577,7 @@ mod tests {
         let info = mock_info("fake_sender_addr", &[]);
 
         // we can just call .unwrap() to assert this was a success
-        let res = init(deps, mock_env(), info, msg).unwrap();
+        let res = instantiate(deps, mock_env(), info, msg).unwrap();
         assert_eq!(0, res.messages.len());
     }
 
@@ -592,7 +610,7 @@ mod tests {
 
         // unauthorized check
         let info_unauthorized = mock_info("faker", &[]);
-        let res = handle(
+        let res = execute(
             deps.as_mut(),
             mock_env(),
             info_unauthorized.clone(),
@@ -602,7 +620,7 @@ mod tests {
 
         // authorized check
         let info = mock_info("fake_sender_addr", &[]);
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let owner = owner_read(&deps.storage).load().unwrap();
         println!("owner: {}", owner.owner);
         assert_eq!(owner.owner, String::from("hello there"));
@@ -620,7 +638,7 @@ mod tests {
 
         // unauthorized check
         let info_unauthorized = mock_info("faker", &[]);
-        let res = handle(
+        let res = execute(
             deps.as_mut(),
             mock_env(),
             info_unauthorized.clone(),
@@ -630,7 +648,7 @@ mod tests {
 
         // authorized check
         let info = mock_info("fake_sender_addr", &[]);
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let owner = ALLOWED.load(&deps.storage, pub_key.as_slice()).unwrap();
         assert_eq!(owner, true);
     }
@@ -647,7 +665,7 @@ mod tests {
 
         // unauthorized check
         let info_unauthorized = mock_info("faker", &[]);
-        let res = handle(
+        let res = execute(
             deps.as_mut(),
             mock_env(),
             info_unauthorized.clone(),
@@ -657,7 +675,7 @@ mod tests {
 
         // authorized check
         let info = mock_info("fake_sender_addr", &[]);
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let owner = ALLOWED.load(&deps.storage, pub_key.as_slice());
         assert_eq!(owner.is_err(), true);
     }
@@ -674,7 +692,7 @@ mod tests {
 
         // unauthorized check
         let info_unauthorized = mock_info("faker", &[]);
-        let res = handle(
+        let res = execute(
             deps.as_mut(),
             mock_env(),
             info_unauthorized.clone(),
@@ -684,7 +702,7 @@ mod tests {
 
         // authorized check
         let info = mock_info("fake_sender_addr", &[]);
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let owner = ALLOWED.load(&deps.storage, pub_key.as_slice()).unwrap();
         assert_eq!(owner, false);
     }
@@ -701,7 +719,7 @@ mod tests {
 
         // unauthorized check
         let info_unauthorized = mock_info("faker", &[]);
-        let res = handle(
+        let res = execute(
             deps.as_mut(),
             mock_env(),
             info_unauthorized.clone(),
@@ -711,7 +729,7 @@ mod tests {
 
         // authorized check
         let info = mock_info("fake_sender_addr", &[]);
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let owner = ALLOWED.load(&deps.storage, pub_key.as_slice()).unwrap();
         assert_eq!(owner, true);
     }
@@ -726,13 +744,13 @@ mod tests {
             nonce: 0,
         };
         let unlock_vec_result = to_vec(&unlock_raw).unwrap();
-        let hash = Sha256::digest(&unlock_vec_result);
+        let hash = sha2::Sha256::digest(&unlock_vec_result);
         let hash_str = format!("{:x}", hash);
         println!("hash str: {}", hash_str);
         // verify signature
-        let result = ed25519_verify(hash_str.as_bytes(), &Binary::from_base64("4ZHQXB9lX+i9/L4MYiRichB19tWxtnnjZ36bA5gImwEFE39GOsO5I6PoSr1QAXKzP/wzYdb0UgHApvoHCO74Cg==").unwrap(), &Binary::from_base64("gGIs+4/KTst6aJ135OtCoQgyyDkGmgsje531UIoDDL0=").unwrap());
-        let is_verified = result.unwrap();
-        println!("is verified: {}", is_verified);
+        // let result =  ed25519_verify(hash_str.as_bytes(), &Binary::from_base64("4ZHQXB9lX+i9/L4MYiRichB19tWxtnnjZ36bA5gImwEFE39GOsO5I6PoSr1QAXKzP/wzYdb0UgHApvoHCO74Cg==").unwrap(), &Binary::from_base64("gGIs+4/KTst6aJ135OtCoQgyyDkGmgsje531UIoDDL0=").unwrap());
+        // let is_verified = result.unwrap();
+        // println!("is verified: {}", is_verified);
     }
 
     #[test]

@@ -5,10 +5,9 @@ name = "datasource_eth"
 version = "0.1.0"
 
 exclude = [
-  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
   "contract.wasm",
   "hash.txt",
-]
+] # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -31,10 +30,10 @@ rpath = false
 backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = {version = "0.13.0"}
-schemars = "0.7"
-serde = {version = "1.0.103", default-features = false, features = ["derive"]}
-thiserror = {version = "1.0.21"}
+cosmwasm-std = { version = "0.14.0" }
+schemars = "0.8.1"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.21" }
 
 [dev-dependencies]
-cosmwasm-schema = {version = "0.13.0"}
+cosmwasm-schema = { version = "0.14.0" }

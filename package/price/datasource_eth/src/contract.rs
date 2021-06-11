@@ -1,25 +1,33 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, SpecialQuery};
-use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, StdResult,
-};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(_deps: DepsMut, _env: Env, _info: MessageInfo, _: InitMsg) -> StdResult<InitResponse> {
-    Ok(InitResponse::default())
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _: InitMsg,
+) -> StdResult<Response> {
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     _: DepsMut,
     _env: Env,
     _: MessageInfo,
     _: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
-    Ok(HandleResponse::default())
+) -> Result<Response, ContractError> {
+    Ok(Response::default())
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Get { input } => to_binary(&query_price(deps, input)?),
