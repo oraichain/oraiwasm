@@ -80,11 +80,11 @@ pub fn execute_transfer(
     if amount.is_empty() {
         return Err(ContractError::NoFunds {});
     }
-    // // ensure the requested channel is registered
-    // // FIXME: add a .has method to map to make this faster
-    // if CHANNEL_INFO.may_load(deps.storage, &msg.channel)?.is_none() {
-    //     return Err(ContractError::NoSuchChannel { id: msg.channel });
-    // }
+    // ensure the requested channel is registered
+    // FIXME: add a .has method to map to make this faster
+    if CHANNEL_INFO.may_load(deps.storage, &msg.channel)?.is_none() {
+        return Err(ContractError::NoSuchChannel { id: msg.channel });
+    }
 
     // delta from user is in seconds
     let timeout_delta = match msg.timeout {

@@ -90,7 +90,7 @@ pub fn ibc_channel_connect(
     channel: IbcChannel,
 ) -> Result<IbcBasicResponse, ContractError> {
     // we need to check the counter party version in try and ack (sometimes here)
-    // enforce_order_and_version(&channel)?;
+    enforce_order_and_version(&channel)?;
 
     let info = ChannelInfo {
         id: channel.endpoint.channel_id,
