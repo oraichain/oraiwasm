@@ -37,9 +37,9 @@ pub enum HandleMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Input {
-    pub hash: String,
-    pub name: String,
-    pub size: String,
+    pub Hash: String,
+    pub Name: String,
+    pub Size: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
