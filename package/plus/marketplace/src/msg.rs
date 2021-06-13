@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, Decimal, HumanAddr, Uint128};
 
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
@@ -24,6 +24,10 @@ pub enum HandleMsg {
         contract: HumanAddr,
         msg: Binary,
     },
+    SetPayMent {
+        denom: String,
+        ratio: Decimal,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -46,5 +50,8 @@ pub enum QueryMsg {
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
+    },
+    GetPayment {
+        denom: String,
     },
 }

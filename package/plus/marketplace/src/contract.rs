@@ -1,15 +1,18 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, SellNft};
-use crate::package::{ContractInfoResponse, OfferingsResponse, QueryOfferingsResult};
-use crate::state::{increment_offerings, Offering, CONTRACT_INFO, OFFERINGS};
+use crate::package::{
+    ContractInfoResponse, OfferingsResponse, PaymentResponse, QueryOfferingsResult,
+};
+use crate::state::{increment_offerings, Offering, CONTRACT_INFO, MAPPED_DENOM, OFFERINGS};
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    attr, from_binary, to_binary, Api, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, InitResponse, MessageInfo, Order, StdResult, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use cw_storage_plus::Bound;
 use std::convert::TryInto;
+use std::ops::Mul;
 use std::usize;
 
 // settings for pagination
@@ -18,8 +21,11 @@ const DEFAULT_LIMIT: u8 = 100;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(deps: DepsMut, _env: Env, _info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
-    let info = ContractInfoResponse { name: msg.name };
+pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+    let info = ContractInfoResponse {
+        name: msg.name,
+        owner: info.sender,
+    };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
 }
@@ -36,6 +42,7 @@ pub fn handle(
         HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, offering_id),
         HandleMsg::BuyNft { offering_id } => try_buy(deps, env, info, offering_id),
         HandleMsg::ReceiveNft(msg) => try_receive_nft(deps, info, msg),
+        HandleMsg::SetPayMent { denom, ratio } => try_set_payment(deps, info, denom, ratio),
     }
 }
 
@@ -71,10 +78,18 @@ pub fn try_buy(
     if info.sent_funds.len() == 0 {
         return Err(ContractError::InvalidSentFundAmount {});
     }
-    let amount = info.sent_funds[0].amount;
-    println!("denom is: {}", info.sent_funds[0].denom);
-    if !info.sent_funds[0].denom.eq(&String::from("orai")) {
-        return Err(ContractError::InvalidDenomAmount {});
+    let sent_fund = info.sent_funds[0].clone();
+    let mut amount = sent_fund.amount;
+    println!("denom is: {}", sent_fund.denom);
+    if !sent_fund.denom.eq("orai") {
+        // try with ibc/hash
+        let denom_rate = MAPPED_DENOM.may_load(deps.storage, &sent_fund.denom)?;
+        if denom_rate.is_none() {
+            return Err(ContractError::InvalidDenomAmount {});
+        }
+
+        // calculate the exact amount by ratio
+        amount = amount.mul(denom_rate.unwrap())
     }
 
     // check if offering exists
@@ -97,13 +112,12 @@ pub fn try_buy(
         return Err(ContractError::InvalidSellerAddr {});
     }
     let seller: HumanAddr = seller_result?;
+
+    // transfer back fund from buyer to seller
     let bank_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address,
         to_address: seller.clone(),
-        amount: vec![Coin {
-            denom: String::from("orai"),
-            amount: amount,
-        }],
+        amount: vec![sent_fund],
     }
     .into();
 
@@ -190,6 +204,20 @@ pub fn try_receive_nft(
     })
 }
 
+pub fn try_set_payment(
+    deps: DepsMut,
+    info: MessageInfo,
+    demo: String,
+    ratio: Decimal,
+) -> Result<HandleResponse, ContractError> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    if !info.sender.eq(&contract_info.owner) {
+        return Err(ContractError::Unauthorized {});
+    }
+    MAPPED_DENOM.save(deps.storage, demo.as_str(), &ratio)?;
+    Ok(HandleResponse::default())
+}
+
 pub fn try_withdraw(
     deps: DepsMut,
     info: MessageInfo,
@@ -231,12 +259,19 @@ pub fn try_withdraw(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
+        QueryMsg::GetPayment { denom } => to_binary(&query_payment(deps, denom)?),
         QueryMsg::GetOfferings {
             limit,
             offset,
             order,
         } => to_binary(&query_offerings(deps, limit, offset, order)?),
     }
+}
+
+fn query_payment(deps: Deps, denom: String) -> StdResult<PaymentResponse> {
+    // same StdErr can use ?
+    let ratio = MAPPED_DENOM.load(deps.storage, denom.as_str())?;
+    Ok(PaymentResponse { denom, ratio })
 }
 
 // ============================== Query Handlers ==============================
@@ -297,9 +332,12 @@ fn parse_offering(api: &dyn Api, item: StdResult<KV<Offering>>) -> StdResult<Que
 
 #[cfg(test)]
 mod tests {
+    use std::convert::TryFrom;
+    use std::str::FromStr;
+
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, coins, from_binary, HumanAddr, Uint128};
+    use cosmwasm_std::{coin, coins, from_binary, Decimal, HumanAddr, Uint128};
 
     #[test]
     fn sort_offering() {
@@ -310,6 +348,10 @@ mod tests {
         };
         let info = mock_info("creator", &vec![coin(5, "orai")]);
         let _res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        // let amount: Uint128 = Uint128::try_from("10000").unwrap();
+        // let ratio: Decimal = Decimal::from_str("2.5").unwrap();
+        // println!("amount :{}", amount.mul(ratio));
 
         // beneficiary can release it
         let info = mock_info("anyone", &vec![coin(50000000, "orai")]);
