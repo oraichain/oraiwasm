@@ -14,6 +14,7 @@ pub struct Locked {
     pub orai_addr: String,
     pub nft_addr: String,
     pub nonce: u64,
+    pub other_chain_nonce: i64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
