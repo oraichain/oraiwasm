@@ -1,0 +1,2 @@
+bbe5d1a43c811e522cc18b65190305fc41f385415f45fbf2366d524f72b4d9b5  ai_farming_testcase.wasm
+cf43e83cf755c81c584793bae8af3cb981789051a24f89fbc40f5196f7751e2d  ai_farming_testnet_testcase.wasm

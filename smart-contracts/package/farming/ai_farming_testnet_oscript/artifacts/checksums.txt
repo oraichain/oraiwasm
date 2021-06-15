@@ -1,0 +1,2 @@
+6403d2cb8c870401f4684e632add58ec9f40d52a90a55c4f58accf5bcae1a05c  ai_farming_oscript.wasm
+cd77f75f7e84b76e10f103ac20676fe08145811404698fd8e3333168bf1eb072  ai_farming_testnet_oscript.wasm
