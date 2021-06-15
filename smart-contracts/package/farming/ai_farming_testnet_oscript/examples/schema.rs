@@ -3,8 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use ai_farming_oscript::msg::{HandleMsg, InitMsg, QueryMsg};
-use ai_farming_oscript::state::State;
+use ai_farming_testnet_oscript::msg::{HandleMsg, InitMsg, QueryMsg};
+use ai_farming_testnet_oscript::state::State;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

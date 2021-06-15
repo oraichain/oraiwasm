@@ -1,1 +1,1 @@
-96ad6efe48ced2482ec441e0f7444b72e880df1ec60965fc233da6c4d07e496d  tc_farming.wasm
+cbc27b3078d890f05291cb48bcb377d941ac4c5d748d4f996ed7337ee4ecdab1  tc_farming.wasm
