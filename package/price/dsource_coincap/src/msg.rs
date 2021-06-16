@@ -48,7 +48,7 @@ pub struct CryptoCompare {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CoinCap {
     pub data: CoinCapData,
-    pub timestamp: u128,
+    pub timestamp: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -57,13 +57,14 @@ pub struct CoinCapData {
     pub rank: String,
     pub symbol: String,
     pub name: String,
-    pub suppy: String,
+    pub supply: String,
     pub maxSupply: String,
     pub marketCapUsd: String,
     pub volumeUsd24Hr: String,
     pub priceUsd: String,
     pub changePercent24Hr: String,
     pub vwap24Hr: String,
+    pub explorer: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

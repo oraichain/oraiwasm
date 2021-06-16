@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ops::Add;
 
 use crate::error::ContractError;
@@ -5,7 +6,7 @@ use crate::msg::{HandleMsg, InitMsg, Input, Output, QueryMsg};
 use crate::state::{config, config_read, State};
 use cosmwasm_std::{
     from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
-    StdResult,
+    StdError, StdResult,
 };
 
 // make use of the custom errors
@@ -87,7 +88,8 @@ fn query_testcases(deps: Deps) -> StdResult<Binary> {
 fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
     println!("Hello, world!");
     let mut aggregation_result: Vec<Output> = Vec::new();
-    let price_data: Vec<Input> = from_slice(results[0].as_bytes()).unwrap();
+    let result_str = aggregate_prices_str(results);
+    let price_data: Vec<Input> = from_slice(result_str.as_bytes()).unwrap();
     for res in price_data {
         // split to calculate largest precision of the price
         let mut largest_precision: usize = 0;
@@ -140,64 +142,87 @@ fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
     Ok(result_bin)
 }
 
-#[test]
-fn assert_aggregate() {
-    let mut aggregation_result: Vec<Output> = Vec::new();
-    let resp = format!(
-        "[{{\"name\":\"ETH\",\"prices\":[\"{}\",\"{}\",\"{}\"]}},{{\"name\":\"BTC\",\"prices\":[\"{}\",\"{}\"]}}]",
-        "0.00000000000018900", "0.00000001305", "0.00000000006", "2801.2341", "200.1"
-    );
-    let price_data: Vec<Input> = from_slice(resp.as_bytes()).unwrap();
-    for res in price_data {
-        // split to calculate largest precision of the price
-        let mut largest_precision: usize = 0;
-        for mut price in res.prices.clone() {
-            let dot_pos = price.find('.').unwrap();
-            price = price[dot_pos..].to_string();
-            println!("price to find large precision: {}", price);
-            if price.len() > largest_precision {
-                largest_precision = price.len();
-            }
+fn aggregate_prices_str(results: Vec<String>) -> String {
+    let mut symbols: HashMap<String, Vec<String>> = HashMap::new();
+    let mut symbol_vec: Vec<String> = Vec::new();
+    let mut inputs: Vec<Input> = Vec::new();
+    for result in results {
+        let price_data_result: Result<Vec<Input>, StdError> = from_slice(result.as_bytes());
+        if price_data_result.is_err() {
+            continue;
         }
-        let mut sum: u128 = 0;
-        let mut count = 0;
-        for mut price in res.prices {
-            println!("original price: {}", price);
-            let dot_pos = price.find('.').unwrap();
-            // plus one because postiion starts at 0
-            let dot_add = dot_pos.add(largest_precision + 1);
-            if price.len() > dot_add {
-                price.insert(dot_add, '.');
-                price = price[..dot_add].to_string();
+        let price_data = price_data_result.unwrap();
+        for mut input in price_data {
+            // if first time we get symbol
+            let key = input.name.clone();
+            if !symbols.contains_key(key.as_str()) {
+                let name = key.clone();
+                symbols.insert(name, input.clone().prices);
+                symbol_vec.push(input.name.clone());
             } else {
-                while price.len() < dot_add {
-                    price.push('0');
+                let mut temp_vec = vec![String::from("")];
+                let mut symbols_clone = symbols.clone();
+                let prices = match symbols_clone.get_mut(input.name.as_str()) {
+                    Some(prices) => prices,
+                    None => temp_vec.as_mut(),
+                };
+                if prices.is_empty() {
+                    continue;
                 }
+                prices.append(input.prices.as_mut());
+                symbols.remove(input.name.as_str());
+                symbols.insert(input.name, prices.clone());
             }
-            price.remove(dot_pos);
-            let price_int: u128 = price.parse().unwrap();
-            println!("price: {}", price_int);
-            sum += price_int;
-            count += 1;
         }
-        println!("sum: {}", sum);
-        let mean = sum / count;
-        let mut mean_price = mean.to_string();
-        while mean_price.len() <= largest_precision {
-            mean_price.insert(0, '0');
-        }
-        println!("mean price len: {}", mean_price);
-        mean_price.insert(mean_price.len().wrapping_sub(largest_precision), '.');
-        println!("mean price: {}", mean_price);
-
-        let data: Output = Output {
-            name: res.name,
-            price: mean_price,
-        };
-        aggregation_result.push(data.clone());
     }
-    for result in aggregation_result {
-        println!("name: {}", result.name);
-        println!("result: {}", result.price);
+    for symbol in symbol_vec {
+        let mut temp_vec = vec![String::from("")];
+        let prices = match symbols.get(symbol.as_str()) {
+            Some(prices) => prices,
+            None => temp_vec.as_mut(),
+        };
+        if prices.is_empty() {
+            continue;
+        }
+        let input: Input = Input {
+            name: symbol.to_string(),
+            prices: prices.clone(),
+        };
+        inputs.push(input);
+    }
+    let response_bin = to_binary(&inputs).unwrap();
+    let response_str = String::from_utf8(response_bin.to_vec()).unwrap();
+    return response_str;
+}
+
+#[cfg(test)]
+mod tests {
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+
+    use super::*;
+
+    #[test]
+    fn assert_aggregate() {
+        let deps = mock_dependencies(&[]);
+        let resp = format!(
+        "[{{\"name\":\"ETH\",\"prices\":[\"{}\",\"{}\",\"{}\"]}},{{\"name\":\"BTC\",\"prices\":[\"{}\",\"{}\"]}},{{\"name\":\"LINK\",\"prices\":[\"{}\",\"{}\"]}}]",
+        "0.00000000000018900", "0.00000001305", "0.00000000006", "2801.2341", "200.1", "22.0", "44.0"
+    );
+        let resp_two = format!(
+        "[{{\"name\":\"ETH\",\"prices\":[\"{}\",\"{}\",\"{}\"]}},{{\"name\":\"ORAI\",\"prices\":[\"{}\",\"{}\"]}}]",
+        "1.00000000000018900", "0.00000001305", "0.00000000006", "1.2341", "200.1"
+    );
+        let resp_three = format!("abcd");
+        let resp_four = format!("[]");
+        let mut results: Vec<String> = Vec::new();
+        results.push(resp);
+        results.push(resp_two);
+        results.push(resp_three);
+        results.push(resp_four);
+        let final_str = aggregate_prices_str(results.clone());
+        println!("final string: {}", final_str);
+        let query_result = query_aggregation(deps.as_ref(), results).unwrap();
+        let query_result_str = query_result.to_string();
+        println!("query result str: {}", query_result_str);
     }
 }
