@@ -86,7 +86,6 @@ fn query_testcases(deps: Deps) -> StdResult<Binary> {
 }
 
 fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
-    println!("Hello, world!");
     let mut aggregation_result: Vec<Output> = Vec::new();
     let result_str = aggregate_prices_str(results);
     let price_data: Vec<Input> = from_slice(result_str.as_bytes()).unwrap();
@@ -94,14 +93,9 @@ fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
         // split to calculate largest precision of the price
         let mut largest_precision: usize = 0;
         for mut price in res.prices.clone() {
-            let dot_pos_options = price.find('.');
-            let dot_pos = match dot_pos_options {
-                Some(pos) => pos,
-                None => 0,
-            };
+            let dot_pos = get_dot_pos(price.as_str());
             if dot_pos != 0 {
                 price = price[dot_pos..].to_string();
-                println!("price to find large precision: {}", price);
                 if price.len() > largest_precision {
                     largest_precision = price.len();
                 }
@@ -111,12 +105,16 @@ fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
         let mut count = 0;
         for mut price in res.prices {
             println!("original price: {}", price);
-            let price_check = price.parse::<u64>();
-            // if price is integer => add .0 as default precision
-            if !price_check.is_err() {
+            let price_check = price_check(price.as_str());
+            if !price_check.0 {
+                continue;
+            }
+            let mut dot_pos = price_check.1;
+            // it means price is integer => force it to be float
+            if dot_pos == 0 {
+                dot_pos = price.len();
                 price.push_str(".0");
             }
-            let dot_pos = price.find('.').unwrap();
             // plus one because postiion starts at 0
             let dot_add = dot_pos.add(largest_precision + 1);
             if price.len() > dot_add {
@@ -129,7 +127,6 @@ fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
             }
             price.remove(dot_pos);
             let price_int: u128 = price.parse().unwrap();
-            println!("price: {}", price_int);
             sum += price_int;
             count += 1;
         }
@@ -139,7 +136,6 @@ fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
         while mean_price.len() <= largest_precision {
             mean_price.insert(0, '0');
         }
-        println!("mean price len: {}", mean_price);
         mean_price.insert(mean_price.len().wrapping_sub(largest_precision), '.');
         println!("mean price: {}", mean_price);
 
@@ -151,6 +147,45 @@ fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
     }
     let result_bin = to_binary(&aggregation_result).unwrap();
     Ok(result_bin)
+}
+
+fn get_dot_pos(price: &str) -> usize {
+    let dot_pos_options = price.find('.');
+    let dot_pos = match dot_pos_options {
+        Some(pos) => pos,
+        None => 0,
+    };
+    return dot_pos;
+}
+
+fn price_check(price: &str) -> (bool, usize) {
+    let dot_pos = get_dot_pos(price);
+    // if there's no dot, then it may be an integer or it is not numeric
+    if dot_pos == 0 {
+        let price_check = price.parse::<u64>();
+        // if price is not integer then we return false
+        if price_check.is_err() {
+            return (false, 0);
+        }
+        return (true, 0);
+    } else {
+        let price_split: Vec<&str> = price.split('.').collect();
+        // in case price is 0.1.1 for example
+        if price_split.len() != 2 {
+            return (false, 0);
+        } else {
+            let price_first = price_split[0].parse::<u64>();
+            if price_first.is_err() {
+                return (false, 0);
+            } else {
+                let price_second = price_split[1].parse::<u64>();
+                if price_second.is_err() {
+                    return (false, 0);
+                }
+                return (true, dot_pos);
+            }
+        }
+    }
 }
 
 fn aggregate_prices_str(results: Vec<String>) -> String {
@@ -217,11 +252,11 @@ mod tests {
         let deps = mock_dependencies(&[]);
         let resp = format!(
         "[{{\"name\":\"ETH\",\"prices\":[\"{}\",\"{}\",\"{}\"]}},{{\"name\":\"BTC\",\"prices\":[\"{}\",\"{}\"]}},{{\"name\":\"LINK\",\"prices\":[\"{}\",\"{}\"]}}]",
-        "0.00000000000018900", "0.00000001305", "0.00000000006", "2801.2341", "200.1", "22", "44"
+        "0.00000000000018900", "0.00000001305", "0.00000000006", "2801.2341", "200.1", ".1", "44"
     );
         let resp_two = format!(
-        "[{{\"name\":\"ETH\",\"prices\":[\"{}\",\"{}\",\"{}\"]}},{{\"name\":\"ORAI\",\"prices\":[\"{}\",\"{}\"]}}]",
-        "1.00000000000018900", "0.00000001305", "0.00000000006", "1.2341", "200.1"
+        "[{{\"name\":\"ETH\",\"prices\":[\"{}\",\"{}\",\"{}\"]}},{{\"name\":\"ORAI\",\"prices\":[\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"]}}]",
+        "1.00000000000018900", "0.00000001305", "0.00000000006", "1.2341", "200.1", "a.b", "a..b", "a.1", "1.a", "1.", "1.1.1"
     );
         let resp_three = format!("[abcd]");
         let resp_four = format!("[]");
