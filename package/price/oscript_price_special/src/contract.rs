@@ -94,17 +94,28 @@ fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
         // split to calculate largest precision of the price
         let mut largest_precision: usize = 0;
         for mut price in res.prices.clone() {
-            let dot_pos = price.find('.').unwrap();
-            price = price[dot_pos..].to_string();
-            println!("price to find large precision: {}", price);
-            if price.len() > largest_precision {
-                largest_precision = price.len();
+            let dot_pos_options = price.find('.');
+            let dot_pos = match dot_pos_options {
+                Some(pos) => pos,
+                None => 0,
+            };
+            if dot_pos != 0 {
+                price = price[dot_pos..].to_string();
+                println!("price to find large precision: {}", price);
+                if price.len() > largest_precision {
+                    largest_precision = price.len();
+                }
             }
         }
         let mut sum: u128 = 0;
         let mut count = 0;
         for mut price in res.prices {
             println!("original price: {}", price);
+            let price_check = price.parse::<u64>();
+            // if price is integer => add .0 as default precision
+            if !price_check.is_err() {
+                price.push_str(".0");
+            }
             let dot_pos = price.find('.').unwrap();
             // plus one because postiion starts at 0
             let dot_add = dot_pos.add(largest_precision + 1);
@@ -206,13 +217,13 @@ mod tests {
         let deps = mock_dependencies(&[]);
         let resp = format!(
         "[{{\"name\":\"ETH\",\"prices\":[\"{}\",\"{}\",\"{}\"]}},{{\"name\":\"BTC\",\"prices\":[\"{}\",\"{}\"]}},{{\"name\":\"LINK\",\"prices\":[\"{}\",\"{}\"]}}]",
-        "0.00000000000018900", "0.00000001305", "0.00000000006", "2801.2341", "200.1", "22.0", "44.0"
+        "0.00000000000018900", "0.00000001305", "0.00000000006", "2801.2341", "200.1", "22", "44"
     );
         let resp_two = format!(
         "[{{\"name\":\"ETH\",\"prices\":[\"{}\",\"{}\",\"{}\"]}},{{\"name\":\"ORAI\",\"prices\":[\"{}\",\"{}\"]}}]",
         "1.00000000000018900", "0.00000001305", "0.00000000006", "1.2341", "200.1"
     );
-        let resp_three = format!("abcd");
+        let resp_three = format!("[abcd]");
         let resp_four = format!("[]");
         let mut results: Vec<String> = Vec::new();
         results.push(resp);
