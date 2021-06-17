@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::num::ParseIntError;
 use std::ops::Add;
 
 use crate::error::ContractError;
@@ -126,7 +127,11 @@ fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
                 }
             }
             price.remove(dot_pos);
-            let price_int: u128 = price.parse().unwrap();
+            let price_int_result: Result<u128, ParseIntError> = price.parse();
+            if price_int_result.is_err() {
+                continue;
+            }
+            let price_int = price_int_result.unwrap();
             sum += price_int;
             count += 1;
         }
