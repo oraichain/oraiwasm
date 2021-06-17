@@ -2,6 +2,8 @@ use cosmwasm_std::CustomQuery;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::state::State;
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {}
 
@@ -10,8 +12,6 @@ pub struct InitMsg {}
 pub struct Input {
     pub withdrawFee: Data,
     pub doHarkWorkFee: Data,
-    pub underlyingBalanceInVault: i64,
-    pub investedBalance: Data,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -24,18 +24,15 @@ pub struct Data {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct Test {
-    pub foo: String,
+pub enum HandleMsg {
+    UpdateParams { input: State },
 }
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum HandleMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Get { input: String },
+    Params {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

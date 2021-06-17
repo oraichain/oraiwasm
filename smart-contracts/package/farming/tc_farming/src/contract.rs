@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::msg::{DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{DataSourceQueryMsg, HandleMsg, InitMsg, Output, QueryMsg, Response};
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
     StdResult,
@@ -30,7 +30,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             input,
             output,
             contract,
-        } => to_binary(&test_datasource(deps, &contract, input, output)?),
+        } => test_datasource(deps, &contract, input, output),
     }
 }
 
@@ -38,15 +38,15 @@ fn test_datasource(
     deps: Deps,
     contract: &HumanAddr,
     input: String,
-    output: String,
-) -> StdResult<String> {
+    _output: String,
+) -> StdResult<Binary> {
     let msg = DataSourceQueryMsg::Get { input };
-    let response: Binary = deps.querier.query_wasm_smart(contract, &msg)?;
-    let response_str = String::from_utf8(response.to_vec()).unwrap();
-    // check output if empty then we return the response without checking
-    if output.is_empty() {
-        return Ok(response_str);
-    }
-    // should do some basic checking here with the response and the expected output from the user.
-    Ok(response_str)
+    let res: Output = deps.querier.query_wasm_smart(contract, &msg)?;
+    let response = Response {
+        name: String::from(""),
+        result: to_binary(&res)?,
+        status: String::from("success"),
+    };
+    let resp_bin: Binary = to_binary(&response)?;
+    Ok(resp_bin)
 }

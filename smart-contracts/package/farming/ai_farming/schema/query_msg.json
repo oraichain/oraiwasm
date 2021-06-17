@@ -15,32 +15,22 @@
           ],
           "properties": {
             "input": {
-              "$ref": "#/definitions/Input"
+              "type": "string"
             }
           }
         }
       }
-    }
-  ],
-  "definitions": {
-    "Input": {
+    },
+    {
       "type": "object",
       "required": [
-        "image",
-        "model",
-        "name"
+        "params"
       ],
       "properties": {
-        "image": {
-          "type": "string"
-        },
-        "model": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
+        "params": {
+          "type": "object"
         }
       }
     }
-  }
+  ]
 }
