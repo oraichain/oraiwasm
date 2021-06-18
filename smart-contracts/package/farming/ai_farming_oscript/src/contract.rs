@@ -67,7 +67,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetDatasource {} => to_binary(&query_datasources(deps)?),
         QueryMsg::GetTestcase {} => to_binary(&query_testcases(deps)?),
-        QueryMsg::Aggregate { results } => to_binary(&query_aggregation(deps, results)?),
+        QueryMsg::Aggregate { results } => query_aggregation(deps, results),
     }
 }
 
@@ -81,11 +81,10 @@ fn query_testcases(deps: Deps) -> StdResult<Binary> {
     to_binary(&state.testcase)
 }
 
-fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<String> {
+fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
     if results.len() <= 0 {
-        return Ok(String::new());
+        return Ok(to_binary("")?);
     }
-    let mut final_result = String::from("");
     let mut temp = String::from("");
     // original input: {\\\"data\\\":\\\"English\\\",\\\"status\\\":\\\"success\\\"}\\\n
     // final result syntax: a-b-c-d-e-f
@@ -98,18 +97,18 @@ fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<String> {
     }
     let req = SpecialQuery::Fetch {
         // should replace url with a centralized server
-        url: "http://143.198.208.118:3001/v1/hash".to_string(),
+        url: "http://178.128.61.252:3013/v1/hash".to_string(),
         body: temp,
         method: "POST".to_string(),
         authorization: "".to_string(),
     }
     .into();
     let response_bin: Binary = _deps.querier.custom_query(&req)?;
-    let response = String::from_utf8(response_bin.to_vec()).unwrap();
-    final_result.push_str(response.as_str());
-    // final_result.pop();
-    let mut input_edit = str::replace(&final_result, "\\\"", "\"");
-    input_edit = str::replace(&input_edit, "\\\\\"", "\"");
-    // remove the last newline symbol to complete the string
-    Ok(input_edit)
+    // let response = String::from_utf8(response_bin.to_vec()).unwrap();
+    // final_result.push_str(response.as_str());
+    // // final_result.pop();
+    // let mut input_edit = str::replace(&final_result, "\\\"", "\"");
+    // input_edit = str::replace(&input_edit, "\\\\\"", "\"");
+    // // remove the last newline symbol to complete the string
+    Ok(response_bin)
 }
