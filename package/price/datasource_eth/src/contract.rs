@@ -26,21 +26,27 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_price(deps: Deps, _input: String) -> StdResult<String> {
+fn query_price(deps: Deps, input: String) -> StdResult<String> {
     // create specialquery with default empty string
     let req = SpecialQuery::Fetch {
-        url: "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd"
-            .to_string(),
+        url: format!(
+            "https://api.coingecko.com/api/v3/simple/price?ids={}&vs_currencies=usd",
+            input
+        ),
     }
     .into();
-    // because not support f32, we need to do it manually
-    // dont use String because it will deserialize bytes to base 64
+    // // because not support f32, we need to do it manually
+    // // dont use String because it will deserialize bytes to base 64
     let response: Binary = deps.querier.custom_query(&req)?;
     let data = String::from_utf8(response.to_vec())?;
 
-    Ok(data)
-    // let first = data.find(r#""usd":"#).unwrap() + 6;
-    // let last = first + data.get(first..).unwrap().find("}").unwrap();
-    // let price = data.get(first..last).unwrap().to_string();
-    // Ok(price)
+    // Ok(data)
+    let index = data.find(r#""usd":"#).unwrap_or(0);
+    if index == 0 {
+        return Ok(String::new());
+    }
+    let first = index + 6;
+    let last = first + data.get(first..).unwrap().find("}").unwrap();
+    let price = data.get(first..last).unwrap().to_string();
+    Ok(price)
 }
