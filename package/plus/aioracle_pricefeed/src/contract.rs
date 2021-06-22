@@ -1,12 +1,17 @@
 use crate::error::ContractError;
 use crate::msg::{
-    AIRequest, DataSourceQueryMsg, DataSourceResult, HandleMsg, InitMsg, QueryMsg, Report,
+    AIRequest, AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, DataSourceResult, HandleMsg,
+    InitMsg, QueryMsg, Report,
 };
-use crate::state::{config, config_read, State, AIREQUESTS, REPORTS};
+use crate::state::{config, config_read, increment_requests, num_requests, requests, State};
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
-    StdResult,
+    Order, StdResult,
 };
+use cw_storage_plus::Bound;
+
+const DEFAULT_LIMIT: u8 = 10;
+const MAX_LIMIT: u8 = 30;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -32,7 +37,7 @@ pub fn handle(
 ) -> Result<HandleResponse, ContractError> {
     match msg {
         HandleMsg::SetDataSources { dsources } => try_update_datasource(deps, info, dsources),
-        HandleMsg::CreateAiRequest(ai_request) => try_create_airequest(deps, ai_request),
+        HandleMsg::CreateAiRequest(ai_request_msg) => try_create_airequest(deps, ai_request_msg),
         HandleMsg::Aggregate { request_id } => try_aggregate(deps, env, info, request_id),
     }
 }
@@ -57,9 +62,16 @@ pub fn try_update_datasource(
 
 pub fn try_create_airequest(
     deps: DepsMut,
-    ai_request: AIRequest,
+    ai_request_msg: AIRequestMsg,
 ) -> Result<HandleResponse, ContractError> {
-    AIREQUESTS.save(deps.storage, ai_request.request_id.as_str(), &ai_request)?;
+    let request_id = increment_requests(deps.storage)?;
+    let ai_request = AIRequest {
+        request_id,
+        validators: ai_request_msg.validators,
+        input: ai_request_msg.input,
+        reports: vec![],
+    };
+    requests().save(deps.storage, &request_id.to_be_bytes(), &ai_request)?;
     Ok(HandleResponse::default())
 }
 
@@ -104,21 +116,36 @@ pub fn try_aggregate(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    request_id: String,
+    request_id: u64,
 ) -> Result<HandleResponse, ContractError> {
-    let ai_request = AIREQUESTS.load(deps.storage, request_id.as_str())?;
+    let mut ai_request = requests().load(deps.storage, &request_id.to_be_bytes())?;
     let validator = info.sender.clone();
     // check permission
-    let index = ai_request
+    if ai_request
         .validators
         .iter()
-        .position(|addr| addr.eq(&validator));
-    if index.is_none() {
+        .position(|addr| addr.eq(&validator))
+        .is_none()
+    {
         return Err(ContractError::Unauthorized(format!(
             "{} is not in the validator list",
             info.sender
         )));
     }
+
+    // check reported
+    if ai_request
+        .reports
+        .iter()
+        .position(|report| report.validator.eq(&validator))
+        .is_some()
+    {
+        return Err(ContractError::Reported(format!(
+            "{} has already reported this AI Request",
+            info.sender
+        )));
+    }
+
     let state = config_read(deps.storage).load()?;
     let mut dsources_results: Vec<DataSourceResult> = Vec::new();
     let mut results: Vec<String> = Vec::new();
@@ -153,24 +180,18 @@ pub fn try_aggregate(
     // get mean price
     let aggregated_result = mean_price(&results);
 
-    // create report, return empty if not found
-    let mut reports = REPORTS
-        .load(deps.storage, request_id.as_str())
-        .unwrap_or(Vec::new());
+    // create report
     let report = Report {
-        request_id,
-        dsources_results,
-        input: ai_request.input,
-        block_height: env.block.height,
         validator,
+        dsources_results,
+        block_height: env.block.height,
         aggregated_result,
         status: "success".to_string(),
     };
 
-    reports.push(report);
-
     // update report
-    REPORTS.save(deps.storage, ai_request.request_id.as_str(), &reports)?;
+    ai_request.reports.push(report);
+    requests().save(deps.storage, &request_id.to_be_bytes(), &ai_request)?;
 
     Ok(HandleResponse::default())
 }
@@ -185,7 +206,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => to_binary(&test_data(deps, dsource, input, output)?),
         QueryMsg::GetDataSources {} => query_datasources(deps),
         QueryMsg::GetRequest { request_id } => to_binary(&query_airequest(deps, request_id)?),
-        QueryMsg::GetReport { request_id } => to_binary(&query_report(deps, request_id)?),
+        QueryMsg::GetRequests {
+            limit,
+            offset,
+            order,
+        } => to_binary(&query_airequests(deps, limit, offset, order)?),
     }
 }
 
@@ -194,12 +219,8 @@ fn query_datasources(deps: Deps) -> StdResult<Binary> {
     to_binary(&state.dsources)
 }
 
-fn query_airequest(deps: Deps, request_id: String) -> StdResult<AIRequest> {
-    AIREQUESTS.load(deps.storage, request_id.as_str())
-}
-
-fn query_report(deps: Deps, request_id: String) -> StdResult<Vec<Report>> {
-    REPORTS.load(deps.storage, request_id.as_str())
+fn query_airequest(deps: Deps, request_id: u64) -> StdResult<AIRequest> {
+    requests().load(deps.storage, &request_id.to_be_bytes())
 }
 
 fn query_data(deps: Deps, dsource: HumanAddr, input: String) -> StdResult<String> {
@@ -212,4 +233,87 @@ fn test_data(deps: Deps, dsource: HumanAddr, input: String, _output: String) -> 
     let data_source: String = deps.querier.query_wasm_smart(dsource, &msg)?;
     // positive using unwrap, otherwise rather panic than return default value
     Ok(data_source)
+}
+
+fn query_airequests(
+    deps: Deps,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<AIRequestsResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let mut min: Option<Bound> = None;
+    let mut max: Option<Bound> = None;
+    let mut order_enum = Order::Descending;
+    if let Some(num) = order {
+        if num == 1 {
+            order_enum = Order::Ascending;
+        }
+    }
+
+    // if there is offset, assign to min or max
+    if let Some(offset) = offset {
+        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        match order_enum {
+            Order::Ascending => min = offset_value,
+            Order::Descending => max = offset_value,
+        }
+    };
+
+    let res: StdResult<Vec<_>> = requests()
+        .range(deps.storage, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| kv_item.and_then(|(_k, v)| Ok(v)))
+        .collect();
+
+    Ok(AIRequestsResponse {
+        items: res?,
+        total: num_requests(deps.storage)?,
+    })
+}
+
+// ============================== Test ==============================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{coin, coins, from_binary, HumanAddr};
+
+    #[test]
+    fn test_query_airequests() {
+        let mut deps = mock_dependencies(&coins(5, "orai"));
+
+        let msg = InitMsg {
+            dsources: vec![HumanAddr::from("dsource_coingecko")],
+        };
+        let info = mock_info("creator", &vec![coin(5, "orai")]);
+        let _res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        // beneficiary can release it
+        let info = mock_info("anyone", &vec![coin(50000000, "orai")]);
+
+        for i in 1..100 {
+            let airequest_msg = HandleMsg::CreateAiRequest(AIRequestMsg {
+                validators: vec![HumanAddr::from("creator")],
+                input: format!("request :{}", i),
+            });
+            let _res = handle(deps.as_mut(), mock_env(), info.clone(), airequest_msg).unwrap();
+        }
+
+        // Offering should be listed
+        let res = query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetRequests {
+                limit: Some(MAX_LIMIT),
+                offset: None,
+                order: Some(1),
+            },
+        )
+        .unwrap();
+        let value: AIRequestsResponse = from_binary(&res).unwrap();
+        let ids: Vec<u64> = value.items.iter().map(|f| f.request_id).collect();
+        println!("value: {:?}", ids);
+    }
 }

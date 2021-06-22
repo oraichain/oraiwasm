@@ -4,7 +4,14 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AIRequest {
-    pub request_id: String,
+    pub request_id: u64,
+    pub validators: Vec<HumanAddr>,
+    pub input: String,
+    pub reports: Vec<Report>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AIRequestMsg {
     pub validators: Vec<HumanAddr>,
     pub input: String,
 }
@@ -18,10 +25,8 @@ pub struct DataSourceResult {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Report {
-    pub request_id: String,
     pub validator: HumanAddr,
     pub block_height: u64,
-    pub input: String,
     pub dsources_results: Vec<DataSourceResult>,
     pub aggregated_result: String,
     pub status: String,
@@ -38,11 +43,11 @@ pub enum HandleMsg {
     SetDataSources {
         dsources: Vec<HumanAddr>,
     },
-    CreateAiRequest(AIRequest),
+    CreateAiRequest(AIRequestMsg),
     // all logics must go through Oracle AI module instead of smart contract to avoid gas price problem
     Aggregate {
         // results: Vec<String>,
-        request_id: String,
+        request_id: u64,
     },
 }
 
@@ -60,11 +65,19 @@ pub enum QueryMsg {
     },
     GetDataSources {},
     GetRequest {
-        request_id: String,
+        request_id: u64,
     },
-    GetReport {
-        request_id: String,
+    GetRequests {
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AIRequestsResponse {
+    pub items: Vec<AIRequest>,
+    pub total: u64,
 }
 
 // for query other contract
