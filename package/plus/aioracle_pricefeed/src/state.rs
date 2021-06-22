@@ -1,11 +1,10 @@
 use crate::msg::AIRequest;
 use cosmwasm_std::{HumanAddr, StdResult, Storage};
-use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, U64Key, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-pub static CONFIG_KEY: &[u8] = b"config";
+pub const CONFIG: Item<State> = Item::new("config");
 pub const AIREQUESTS: Map<&str, AIRequest> = Map::new("airequest");
 pub const REQUEST_COUNT: Item<u64> = Item::new("request_count");
 
@@ -13,14 +12,6 @@ pub const REQUEST_COUNT: Item<u64> = Item::new("request_count");
 pub struct State {
     pub owner: HumanAddr,
     pub dsources: Vec<HumanAddr>,
-}
-
-pub fn config(storage: &mut dyn Storage) -> Singleton<State> {
-    singleton(storage, CONFIG_KEY)
-}
-
-pub fn config_read(storage: &dyn Storage) -> ReadonlySingleton<State> {
-    singleton_read(storage, CONFIG_KEY)
 }
 
 // for generate request_id

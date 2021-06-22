@@ -3,7 +3,7 @@ use crate::msg::{
     AIRequest, AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, DataSourceResult, HandleMsg,
     InitMsg, QueryMsg, Report,
 };
-use crate::state::{config, config_read, increment_requests, num_requests, requests, State};
+use crate::state::{increment_requests, num_requests, requests, State, CONFIG};
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
     Order, StdResult,
@@ -22,7 +22,7 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     };
 
     // save owner
-    config(deps.storage).save(&state)?;
+    CONFIG.save(deps.storage, &state)?;
 
     Ok(InitResponse::default())
 }
@@ -47,15 +47,16 @@ pub fn try_update_datasource(
     info: MessageInfo,
     dsources: Vec<HumanAddr>,
 ) -> Result<HandleResponse, ContractError> {
-    let mut state = config(deps.storage).load()?;
+    let mut state = CONFIG.load(deps.storage)?;
     if info.sender != state.owner {
         return Err(ContractError::Unauthorized(format!(
             "{} is not the owner",
             info.sender
         )));
     }
+    // update dsources
     state.dsources = dsources;
-    config(deps.storage).save(&state)?;
+    CONFIG.save(deps.storage, &state)?;
 
     Ok(HandleResponse::default())
 }
@@ -146,7 +147,7 @@ pub fn try_aggregate(
         )));
     }
 
-    let state = config_read(deps.storage).load()?;
+    let state = CONFIG.load(deps.storage)?;
     let mut dsources_results: Vec<DataSourceResult> = Vec::new();
     let mut results: Vec<String> = Vec::new();
     for dsource in state.dsources {
@@ -215,7 +216,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 fn query_datasources(deps: Deps) -> StdResult<Binary> {
-    let state = config_read(deps.storage).load()?;
+    let state = CONFIG.load(deps.storage)?;
     to_binary(&state.dsources)
 }
 
