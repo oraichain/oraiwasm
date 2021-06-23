@@ -8,6 +8,7 @@ use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
     Order, StdResult,
 };
+
 use cw_storage_plus::Bound;
 
 const DEFAULT_LIMIT: u8 = 10;
@@ -244,5 +245,57 @@ pub fn handle_aioracle(
         HandleMsg::Aggregate { request_id } => {
             try_aggregate(deps, env, info, request_id, aggregate)
         }
+    }
+}
+
+// ============================== Test ==============================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{coin, coins, from_binary, HumanAddr};
+
+    #[test]
+    fn test_query_airequests() {
+        let mut deps = mock_dependencies(&coins(5, "orai"));
+
+        let msg = InitMsg {
+            dsources: vec![HumanAddr::from("dsource_coingecko")],
+        };
+        let info = mock_info("creator", &vec![coin(5, "orai")]);
+        let _res = init_aioracle(deps.as_mut(), info, msg).unwrap();
+
+        // beneficiary can release it
+        let info = mock_info("anyone", &vec![coin(50000000, "orai")]);
+
+        for i in 1..100 {
+            let airequest_msg = HandleMsg::CreateAiRequest(AIRequestMsg {
+                validators: vec![HumanAddr::from("creator")],
+                input: format!("request :{}", i),
+            });
+            let _res = handle_aioracle(
+                deps.as_mut(),
+                mock_env(),
+                info.clone(),
+                airequest_msg,
+                |results| Ok(results.join(",")),
+            )
+            .unwrap();
+        }
+
+        // Offering should be listed
+        let res = query_aioracle(
+            deps.as_ref(),
+            QueryMsg::GetRequests {
+                limit: None,
+                offset: None,
+                order: Some(1),
+            },
+        )
+        .unwrap();
+        let value: AIRequestsResponse = from_binary(&res).unwrap();
+        let ids: Vec<u64> = value.items.iter().map(|f| f.request_id).collect();
+        println!("value: {:?}", ids);
     }
 }

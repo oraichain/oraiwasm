@@ -1,73 +1,41 @@
-use crate::helpers::aggregate;
-use aioracle::{
-    handle_aioracle, init_aioracle, query_aioracle, ContractError, HandleMsg, InitMsg, QueryMsg,
-};
-use cosmwasm_std::{
-    Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, StdResult,
-};
+use aioracle::create_contract_with_aggregate;
+use cosmwasm_std::StdResult;
 
-// You can override some logic
-pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
-    init_aioracle(deps, info, msg)
-}
+create_contract_with_aggregate!(aggregate);
 
-pub fn handle(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
-    // Logic implementation in aggregate function
-    handle_aioracle(deps, env, info, msg, aggregate)
-}
-
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    query_aioracle(deps, msg)
-}
-
-// ============================== Test ==============================
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use aioracle::{AIRequestMsg, AIRequestsResponse};
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, coins, from_binary, HumanAddr};
-
-    #[test]
-    fn test_query_airequests() {
-        let mut deps = mock_dependencies(&coins(5, "orai"));
-
-        let msg = InitMsg {
-            dsources: vec![HumanAddr::from("dsource_coingecko")],
-        };
-        let info = mock_info("creator", &vec![coin(5, "orai")]);
-        let _res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        // beneficiary can release it
-        let info = mock_info("anyone", &vec![coin(50000000, "orai")]);
-
-        for i in 1..100 {
-            let airequest_msg = HandleMsg::CreateAiRequest(AIRequestMsg {
-                validators: vec![HumanAddr::from("creator")],
-                input: format!("request :{}", i),
-            });
-            let _res = handle(deps.as_mut(), mock_env(), info.clone(), airequest_msg).unwrap();
+pub fn aggregate(results: &[String]) -> StdResult<String> {
+    let mut sum: i32 = 0;
+    let mut floating_sum: i32 = 0;
+    let mut count = 0;
+    for result in results {
+        // get first item from iterator
+        let mut iter = result.split('.');
+        let first = iter.next();
+        let last = iter.next();
+        // will panic instead for forward error with ?
+        let number: i32 = first.unwrap().parse().unwrap_or(0);
+        let mut floating: i32 = 0;
+        if last.is_some() {
+            let mut last_part = last.unwrap().to_owned();
+            if last_part.len() < 2 {
+                last_part.push_str("0");
+            } else if last_part.len() > 2 {
+                last_part = last_part[..2].to_string();
+            }
+            floating = last_part.parse().unwrap_or(0);
         }
-
-        // Offering should be listed
-        let res = query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::GetRequests {
-                limit: None,
-                offset: None,
-                order: Some(1),
-            },
-        )
-        .unwrap();
-        let value: AIRequestsResponse = from_binary(&res).unwrap();
-        let ids: Vec<u64> = value.items.iter().map(|f| f.request_id).collect();
-        println!("value: {:?}", ids);
+        sum += number;
+        floating_sum += floating;
+        count += 1;
     }
+
+    let mut final_result = String::new();
+    // has results found, update report
+    if count > 0 {
+        sum = sum / count;
+        floating_sum = floating_sum / count;
+        final_result = format!("{}.{}", sum, floating_sum);
+    }
+
+    Ok(final_result)
 }
