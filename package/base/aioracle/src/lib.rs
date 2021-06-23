@@ -22,27 +22,27 @@ macro_rules! create_contract_with_aggregate {
             deps: cosmwasm_std::DepsMut,
             _env: cosmwasm_std::Env,
             info: cosmwasm_std::MessageInfo,
-            msg: aioracle::InitMsg,
+            msg: $crate::InitMsg,
         ) -> cosmwasm_std::StdResult<cosmwasm_std::InitResponse> {
-            aioracle::init_aioracle(deps, info, msg)
+            $crate::init_aioracle(deps, info, msg)
         }
 
         pub fn handle(
             deps: cosmwasm_std::DepsMut,
             env: cosmwasm_std::Env,
             info: cosmwasm_std::MessageInfo,
-            msg: aioracle::HandleMsg,
-        ) -> Result<cosmwasm_std::HandleResponse, aioracle::ContractError> {
+            msg: $crate::HandleMsg,
+        ) -> Result<cosmwasm_std::HandleResponse, $crate::ContractError> {
             // Logic implementation in aggregate function
-            aioracle::handle_aioracle(deps, env, info, msg, $fn)
+            $crate::handle_aioracle(deps, env, info, msg, $fn)
         }
 
         pub fn query(
             deps: cosmwasm_std::Deps,
             _env: cosmwasm_std::Env,
-            msg: aioracle::QueryMsg,
+            msg: $crate::QueryMsg,
         ) -> cosmwasm_std::StdResult<cosmwasm_std::Binary> {
-            aioracle::query_aioracle(deps, msg)
+            $crate::query_aioracle(deps, msg)
         }
     };
 }
