@@ -1,9 +1,8 @@
 use std::env::current_dir;
 use std::fs::create_dir_all;
 
+use aioracle::{HandleMsg, InitMsg, QueryMsg};
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
-
-use aioracle_pricefeed::msg::{HandleMsg, InitMsg, QueryMsg};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
