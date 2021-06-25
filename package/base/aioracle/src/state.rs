@@ -1,5 +1,5 @@
 use crate::msg::AIRequest;
-use cosmwasm_std::{HumanAddr, StdResult, Storage, Uint128};
+use cosmwasm_std::{HumanAddr, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, U64Key, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

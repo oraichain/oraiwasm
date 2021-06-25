@@ -9,8 +9,8 @@ use crate::state::{
     ai_requests, increment_requests, num_requests, query_state, save_state, State, VALIDATOR_FEES,
 };
 use cosmwasm_std::{
-    to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, Order, StdResult, Uint128,
+    to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, HandleResponse, HumanAddr,
+    InitResponse, MessageInfo, Order, StdResult, Uint128,
 };
 
 use cw_storage_plus::Bound;
@@ -273,6 +273,10 @@ fn try_aggregate(
     let state = query_state(deps.storage)?;
     let mut dsources_results: Vec<DataSourceResult> = Vec::new();
     let mut results: Vec<String> = Vec::new();
+
+    // prepare cosmos messages to send rewards
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+
     for dsource in state.dsources.clone() {
         let contract = dsource.to_owned();
         let dsources_result = match query_data(deps.as_ref(), dsource, ai_request.input.clone()) {
@@ -288,8 +292,28 @@ fn try_aggregate(
             },
         };
 
-        let result = dsources_result.result.clone();
+        if dsources_result.status.eq("success") {
+            // send rewards to the providers
+            if let Some(provider_fee) = ai_request
+                .provider_fees
+                .iter()
+                .find(|x| x.address.eq(&dsources_result.contract))
+            {
+                let reward_obj = vec![Coin {
+                    denom: String::from("orai"),
+                    amount: provider_fee.amount,
+                }];
+                let reward_msg = BankMsg::Send {
+                    from_address: env.contract.address.clone(),
+                    to_address: provider_fee.address.clone(),
+                    amount: reward_obj,
+                }
+                .into();
+                cosmos_msgs.push(reward_msg);
+            }
+        }
 
+        let result = dsources_result.result.clone();
         dsources_results.push(dsources_result);
 
         // continue if this request fail
@@ -307,7 +331,7 @@ fn try_aggregate(
     // create report
     let report = Report {
         validator,
-        dsources_results: dsources_results,
+        dsources_results,
         block_height: env.block.height,
         aggregated_result,
         status: "success".to_string(),
@@ -321,28 +345,6 @@ fn try_aggregate(
         &ai_request,
     )?;
 
-    // prepare cosmos messages to send rewards
-    let mut cosmos_msgs = vec![];
-    // send rewards to the providers
-    for provider_fee in ai_request.provider_fees {
-        // only reward those data sources that ran successfully
-        for dsource_result in report.clone().dsources_results {
-            if dsource_result.contract.eq(&provider_fee.clone().address) {
-                let reward_obj = vec![Coin {
-                    denom: String::from("orai"),
-                    amount: provider_fee.amount,
-                }];
-                let reward_msg: BankMsg = BankMsg::Send {
-                    from_address: env.contract.address.clone(),
-                    to_address: provider_fee.clone().address,
-                    amount: reward_obj,
-                }
-                .into();
-                cosmos_msgs.push(reward_msg);
-            }
-        }
-    }
-
     // reward to validators
     for validator_fee in ai_request.validator_fees {
         let reward_obj = vec![Coin {
@@ -350,7 +352,7 @@ fn try_aggregate(
             amount: validator_fee.amount,
         }];
 
-        let reward_msg: BankMsg = BankMsg::Send {
+        let reward_msg = BankMsg::Send {
             from_address: env.contract.address.clone(),
             to_address: validator_fee.address,
             amount: reward_obj,
@@ -359,7 +361,13 @@ fn try_aggregate(
         cosmos_msgs.push(reward_msg);
     }
 
-    Ok(HandleResponse::default())
+    let res = HandleResponse {
+        messages: cosmos_msgs,
+        attributes: vec![],
+        data: None,
+    };
+
+    Ok(res)
 }
 
 fn try_set_validator_fees(
