@@ -1,5 +1,3 @@
-use std::u64;
-
 use crate::error::ContractError;
 use crate::msg::{
     AIRequest, AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, DataSourceResult, Fees,
@@ -10,9 +8,10 @@ use crate::state::{
 };
 use bech32;
 use cosmwasm_std::{
-    to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, Order, StdResult, Uint128,
+    to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, HandleResponse, HumanAddr,
+    InitResponse, MessageInfo, Order, StdResult, Uint128,
 };
+use std::u64;
 
 use cw_storage_plus::Bound;
 
@@ -190,9 +189,53 @@ fn try_update_datasource(
     Ok(HandleResponse::default())
 }
 
+fn search_validator(deps: Deps, validator: &str) -> bool {
+    // convert validator to operator address & check if error
+    let validator_operator_result = convert_to_validator(validator);
+    if validator_operator_result.is_err() {
+        return false;
+    }
+    let validator_operator = validator_operator_result.unwrap();
+
+    let validators_result = deps.querier.query_validators();
+    if validators_result.is_err() {
+        return false;
+    };
+    let validators = validators_result.unwrap();
+    if let Some(_) = validators
+        .iter()
+        .find(|val| val.address.eq(&validator_operator))
+    {
+        return true;
+    }
+    return false;
+}
+
+fn convert_to_validator(address: &str) -> Result<HumanAddr, ContractError> {
+    let decode_result = bech32::decode(address);
+    if decode_result.is_err() {
+        return Err(ContractError::CannotDecode(format!(
+            "Could not decode address {} with error {:?}",
+            address,
+            decode_result.err()
+        )));
+    }
+    let (_, sender_raw, variant) = decode_result.unwrap();
+    let validator_result = bech32::encode("oraivaloper", sender_raw.clone(), variant);
+    if validator_result.is_err() {
+        return Err(ContractError::CannotEncode(format!(
+            "Could not encode address {:?} with error {:?}",
+            sender_raw,
+            validator_result.err()
+        )));
+    }
+    return Ok(HumanAddr(validator_result.unwrap()));
+}
+
 fn validate_validators(deps: Deps, validators: Vec<HumanAddr>) -> bool {
     // if any validator in the list of validators does not match => invalid
     for validator in validators {
+        // convert to search validator
         if !search_validator(deps, validator.as_str()) {
             return false;
         }
@@ -205,15 +248,22 @@ fn try_create_airequest(
     info: MessageInfo,
     ai_request_msg: AIRequestMsg,
 ) -> Result<HandleResponse, ContractError> {
-    let fees = info.sent_funds[0].clone();
-
-    // check funds type
-    if !fees.denom.eq("orai") {
-        return Err(ContractError::InvalidDenom(format!(
-            "Invalid denom coin. Expected orai, got {}",
-            fees.denom.as_str()
-        )));
+    // check sent funds
+    let mut fees: Coin = Coin {
+        denom: String::from("orai"),
+        amount: Uint128(0),
     };
+    if info.sent_funds.len() > 0 {
+        let funds = info.sent_funds[0].clone();
+        // check funds type
+        if !fees.denom.eq("orai") {
+            return Err(ContractError::InvalidDenom(format!(
+                "Invalid denom coin. Expected orai, got {}",
+                fees.denom.as_str()
+            )));
+        };
+        fees.amount = funds.amount;
+    }
 
     // validate list validators
     if !validate_validators(deps.as_ref(), ai_request_msg.validators.clone()) {
@@ -289,6 +339,10 @@ fn try_aggregate(
     let state = query_state(deps.storage)?;
     let mut dsources_results: Vec<DataSourceResult> = Vec::new();
     let mut results: Vec<String> = Vec::new();
+
+    // prepare cosmos messages to send rewards
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+
     for dsource in state.dsources.clone() {
         let contract = dsource.to_owned();
         let dsources_result = match query_data(deps.as_ref(), dsource, ai_request.input.clone()) {
@@ -304,8 +358,28 @@ fn try_aggregate(
             },
         };
 
-        let result = dsources_result.result.clone();
+        if dsources_result.status.eq("success") {
+            // send rewards to the providers
+            if let Some(provider_fee) = ai_request
+                .provider_fees
+                .iter()
+                .find(|x| x.address.eq(&dsources_result.contract))
+            {
+                let reward_obj = vec![Coin {
+                    denom: String::from("orai"),
+                    amount: provider_fee.amount,
+                }];
+                let reward_msg = BankMsg::Send {
+                    from_address: env.contract.address.clone(),
+                    to_address: provider_fee.address.clone(),
+                    amount: reward_obj,
+                }
+                .into();
+                cosmos_msgs.push(reward_msg);
+            }
+        }
 
+        let result = dsources_result.result.clone();
         dsources_results.push(dsources_result);
 
         // continue if this request fail
@@ -323,7 +397,7 @@ fn try_aggregate(
     // create report
     let report = Report {
         validator,
-        dsources_results: dsources_results,
+        dsources_results,
         block_height: env.block.height,
         aggregated_result,
         status: "success".to_string(),
@@ -337,28 +411,6 @@ fn try_aggregate(
         &ai_request,
     )?;
 
-    // prepare cosmos messages to send rewards
-    let mut cosmos_msgs = vec![];
-    // send rewards to the providers
-    for provider_fee in ai_request.provider_fees {
-        // only reward those data sources that ran successfully
-        for dsource_result in report.clone().dsources_results {
-            if dsource_result.contract.eq(&provider_fee.clone().address) {
-                let reward_obj = vec![Coin {
-                    denom: String::from("orai"),
-                    amount: provider_fee.amount,
-                }];
-                let reward_msg: BankMsg = BankMsg::Send {
-                    from_address: env.contract.address.clone(),
-                    to_address: provider_fee.clone().address,
-                    amount: reward_obj,
-                }
-                .into();
-                cosmos_msgs.push(reward_msg);
-            }
-        }
-    }
-
     // reward to validators
     for validator_fee in ai_request.validator_fees {
         let reward_obj = vec![Coin {
@@ -366,7 +418,7 @@ fn try_aggregate(
             amount: validator_fee.amount,
         }];
 
-        let reward_msg: BankMsg = BankMsg::Send {
+        let reward_msg = BankMsg::Send {
             from_address: env.contract.address.clone(),
             to_address: validator_fee.address,
             amount: reward_obj,
@@ -375,43 +427,13 @@ fn try_aggregate(
         cosmos_msgs.push(reward_msg);
     }
 
-    Ok(HandleResponse::default())
-}
-
-fn search_validator(deps: Deps, validator: &str) -> bool {
-    let validators_result = deps.querier.query_validators();
-    if validators_result.is_err() {
-        return false;
+    let res = HandleResponse {
+        messages: cosmos_msgs,
+        attributes: vec![],
+        data: None,
     };
-    let validators = validators_result.unwrap();
-    if let Some(_) = validators
-        .iter()
-        .find(|val| val.address.eq(&HumanAddr::from(validator)))
-    {
-        return true;
-    }
-    return false;
-}
 
-fn convert_to_validator(address: &str) -> Result<HumanAddr, ContractError> {
-    let decode_result = bech32::decode(address);
-    if decode_result.is_err() {
-        return Err(ContractError::CannotDecode(format!(
-            "Could not decode address {} with error {:?}",
-            address,
-            decode_result.err()
-        )));
-    }
-    let (_, sender_raw, variant) = decode_result.unwrap();
-    let validator_result = bech32::encode("oraivaloper", sender_raw.clone(), variant);
-    if validator_result.is_err() {
-        return Err(ContractError::CannotEncode(format!(
-            "Could not encode address {:?} with error {:?}",
-            sender_raw,
-            validator_result.err()
-        )));
-    }
-    return Ok(HumanAddr(validator_result.unwrap()));
+    Ok(res)
 }
 
 fn try_set_validator_fees(
@@ -454,13 +476,19 @@ pub fn handle_aioracle(
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, coins, from_binary, HumanAddr};
+    use cosmwasm_std::{coin, coins, from_binary, Api, HumanAddr};
 
     #[test]
     fn test_query_airequests() {
         let mut deps = mock_dependencies(&coins(5, "orai"));
 
+        let (hrp, data, variant) =
+            bech32::decode("oraivaloper1ca6ms99wyx0pftk3df7y00sgyhuy9dler44l9e").unwrap();
+        // let addr1 = deps.api.human_address(&addr.unwrap());
+        let encoded = bech32::encode("orai", data, variant).unwrap();
+        println!("addr :{:?}", encoded);
         let msg = InitMsg {
             dsources: vec![HumanAddr::from("dsource_coingecko")],
         };
