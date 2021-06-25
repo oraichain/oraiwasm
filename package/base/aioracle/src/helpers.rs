@@ -1,5 +1,3 @@
-use std::u64;
-
 use crate::error::ContractError;
 use crate::msg::{
     AIRequest, AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, DataSourceResult, Fees,
@@ -8,10 +6,12 @@ use crate::msg::{
 use crate::state::{
     ai_requests, increment_requests, num_requests, query_state, save_state, State, VALIDATOR_FEES,
 };
+use bech32::{self, FromBase32, ToBase32, Variant};
 use cosmwasm_std::{
     to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, HandleResponse, HumanAddr,
     InitResponse, MessageInfo, Order, StdResult, Uint128,
 };
+use std::u64;
 
 use cw_storage_plus::Bound;
 
@@ -403,13 +403,19 @@ pub fn handle_aioracle(
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, coins, from_binary, HumanAddr};
+    use cosmwasm_std::{coin, coins, from_binary, Api, HumanAddr};
 
     #[test]
     fn test_query_airequests() {
         let mut deps = mock_dependencies(&coins(5, "orai"));
 
+        let (hrp, data, variant) =
+            bech32::decode("oraivaloper1ca6ms99wyx0pftk3df7y00sgyhuy9dler44l9e").unwrap();
+        // let addr1 = deps.api.human_address(&addr.unwrap());
+        let encoded = bech32::encode("orai", data, Variant::Bech32).unwrap();
+        println!("addr :{:?}", encoded);
         let msg = InitMsg {
             dsources: vec![HumanAddr::from("dsource_coingecko")],
         };
