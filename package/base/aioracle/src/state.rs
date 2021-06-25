@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 const CONFIG: Item<State> = Item::new("config");
-pub const REQUEST_COUNT: Item<u64> = Item::new("request_count");
+const REQUEST_COUNT: Item<u64> = Item::new("request_count");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
