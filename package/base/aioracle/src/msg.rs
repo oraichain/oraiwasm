@@ -1,4 +1,4 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::{HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -8,6 +8,14 @@ pub struct AIRequest {
     pub validators: Vec<HumanAddr>,
     pub input: String,
     pub reports: Vec<Report>,
+    pub validator_fees: Vec<Fees>,
+    pub provider_fees: Vec<Fees>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Fees {
+    pub address: HumanAddr,
+    pub amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -43,6 +51,9 @@ pub enum HandleMsg {
     SetDataSources {
         dsources: Vec<HumanAddr>,
     },
+    SetValidatorFees {
+        fees: u64,
+    },
     CreateAiRequest(AIRequestMsg),
     // all logics must go through Oracle AI module instead of smart contract to avoid gas price problem
     Aggregate {
@@ -72,6 +83,9 @@ pub enum QueryMsg {
         limit: Option<u8>,
         order: Option<u8>,
     },
+    GetMinFees {
+        validators: Vec<HumanAddr>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -85,4 +99,5 @@ pub struct AIRequestsResponse {
 #[serde(rename_all = "snake_case")]
 pub enum DataSourceQueryMsg {
     Get { input: String },
+    GetFees {},
 }

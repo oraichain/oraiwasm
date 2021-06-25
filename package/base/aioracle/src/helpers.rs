@@ -1,12 +1,16 @@
+use std::u64;
+
 use crate::error::ContractError;
 use crate::msg::{
-    AIRequest, AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, DataSourceResult, HandleMsg,
-    InitMsg, QueryMsg, Report,
+    AIRequest, AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, DataSourceResult, Fees,
+    HandleMsg, InitMsg, QueryMsg, Report,
 };
-use crate::state::{ai_requests, increment_requests, num_requests, query_state, save_state, State};
+use crate::state::{
+    ai_requests, increment_requests, num_requests, query_state, save_state, State, VALIDATOR_FEES,
+};
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
-    Order, StdResult,
+    to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
+    MessageInfo, Order, StdResult, Uint128,
 };
 
 use cw_storage_plus::Bound;
@@ -29,6 +33,10 @@ pub fn query_data(deps: Deps, dsource: HumanAddr, input: String) -> StdResult<St
     deps.querier.query_wasm_smart(dsource, &msg)
 }
 
+pub fn query_info(deps: Deps, dsource: HumanAddr, msg: DataSourceQueryMsg) -> StdResult<String> {
+    deps.querier.query_wasm_smart(dsource, &msg)
+}
+
 pub fn test_data(
     deps: Deps,
     dsource: HumanAddr,
@@ -39,6 +47,59 @@ pub fn test_data(
     let data_source: String = deps.querier.query_wasm_smart(dsource, &msg)?;
     // positive using unwrap, otherwise rather panic than return default value
     Ok(data_source)
+}
+
+pub fn query_min_fees_simple(deps: Deps, validators: Vec<HumanAddr>) -> StdResult<Uint128> {
+    let dsources = query_state(deps.storage)?.dsources;
+    let mut total: u64 = 0u64;
+
+    let (dsource_fees, _) = query_dsources_fees(deps, dsources);
+    let (validator_fees, _) = query_validator_fees(deps, validators);
+    total = total + dsource_fees + validator_fees;
+    return Ok(Uint128::from(total));
+}
+
+fn query_dsources_fees(deps: Deps, dsources: Vec<HumanAddr>) -> (u64, Vec<Fees>) {
+    let mut total: u64 = 0u64;
+    let mut list_fees: Vec<Fees> = vec![];
+
+    let query_msg_fees: DataSourceQueryMsg = DataSourceQueryMsg::GetFees {};
+    for dsource in dsources {
+        let fees_result = query_info(deps, dsource.to_owned(), query_msg_fees.clone());
+        if fees_result.is_err() {
+            continue;
+        }
+        let fees_parse = fees_result.unwrap().parse::<u64>();
+        if fees_parse.is_err() {
+            continue;
+        }
+        let fees = fees_parse.unwrap();
+        total = total + fees;
+        list_fees.push(Fees {
+            address: dsource,
+            amount: Uint128::from(fees),
+        })
+    }
+    return (total, list_fees);
+}
+
+fn query_validator_fees(deps: Deps, validators: Vec<HumanAddr>) -> (u64, Vec<Fees>) {
+    let mut total: u64 = 0u64;
+    let mut list_fees: Vec<Fees> = vec![];
+
+    for validator in validators {
+        let fees_result = VALIDATOR_FEES.load(deps.storage, validator.clone().as_str());
+        if fees_result.is_err() {
+            continue;
+        }
+        let fees = fees_result.unwrap();
+        total = total + fees;
+        list_fees.push(Fees {
+            address: validator,
+            amount: Uint128::from(fees),
+        })
+    }
+    return (total, list_fees);
 }
 
 pub fn query_airequests(
@@ -105,6 +166,7 @@ pub fn query_aioracle(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
             offset,
             order,
         } => to_binary(&query_airequests(deps, limit, offset, order)?),
+        QueryMsg::GetMinFees { validators } => to_binary(&query_min_fees_simple(deps, validators)?),
     }
 }
 
@@ -129,14 +191,44 @@ fn try_update_datasource(
 
 fn try_create_airequest(
     deps: DepsMut,
+    info: MessageInfo,
     ai_request_msg: AIRequestMsg,
 ) -> Result<HandleResponse, ContractError> {
+    let fees = info.sent_funds[0].clone();
+    // check funds type
+
+    if !fees.denom.eq("orai") {
+        return Err(ContractError::InvalidDenom(format!(
+            "Invalid denom coin. Expected orai, got {}",
+            fees.denom.as_str()
+        )));
+    };
+
+    // query minimum fees
+    let dsources = query_state(deps.storage)?.dsources;
+    let mut total: u64 = 0u64;
+    let (dsource_fees, list_provider_fees) = query_dsources_fees(deps.as_ref(), dsources);
+    let (validator_fees, list_validator_fees) =
+        query_validator_fees(deps.as_ref(), ai_request_msg.validators.clone());
+    total = total + dsource_fees + validator_fees;
+
+    if fees.amount < Uint128::from(total) {
+        return Err(ContractError::FeesTooLow(format!(
+            "Fees too low. Expected {}, got {}",
+            total.to_string(),
+            fees.amount.to_string()
+        )));
+    };
+
+    // set request after verifying the fees
     let request_id = increment_requests(deps.storage)?;
     let ai_request = AIRequest {
         request_id,
         validators: ai_request_msg.validators,
         input: ai_request_msg.input,
         reports: vec![],
+        provider_fees: list_provider_fees,
+        validator_fees: list_validator_fees,
     };
     ai_requests().save(deps.storage, &request_id.to_be_bytes(), &ai_request)?;
     Ok(HandleResponse::default())
@@ -181,7 +273,7 @@ fn try_aggregate(
     let state = query_state(deps.storage)?;
     let mut dsources_results: Vec<DataSourceResult> = Vec::new();
     let mut results: Vec<String> = Vec::new();
-    for dsource in state.dsources {
+    for dsource in state.dsources.clone() {
         let contract = dsource.to_owned();
         let dsources_result = match query_data(deps.as_ref(), dsource, ai_request.input.clone()) {
             Ok(data) => DataSourceResult {
@@ -215,20 +307,67 @@ fn try_aggregate(
     // create report
     let report = Report {
         validator,
-        dsources_results,
+        dsources_results: dsources_results,
         block_height: env.block.height,
         aggregated_result,
         status: "success".to_string(),
     };
 
     // update report
-    ai_request.reports.push(report);
+    ai_request.reports.push(report.clone());
     ai_requests.save(
         deps.storage,
         &ai_request.request_id.to_be_bytes(),
         &ai_request,
     )?;
 
+    // prepare cosmos messages to send rewards
+    let mut cosmos_msgs = vec![];
+    // send rewards to the providers
+    for provider_fee in ai_request.provider_fees {
+        // only reward those data sources that ran successfully
+        for dsource_result in report.clone().dsources_results {
+            if dsource_result.contract.eq(&provider_fee.clone().address) {
+                let reward_obj = vec![Coin {
+                    denom: String::from("orai"),
+                    amount: provider_fee.amount,
+                }];
+                let reward_msg: BankMsg = BankMsg::Send {
+                    from_address: env.contract.address.clone(),
+                    to_address: provider_fee.clone().address,
+                    amount: reward_obj,
+                }
+                .into();
+                cosmos_msgs.push(reward_msg);
+            }
+        }
+    }
+
+    // reward to validators
+    for validator_fee in ai_request.validator_fees {
+        let reward_obj = vec![Coin {
+            denom: String::from("orai"),
+            amount: validator_fee.amount,
+        }];
+
+        let reward_msg: BankMsg = BankMsg::Send {
+            from_address: env.contract.address.clone(),
+            to_address: validator_fee.address,
+            amount: reward_obj,
+        }
+        .into();
+        cosmos_msgs.push(reward_msg);
+    }
+
+    Ok(HandleResponse::default())
+}
+
+fn try_set_validator_fees(
+    deps: DepsMut,
+    info: MessageInfo,
+    fees: u64,
+) -> Result<HandleResponse, ContractError> {
+    VALIDATOR_FEES.save(deps.storage, info.sender.as_str(), &fees)?;
     Ok(HandleResponse::default())
 }
 
@@ -241,7 +380,10 @@ pub fn handle_aioracle(
 ) -> Result<HandleResponse, ContractError> {
     match msg {
         HandleMsg::SetDataSources { dsources } => try_update_datasource(deps, info, dsources),
-        HandleMsg::CreateAiRequest(ai_request_msg) => try_create_airequest(deps, ai_request_msg),
+        HandleMsg::SetValidatorFees { fees } => try_set_validator_fees(deps, info, fees),
+        HandleMsg::CreateAiRequest(ai_request_msg) => {
+            try_create_airequest(deps, info, ai_request_msg)
+        }
         HandleMsg::Aggregate { request_id } => {
             try_aggregate(deps, env, info, request_id, aggregate)
         }

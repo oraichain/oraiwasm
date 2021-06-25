@@ -1,6 +1,6 @@
 use crate::msg::AIRequest;
-use cosmwasm_std::{HumanAddr, StdResult, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, U64Key, UniqueIndex};
+use cosmwasm_std::{HumanAddr, StdResult, Storage, Uint128};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, U64Key, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -51,3 +51,5 @@ pub fn ai_requests<'a>() -> IndexedMap<'a, &'a [u8], AIRequest, RequestIndexes<'
     };
     IndexedMap::new("ai_requests", indexes)
 }
+
+pub const VALIDATOR_FEES: Map<&str, u64> = Map::new("validator_fees");

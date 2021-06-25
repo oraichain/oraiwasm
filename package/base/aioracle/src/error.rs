@@ -11,4 +11,13 @@ pub enum ContractError {
 
     #[error("Reported")]
     Reported(String),
+
+    #[error("InvalidDenom")]
+    InvalidDenom(String),
+
+    #[error("FeesTooLow")]
+    FeesTooLow(String),
+
+    #[error("CannotGetState")]
+    CannotGetState(),
 }
