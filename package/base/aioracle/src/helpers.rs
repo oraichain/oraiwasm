@@ -8,6 +8,7 @@ use crate::msg::{
 use crate::state::{
     ai_requests, increment_requests, num_requests, query_state, save_state, State, VALIDATOR_FEES,
 };
+use bech32;
 use cosmwasm_std::{
     to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
     MessageInfo, Order, StdResult, Uint128,
@@ -33,8 +34,8 @@ pub fn query_data(deps: Deps, dsource: HumanAddr, input: String) -> StdResult<St
     deps.querier.query_wasm_smart(dsource, &msg)
 }
 
-pub fn query_info(deps: Deps, dsource: HumanAddr, msg: DataSourceQueryMsg) -> StdResult<String> {
-    deps.querier.query_wasm_smart(dsource, &msg)
+pub fn query_info(deps: Deps, dsource: HumanAddr, msg: &DataSourceQueryMsg) -> StdResult<String> {
+    deps.querier.query_wasm_smart(dsource, msg)
 }
 
 pub fn test_data(
@@ -65,7 +66,7 @@ fn query_dsources_fees(deps: Deps, dsources: Vec<HumanAddr>) -> (u64, Vec<Fees>)
 
     let query_msg_fees: DataSourceQueryMsg = DataSourceQueryMsg::GetFees {};
     for dsource in dsources {
-        let fees_result = query_info(deps, dsource.to_owned(), query_msg_fees.clone());
+        let fees_result = query_info(deps, dsource.clone(), &query_msg_fees);
         if fees_result.is_err() {
             continue;
         }
@@ -88,7 +89,7 @@ fn query_validator_fees(deps: Deps, validators: Vec<HumanAddr>) -> (u64, Vec<Fee
     let mut list_fees: Vec<Fees> = vec![];
 
     for validator in validators {
-        let fees_result = VALIDATOR_FEES.load(deps.storage, validator.clone().as_str());
+        let fees_result = VALIDATOR_FEES.load(deps.storage, validator.as_str());
         if fees_result.is_err() {
             continue;
         }
@@ -189,14 +190,24 @@ fn try_update_datasource(
     Ok(HandleResponse::default())
 }
 
+fn validate_validators(deps: Deps, validators: Vec<HumanAddr>) -> bool {
+    // if any validator in the list of validators does not match => invalid
+    for validator in validators {
+        if !search_validator(deps, validator.as_str()) {
+            return false;
+        }
+    }
+    return true;
+}
+
 fn try_create_airequest(
     deps: DepsMut,
     info: MessageInfo,
     ai_request_msg: AIRequestMsg,
 ) -> Result<HandleResponse, ContractError> {
     let fees = info.sent_funds[0].clone();
-    // check funds type
 
+    // check funds type
     if !fees.denom.eq("orai") {
         return Err(ContractError::InvalidDenom(format!(
             "Invalid denom coin. Expected orai, got {}",
@@ -204,14 +215,19 @@ fn try_create_airequest(
         )));
     };
 
+    // validate list validators
+    if !validate_validators(deps.as_ref(), ai_request_msg.validators.clone()) {
+        return Err(ContractError::InvalidValidators());
+    }
+
     // query minimum fees
     let dsources = query_state(deps.storage)?.dsources;
     let mut total: u64 = 0u64;
     let (dsource_fees, list_provider_fees) = query_dsources_fees(deps.as_ref(), dsources);
     let (validator_fees, list_validator_fees) =
         query_validator_fees(deps.as_ref(), ai_request_msg.validators.clone());
-    total = total + dsource_fees + validator_fees;
 
+    total = total + dsource_fees + validator_fees;
     if fees.amount < Uint128::from(total) {
         return Err(ContractError::FeesTooLow(format!(
             "Fees too low. Expected {}, got {}",
@@ -362,11 +378,54 @@ fn try_aggregate(
     Ok(HandleResponse::default())
 }
 
+fn search_validator(deps: Deps, validator: &str) -> bool {
+    let validators_result = deps.querier.query_validators();
+    if validators_result.is_err() {
+        return false;
+    };
+    let validators = validators_result.unwrap();
+    if let Some(_) = validators
+        .iter()
+        .find(|val| val.address.eq(&HumanAddr::from(validator)))
+    {
+        return true;
+    }
+    return false;
+}
+
+fn convert_to_validator(address: &str) -> Result<HumanAddr, ContractError> {
+    let decode_result = bech32::decode(address);
+    if decode_result.is_err() {
+        return Err(ContractError::CannotDecode(format!(
+            "Could not decode address {} with error {:?}",
+            address,
+            decode_result.err()
+        )));
+    }
+    let (_, sender_raw, variant) = decode_result.unwrap();
+    let validator_result = bech32::encode("oraivaloper", sender_raw.clone(), variant);
+    if validator_result.is_err() {
+        return Err(ContractError::CannotEncode(format!(
+            "Could not encode address {:?} with error {:?}",
+            sender_raw,
+            validator_result.err()
+        )));
+    }
+    return Ok(HumanAddr(validator_result.unwrap()));
+}
+
 fn try_set_validator_fees(
     deps: DepsMut,
     info: MessageInfo,
     fees: u64,
 ) -> Result<HandleResponse, ContractError> {
+    let validator = convert_to_validator(info.sender.as_str())?;
+    if !search_validator(deps.as_ref(), validator.as_str()) {
+        return Err(ContractError::ValidatorNotFound(format!(
+            "Could not found a matching validator {}",
+            validator
+        )));
+    }
     VALIDATOR_FEES.save(deps.storage, info.sender.as_str(), &fees)?;
     Ok(HandleResponse::default())
 }

@@ -12,6 +12,18 @@ pub enum ContractError {
     #[error("Reported")]
     Reported(String),
 
+    #[error("ValidatorNotFound")]
+    ValidatorNotFound(String),
+
+    #[error("InvalidValidators")]
+    InvalidValidators(),
+
+    #[error("CannotDecode")]
+    CannotDecode(String),
+
+    #[error("CannotEncode")]
+    CannotEncode(String),
+
     #[error("InvalidDenom")]
     InvalidDenom(String),
 
