@@ -13,7 +13,7 @@ use cw721::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, MintMsg, MinterResponse, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MintMsg, MinterResponse, QueryMsg};
 use crate::state::{
     increment_tokens, num_tokens, tokens, Approval, TokenInfo, CONTRACT_INFO, MINTER, OPERATORS,
     OWNER,
@@ -29,7 +29,7 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     msg_info: MessageInfo,
-    msg: InitMsg,
+    msg: InstantiateMsg,
 ) -> StdResult<Response> {
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
@@ -49,32 +49,32 @@ pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
+    msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Mint(msg) => handle_mint(deps, env, info, msg),
-        HandleMsg::Approve {
+        ExecuteMsg::Mint(msg) => handle_mint(deps, env, info, msg),
+        ExecuteMsg::Approve {
             spender,
             token_id,
             expires,
         } => handle_approve(deps, env, info, spender, token_id, expires),
-        HandleMsg::Revoke { spender, token_id } => {
+        ExecuteMsg::Revoke { spender, token_id } => {
             handle_revoke(deps, env, info, spender, token_id)
         }
-        HandleMsg::ApproveAll { operator, expires } => {
+        ExecuteMsg::ApproveAll { operator, expires } => {
             handle_approve_all(deps, env, info, operator, expires)
         }
-        HandleMsg::RevokeAll { operator } => handle_revoke_all(deps, env, info, operator),
-        HandleMsg::TransferNft {
+        ExecuteMsg::RevokeAll { operator } => handle_revoke_all(deps, env, info, operator),
+        ExecuteMsg::TransferNft {
             recipient,
             token_id,
         } => handle_transfer_nft(deps, env, info, recipient, token_id),
-        HandleMsg::SendNft {
+        ExecuteMsg::SendNft {
             contract,
             token_id,
             msg,
         } => handle_send_nft(deps, env, info, contract, token_id, msg),
-        HandleMsg::ChangeMinter { minter } => handle_change_minter(deps, env, info, minter),
+        ExecuteMsg::ChangeMinter { minter } => handle_change_minter(deps, env, info, minter),
     }
 }
 
@@ -629,7 +629,7 @@ mod tests {
     const SYMBOL: &str = "MGK";
 
     fn setup_contract(deps: DepsMut) {
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             name: CONTRACT_NAME.to_string(),
             symbol: SYMBOL.to_string(),
             minter: String::from(MINTER),
@@ -643,7 +643,7 @@ mod tests {
     fn proper_instantiation() {
         let mut deps = mock_dependencies(&[]);
 
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             name: CONTRACT_NAME.to_string(),
             symbol: SYMBOL.to_string(),
             minter: String::from(MINTER),
@@ -683,7 +683,7 @@ mod tests {
         let name = "Petrify with Gaze".to_string();
         let description = "Allows the owner to petrify anyone looking at him or her".to_string();
 
-        let mint_msg = HandleMsg::Mint(MintMsg {
+        let mint_msg = ExecuteMsg::Mint(MintMsg {
             token_id: token_id.clone(),
             owner: String::from("medusa"),
             name: name.clone(),
@@ -729,7 +729,7 @@ mod tests {
         );
 
         // Cannot mint same token_id again
-        let mint_msg2 = HandleMsg::Mint(MintMsg {
+        let mint_msg2 = ExecuteMsg::Mint(MintMsg {
             token_id: token_id.clone(),
             owner: String::from("hercules"),
             name: "copy cat".into(),
@@ -757,7 +757,7 @@ mod tests {
         let name = "Melting power".to_string();
         let description = "Allows the owner to melt anyone looking at him or her".to_string();
 
-        let mint_msg = HandleMsg::Mint(MintMsg {
+        let mint_msg = ExecuteMsg::Mint(MintMsg {
             token_id: token_id.clone(),
             owner: String::from("venus"),
             name,
@@ -770,7 +770,7 @@ mod tests {
 
         // random cannot transfer
         let random = mock_info("random", &[]);
-        let transfer_msg = HandleMsg::TransferNft {
+        let transfer_msg = ExecuteMsg::TransferNft {
             recipient: String::from("random"),
             token_id: token_id.clone(),
         };
@@ -780,7 +780,7 @@ mod tests {
 
         // owner can
         let random = mock_info("venus", &[]);
-        let transfer_msg = HandleMsg::TransferNft {
+        let transfer_msg = ExecuteMsg::TransferNft {
             recipient: String::from("random"),
             token_id: token_id.clone(),
         };
@@ -813,7 +813,7 @@ mod tests {
         let name = "Melting power".to_string();
         let description = "Allows the owner to melt anyone looking at him or her".to_string();
 
-        let mint_msg = HandleMsg::Mint(MintMsg {
+        let mint_msg = ExecuteMsg::Mint(MintMsg {
             token_id: token_id.clone(),
             owner: String::from("venus"),
             name,
@@ -826,7 +826,7 @@ mod tests {
 
         let msg = to_binary("You now have the melting power").unwrap();
         let target = String::from("another_contract");
-        let send_msg = HandleMsg::SendNft {
+        let send_msg = ExecuteMsg::SendNft {
             contract: target.clone(),
             token_id: token_id.clone(),
             msg: Some(msg.clone()),
@@ -880,7 +880,7 @@ mod tests {
         let name = "Growing power".to_string();
         let description = "Allows the owner to grow anything".to_string();
 
-        let mint_msg = HandleMsg::Mint(MintMsg {
+        let mint_msg = ExecuteMsg::Mint(MintMsg {
             token_id: token_id.clone(),
             owner: String::from("demeter"),
             name,
@@ -892,7 +892,7 @@ mod tests {
         execute(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
 
         // Give random transferring power
-        let approve_msg = HandleMsg::Approve {
+        let approve_msg = ExecuteMsg::Approve {
             spender: String::from("random"),
             token_id: token_id.clone(),
             expires: None,
@@ -916,7 +916,7 @@ mod tests {
 
         // random can now transfer
         let random = mock_info("random", &[]);
-        let transfer_msg = HandleMsg::TransferNft {
+        let transfer_msg = ExecuteMsg::TransferNft {
             recipient: String::from("person"),
             token_id: token_id.clone(),
         };
@@ -938,7 +938,7 @@ mod tests {
         );
 
         // Approve, revoke, and check for empty, to test revoke
-        let approve_msg = HandleMsg::Approve {
+        let approve_msg = ExecuteMsg::Approve {
             spender: String::from("random"),
             token_id: token_id.clone(),
             expires: None,
@@ -946,7 +946,7 @@ mod tests {
         let owner = mock_info("person", &[]);
         execute(deps.as_mut(), mock_env(), owner.clone(), approve_msg).unwrap();
 
-        let revoke_msg = HandleMsg::Revoke {
+        let revoke_msg = ExecuteMsg::Revoke {
             spender: String::from("random"),
             token_id,
         };
@@ -977,7 +977,7 @@ mod tests {
         let name2 = "More growing power".to_string();
         let description2 = "Allows the owner the power to grow anything even faster".to_string();
 
-        let mint_msg1 = HandleMsg::Mint(MintMsg {
+        let mint_msg1 = ExecuteMsg::Mint(MintMsg {
             token_id: token_id1.clone(),
             owner: String::from("demeter"),
             name: name1,
@@ -988,7 +988,7 @@ mod tests {
         let minter = mock_info(MINTER, &[]);
         execute(deps.as_mut(), mock_env(), minter.clone(), mint_msg1).unwrap();
 
-        let mint_msg2 = HandleMsg::Mint(MintMsg {
+        let mint_msg2 = ExecuteMsg::Mint(MintMsg {
             token_id: token_id2.clone(),
             owner: String::from("demeter"),
             name: name2,
@@ -1007,7 +1007,7 @@ mod tests {
         assert_eq!(vec![token_id2.clone()], tokens.tokens);
 
         // demeter gives random full (operator) power over her tokens
-        let approve_all_msg = HandleMsg::ApproveAll {
+        let approve_all_msg = ExecuteMsg::ApproveAll {
             operator: String::from("random"),
             expires: None,
         };
@@ -1029,7 +1029,7 @@ mod tests {
 
         // random can now transfer
         let random = mock_info("random", &[]);
-        let transfer_msg = HandleMsg::TransferNft {
+        let transfer_msg = ExecuteMsg::TransferNft {
             recipient: String::from("person"),
             token_id: token_id1,
         };
@@ -1043,7 +1043,7 @@ mod tests {
         };
         let msg: CosmosMsg = CosmosMsg::Wasm(inner_msg);
 
-        let send_msg = HandleMsg::SendNft {
+        let send_msg = ExecuteMsg::SendNft {
             contract: String::from("another_contract"),
             token_id: token_id2,
             msg: Some(to_binary(&msg).unwrap()),
@@ -1051,7 +1051,7 @@ mod tests {
         execute(deps.as_mut(), mock_env(), random, send_msg).unwrap();
 
         // Approve_all, revoke_all, and check for empty, to test revoke_all
-        let approve_all_msg = HandleMsg::ApproveAll {
+        let approve_all_msg = ExecuteMsg::ApproveAll {
             operator: String::from("operator"),
             expires: None,
         };
@@ -1080,7 +1080,7 @@ mod tests {
 
         // second approval
         let buddy_expires = Expiration::AtHeight(1234567);
-        let approve_all_msg = HandleMsg::ApproveAll {
+        let approve_all_msg = ExecuteMsg::ApproveAll {
             operator: String::from("buddy"),
             expires: Some(buddy_expires),
         };
@@ -1125,7 +1125,7 @@ mod tests {
             }
         );
 
-        let revoke_all_msg = HandleMsg::RevokeAll {
+        let revoke_all_msg = ExecuteMsg::RevokeAll {
             operator: String::from("operator"),
         };
         execute(deps.as_mut(), mock_env(), owner, revoke_all_msg).unwrap();
@@ -1178,7 +1178,7 @@ mod tests {
         let ceres = String::from("Ceres");
         let token_id3 = "sing".to_string();
 
-        let mint_msg = HandleMsg::Mint(MintMsg {
+        let mint_msg = ExecuteMsg::Mint(MintMsg {
             token_id: token_id1.clone(),
             owner: demeter.clone(),
             name: "Growing power".to_string(),
@@ -1187,7 +1187,7 @@ mod tests {
         });
         execute(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
 
-        let mint_msg = HandleMsg::Mint(MintMsg {
+        let mint_msg = ExecuteMsg::Mint(MintMsg {
             token_id: token_id2.clone(),
             owner: ceres.clone(),
             name: "More growing power".to_string(),
@@ -1198,7 +1198,7 @@ mod tests {
         });
         execute(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
 
-        let mint_msg = HandleMsg::Mint(MintMsg {
+        let mint_msg = ExecuteMsg::Mint(MintMsg {
             token_id: token_id3.clone(),
             owner: demeter.clone(),
             name: "Sing a lullaby".to_string(),

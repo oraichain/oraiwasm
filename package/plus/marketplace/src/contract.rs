@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, SellNft};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, SellNft};
 use crate::package::{
     ContractInfoResponse, OfferingsResponse, PaymentResponse, QueryOfferingsResult,
 };
@@ -26,7 +26,7 @@ pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
+    msg: InstantiateMsg,
 ) -> StdResult<Response> {
     let info = ContractInfoResponse {
         name: msg.name,
@@ -42,14 +42,14 @@ pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
+    msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::MintNft { contract, msg } => try_handle_mint(deps, info, contract, msg),
-        HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, offering_id),
-        HandleMsg::BuyNft { offering_id } => try_buy(deps, env, info, offering_id),
-        HandleMsg::ReceiveNft(msg) => try_receive_nft(deps, info, msg),
-        HandleMsg::SetPayMent { denom, ratio } => try_set_payment(deps, info, denom, ratio),
+        ExecuteMsg::MintNft { contract, msg } => try_handle_mint(deps, info, contract, msg),
+        ExecuteMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, offering_id),
+        ExecuteMsg::BuyNft { offering_id } => try_buy(deps, env, info, offering_id),
+        ExecuteMsg::ReceiveNft(msg) => try_receive_nft(deps, info, msg),
+        ExecuteMsg::SetPayMent { denom, ratio } => try_set_payment(deps, info, denom, ratio),
     }
 }
 
@@ -356,6 +356,9 @@ mod tests {
 
     #[test]
     fn denom_multiply_ratio() {
+        let ret = Binary::from("helloworld".as_bytes());
+        println!("value {:?}", ret.to_base64());
+
         let amount: Uint128 = Uint128::try_from("10000").unwrap();
         let ratio: Decimal = Decimal::from_str("2.5").unwrap();
         println!(
@@ -368,7 +371,7 @@ mod tests {
     fn sort_offering() {
         let mut deps = mock_dependencies(&coins(5, "orai"));
 
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             name: String::from("test market"),
         };
         let info = mock_info("creator", &vec![coin(5, "orai")]);
@@ -379,7 +382,7 @@ mod tests {
 
         for i in 1..100 {
             let sell_msg = SellNft { price: Uint128(i) };
-            let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+            let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
                 sender: "seller".to_string(),
                 token_id: String::from(format!("SellableNFT {}", i)),
                 msg: to_binary(&sell_msg).ok(),
@@ -407,7 +410,7 @@ mod tests {
     //     fn proper_initialization() {
     //         let mut deps = mock_dependencies(&[]);
 
-    //         let msg = InitMsg { count: 17 };
+    //         let msg = InstantiateMsg { count: 17 };
     //         let info = mock_info("creator", &coins(1000, "earth"));
 
     //         // we can just call .unwrap() to assert this was a success
@@ -424,7 +427,7 @@ mod tests {
     fn sell_offering_happy_path() {
         let mut deps = mock_dependencies(&coins(5, "orai"));
 
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             name: String::from("test market"),
         };
         let info = mock_info("creator", &vec![coin(5, "orai")]);
@@ -438,13 +441,13 @@ mod tests {
 
         println!("msg: {}", to_binary(&sell_msg).unwrap());
 
-        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+        let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
             sender: "seller".to_string(),
             token_id: String::from("SellableNFT"),
             msg: to_binary(&sell_msg).ok(),
         });
 
-        let msg_second = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+        let msg_second = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
             sender: "seller".to_string(),
             token_id: String::from("SellableNFT"),
             msg: to_binary(&sell_msg_second).ok(),
@@ -475,7 +478,7 @@ mod tests {
 
         // assert_eq!(2, value.offerings.len());
 
-        let msg2 = HandleMsg::BuyNft {
+        let msg2 = ExecuteMsg::BuyNft {
             offering_id: value.offerings[0].id,
         };
 
@@ -502,7 +505,7 @@ mod tests {
     fn withdraw_offering_happy_path() {
         let mut deps = mock_dependencies(&coins(2, "orai"));
 
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             name: String::from("test market"),
         };
         let info = mock_info("creator", &coins(2, "orai"));
@@ -515,7 +518,7 @@ mod tests {
 
         println!("msg :{}", to_binary(&sell_msg).unwrap());
 
-        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+        let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
             sender: "seller".to_string(),
             token_id: String::from("SellableNFT"),
             msg: to_binary(&sell_msg).ok(),
@@ -538,7 +541,7 @@ mod tests {
 
         // withdraw offering
         let withdraw_info = mock_info("seller", &coins(2, "orai"));
-        let withdraw_msg = HandleMsg::WithdrawNft {
+        let withdraw_msg = ExecuteMsg::WithdrawNft {
             offering_id: value.offerings[0].id.clone(),
         };
         let _res = execute(deps.as_mut(), mock_env(), withdraw_info, withdraw_msg).unwrap();
@@ -562,13 +565,13 @@ mod tests {
     //     fn reset() {
     //         let mut deps = mock_dependencies(&coins(2, "token"));
 
-    //         let msg = InitMsg { count: 17 };
+    //         let msg = InstantiateMsg { count: 17 };
     //         let info = mock_info("creator", &coins(2, "token"));
     //         let _res = init(deps, mock_env(), info, msg).unwrap();
 
     //         // beneficiary can release it
     //         let unauth_info = mock_info("anyone", &coins(2, "token"));
-    //         let msg = HandleMsg::Reset { count: 5 };
+    //         let msg = ExecuteMsg::Reset { count: 5 };
     //         let res = handle(deps, mock_env(), unauth_info, msg);
     //         match res {
     //             Err(ContractError::Unauthorized {}) => {}
@@ -577,7 +580,7 @@ mod tests {
 
     //         // only the original creator can reset the counter
     //         let auth_info = mock_info("creator", &coins(2, "token"));
-    //         let msg = HandleMsg::Reset { count: 5 };
+    //         let msg = ExecuteMsg::Reset { count: 5 };
     //         let _res = handle(deps, mock_env(), auth_info, msg).unwrap();
 
     //         // should now be 5
