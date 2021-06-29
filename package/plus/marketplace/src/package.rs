@@ -1,11 +1,11 @@
-use cosmwasm_std::{Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{Decimal, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfoResponse {
     pub name: String,
-    pub owner: HumanAddr,
+    pub owner: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -13,8 +13,8 @@ pub struct QueryOfferingsResult {
     pub id: u64,
     pub token_id: String,
     pub price: Uint128,
-    pub contract_addr: HumanAddr,
-    pub seller: HumanAddr,
+    pub contract_addr: String,
+    pub seller: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

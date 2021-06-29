@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Decimal, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, Decimal, Uint128};
 
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
@@ -21,7 +21,7 @@ pub enum HandleMsg {
     ReceiveNft(Cw721ReceiveMsg),
     /// Mint a new NFT, can only be called by the contract minter
     MintNft {
-        contract: HumanAddr,
+        contract: String,
         msg: Binary,
     },
     SetPayMent {
