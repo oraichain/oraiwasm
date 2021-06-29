@@ -31,27 +31,3 @@ pub fn increment_offerings(storage: &mut dyn Storage) -> StdResult<u64> {
     OFFERINGS_COUNT.save(storage, &val)?;
     Ok(val)
 }
-
-pub struct OfferingIndexes<'a> {
-    pub seller: MultiIndex<'a, Offering>,
-    pub contract: MultiIndex<'a, Offering>,
-}
-
-impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
-    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Offering>> + '_> {
-        let v: Vec<&dyn Index<Offering>> = vec![&self.seller, &self.contract];
-        Box::new(v.into_iter())
-    }
-}
-
-pub fn offerings<'a>() -> IndexedMap<'a, &'a str, Offering, OfferingIndexes<'a>> {
-    let indexes = OfferingIndexes {
-        seller: MultiIndex::new(|o| o.seller.to_vec(), "offerings", "offerings__seller"),
-        contract: MultiIndex::new(
-            |o| o.contract_addr.to_vec(),
-            "offerings",
-            "offerings__contract",
-        ),
-    };
-    IndexedMap::new("offerings", indexes)
-}
