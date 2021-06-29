@@ -126,6 +126,7 @@ pub fn try_lock(
         orai_addr: msg.orai_addr.to_string(),
         nft_addr: info.sender.to_string(),
         nonce: nonce_u64,
+        other_chain_nonce: -1i64,
     };
     let locked_key = get_locked_key(msg.token_id.as_str(), msg.nft_addr.as_str());
 
@@ -224,11 +225,14 @@ pub fn try_unlock(
 
     let cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![exec_cw721_transfer.into()];
 
-    // // update nft state from locked to unlocked
-    // LOCKED.save(deps.storage, &token_id, &locked)?;
-
-    // // remove locked tokens
-    // LOCKED.remove(deps.storage, &unlock_msg.token_id);
+    // update the locked state other chain nonce to confirm the unlocked state
+    let mut locked = can_unlock.unwrap();
+    locked.other_chain_nonce = unlock_msg.nonce.to_string().parse().unwrap();
+    LOCKED.save(
+        deps.storage,
+        &get_locked_key(&unlock_msg.token_id, &unlock_msg.nft_addr),
+        &locked,
+    )?;
 
     return Ok(Response {
         submessages: vec![],
@@ -259,13 +263,17 @@ pub fn try_emergency_unlock(
     }
 
     // only the owner of this locked contract address can invoke this emergency lock
-    let locked = can_unlock.unwrap();
+    let mut locked = can_unlock.unwrap();
     let owner = owner_read(deps.storage).load()?;
     if !owner.owner.eq(&info.sender.to_string()) {
         return Err(ContractError::Unauthorized {});
     }
 
     OTHER_CHAIN_NONCES.save(deps.storage, nonce.to_string().as_str(), &true)?;
+
+    // update the locked state other chain nonce to confirm the unlocked state
+    locked.other_chain_nonce = nonce.to_string().parse().unwrap();
+    LOCKED.save(deps.storage, &get_locked_key(&token_id, &nft_addr), &locked)?;
 
     // transfer token back to original owner
     let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
