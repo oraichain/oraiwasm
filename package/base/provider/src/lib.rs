@@ -1,30 +1,28 @@
+pub mod error;
+pub mod helpers;
+pub mod msg;
+pub mod state;
+
 pub use crate::error::ContractError;
-pub use crate::helpers::{
-    handle_aioracle, init_aioracle, query_aioracle, query_airequest, query_airequests, query_data,
-    query_datasources, test_data,
-};
-pub use crate::msg::{AIRequestMsg, AIRequestsResponse, HandleMsg, InitMsg, QueryMsg};
-pub use crate::state::{
-    ai_requests, increment_requests, num_requests, query_state, save_state, AIRequest,
-    DataSourceResult, Report,
+pub use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+pub use cosmwasm_std::{
+    to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
+    StdResult,
 };
 
-mod error;
-mod helpers;
-mod msg;
-mod state;
+pub use crate::helpers::{handle_provider, init_provider, query_provider};
 
 // You can override some logic, except pub use crate, other variable should use namespace prefix
 #[macro_export]
-macro_rules! create_contract_with_aggregate {
-    ($fn:ident) => {
+macro_rules! create_contract {
+    () => {
         pub fn init(
             deps: cosmwasm_std::DepsMut,
-            _env: cosmwasm_std::Env,
+            env: cosmwasm_std::Env,
             info: cosmwasm_std::MessageInfo,
             msg: $crate::InitMsg,
         ) -> cosmwasm_std::StdResult<cosmwasm_std::InitResponse> {
-            $crate::init_aioracle(deps, info, msg)
+            $crate::init_provider(deps, env, info, msg)
         }
 
         pub fn handle(
@@ -34,15 +32,15 @@ macro_rules! create_contract_with_aggregate {
             msg: $crate::HandleMsg,
         ) -> Result<cosmwasm_std::HandleResponse, $crate::ContractError> {
             // Logic implementation in aggregate function
-            $crate::handle_aioracle(deps, env, info, msg, $fn)
+            $crate::handle_provider(deps, env, info, msg)
         }
 
         pub fn query(
             deps: cosmwasm_std::Deps,
-            _env: cosmwasm_std::Env,
+            env: cosmwasm_std::Env,
             msg: $crate::QueryMsg,
         ) -> cosmwasm_std::StdResult<cosmwasm_std::Binary> {
-            $crate::query_aioracle(deps, msg)
+            $crate::query_provider(deps, env, msg)
         }
     };
 }

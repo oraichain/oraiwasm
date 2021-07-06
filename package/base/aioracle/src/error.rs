@@ -9,6 +9,9 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized(String),
 
+    #[error("The threshold is invalid - should not be greater than 100")]
+    InvalidThresHold(),
+
     #[error("Reported")]
     Reported(String),
 

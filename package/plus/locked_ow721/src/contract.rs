@@ -113,7 +113,7 @@ pub fn try_lock(
 
     // save locked
     let locked = Locked {
-        bsc_addr: msg.bsc_addr,
+        bsc_addr: msg.bsc_addr.clone(),
         orai_addr: msg.orai_addr.to_string(),
         nft_addr: info.sender.to_string(),
         nonce: nonce_u64,
@@ -129,7 +129,13 @@ pub fn try_lock(
 
     Ok(HandleResponse {
         messages: Vec::new(),
-        attributes: vec![],
+        attributes: vec![
+            attr("action", "lock"),
+            attr("nft_addr", info.sender),
+            attr("bsc_addr", &msg.bsc_addr),
+            attr("orai_addr", &msg.orai_addr),
+            attr("nonce", &nonce_u64),
+        ],
         data: None,
     })
 }

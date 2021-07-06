@@ -1,15 +1,15 @@
 use crate::error::ContractError;
 use crate::msg::{
-    AIRequest, AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, DataSourceResult, Fees,
-    HandleMsg, InitMsg, QueryMsg, Report,
+    AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg,
 };
 use crate::state::{
-    ai_requests, increment_requests, num_requests, query_state, save_state, State, VALIDATOR_FEES,
+    ai_requests, increment_requests, num_requests, query_state, save_state, AIRequest,
+    DataSourceResult, Fees, Report, State, TestCaseResult, THRESHOLD, VALIDATOR_FEES,
 };
 use bech32;
 use cosmwasm_std::{
-    to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, Order, StdResult, Uint128,
+    attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult, Uint128,
 };
 use std::u64;
 
@@ -143,11 +143,12 @@ pub fn init_aioracle(deps: DepsMut, info: MessageInfo, msg: InitMsg) -> StdResul
     let state = State {
         owner: info.sender.clone(),
         dsources: msg.dsources,
+        tcases: msg.tcases,
     };
 
     // save owner
     save_state(deps.storage, &state)?;
-
+    THRESHOLD.save(deps.storage, &msg.threshold)?;
     Ok(InitResponse::default())
 }
 
@@ -295,6 +296,9 @@ fn try_create_airequest(
         reports: vec![],
         provider_fees: list_provider_fees,
         validator_fees: list_validator_fees,
+        status: false,
+        reward: vec![],
+        successful_reports_count: 0,
     };
     ai_requests().save(deps.storage, &request_id.to_be_bytes(), &ai_request)?;
     Ok(HandleResponse::default())
@@ -305,6 +309,7 @@ fn try_aggregate(
     env: Env,
     info: MessageInfo,
     request_id: u64,
+    dsource_results: Vec<String>,
     aggregate: AggregateHandler,
 ) -> Result<HandleResponse, ContractError> {
     let ai_requests = ai_requests();
@@ -335,41 +340,42 @@ fn try_aggregate(
             info.sender
         )));
     }
-
-    let state = query_state(deps.storage)?;
     let mut dsources_results: Vec<DataSourceResult> = Vec::new();
+    let mut test_case_results: Vec<TestCaseResult> = Vec::new();
     let mut results: Vec<String> = Vec::new();
 
     // prepare cosmos messages to send rewards
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
-    for dsource in state.dsources.clone() {
-        let contract = dsource.to_owned();
-        let dsources_result = match query_data(deps.as_ref(), dsource, ai_request.input.clone()) {
-            Ok(data) => DataSourceResult {
-                contract,
-                result: data,
-                status: "success".to_string(),
-            },
-            Err(_err) => DataSourceResult {
-                contract,
-                result: "".to_string(),
-                status: "fail".to_string(),
-            },
-        };
+    for dsource_result_str in dsource_results {
+        let mut dsource_result: DataSourceResult = from_slice(dsource_result_str.as_bytes())?;
+        let mut is_success = true;
+        // check data source status coming from test cases
+        for tcase_result in &dsource_result.test_case_results {
+            if !tcase_result.tcase_status {
+                continue;
+            }
+            // append into new test case list
+            test_case_results.push(tcase_result.to_owned());
 
-        if dsources_result.status.eq("success") {
+            if !tcase_result.dsource_status {
+                is_success = false;
+                break;
+            }
+        }
+
+        if dsource_result.status && is_success {
             // send rewards to the providers
             if let Some(provider_fee) = ai_request
                 .provider_fees
                 .iter()
-                .find(|x| x.address.eq(&dsources_result.contract))
+                .find(|x| x.address.eq(&dsource_result.contract))
             {
                 let reward_obj = vec![Coin {
                     denom: String::from("orai"),
                     amount: provider_fee.amount,
                 }];
-                let reward_msg = BankMsg::Send {
+                let reward_msg: CosmosMsg = BankMsg::Send {
                     from_address: env.contract.address.clone(),
                     to_address: provider_fee.address.clone(),
                     amount: reward_obj,
@@ -377,22 +383,28 @@ fn try_aggregate(
                 .into();
                 cosmos_msgs.push(reward_msg);
             }
+
+            let result = dsource_result.result.clone();
+            // continue if this request fail
+            if result.is_empty() {
+                continue;
+            }
+
+            // push result to aggregate later
+            results.push(result);
         }
-
-        let result = dsources_result.result.clone();
-        dsources_results.push(dsources_result);
-
-        // continue if this request fail
-        if result.is_empty() {
-            continue;
-        }
-
-        // push result to aggregate later
-        results.push(result);
+        // allow failed data source results to be stored on-chain to keep track of what went wrong
+        dsource_result.test_case_results = test_case_results.clone();
+        dsources_results.push(dsource_result);
     }
 
     // get aggregated result
-    let aggregated_result = aggregate(results.as_slice())?;
+    let aggregated_result_res = aggregate(results.as_slice());
+    let mut report_status = true;
+    if aggregated_result_res.is_err() {
+        report_status = false;
+    }
+    let aggregated_result = aggregated_result_res.unwrap();
 
     // create report
     let report = Report {
@@ -400,36 +412,51 @@ fn try_aggregate(
         dsources_results,
         block_height: env.block.height,
         aggregated_result,
-        status: "success".to_string(),
+        status: report_status,
     };
 
+    // reward to validators
+    for validator_fee in &ai_request.validator_fees {
+        let reward_obj = vec![Coin {
+            denom: String::from("orai"),
+            amount: validator_fee.amount,
+        }];
+
+        let reward_msg: CosmosMsg = BankMsg::Send {
+            from_address: env.contract.address.clone(),
+            to_address: validator_fee.address.clone(),
+            amount: reward_obj,
+        }
+        .into();
+        cosmos_msgs.push(reward_msg);
+    }
     // update report
     ai_request.reports.push(report.clone());
+    // update reward
+    ai_request.reward.append(&mut cosmos_msgs.clone());
+    // check if the reports reach a certain threshold or not. If yes => change status to true
+    let threshold = THRESHOLD.load(deps.storage)?;
+    // count successful reports to validate if the request is actually finished
+    let mut successful_count = ai_request.successful_reports_count;
+    if report_status == true {
+        successful_count = ai_request.successful_reports_count + 1;
+    }
+    let count_usize = successful_count as usize;
+    if count_usize.gt(&(ai_request.validators.len() * usize::from(threshold) / usize::from(100u8)))
+    {
+        ai_request.status = true;
+    }
+    // update again the count after updating the report
+    ai_request.successful_reports_count = successful_count;
     ai_requests.save(
         deps.storage,
         &ai_request.request_id.to_be_bytes(),
         &ai_request,
     )?;
 
-    // reward to validators
-    for validator_fee in ai_request.validator_fees {
-        let reward_obj = vec![Coin {
-            denom: String::from("orai"),
-            amount: validator_fee.amount,
-        }];
-
-        let reward_msg = BankMsg::Send {
-            from_address: env.contract.address.clone(),
-            to_address: validator_fee.address,
-            amount: reward_obj,
-        }
-        .into();
-        cosmos_msgs.push(reward_msg);
-    }
-
     let res = HandleResponse {
         messages: cosmos_msgs,
-        attributes: vec![],
+        attributes: vec![attr("contract", env.contract.address.clone())],
         data: None,
     };
 
@@ -465,9 +492,10 @@ pub fn handle_aioracle(
         HandleMsg::CreateAiRequest(ai_request_msg) => {
             try_create_airequest(deps, info, ai_request_msg)
         }
-        HandleMsg::Aggregate { request_id } => {
-            try_aggregate(deps, env, info, request_id, aggregate)
-        }
+        HandleMsg::Aggregate {
+            request_id,
+            dsource_results,
+        } => try_aggregate(deps, env, info, request_id, dsource_results, aggregate),
     }
 }
 
@@ -478,19 +506,21 @@ mod tests {
     use super::*;
 
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, coins, from_binary, Api, HumanAddr};
+    use cosmwasm_std::{coin, coins, from_binary, HumanAddr};
 
     #[test]
     fn test_query_airequests() {
         let mut deps = mock_dependencies(&coins(5, "orai"));
 
-        let (hrp, data, variant) =
+        let (_hrp, data, variant) =
             bech32::decode("oraivaloper1ca6ms99wyx0pftk3df7y00sgyhuy9dler44l9e").unwrap();
         // let addr1 = deps.api.human_address(&addr.unwrap());
         let encoded = bech32::encode("orai", data, variant).unwrap();
         println!("addr :{:?}", encoded);
         let msg = InitMsg {
             dsources: vec![HumanAddr::from("dsource_coingecko")],
+            tcases: vec![],
+            threshold: 50,
         };
         let info = mock_info("creator", &vec![coin(5, "orai")]);
         let _res = init_aioracle(deps.as_mut(), info, msg).unwrap();

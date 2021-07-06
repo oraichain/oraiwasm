@@ -1,16 +1,61 @@
-use crate::msg::AIRequest;
-use cosmwasm_std::{HumanAddr, StdResult, Storage};
+use cosmwasm_std::{CosmosMsg, HumanAddr, StdResult, Storage, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, U64Key, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 const CONFIG: Item<State> = Item::new("config");
 const REQUEST_COUNT: Item<u64> = Item::new("request_count");
+pub const THRESHOLD: Item<u8> = Item::new("report_threhold");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub owner: HumanAddr,
     pub dsources: Vec<HumanAddr>,
+    pub tcases: Vec<HumanAddr>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AIRequest {
+    pub request_id: u64,
+    pub validators: Vec<HumanAddr>,
+    pub input: String,
+    pub reports: Vec<Report>,
+    pub validator_fees: Vec<Fees>,
+    pub provider_fees: Vec<Fees>,
+    pub status: bool,
+    pub successful_reports_count: u64,
+    pub reward: Vec<CosmosMsg>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Fees {
+    pub address: HumanAddr,
+    pub amount: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DataSourceResult {
+    pub contract: HumanAddr,
+    pub result: String,
+    pub status: bool,
+    pub test_case_results: Vec<TestCaseResult>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TestCaseResult {
+    pub contract: HumanAddr,
+    pub result: String,
+    pub dsource_status: bool,
+    pub tcase_status: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Report {
+    pub validator: HumanAddr,
+    pub block_height: u64,
+    pub dsources_results: Vec<DataSourceResult>,
+    pub aggregated_result: String,
+    pub status: bool,
 }
 
 pub fn query_state(storage: &dyn Storage) -> StdResult<State> {
