@@ -14,10 +14,9 @@ pub fn init_provider(
 ) -> StdResult<InitResponse> {
     // let state: State = msg.state;
     let state: State = State {
-        url: "https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT".to_string(),
-        method: "GET".to_string(),
-        body: String::from(""),
-        headers: vec![],
+        language: "node".to_string(),
+        script_url: "https://gist.githubusercontent.com/tubackkhoa/4ab5353a5b44118ccd697f14df65733f/raw/4a27d2ac4255d23463286898b161eda87d1b95bb/datasource_coingecko.js".to_string(),
+        parameters: vec!["ethereum".to_string()],
         fees: vec![Coin {
             denom: String::from("orai"),
             amount: Uint128::from(10u64),

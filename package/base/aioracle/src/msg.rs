@@ -26,6 +26,7 @@ pub enum HandleMsg {
         dsource_results: Vec<String>,
         request_id: u64,
     },
+    SetThreshold(u8),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -47,6 +48,8 @@ pub enum QueryMsg {
         output: String,
     },
     GetDataSources {},
+    GetTestCases {},
+    GetThreshold {},
     GetRequest {
         request_id: u64,
     },

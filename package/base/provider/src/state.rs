@@ -10,11 +10,10 @@ pub static CONFIG_KEY: &[u8] = b"config";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub url: String,
-    pub headers: Vec<String>,
-    pub body: String,
+    pub language: String,
+    pub script_url: String,
+    pub parameters: Vec<String>,
     pub fees: Vec<Coin>,
-    pub method: String,
 }
 
 pub const OWNER: Item<HumanAddr> = Item::new("owner");
