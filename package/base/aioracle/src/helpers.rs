@@ -405,7 +405,10 @@ fn try_aggregate(
         report_status = false;
     }
     let aggregated_result = aggregated_result_res.unwrap();
-
+    // additional check, won't allow empty string as final aggregated result
+    if aggregated_result.is_empty() {
+        report_status = false;
+    }
     // create report
     let report = Report {
         validator,
