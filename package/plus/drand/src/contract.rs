@@ -11,23 +11,21 @@ use crate::state::{
     config_read, Config,
 };
 
-pub fn init(deps: DepsMut, _env: Env, _info: MessageInfo, msg: InitMsg) -> Result<InitResponse, HandleError> {
-
+pub fn init(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    msg: InitMsg,
+) -> Result<InitResponse, HandleError> {
     // verify signature for genesis round
-    let pk = g1_from_variable(&msg.pubkey).map_err(|_| HandleError::InvalidPubkey {})?;        
-    let valid = verify(
-        &pk,
-        0,
-        &vec![],
-        msg.signature.as_slice(),
-    )
-    .unwrap_or(false);
+    let pk = g1_from_variable(&msg.pubkey).map_err(|_| HandleError::InvalidPubkey {})?;
+    let valid = verify(&pk, 0, &vec![], msg.signature.as_slice()).unwrap_or(false);
 
     // not valid signature for round 0
     if !valid {
         return Err(HandleError::InvalidPubkey {});
     }
-    
+
     // init with a signature, pubkey and denom for bounty
     config(deps.storage).save(&Config {
         pubkey: msg.pubkey,
@@ -78,28 +76,27 @@ pub fn try_set_bounty(
 pub fn try_add(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,    
+    info: MessageInfo,
     signature: Binary,
 ) -> Result<HandleResponse, HandleError> {
-
     let Config {
         pubkey,
         bounty_denom,
-        signature:genesis_signature,
+        signature: genesis_signature,
         ..
     } = config_read(deps.storage).load()?;
 
     let (round, previous_signature) = match query_latest(deps.as_ref()) {
-        Ok(v)=> (v.round + 1, v.signature), // next round
-        Err(err)=> {
-            match err{
+        Ok(v) => (v.round + 1, v.signature), // next round
+        Err(err) => {
+            match err {
                 QueryError::NoBeacon {} => (1, genesis_signature), // first round
-                _ => return Err(HandleError::UnknownError{}),
-            }            
+                _ => return Err(HandleError::UnknownError {}),
+            }
         }
     };
-    
-    let pk = g1_from_variable(&pubkey).map_err(|_| HandleError::InvalidPubkey {})?;    
+
+    let pk = g1_from_variable(&pubkey).map_err(|_| HandleError::InvalidPubkey {})?;
     // verify signature
     let valid = verify(
         &pk,
@@ -149,7 +146,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, QueryError>
 
 fn query_get(deps: Deps, round: u64) -> Result<RandomData, QueryError> {
     let beacons = beacons_storage_read(deps.storage);
-    let value = beacons.get(&round.to_be_bytes()).ok_or(QueryError::NoBeacon {})?;
+    let value = beacons
+        .get(&round.to_be_bytes())
+        .ok_or(QueryError::NoBeacon {})?;
     let random_data: RandomData = from_binary(&value.into())?;
     Ok(random_data)
 }
@@ -211,11 +210,11 @@ mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
     use cosmwasm_std::{from_binary, Coin, HumanAddr, Uint128};
-    
+
     const PUB_KEY: &str = "pzOZRhfkA57am7gdqjYr9eFT65WXt8hm2SETYIsGsDm7D/a6OV5Vdgvn0XL6ePeJ";
-    const BOUNTY_DENOM: &str = "orai";    
-     // from 1st to 9th block
-     const SIGNATURES: [&str; 10]  = [
+    const BOUNTY_DENOM: &str = "orai";
+    // from 1st to 9th block
+    const SIGNATURES: [&str; 10]  = [
         "qufYgRM30EZjCcnfdCXzCBH/kzFlb+bBvBqjfNYXkAdm0l0oPTD8Ht+tx7nW1YVBGRSQ5Zy0UhCzB1s1DtYwfFMYsmz1Wc2Mt77I8/yUnVfAe3j2FxxO9zQsPPk3BihI",
         "iMNSs24aynTMn0mBsI6FlBP/j9MHzkEXcyswBBvLZFcbIUqzRsa/W6gLCXaoIM0XE5GXyPAGkou6Gl9lavqcQZ74R0DxnqSauv5ng6e3K0o7TOqaDEb/ZxqPv/X2y04D",
         "mI1rvu4oRjbXsrnMixaar/b5nv66gA+yKy/wd6BgZj6Eg1F+1bcLIuPjs/ae344kCcgHK2FaL10g2TP4Ckew10ieq6rk/bhDMVcDcKbArAXUa9znAq0214+zZyhOVZBw",
@@ -236,7 +235,7 @@ mod tests {
         Binary::from_base64(SIGNATURES[0]).unwrap()
     }
 
-    fn initialization(deps: DepsMut)  -> InitResponse{
+    fn initialization(deps: DepsMut) -> InitResponse {
         let info = mock_info("creator", &coins(1000, "earth"));
         let msg = InitMsg {
             pubkey: pubkey_genesis_mainnet(),
@@ -244,7 +243,7 @@ mod tests {
             signature: signature_genesis_mainnet(),
         };
 
-        let res = init(deps, mock_env(), info, msg).unwrap();       
+        let res = init(deps, mock_env(), info, msg).unwrap();
 
         return res;
     }
@@ -254,14 +253,14 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         let res = initialization(deps.as_mut());
         assert_eq!(res.messages.len(), 0);
-            
-        for i in 1..SIGNATURES.len() {                        
-            let msg = HandleMsg::Add {                     
+
+        for i in 1..SIGNATURES.len() {
+            let msg = HandleMsg::Add {
                 signature: Binary::from_base64(SIGNATURES[i]).unwrap(),
             };
             let info = mock_info("anyone", &[]);
             let result = handle(deps.as_mut(), mock_env(), info, msg);
-            
+
             assert_eq!(result.is_ok(), true);
         }
     }
@@ -317,44 +316,20 @@ mod tests {
         init(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         let info = mock_info("anyone", &[]);
-        
-        let msg = HandleMsg::Add {                            
+
+        let msg = HandleMsg::Add {
             signature: Binary::from_base64(SIGNATURES[1]).unwrap(),
         };
-        let data = handle(deps.as_mut(), mock_env(), info, msg).unwrap().data.unwrap();  
-        println!("{}", data);      
+        let data = handle(deps.as_mut(), mock_env(), info, msg)
+            .unwrap()
+            .data
+            .unwrap();
+
         assert_eq!(
             data,
-            hex::decode("4941477ef1bc947b96a2ba5a5c17f50fd43d1e30aa30f76c1997d7f4f1ffb0c6")
-                .unwrap()
-        );       
+            Binary::from_base64("SoAOX/jElqHpdazt987JyVrBbHhNLX5+BLlj2Q8aYKs=").unwrap()
+        );
     }
-
-    #[test]
-    fn add_fails_when_pubkey_is_invalid() {
-        let mut deps = mock_dependencies(&[]);
-
-        let info = mock_info("creator", &[]);
-        let mut broken: Vec<u8> = pubkey_genesis_mainnet().into();
-        broken.push(0xF9);
-        let msg = InitMsg {
-            pubkey: broken.into(),
-            bounty_denom: BOUNTY_DENOM.into(),
-            signature: signature_genesis_mainnet(),
-        };
-        init(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-        let info = mock_info("anyone", &[]);
-        let msg = HandleMsg::Add {                     
-            signature: hex::decode("82f5d3d2de4db19d40a6980e8aa37842a0e55d1df06bd68bddc8d60002e8e959eb9cfa368b3c1b77d18f02a54fe047b80f0989315f83b12a74fd8679c4f12aae86eaf6ab5690b34f1fddd50ee3cc6f6cdf59e95526d5a5d82aaa84fa6f181e42").unwrap().into(),
-        };
-        let result = handle(deps.as_mut(), mock_env(), info, msg);
-        match result.unwrap_err() {
-            HandleError::InvalidPubkey {} => {}
-            err => panic!("Unexpected error: {:?}", err),
-        }
-    }
-
 
     #[test]
     fn add_receives_bountry() {
@@ -382,8 +357,8 @@ mod tests {
 
         // Claim bounty
         let info = mock_info("claimer", &[]);
-        let msg = HandleMsg::Add {            
-            signature: hex::decode(SIGNATURES[1]).unwrap().into(),
+        let msg = HandleMsg::Add {
+            signature: Binary::from_base64(SIGNATURES[1]).unwrap(),
         };
         let response = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(response.messages.len(), 1);
@@ -398,8 +373,8 @@ mod tests {
 
         // Cannot be claimed again, because it will be next round
         let info = mock_info("claimer2", &[]);
-        let msg = HandleMsg::Add {             
-            signature: hex::decode(SIGNATURES[2]).unwrap().into(),
+        let msg = HandleMsg::Add {
+            signature: Binary::from_base64(SIGNATURES[2]).unwrap(),
         };
         let response = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(response.messages.len(), 0);
