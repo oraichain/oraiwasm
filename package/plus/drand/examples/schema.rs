@@ -3,12 +3,12 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use rand::msg::{BountiesResponse, HandleMsg, InitMsg, QueryMsg, RandomData};
-use rand::state::Config;
+use drand::msg::{BountiesResponse, HandleMsg, InitMsg, QueryMsg, RandomData};
+use drand::state::Config;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
-    out_dir.push("schema");
+    out_dir.push("artifacts/schema");
     create_dir_all(&out_dir).unwrap();
     remove_schemas(&out_dir).unwrap();
 

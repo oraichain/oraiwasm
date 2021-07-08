@@ -11,7 +11,23 @@ use crate::state::{
     config_read, Config,
 };
 
-pub fn init(deps: DepsMut, _env: Env, _info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+pub fn init(deps: DepsMut, _env: Env, _info: MessageInfo, msg: InitMsg) -> Result<InitResponse, HandleError> {
+
+    // verify signature for genesis round
+    let pk = g1_from_variable(&msg.pubkey).map_err(|_| HandleError::InvalidPubkey {})?;        
+    let valid = verify(
+        &pk,
+        0,
+        &vec![],
+        msg.signature.as_slice(),
+    )
+    .unwrap_or(false);
+
+    // not valid signature for round 0
+    if !valid {
+        return Err(HandleError::InvalidPubkey {});
+    }
+    
     // init with a signature, pubkey and denom for bounty
     config(deps.storage).save(&Config {
         pubkey: msg.pubkey,
@@ -133,7 +149,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, QueryError>
 
 fn query_get(deps: Deps, round: u64) -> Result<RandomData, QueryError> {
     let beacons = beacons_storage_read(deps.storage);
-    let value = beacons.get(&round.to_be_bytes()).unwrap_or_default();
+    let value = beacons.get(&round.to_be_bytes()).ok_or(QueryError::NoBeacon {})?;
     let random_data: RandomData = from_binary(&value.into())?;
     Ok(random_data)
 }
@@ -142,7 +158,6 @@ fn query_latest(deps: Deps) -> Result<RandomData, QueryError> {
     let store = beacons_storage_read(deps.storage);
     let mut iter = store.range(None, None, Order::Descending);
     let (_key, value) = iter.next().ok_or(QueryError::NoBeacon {})?;
-
     let random_data: RandomData = from_binary(&value.into())?;
     Ok(random_data)
 }
