@@ -212,28 +212,28 @@ mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
     use cosmwasm_std::{from_binary, Coin, HumanAddr, Uint128};
     
-    const PUB_KEY: &str = "abc6f41002e8b87a5380eb6407cbe2f9311982ff6331383220791d5e74fc095b53885a033de7a8b5ecf93cb0f8fdcf22";
+    const PUB_KEY: &str = "pzOZRhfkA57am7gdqjYr9eFT65WXt8hm2SETYIsGsDm7D/a6OV5Vdgvn0XL6ePeJ";
     const BOUNTY_DENOM: &str = "orai";    
      // from 1st to 9th block
      const SIGNATURES: [&str; 10]  = [
-        "8e195a5a9c8be84172a3f643e6fbeb296b484b2a36984b529ebb25773ccdc70eb1c132081877826b1f914eb4713ae2481375d1faf364a5180abf8678cf4da2b989762ee19748ad04a53c0d3dcd0c94ee32c2c8b8fe6d92d8f0cd4dec980d9f04",
-        "b9cf72031699a981884b524d173ddb04dee86d032b2d521c3b253e64738f413b1527bde7c4403bed100edbbab89aeacf0d373555f372ebd9578cbc47f0038474d27e2154ff7635bfe9dbc861d9cd75150e3b90f7b62ebee11ff185636a231d71",
-        "9967410234cb912908267210b30cd564d98167a2ae2ea75e48445291671333b9b30e0f84ac07149066506a55e337263a14059e802c2f3616645e8cced824a85ff3910fa822464ada57ad541b294fb34fdc87bc2c695eede1e71c7c8c811ac077",
-        "84f11975c68db673427400ed937900fac8aac617d13b87d8bf560a861399b4543671992e76dcd9844f52f2276dd4c52e0b5bf19d93112915738009fe34685ab895588c846f72993b844e4a30bc5a5c3c32392451dc944f75957171509bd8b162",
-        "967becdf937b680c40a503d318f5195144f8b008c322c1cc3646667a36f845cd83f7d350d309ed6f72472e6626dc22b0016f3f2968ae0041261dc68cc1a13da8b1c9229c8320c0c6d59fb0e3765f25483484d84b28bcd526827368116b368fe0",
-        "8e66058d68189c86a354750394f75739a2527912a300c17fef68ee4eb605f444c51fff55ed4b13386fd635f67c9f547414fe82854fad1dee07097f08f6611eb813d86fc9c7e1328edd074ece0ece53cadf9f81b036f822ddbff9bf160abc7a77",
-        "91771b0e738f8e70bd428e0ed091877875a61fd6f23c9dcd1cf72b1972da79374feff88b40254008b7f06c793dafc82617dec0ffd8cdf58c525330be772f9d6f557b108c88848339cdd69008335e56f9c547a3c5cf5769a4b1a02654d71748aa",
-        "8594838e58f122adfcc7a67dc4e29b686fef71386f5f7b0b5c5b3dc1357ae79aec63b1052b2369a2c7e4a8531b9defe118f0e830c490a097017778fc5a815a8bbf3cb4a6e6f0e6068a87ea943fca66d9a01e10df191e1a3e2d7d15a0d1dcd275",
-        "951aae61b92c781c971a7be4971a1cfb8336b1dd37365d5ba22e2a038e049b7749f61407886664ea25061cf27d27cd5f0046f2537a1140f712ac74dfa156ce53198aa723addd7e161517e4dee1c4743fb3e644e24d4cd244dae32b07b4ff2305",
-        "8fbca2e8c090c097e01572cf9ba82c2687cdff5a5c06bfab8678eeab9aaff724bbcda12d6b9837ab8dc8203f4cdc881a116cd8c747678ff69d53e8142a2524b1f8d07ba1ba1069feefcf5b1c9046ae0c22a87e077caa719eb6d16768051bad20"
+        "qufYgRM30EZjCcnfdCXzCBH/kzFlb+bBvBqjfNYXkAdm0l0oPTD8Ht+tx7nW1YVBGRSQ5Zy0UhCzB1s1DtYwfFMYsmz1Wc2Mt77I8/yUnVfAe3j2FxxO9zQsPPk3BihI",
+        "iMNSs24aynTMn0mBsI6FlBP/j9MHzkEXcyswBBvLZFcbIUqzRsa/W6gLCXaoIM0XE5GXyPAGkou6Gl9lavqcQZ74R0DxnqSauv5ng6e3K0o7TOqaDEb/ZxqPv/X2y04D",
+        "mI1rvu4oRjbXsrnMixaar/b5nv66gA+yKy/wd6BgZj6Eg1F+1bcLIuPjs/ae344kCcgHK2FaL10g2TP4Ckew10ieq6rk/bhDMVcDcKbArAXUa9znAq0214+zZyhOVZBw",
+        "qpLdQmKHbyjnnAz+/SLQYtV9h0fS5BMxndKPOtKgkgSAPH0jAfI5gEpNsea84D+zFZ4Bn7UdgaIy7MHJBIE02/HJZdh1DWwO4wDbNWObl0zCAGF46Av7RP0tPxf7FHcx",
+        "rhJ68dwSEN4j7+kxKPxFQ9Epgq74hQFy1VS5HNwob3XrQdhEHTNWPZU2xt1xHGM7E2qc5xbw5xQ0LklVtfLI6gPRcOVDlBukTRnG7YHe3SoMVJ/cR57dcDEPQJmtgrbQ",
+        "r0y7PPj8i6HiPR10tcldO01sXqrso7aMfxOEVICCGW/8qC1HYbW8ryZRr0n8uQywBgMQ4n1ugLtv0UePyprw6jsypgOjqL/O7oXAZgIkAewPyp2SzIiMk+V9PNERtoxW",
+        "oSs/HuaDcNFGqsEpbOVXpvWLr/7KSOPXC+4szK3Ad20i6S91UPtU4jtHCACBMeryAKItg7S9/fGrlNr6/RSn1tTehmhycpYLM0PwTyEOS64zD+sEkYE9wojpUTohe8mh",
+        "lH01Nqz85TDrrzPnuopLXkYC1fyaXKozo5Q3CZxyS2NaiX77+wMvgwNwtxYDQPa9FypPlFEXhigvOeOYGiB755eGqQETky/WGn8XUtU23eLyvbXG2JXhOG9iAaAWn0WA",
+        "r1JNg2sRZuZCXlfqdbd5mpb587P/HqSfAJtOkfmAVjAngNQ5JTAGP9OfFfVhOUxzAmBcKoLe8ysqI3MHdH32URvJs8YaEVxUHmMhxBw2iSPr/kvA5YUjxWPBSarMBxzx",
+        "qPDYpHkJZM6BK8djpcQ8c5caimZgyD4Wf0fCk1YI8yhBIgy9HFjh2rWV4QKCA+osB6zzUnfa8X12qt4entNAiouG85rX7KrkjnI3oOM6JWDAJp2XHOIAleyf4gcO9JFL"
       ];
 
     fn pubkey_genesis_mainnet() -> Binary {
-        hex::decode(PUB_KEY).unwrap().into()
+        Binary::from_base64(PUB_KEY).unwrap()
     }
 
     fn signature_genesis_mainnet() -> Binary {
-        hex::decode(SIGNATURES[0]).unwrap().into()
+        Binary::from_base64(SIGNATURES[0]).unwrap()
     }
 
     fn initialization(deps: DepsMut)  -> InitResponse{
@@ -257,7 +257,7 @@ mod tests {
             
         for i in 1..SIGNATURES.len() {                        
             let msg = HandleMsg::Add {                     
-                signature: hex::decode(SIGNATURES[i]).unwrap().into(),
+                signature: Binary::from_base64(SIGNATURES[i]).unwrap(),
             };
             let info = mock_info("anyone", &[]);
             let result = handle(deps.as_mut(), mock_env(), info, msg);
@@ -319,9 +319,10 @@ mod tests {
         let info = mock_info("anyone", &[]);
         
         let msg = HandleMsg::Add {                            
-            signature: hex::decode(SIGNATURES[1]).unwrap().into(),
+            signature: Binary::from_base64(SIGNATURES[1]).unwrap(),
         };
-        let data = handle(deps.as_mut(), mock_env(), info, msg).unwrap().data.unwrap();        
+        let data = handle(deps.as_mut(), mock_env(), info, msg).unwrap().data.unwrap();  
+        println!("{}", data);      
         assert_eq!(
             data,
             hex::decode("4941477ef1bc947b96a2ba5a5c17f50fd43d1e30aa30f76c1997d7f4f1ffb0c6")
