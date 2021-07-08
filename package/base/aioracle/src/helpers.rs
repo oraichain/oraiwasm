@@ -8,7 +8,7 @@ use crate::state::{
 };
 use bech32;
 use cosmwasm_std::{
-    attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    attr, from_slice, to_binary, to_vec, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
     HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult, Uint128,
 };
 use std::u64;
@@ -22,6 +22,16 @@ type AggregateHandler = fn(&[String]) -> StdResult<String>;
 pub fn query_datasources(deps: Deps) -> StdResult<Binary> {
     let state = query_state(deps.storage)?;
     to_binary(&state.dsources)
+}
+
+pub fn query_testcases(deps: Deps) -> StdResult<Binary> {
+    let state = query_state(deps.storage)?;
+    to_binary(&state.tcases)
+}
+
+pub fn query_threshold(deps: Deps) -> StdResult<Binary> {
+    let threshold = THRESHOLD.load(deps.storage)?;
+    to_binary(&threshold)
 }
 
 pub fn query_airequest(deps: Deps, request_id: u64) -> StdResult<AIRequest> {
@@ -161,6 +171,8 @@ pub fn query_aioracle(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
             output,
         } => to_binary(&test_data(deps, dsource, input, output)?),
         QueryMsg::GetDataSources {} => query_datasources(deps),
+        QueryMsg::GetTestCases {} => query_testcases(deps),
+        QueryMsg::GetThreshold {} => query_threshold(deps),
         QueryMsg::GetRequest { request_id } => to_binary(&query_airequest(deps, request_id)?),
         QueryMsg::GetRequests {
             limit,
@@ -300,8 +312,28 @@ fn try_create_airequest(
         reward: vec![],
         successful_reports_count: 0,
     };
+
     ai_requests().save(deps.storage, &request_id.to_be_bytes(), &ai_request)?;
-    Ok(HandleResponse::default())
+    let provider_fees_stringtify = String::from_utf8(to_vec(&ai_request.provider_fees)?).unwrap();
+    let validator_fees_stringtify = String::from_utf8(to_vec(&ai_request.validator_fees)?).unwrap();
+
+    let mut attrs = vec![
+        attr("function_type", "create_ai_request"),
+        attr("request_id", request_id),
+        attr("input", ai_request.input),
+        attr("provider_fees", provider_fees_stringtify),
+        attr("validator_fees", validator_fees_stringtify),
+    ];
+
+    for validator in ai_request.validators {
+        attrs.push(attr("validator", validator));
+    }
+
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: attrs,
+        data: None,
+    })
 }
 
 fn try_aggregate(
@@ -482,6 +514,22 @@ fn try_set_validator_fees(
     Ok(HandleResponse::default())
 }
 
+fn try_set_threshold(
+    deps: DepsMut,
+    info: MessageInfo,
+    value: u8,
+) -> Result<HandleResponse, ContractError> {
+    let state = query_state(deps.storage)?;
+    if info.sender != state.owner {
+        return Err(ContractError::Unauthorized(format!(
+            "{} is not the owner",
+            info.sender
+        )));
+    }
+    THRESHOLD.save(deps.storage, &value)?;
+    Ok(HandleResponse::default())
+}
+
 pub fn handle_aioracle(
     deps: DepsMut,
     env: Env,
@@ -499,6 +547,7 @@ pub fn handle_aioracle(
             request_id,
             dsource_results,
         } => try_aggregate(deps, env, info, request_id, dsource_results, aggregate),
+        HandleMsg::SetThreshold(value) => try_set_threshold(deps, info, value),
     }
 }
 
