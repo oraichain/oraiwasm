@@ -12,16 +12,16 @@ pub fn init_provider(
     info: MessageInfo,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    // let state: State = msg.state;
-    let state: State = State {
-        language: "node".to_string(),
-        script_url: "https://gist.githubusercontent.com/tubackkhoa/4ab5353a5b44118ccd697f14df65733f/raw/4a27d2ac4255d23463286898b161eda87d1b95bb/datasource_coingecko.js".to_string(),
-        parameters: vec!["ethereum".to_string()],
-        fees: vec![Coin {
-            denom: String::from("orai"),
-            amount: Uint128::from(10u64),
-        }],
-    };
+    let state: State = msg.state;
+    // let state: State = State {
+    //     language: "node".to_string(),
+    //     script_url: "https://gist.githubusercontent.com/tubackkhoa/4ab5353a5b44118ccd697f14df65733f/raw/4a27d2ac4255d23463286898b161eda87d1b95bb/datasource_coingecko.js".to_string(),
+    //     parameters: vec!["ethereum".to_string()],
+    //     fees: vec![Coin {
+    //         denom: String::from("orai"),
+    //         amount: Uint128::from(10u64),
+    //     }],
+    // };
     config(deps.storage).save(&state)?;
     OWNER.save(deps.storage, &info.sender)?;
     Ok(InitResponse::default())
