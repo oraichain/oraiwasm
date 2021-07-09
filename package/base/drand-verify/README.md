@@ -4,6 +4,10 @@ Create a small blockchain on a random chain smart contract
 
 Has n rounds, start at 0. Smart contract contains an aggregated public key of all participants (priv-pub pairs generated from BLS signature scheme)
 
+Has an executor to aggregate the signature & update it on the random chain smart contract
+
+After update, move to new round
+
 ## Phase 1
 
 Has one participant, also executor, only random chain smart contract
