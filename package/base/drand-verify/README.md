@@ -24,7 +24,7 @@ Example query: https://lcd.testnet.orai.io/wasm/v1beta1/contract/orai1j9a0uu4qth
 
 ## Phase 2
 
-Has a random request smart contract
+Has an additional random request smart contract
 
 ### Step 1
 
