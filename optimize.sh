@@ -44,4 +44,7 @@ fi
 echo "Info: sccache stats after build"
 sccache -s
 
+# show content
+du -hd1 artifacts/$name.wasm
+
 echo "done"
