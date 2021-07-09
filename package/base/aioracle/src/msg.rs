@@ -5,9 +5,16 @@ use serde::{Deserialize, Serialize};
 use crate::state::AIRequest;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TestCase {
+    pub dsource: HumanAddr,
+    pub input: String,
+    pub output: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
     pub dsources: Vec<HumanAddr>,
-    pub tcases: Vec<HumanAddr>,
+    pub tcases: Vec<TestCase>,
     pub threshold: u8,
 }
 
@@ -16,6 +23,9 @@ pub struct InitMsg {
 pub enum HandleMsg {
     SetDataSources {
         dsources: Vec<HumanAddr>,
+    },
+    SetTestCases {
+        tcases: Vec<TestCase>,
     },
     SetValidatorFees {
         fees: u64,

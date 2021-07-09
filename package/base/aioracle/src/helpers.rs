@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::msg::{
-    AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg,
+    AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg, TestCase,
 };
 use crate::state::{
     ai_requests, increment_requests, num_requests, query_state, save_state, AIRequest,
@@ -183,7 +183,7 @@ pub fn query_aioracle(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn try_update_datasource(
+fn try_update_datasources(
     deps: DepsMut,
     info: MessageInfo,
     dsources: Vec<HumanAddr>,
@@ -197,6 +197,25 @@ fn try_update_datasource(
     }
     // update dsources
     state.dsources = dsources;
+    save_state(deps.storage, &state)?;
+
+    Ok(HandleResponse::default())
+}
+
+fn try_update_testcases(
+    deps: DepsMut,
+    info: MessageInfo,
+    tcases: Vec<TestCase>,
+) -> Result<HandleResponse, ContractError> {
+    let mut state = query_state(deps.storage)?;
+    if info.sender != state.owner {
+        return Err(ContractError::Unauthorized(format!(
+            "{} is not the owner",
+            info.sender
+        )));
+    }
+    // update tcases
+    state.tcases = tcases;
     save_state(deps.storage, &state)?;
 
     Ok(HandleResponse::default())
@@ -538,7 +557,8 @@ pub fn handle_aioracle(
     aggregate: AggregateHandler,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::SetDataSources { dsources } => try_update_datasource(deps, info, dsources),
+        HandleMsg::SetDataSources { dsources } => try_update_datasources(deps, info, dsources),
+        HandleMsg::SetTestCases { tcases } => try_update_testcases(deps, info, tcases),
         HandleMsg::SetValidatorFees { fees } => try_set_validator_fees(deps, info, fees),
         HandleMsg::CreateAiRequest(ai_request_msg) => {
             try_create_airequest(deps, info, ai_request_msg)
