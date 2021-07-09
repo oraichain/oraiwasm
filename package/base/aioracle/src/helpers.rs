@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::msg::{
-    AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg, TestCase,
+    AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg,
 };
 use crate::state::{
     ai_requests, increment_requests, num_requests, query_state, save_state, AIRequest,
@@ -205,7 +205,7 @@ fn try_update_datasources(
 fn try_update_testcases(
     deps: DepsMut,
     info: MessageInfo,
-    tcases: Vec<TestCase>,
+    tcases: Vec<HumanAddr>,
 ) -> Result<HandleResponse, ContractError> {
     let mut state = query_state(deps.storage)?;
     if info.sender != state.owner {

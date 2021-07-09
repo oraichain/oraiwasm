@@ -87,10 +87,17 @@ fn query_fees_full(deps: Deps) -> StdResult<Binary> {
 
 fn query_fees(deps: Deps) -> StdResult<Binary> {
     let state = config_read(deps.storage).load()?;
-    if state.fees.len() == 0 {
+    let fees = match state.fees {
+        Some(fee) => fee,
+        None => Coin {
+            amount: Uint128::from(0u64),
+            denom: "orai".to_string(),
+        },
+    };
+    if fees.amount == Uint128::from(0u64) || !fees.denom.eq("orai") {
         return to_binary(&0);
     }
-    to_binary(&state.fees[0].amount)
+    to_binary(&fees.amount)
 }
 
 fn query_state(deps: Deps) -> StdResult<Binary> {
