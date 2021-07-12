@@ -10,7 +10,7 @@ After update, move to new round
 
 ## Current progress
 
-At the moment, only phase 1 is implemented, tested and run successfully. To repeatedly generate a random seed, clone the [oraicli repository](https://github.com/oraichain/oraicli). Type **yarn** to get neccessary dependencies. Finally, type:
+At the moment, only phase 1 is implemented, tested and run successfully. To repeatedly generate a random seed, clone the [oraicli repository](https://github.com/oraichain/oraicli). Type **yarn** to get neccessary dependencies. Next, create a .env file according to the .env.example file, fill the SEND_MNEMONIC key pair with the appropriate account. Finally, type:
 
 ```bash
 yarn oraicli account drand-full --address orai1j9a0uu4qth30xuud3wg7eamd7vvs2nxnnupqr2 --gas 50000000
