@@ -44,7 +44,6 @@ pub struct DataSourceResult {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TestCaseResult {
     pub contract: HumanAddr,
-    pub result: String,
     pub dsource_status: bool,
     pub tcase_status: bool,
 }

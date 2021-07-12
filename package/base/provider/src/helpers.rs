@@ -12,16 +12,16 @@ pub fn init_provider(
     info: MessageInfo,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    // let state: State = msg.state;
-    let state: State = State {
-        language: "node".to_string(),
-        script_url: "https://gist.githubusercontent.com/tubackkhoa/4ab5353a5b44118ccd697f14df65733f/raw/4a27d2ac4255d23463286898b161eda87d1b95bb/datasource_coingecko.js".to_string(),
-        parameters: vec!["ethereum".to_string()],
-        fees: vec![Coin {
-            denom: String::from("orai"),
-            amount: Uint128::from(10u64),
-        }],
-    };
+    let state: State = msg.state;
+    // let state: State = State {
+    //     language: "node".to_string(),
+    //     script_url: "https://gist.githubusercontent.com/tubackkhoa/4ab5353a5b44118ccd697f14df65733f/raw/4a27d2ac4255d23463286898b161eda87d1b95bb/datasource_coingecko.js".to_string(),
+    //     parameters: vec!["ethereum".to_string()],
+    //     fees: vec![Coin {
+    //         denom: String::from("orai"),
+    //         amount: Uint128::from(10u64),
+    //     }],
+    // };
     config(deps.storage).save(&state)?;
     OWNER.save(deps.storage, &info.sender)?;
     Ok(InitResponse::default())
@@ -87,10 +87,17 @@ fn query_fees_full(deps: Deps) -> StdResult<Binary> {
 
 fn query_fees(deps: Deps) -> StdResult<Binary> {
     let state = config_read(deps.storage).load()?;
-    if state.fees.len() == 0 {
+    let fees = match state.fees {
+        Some(fee) => fee,
+        None => Coin {
+            amount: Uint128::from(0u64),
+            denom: "orai".to_string(),
+        },
+    };
+    if fees.amount == Uint128::from(0u64) || !fees.denom.eq("orai") {
         return to_binary(&0);
     }
-    to_binary(&state.fees[0].amount)
+    to_binary(&fees.amount)
 }
 
 fn query_state(deps: Deps) -> StdResult<Binary> {

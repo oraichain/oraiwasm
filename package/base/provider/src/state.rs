@@ -13,7 +13,7 @@ pub struct State {
     pub language: String,
     pub script_url: String,
     pub parameters: Vec<String>,
-    pub fees: Vec<Coin>,
+    pub fees: Option<Coin>,
 }
 
 pub const OWNER: Item<HumanAddr> = Item::new("owner");

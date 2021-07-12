@@ -17,6 +17,9 @@ pub enum HandleMsg {
     SetDataSources {
         dsources: Vec<HumanAddr>,
     },
+    SetTestCases {
+        tcases: Vec<HumanAddr>,
+    },
     SetValidatorFees {
         fees: u64,
     },
