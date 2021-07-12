@@ -1,5 +1,7 @@
 use crate::error::ContractError;
-use crate::msg::{AssertOutput, HandleMsg, InitMsg, QueryMsg, TestCase, TestCaseResponse};
+use crate::msg::{
+    AssertOutput, HandleMsg, InitMsg, QueryMsg, Response, TestCase, TestCaseResponse,
+};
 use crate::state::{FEES, OWNER, TEST_CASES};
 use cosmwasm_std::{
     from_binary, to_binary, Api, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr,
@@ -11,7 +13,7 @@ use cw_storage_plus::Bound;
 const MAX_LIMIT: u8 = 200;
 const DEFAULT_LIMIT: u8 = 100;
 
-type AssertHandler = fn(String, String) -> StdResult<Binary>;
+type AssertHandler = fn(&[String], &[String]) -> StdResult<Binary>;
 
 pub fn init_testcase(
     deps: DepsMut,
@@ -97,7 +99,7 @@ fn try_set_fees(
 
 pub fn query_testcase(
     deps: Deps,
-    _env: Env,
+    env: Env,
     msg: QueryMsg,
     assert_handler: AssertHandler,
 ) -> StdResult<Binary> {
@@ -113,7 +115,7 @@ pub fn query_testcase(
         QueryMsg::Assert {
             output,
             expected_output,
-        } => assert(output, expected_output, assert_handler),
+        } => assert(env, output, expected_output, assert_handler),
     }
 }
 
@@ -136,13 +138,36 @@ fn query_fees(deps: Deps) -> StdResult<Binary> {
 }
 
 fn assert(
-    output: String,
-    expected_output: String,
+    env: Env,
+    outputs: Vec<String>,
+    expected_outputs: Vec<String>,
     assert_handler: AssertHandler,
 ) -> StdResult<Binary> {
     // force all assert handler output to follow the AssertOutput struct
-    let assert_result: AssertOutput = from_binary(&(assert_handler(output, expected_output)?))?;
-    Ok(to_binary(&assert_result)?)
+    let result_handler_result = assert_handler(outputs.as_slice(), expected_outputs.as_slice());
+    if result_handler_result.is_err() {
+        return to_binary(&Response {
+            contract: env.contract.address.clone(),
+            dsource_status: true,
+            tcase_status: false,
+        });
+    }
+    let result_handler = result_handler_result.unwrap();
+    let assert_result = from_binary(&result_handler);
+    if assert_result.is_err() {
+        return to_binary(&Response {
+            contract: env.contract.address.clone(),
+            dsource_status: true,
+            tcase_status: false,
+        });
+    };
+    let assert: AssertOutput = assert_result.unwrap();
+    let response = Response {
+        contract: env.contract.address,
+        dsource_status: assert.dsource_status,
+        tcase_status: assert.tcase_status,
+    };
+    Ok(to_binary(&response)?)
 }
 
 fn parse_testcase(_api: &dyn Api, item: StdResult<KV<String>>) -> StdResult<TestCase> {
@@ -189,7 +214,7 @@ fn query_testcases(
         .collect();
 
     Ok(TestCaseResponse {
-        pub_keys: res?, // Placeholder
+        test_cases: res?, // Placeholder
     })
 }
 

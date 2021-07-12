@@ -29,15 +29,15 @@ pub enum QueryMsg {
         order: Option<u8>,
     },
     Assert {
-        output: String,
-        expected_output: String,
+        output: Vec<String>,
+        expected_output: Vec<String>,
     },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct TestCaseResponse {
-    pub pub_keys: Vec<TestCase>,
+    pub test_cases: Vec<TestCase>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -50,6 +50,12 @@ pub struct TestCase {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct AssertOutput {
+    pub dsource_status: bool,
+    pub tcase_status: bool,
+}
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct Response {
     pub contract: HumanAddr,
     pub dsource_status: bool,
     pub tcase_status: bool,

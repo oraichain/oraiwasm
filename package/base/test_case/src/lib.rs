@@ -14,7 +14,7 @@ pub use crate::helpers::{handle_testcase, init_testcase, query_testcase};
 
 // You can override some logic, except pub use crate, other variable should use namespace prefix
 #[macro_export]
-macro_rules! create_contract {
+macro_rules! create_contract_with_assert {
     ($fn:ident) => {
         pub fn init(
             deps: cosmwasm_std::DepsMut,
