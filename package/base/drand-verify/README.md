@@ -8,6 +8,16 @@ Has an executor to aggregate the signature & update it on the random chain smart
 
 After update, move to new round
 
+## Current progress
+
+At the moment, only phase 1 is implemented, tested and run successfully. To repeatedly generate a random seed, clone the [oraicli repository](https://github.com/oraichain/oraicli). Type **yarn** to get neccessary dependencies. Next, create a .env file according to the .env.example file, fill the SEND_MNEMONIC key pair with the appropriate account. Finally, type:
+
+```bash
+yarn oraicli account drand-full --address <contract-address> --gas 50000000
+```
+
+to generate a new random seed. Use the seed you get for your favorite random function.
+
 ## Phase 1
 
 Has one participant, also executor, only random chain smart contract

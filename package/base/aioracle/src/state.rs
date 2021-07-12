@@ -3,8 +3,6 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, U64Key, UniqueInd
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::msg::TestCase;
-
 const CONFIG: Item<State> = Item::new("config");
 const REQUEST_COUNT: Item<u64> = Item::new("request_count");
 pub const THRESHOLD: Item<u8> = Item::new("report_threhold");
@@ -13,7 +11,7 @@ pub const THRESHOLD: Item<u8> = Item::new("report_threhold");
 pub struct State {
     pub owner: HumanAddr,
     pub dsources: Vec<HumanAddr>,
-    pub tcases: Vec<TestCase>,
+    pub tcases: Vec<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
