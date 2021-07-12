@@ -1,9 +1,7 @@
 version: '3.3'
 services:
   app:
-    image: orai/smart-studio:0.10.9
+    image: cosmwasm/workspace-optimizer:0.11.4
     entrypoint: tail -f /dev/null
-    ports:
-      - 1318:1318
     volumes:
-      - ./:/workspace
+      - ./:/code
