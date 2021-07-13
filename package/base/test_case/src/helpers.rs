@@ -1,11 +1,11 @@
 use crate::error::ContractError;
 use crate::msg::{
-    AssertOutput, HandleMsg, InitMsg, QueryMsg, Response, TestCase, TestCaseResponse,
+    AssertOutput, HandleMsg, InitMsg, QueryMsg, Response, TestCaseMsg, TestCaseResponse,
 };
 use crate::state::{FEES, OWNER, TEST_CASES};
 use cosmwasm_std::{
-    from_binary, to_binary, Api, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, Order, StdResult, Uint128, KV,
+    from_binary, from_slice, to_binary, Api, Binary, Coin, Deps, DepsMut, Env, HandleResponse,
+    HumanAddr, InitResponse, MessageInfo, Order, StdResult, Uint128, KV,
 };
 use cw_storage_plus::Bound;
 
@@ -13,20 +13,26 @@ use cw_storage_plus::Bound;
 const MAX_LIMIT: u8 = 200;
 const DEFAULT_LIMIT: u8 = 100;
 
-type AssertHandler = fn(&[String], &[String]) -> StdResult<Binary>;
+type AssertHandler = fn(&[String]) -> StdResult<Binary>;
 
 pub fn init_testcase(
     deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
     for test_case in msg.test_cases {
-        TEST_CASES.save(deps.storage, test_case.input.as_bytes(), &test_case.output)?;
+        let input_bin = to_binary(&test_case.parameters)?;
+        TEST_CASES.save(
+            deps.storage,
+            input_bin.as_slice(),
+            &test_case.expected_output,
+        )?;
     }
     if let Some(fees) = msg.fees {
         FEES.save(deps.storage, &fees)?;
     };
+    OWNER.save(deps.storage, &info.sender)?;
     Ok(InitResponse::default())
 }
 
@@ -48,26 +54,32 @@ pub fn handle_testcase(
 fn try_add_test_case(
     deps: DepsMut,
     info: MessageInfo,
-    test_case: TestCase,
+    test_case: TestCaseMsg,
 ) -> Result<HandleResponse, ContractError> {
     let owner: HumanAddr = OWNER.load(deps.storage)?;
     if !info.sender.eq(&owner) {
         return Err(ContractError::Unauthorized {});
     }
-    TEST_CASES.save(deps.storage, test_case.input.as_bytes(), &test_case.output)?;
+    let input_bin = to_binary(&test_case.parameters)?;
+    TEST_CASES.save(
+        deps.storage,
+        input_bin.as_slice(),
+        &test_case.expected_output,
+    )?;
     Ok(HandleResponse::default())
 }
 
 fn try_remove_test_case(
     deps: DepsMut,
     info: MessageInfo,
-    input: String,
+    input: Vec<String>,
 ) -> Result<HandleResponse, ContractError> {
     let owner: HumanAddr = OWNER.load(deps.storage)?;
     if !info.sender.eq(&owner) {
         return Err(ContractError::Unauthorized {});
     }
-    TEST_CASES.remove(deps.storage, input.as_bytes());
+    let input_bin = to_binary(&input)?;
+    TEST_CASES.remove(deps.storage, input_bin.as_slice());
     Ok(HandleResponse::default())
 }
 
@@ -112,10 +124,7 @@ pub fn query_testcase(
             order,
         } => to_binary(&query_testcases(deps, limit, offset, order)?),
         QueryMsg::GetOwner {} => query_owner(deps),
-        QueryMsg::Assert {
-            output,
-            expected_output,
-        } => assert(env, output, expected_output, assert_handler),
+        QueryMsg::Assert { assert_inputs } => assert(env, assert_inputs, assert_handler),
     }
 }
 
@@ -139,12 +148,11 @@ fn query_fees(deps: Deps) -> StdResult<Binary> {
 
 fn assert(
     env: Env,
-    outputs: Vec<String>,
-    expected_outputs: Vec<String>,
+    assert_inputs: Vec<String>,
     assert_handler: AssertHandler,
 ) -> StdResult<Binary> {
     // force all assert handler output to follow the AssertOutput struct
-    let result_handler_result = assert_handler(outputs.as_slice(), expected_outputs.as_slice());
+    let result_handler_result = assert_handler(assert_inputs.as_slice());
     if result_handler_result.is_err() {
         return to_binary(&Response {
             contract: env.contract.address.clone(),
@@ -170,13 +178,13 @@ fn assert(
     Ok(to_binary(&response)?)
 }
 
-fn parse_testcase(_api: &dyn Api, item: StdResult<KV<String>>) -> StdResult<TestCase> {
-    item.and_then(|(input, output)| {
+fn parse_testcase(_api: &dyn Api, item: StdResult<KV<String>>) -> StdResult<TestCaseMsg> {
+    item.and_then(|(parameters, expected_output)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array
-        Ok(TestCase {
-            input: String::from_utf8(input)?,
-            output,
+        Ok(TestCaseMsg {
+            parameters: from_slice(&parameters)?,
+            expected_output,
         })
     })
 }
@@ -206,26 +214,84 @@ fn query_testcases(
             Order::Descending => max = offset_value,
         }
     };
+    // calculate total test case sizes
+    let list = TEST_CASES
+        .range(deps.storage, None, None, order_enum)
+        .enumerate();
+    let mut total = 0;
+    for _ in list {
+        total += 1;
+    }
 
-    let res: StdResult<Vec<TestCase>> = TEST_CASES
+    let res: StdResult<Vec<TestCaseMsg>> = TEST_CASES
         .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_testcase(deps.api, kv_item))
         .collect();
 
     Ok(TestCaseResponse {
+        total,
         test_cases: res?, // Placeholder
     })
 }
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     // use cosmwasm_std::from_slice;
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{coin, coins, from_binary};
+
+    use crate::msg::{TestCaseMsg, TestCaseResponse};
+    use crate::{init_testcase, query_testcase, InitMsg, QueryMsg};
+
+    use cosmwasm_std::{to_binary, Binary, StdResult};
+
+    pub fn assert(_: &[String]) -> StdResult<Binary> {
+        to_binary("hi")
+    }
 
     #[test]
-    fn proper_initialization() {
-        // let test_str:String = format!("[{{\"name\":\"ETH\",\"prices\":\"hello\"}},{{\"name\":\"BTC\",\"prices\":\"hellohello\"}}]");
-        // let test: Vec<Data> = from_slice(test_str.as_bytes()).unwrap();
-        // println!("test data: {}", test[0].name);
+    fn query_list_test_cases() {
+        let mut deps = mock_dependencies(&coins(5, "orai"));
+        let mut test_cases = vec![TestCaseMsg {
+            parameters: vec![String::from("ethereum")],
+            expected_output: String::from("hello"),
+        }];
+
+        let mut i = 0;
+        while i < 1000 {
+            let test_case_msg = TestCaseMsg {
+                parameters: vec![format!("ethereum {}", i)],
+                expected_output: String::from("hello"),
+            };
+            test_cases.push(test_case_msg);
+            // code goes here
+            i += 1;
+        }
+
+        let msg = InitMsg {
+            test_cases,
+            fees: None,
+        };
+        let info = mock_info("creator", &vec![coin(5, "orai")]);
+        let _res = init_testcase(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        // Offering should be listed
+        let res = query_testcase(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetTestCases {
+                limit: None,
+                offset: None,
+                order: None,
+            },
+            assert,
+        )
+        .unwrap();
+        let value: TestCaseResponse = from_binary(&res).unwrap();
+
+        println!("{:?}", value);
     }
 }

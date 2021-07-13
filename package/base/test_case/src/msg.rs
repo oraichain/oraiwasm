@@ -1,10 +1,10 @@
-use cosmwasm_std::{Coin, HumanAddr};
+use cosmwasm_std::{Binary, Coin, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
-    pub test_cases: Vec<TestCase>,
+    pub test_cases: Vec<TestCaseMsg>,
     pub fees: Option<Coin>,
 }
 
@@ -12,8 +12,8 @@ pub struct InitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     SetOwner { owner: String },
-    AddTestCase { test_case: TestCase },
-    RemoveTestCase { input: String },
+    AddTestCase { test_case: TestCaseMsg },
+    RemoveTestCase { input: Vec<String> },
     SetFees { fees: Coin },
 }
 
@@ -29,22 +29,22 @@ pub enum QueryMsg {
         order: Option<u8>,
     },
     Assert {
-        output: Vec<String>,
-        expected_output: Vec<String>,
+        assert_inputs: Vec<String>,
     },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct TestCaseResponse {
-    pub test_cases: Vec<TestCase>,
+    pub total: u64,
+    pub test_cases: Vec<TestCaseMsg>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct TestCase {
-    pub input: String,
-    pub output: String,
+pub struct TestCaseMsg {
+    pub parameters: Vec<String>,
+    pub expected_output: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -53,6 +53,7 @@ pub struct AssertOutput {
     pub dsource_status: bool,
     pub tcase_status: bool,
 }
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct Response {
