@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, InitResponse, MessageInfo, Order, StdResult, Storage, Uint128,
+    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult, Storage, Uint128,
 };
 use drand_verify::{derive_randomness, g1_from_variable, verify};
 
@@ -35,7 +35,7 @@ pub fn init(
 
     // init empty fees
     fees_fn(deps.storage).save(&Fees {
-        amount: Uint128::from(0u64),
+        amount: Uint128::from(1u64),
     })?;
     Ok(InitResponse::default())
 }
@@ -49,9 +49,7 @@ pub fn handle(
     match msg {
         HandleMsg::SetBounty { round } => try_set_bounty(deps, info, round),
         HandleMsg::SetFees { fees, signature } => try_set_fees(deps, fees, signature),
-        HandleMsg::WithdrawFees { signature, fees } => {
-            try_withdraw_fees(deps, info, env, fees, signature)
-        }
+        HandleMsg::WithdrawFees { fees } => try_withdraw_fees(env, fees),
         HandleMsg::Add { signature } => try_add(deps, env, info, signature),
         HandleMsg::InvokeAdd {} => try_invoke(),
     }
@@ -96,46 +94,10 @@ pub fn try_set_fees(
     Ok(HandleResponse::default())
 }
 
-pub fn try_withdraw_fees(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    fees: Uint128,
-    signature: Binary,
-) -> Result<HandleResponse, HandleError> {
-    let Config {
-        pubkey,
-        signature: genesis_signature,
-        ..
-    } = config_read(deps.storage).load()?;
-
-    let (round, previous_signature) = match query_latest(deps.as_ref()) {
-        Ok(v) => (v.round + 1, v.signature), // next round
-        Err(err) => {
-            match err {
-                QueryError::NoBeacon {} => (1, genesis_signature), // first round
-                _ => return Err(HandleError::UnknownError {}),
-            }
-        }
-    };
-
-    let pk = g1_from_variable(&pubkey).map_err(|_| HandleError::InvalidPubkey {})?;
-    // verify signature
-    let valid = verify(
-        &pk,
-        round,
-        previous_signature.as_slice(),
-        signature.as_slice(),
-    )
-    .unwrap_or(false);
-
-    if !valid {
-        return Err(HandleError::InvalidSignature {});
-    }
-
+pub fn try_withdraw_fees(env: Env, fees: Uint128) -> Result<HandleResponse, HandleError> {
     let withdraw_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address.clone(),
-        to_address: info.sender,
+        to_address: HumanAddr::from("orai146tlt2sfuls7ku05msf7sa6v8saxauh2zenwlk"),
         amount: vec![Coin {
             denom: String::from("orai"),
             amount: fees,

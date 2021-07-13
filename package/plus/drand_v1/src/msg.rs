@@ -27,7 +27,6 @@ pub enum HandleMsg {
     InvokeAdd {},
     WithdrawFees {
         fees: Uint128,
-        signature: Binary,
     },
 }
 
