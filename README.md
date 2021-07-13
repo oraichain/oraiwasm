@@ -23,6 +23,9 @@ docker-compose exec app bash
 # build a smart contract, second param is schema option
 ./optimize.sh package/price/datasource_eth true
 
+# if need customize std, using this command
+cargo install xargo
+
 # run test a function
 cargo test --lib -p nft -- --exact contract::tests::query_tokens_by_owner --show-output
 
