@@ -51,7 +51,7 @@ pub fn handle(
         HandleMsg::SetFees { fees, signature } => try_set_fees(deps, fees, signature),
         HandleMsg::WithdrawFees { fees } => try_withdraw_fees(env, fees),
         HandleMsg::Add { signature } => try_add(deps, env, info, signature),
-        HandleMsg::InvokeAdd {} => try_invoke(),
+        HandleMsg::InvokeAdd {} => try_invoke(deps, info),
     }
 }
 
@@ -117,7 +117,18 @@ pub fn try_withdraw_fees(env: Env, fees: Uint128) -> Result<HandleResponse, Hand
     Ok(res)
 }
 
-pub fn try_invoke() -> Result<HandleResponse, HandleError> {
+pub fn try_invoke(deps: DepsMut, info: MessageInfo) -> Result<HandleResponse, HandleError> {
+    let fees = query_fees(deps.as_ref()).unwrap();
+    if info.sent_funds.len() == 0 {
+        return Err(HandleError::NoFundsSent {
+            expected_denom: "orai".to_string(),
+        });
+    }
+    if !info.sent_funds[0].denom.eq("orai") || info.sent_funds[0].amount.lt(&fees) {
+        return Err(HandleError::LessFundsSent {
+            expected_denom: "orai".to_string(),
+        });
+    }
     let res = HandleResponse {
         messages: vec![],
         attributes: vec![attr("function_type", "invoke_add")],
@@ -159,18 +170,6 @@ pub fn try_add(
     info: MessageInfo,
     signature: Binary,
 ) -> Result<HandleResponse, HandleError> {
-    let fees = query_fees(deps.as_ref()).unwrap();
-    if info.sent_funds.len() == 0 {
-        return Err(HandleError::NoFundsSent {
-            expected_denom: "orai".to_string(),
-        });
-    }
-    if !info.sent_funds[0].denom.eq("orai") || info.sent_funds[0].amount.lt(&fees) {
-        return Err(HandleError::LessFundsSent {
-            expected_denom: "orai".to_string(),
-        });
-    }
-
     let Config {
         pubkey,
         bounty_denom,
@@ -224,6 +223,7 @@ pub fn try_add(
         })];
         clear_bounty(deps.storage, round);
     }
+    response.attributes = vec![attr("function_type", "add")];
     Ok(response)
 }
 

@@ -18,13 +18,7 @@ After update, move to new round
 
 ## Current progress
 
-At the moment, only phase 1 is implemented, tested and run successfully. To repeatedly generate a random seed, clone the [oraicli repository](https://github.com/oraichain/oraicli). Type **yarn** to get neccessary dependencies. Next, create a .env file according to the .env.example file, fill the SEND_MNEMONIC key pair with the appropriate account. Finally, type:
-
-```bash
-yarn oraicli account drand-full --address <contract-address> --gas 50000000
-```
-
-to generate a new random seed. Use the seed you get for your favorite random function.
+At the moment, only phase 1 is implemented, tested and run successfully.
 
 ## Phase 1
 
@@ -34,17 +28,21 @@ Has one participant, also executor, only random chain smart contract
 
 ### Step 1
 
-Interval k minutes, participant generates new signature (sign on message including: # round & aggregated signature of the previous round). If round 0 => no previous signature.
+The participant generates a new signature (sign on message including: # round & aggregated signature of the previous round) with k-minute interval.
 
 ### Step 2
 
-Update signature onto the random chain smart contract, update round & new signature. Randomness = hash(new signature)
+The new generated signature is updated onto the random chain smart contract with ```randomness = hash(new signature)```. The contract also increments the round figure.
 
 ### Step 3
 
-Use randomess value as seed for existing random functions
+The new randomess value is shown on the oraiscan explorer as seed for existing random functions.
 
-Example query: https://lcd.testnet.orai.io/wasm/v1beta1/contract/orai1j9a0uu4qth30xuud3wg7eamd7vvs2nxnnupqr2/smart/eyJsYXRlc3QiOnt9fQ==
+Example Oraichain VRF query: https://lcd.testnet.orai.io/wasm/v1beta1/contract/orai1j9a0uu4qth30xuud3wg7eamd7vvs2nxnnupqr2/smart/eyJsYXRlc3QiOnt9fQ==
+
+### User interaction
+
+If you want to generate your own random seed, please enter the [Oraichain VRF](https://scan.orai.io/vrf) web page. Next, click the ```generate``` button to start the process. It should take roughly 30 seconds to 1 minute to get the new seed. The web page will refresh automatically when there is an update so you can collect the new seed.
 
 ## Phase 2
 
