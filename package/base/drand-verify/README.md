@@ -2,8 +2,8 @@
 
 ## Concept
 
-A random number and the proof can be verified by anyone who has sender's public key
-A sender can generate a random number with his/her private key and message
+A random number and the proof can be verified by anyone who has sender's public key  
+A sender can generate a random number with his/her private key and message  
 All Signatures can be aggregated into one signature to verify a single message signed by n parties
 
 ## Implementation
