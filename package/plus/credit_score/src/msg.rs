@@ -24,7 +24,7 @@ pub struct Query {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    UpdateLatest { data: Vec<Data> },
+    UpdateLatest { data: Vec<Data>, epoch: Option<u64> },
     StartNew { epoch: u64, data: Vec<Data> },
     UpdateSpecific { epoch: u64, data: Vec<Data> },
 }

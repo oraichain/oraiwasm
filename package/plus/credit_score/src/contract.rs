@@ -23,22 +23,46 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, _msg: InitMsg) -> StdRe
 pub fn handle(
     deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::StartNew { epoch, data } => start_new(deps, epoch, data),
-        HandleMsg::UpdateLatest { data } => update_latest(deps, data),
-        HandleMsg::UpdateSpecific { epoch, data } => update_specific(deps, epoch, data),
+        HandleMsg::StartNew { epoch, data } => start_new(deps, info, epoch, data),
+        HandleMsg::UpdateLatest { data, epoch } => update_latest(deps, info, epoch, data),
+        HandleMsg::UpdateSpecific { epoch, data } => update_specific(deps, info, epoch, data),
     }
 }
 
-fn start_new(deps: DepsMut, epoch: u64, data: Vec<Data>) -> Result<HandleResponse, ContractError> {
+fn start_new(
+    deps: DepsMut,
+    info: MessageInfo,
+    epoch: u64,
+    data: Vec<Data>,
+) -> Result<HandleResponse, ContractError> {
+    let owner = OWNER.load(deps.storage)?;
+    if !owner.eq(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
     CREDIT_SCORES.save(deps.storage, &epoch.to_ne_bytes(), &data)?;
     Ok(HandleResponse::default())
 }
 
-fn update_latest(deps: DepsMut, data: Vec<Data>) -> Result<HandleResponse, ContractError> {
+fn update_latest(
+    deps: DepsMut,
+    info: MessageInfo,
+    epoch: Option<u64>,
+    data: Vec<Data>,
+) -> Result<HandleResponse, ContractError> {
+    let owner = OWNER.load(deps.storage)?;
+    if !owner.eq(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // if there's an epoch input => add new
+    if let Some(epoch_val) = epoch {
+        CREDIT_SCORES.save(deps.storage, &epoch_val.to_ne_bytes(), &data)?;
+        return Ok(HandleResponse::default());
+    }
     let mut latest_data: DataMsg = from_binary(&(query_latest(deps.as_ref())?))?;
     let mut new_data = data;
     latest_data.data.append(&mut new_data);
@@ -52,9 +76,14 @@ fn update_latest(deps: DepsMut, data: Vec<Data>) -> Result<HandleResponse, Contr
 
 fn update_specific(
     deps: DepsMut,
+    info: MessageInfo,
     epoch: u64,
     data: Vec<Data>,
 ) -> Result<HandleResponse, ContractError> {
+    let owner = OWNER.load(deps.storage)?;
+    if !owner.eq(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
     let mut latest_data: DataMsg = from_binary(&(query_specific(deps.as_ref(), epoch)?))?;
     let mut new_data = data;
     latest_data.data.append(&mut new_data);
@@ -324,7 +353,9 @@ mod tests {
         handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         handle(deps.as_mut(), mock_env(), info.clone(), msg_two.clone()).unwrap();
 
-        let msg_three = HandleMsg::UpdateLatest {
+        // test update latest epoch without epoch input
+        let mut msg_three = HandleMsg::UpdateLatest {
+            epoch: None,
             data: vec![Data {
                 address: String::from("foo"),
                 score: 3,
@@ -333,8 +364,23 @@ mod tests {
         handle(deps.as_mut(), mock_env(), info.clone(), msg_three.clone()).unwrap();
 
         // Offering should be listed
-        let res = query(deps.as_ref(), mock_env(), QueryMsg::QueryLatest {}).unwrap();
-        let value: DataMsg = from_binary(&res).unwrap();
+        let mut res = query(deps.as_ref(), mock_env(), QueryMsg::QueryLatest {}).unwrap();
+        let mut value: DataMsg = from_binary(&res).unwrap();
+        println!("{:?}", value);
+
+        // with new epoch => should be new data
+        msg_three = HandleMsg::UpdateLatest {
+            epoch: Some(3),
+            data: vec![Data {
+                address: String::from("foo"),
+                score: 3,
+            }],
+        };
+        handle(deps.as_mut(), mock_env(), info.clone(), msg_three.clone()).unwrap();
+
+        // Offering should be listed
+        res = query(deps.as_ref(), mock_env(), QueryMsg::QueryLatest {}).unwrap();
+        value = from_binary(&res).unwrap();
         println!("{:?}", value);
     }
 
