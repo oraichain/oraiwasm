@@ -52,20 +52,23 @@ Has an additional random request smart contract to aggregate signatures from mul
 
 ### Step 1
 
-We call all participants involved in the process are executor.
-When a user creates a random request to a random request smart contract (similar to the aioracle smart contract, different from random chain smart contract) => participants run websocket clients, listen to the request.
+We call all participants involved in the process are executors.
+
+The participants run websocket clients to listen to the random requests.
+
+A user creates a random request to a random request smart contract to trigger the execution process
 
 ### Step 2
 
-Participants generate a signature (sign on message including: # round & aggregated signature of the previous round). If round 0 => no previous signature, and create a report including the signature & store onto the smart contract
+Participants generate signatures (sign on a message including: # round & aggregated signature of the previous round).
 
 ### Step 3
 
-An executor (can be anyone, even a participant), listens to the report updates of the random request smart contract, collect enough signatures then aggregate them into one signature (using BLS signature scheme to aggregate). The threshold of the signatures depend on the rule we set (but min 50% because BLS scheme needs at least 50% of the signatures to verify)
+An executor (can be anyone, even a participant), listens to the report updates of the random request smart contract, collect enough signatures then aggregate them into one signature (using BLS signature scheme to aggregate). The threshold of the signatures depends on the rule we set (but min 50% because BLS scheme needs at least 50% of the signatures to verify)
 
 ### Step 4
 
-Executor sends the aggregated signature onto the random chain smart contract, smart contract verifies using the aggregated public key & hash the aggregated signature to get a randomness hash value, update round and signature.
+Executor sends the aggregated signature onto the random chain smart contract, the smart contract verifies using the aggregated public key & hash the aggregated signature to get a randomness hash value, update round and signature.
 
 ### Step 5
 
