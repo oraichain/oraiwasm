@@ -1,8 +1,8 @@
 [package]
-authors = ["Thanh tu <tu@orai.io>"]
+authors = ["Confio, Thanh tu <tu@orai.io> and Duc Pham <duc@orai.io>"]
 edition = "2018"
 license = "AGPL-3.0"
-name = "drand_v1"
+name = "oraichain_vrf_v1"
 version = "0.1.0"
 
 exclude = [

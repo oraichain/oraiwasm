@@ -3,8 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use drand_v1::msg::{BountiesResponse, HandleMsg, InitMsg, QueryMsg, RandomData};
-use drand_v1::state::Config;
+use oraichain_vrf_v1::msg::{BountiesResponse, HandleMsg, InitMsg, QueryMsg, RandomData};
+use oraichain_vrf_v1::state::Config;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
