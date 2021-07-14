@@ -1,4 +1,4 @@
-# VRF
+# VRF - Verifiable Random Function
 
 ## Concept
 
