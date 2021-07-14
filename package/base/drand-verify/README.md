@@ -24,13 +24,7 @@ At the moment, only phase 1 is implemented, tested and run successfully.
 
 Has one participant, also executor, only random chain smart contract
 
-```mermaid
-graph TD
-    A[Participant] -->|Round n| B(Signature)
-    B --> C{Verify}
-    C -->|True| D[Derive randomness]
-    C -->|False| E[Invalid signature]
-```
+![image](https://mermaid.orai.io/eyJjb2RlIjoiZ3JhcGggVERcbiAgICBBW1BhcnRpY2lwYW50XSAtLT58Um91bmQgbnwgQihTaWduYXR1cmUpXG4gICAgQiAtLT4gQ3tWZXJpZnl9XG4gICAgQyAtLT58VHJ1ZXwgRFtEZXJpdmUgcmFuZG9tbmVzc11cbiAgICBDIC0tPnxGYWxzZXwgRVtJbnZhbGlkIHNpZ25hdHVyZV0iLCJtZXJtYWlkIjoie1xuICBcInRoZW1lXCI6IFwiZGVmYXVsdFwiXG59IiwidXBkYXRlRWRpdG9yIjpmYWxzZSwiYXV0b1N5bmMiOnRydWUsInVwZGF0ZURpYWdyYW0iOmZhbHNlfQ)
 
 ### Step 1
 
@@ -54,18 +48,7 @@ If you want to generate your own random seed, please enter the [Oraichain VRF](h
 
 Has an additional random request smart contract to aggregate signatures from multiple participants.
 
-```mermaid
-sequenceDiagram
-    User->>Request Contract: Round + Random Chain + Executor
-    loop Aggregation
-        Request Contract-->>Executor: Grab new round
-        Executor-->>Request Contract: Generate new signature
-    end
-    Note right of Random Contract: Collect signatures <br/>with threshold
-    Executor->>Random Contract: Generate aggregated signature
-    Random Contract->>User: Verify and derive new randomness
-
-```
+![image](https://mermaid.orai.io/eyJjb2RlIjoic2VxdWVuY2VEaWFncmFtXG4gICAgVXNlci0-PlJlcXVlc3QgQ29udHJhY3Q6IFJvdW5kICsgUmFuZG9tIENoYWluICsgRXhlY3V0b3JcbiAgICBsb29wIEFnZ3JlZ2F0aW9uXG4gICAgICAgIFJlcXVlc3QgQ29udHJhY3QtLT4-RXhlY3V0b3I6IEdyYWIgbmV3IHJvdW5kXG4gICAgICAgIEV4ZWN1dG9yLS0-PlJlcXVlc3QgQ29udHJhY3Q6IEdlbmVyYXRlIG5ldyBzaWduYXR1cmVcbiAgICBlbmRcbiAgICBOb3RlIHJpZ2h0IG9mIFJhbmRvbSBDb250cmFjdDogQ29sbGVjdCBzaWduYXR1cmVzIDxici8-d2l0aCB0aHJlc2hvbGRcbiAgICBFeGVjdXRvci0-PlJhbmRvbSBDb250cmFjdDogR2VuZXJhdGUgYWdncmVnYXRlZCBzaWduYXR1cmVcbiAgICBSYW5kb20gQ29udHJhY3QtPj5Vc2VyOiBWZXJpZnkgYW5kIGRlcml2ZSBuZXcgcmFuZG9tbmVzcyIsIm1lcm1haWQiOiJ7XG4gIFwidGhlbWVcIjogXCJkZWZhdWx0XCJcbn0iLCJ1cGRhdGVFZGl0b3IiOmZhbHNlLCJhdXRvU3luYyI6dHJ1ZSwidXBkYXRlRGlhZ3JhbSI6ZmFsc2V9)
 
 ### Step 1
 
@@ -97,17 +80,4 @@ Example query: https://lcd.testnet.orai.io/wasm/v1beta1/contract/orai1j9a0uu4qth
 
 Add reward & bounty for the participants & executor
 
-```mermaid
-sequenceDiagram
-    User->>Request Contract: Round + Random Chain<br/> + Bounty + Executor
-    Request Contract->>Random Contract: Set bounty
-    loop Aggregation
-        Request Contract-->>Executor: Grab new round
-        Executor-->>Request Contract: Generate new signature
-    end
-    Note right of Random Contract: Collect signatures <br/>with threshold
-    Executor->>Random Contract: Generate aggregated signature
-    Random Contract->>User: Verify and derive new randomness
-    Random Contract->>Executor: Transfer bounty
-
-```
+![image](https://mermaid.orai.io/eyJjb2RlIjoic2VxdWVuY2VEaWFncmFtXG4gICAgVXNlci0-PlJlcXVlc3QgQ29udHJhY3Q6IFJvdW5kICsgUmFuZG9tIENoYWluPGJyLz4gKyBCb3VudHkgKyBFeGVjdXRvclxuICAgIFJlcXVlc3QgQ29udHJhY3QtPj5SYW5kb20gQ29udHJhY3Q6IFNldCBib3VudHlcbiAgICBsb29wIEFnZ3JlZ2F0aW9uXG4gICAgICAgIFJlcXVlc3QgQ29udHJhY3QtLT4-RXhlY3V0b3I6IEdyYWIgbmV3IHJvdW5kXG4gICAgICAgIEV4ZWN1dG9yLS0-PlJlcXVlc3QgQ29udHJhY3Q6IEdlbmVyYXRlIG5ldyBzaWduYXR1cmVcbiAgICBlbmRcbiAgICBOb3RlIHJpZ2h0IG9mIFJhbmRvbSBDb250cmFjdDogQ29sbGVjdCBzaWduYXR1cmVzIDxici8-d2l0aCB0aHJlc2hvbGRcbiAgICBFeGVjdXRvci0-PlJhbmRvbSBDb250cmFjdDogR2VuZXJhdGUgYWdncmVnYXRlZCBzaWduYXR1cmVcbiAgICBSYW5kb20gQ29udHJhY3QtPj5Vc2VyOiBWZXJpZnkgYW5kIGRlcml2ZSBuZXcgcmFuZG9tbmVzc1xuICAgIFJhbmRvbSBDb250cmFjdC0-PkV4ZWN1dG9yOiBUcmFuc2ZlciBib3VudHkiLCJtZXJtYWlkIjoie1xuICBcInRoZW1lXCI6IFwiZGVmYXVsdFwiXG59IiwidXBkYXRlRWRpdG9yIjp0cnVlLCJhdXRvU3luYyI6dHJ1ZSwidXBkYXRlRGlhZ3JhbSI6dHJ1ZX0)
