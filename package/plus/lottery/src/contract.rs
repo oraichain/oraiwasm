@@ -200,11 +200,11 @@ pub fn handle_ticket(
     delegator.sort_by(|a, b| b.amount.amount.cmp(&a.amount.amount));
 
     // Ensure validator are owning 10000 upot min and the user stake the majority of his funds to this validator
-    let validatorBalance = deps
+    let validator_balance = deps
         .querier
         .query_balance(&delegator[0].validator, &state.denom_share)
         .unwrap();
-    if validatorBalance.amount.u128() < state.validator_min_amount_to_allow_claim.u128() {
+    if validator_balance.amount.u128() < state.validator_min_amount_to_allow_claim.u128() {
         return Err(ContractError::ValidatorNotAuthorized(
             state.validator_min_amount_to_allow_claim.to_string(),
         ));
@@ -299,8 +299,8 @@ pub fn handle_play(
         return Err(ContractError::Unauthorized {});
     }
     // Get the current round and check if it is a valid round.
-    let fromGenesis = state.block_time_play - state.drand_genesis_time;
-    let next_round = (fromGenesis as f64 / state.drand_period as f64) + 1.0;
+    let from_genesis = state.block_time_play - state.drand_genesis_time;
+    let next_round = (from_genesis as f64 / state.drand_period as f64) + 1.0;
 
     if round != next_round as u64 {
         return Err(ContractError::InvalidRound {});
@@ -580,14 +580,14 @@ pub fn handle_buy(
         return Err(ContractError::EmptyBalance {});
     }
 
-    let amountToSend = sent.u128() / state.denom_delegation_decimal.u128();
+    let amount_to_send = sent.u128() / state.denom_delegation_decimal.u128();
 
     let msg = BankMsg::Send {
         from_address: _env.contract.address.clone(),
         to_address: info.sender.clone(),
         amount: vec![Coin {
             denom: state.denom_ticket.clone(),
-            amount: Uint128(amountToSend),
+            amount: Uint128(amount_to_send),
         }],
     };
 
@@ -616,11 +616,11 @@ pub fn handle_reward(
     }
 
     // Ensure sender have some reward tokens
-    let balanceSender = deps
+    let balance_sender = deps
         .querier
         .query_balance(info.sender.clone(), &state.denom_share)
         .unwrap();
-    if balanceSender.amount.is_zero() {
+    if balance_sender.amount.is_zero() {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -645,7 +645,7 @@ pub fn handle_reward(
     }
     // Get the percentage of shareholder
     let share_holder_percentage =
-        balanceSender.amount.u128() as u64 * 100 / state.token_holder_supply.u128() as u64;
+        balance_sender.amount.u128() as u64 * 100 / state.token_holder_supply.u128() as u64;
     if share_holder_percentage == 0 {
         return Err(ContractError::SharesTooLow {});
     }
@@ -713,12 +713,12 @@ pub fn handle_jackpot(
         return Err(ContractError::NoWinners {});
     }
 
-    let mut jackpotAmount: Uint128 = Uint128(0);
-    let mut ticketWinning: Uint128 = Uint128(0);
+    let mut jackpot_amount: Uint128 = Uint128(0);
+    let mut ticket_winning: Uint128 = Uint128(0);
     for winner in store.winner.clone() {
-        for winnerInfo in winner.winners.clone() {
-            if winnerInfo.address == deps.api.canonical_address(&info.sender).unwrap() {
-                if winnerInfo.claimed {
+        for winner_info in winner.winners.clone() {
+            if winner_info.address == deps.api.canonical_address(&info.sender).unwrap() {
+                if winner_info.claimed {
                     return Err(ContractError::AlreadyClaimed {});
                 }
 
@@ -732,7 +732,7 @@ pub fn handle_jackpot(
                             ))
                             .u128()
                             / winner.winners.clone().len() as u128;
-                        jackpotAmount += Uint128(prize);
+                        jackpot_amount += Uint128(prize);
                         // Remove the address from the array and save
                         let new_addresses = remove_from_storage(&deps, &info, &winner);
                         winner_storage(deps.storage).save(
@@ -751,7 +751,7 @@ pub fn handle_jackpot(
                             ))
                             .u128()
                             / winner.winners.clone().len() as u128;
-                        jackpotAmount += Uint128(prize);
+                        jackpot_amount += Uint128(prize);
                         // Remove the address from the array and save
                         let new_addresses = remove_from_storage(&deps, &info, &winner);
                         winner_storage(deps.storage).save(
@@ -770,7 +770,7 @@ pub fn handle_jackpot(
                             ))
                             .u128()
                             / winner.winners.clone().len() as u128;
-                        jackpotAmount += Uint128(prize);
+                        jackpot_amount += Uint128(prize);
                         // Remove the address from the array and save
                         let new_addresses = remove_from_storage(&deps, &info, &winner);
                         winner_storage(deps.storage).save(
@@ -789,7 +789,7 @@ pub fn handle_jackpot(
                             ))
                             .u128()
                             / winner.winners.clone().len() as u128;
-                        jackpotAmount += Uint128(prize);
+                        jackpot_amount += Uint128(prize);
                         // Remove the address from the array and save
                         let new_addresses = remove_from_storage(&deps, &info, &winner);
                         winner_storage(deps.storage).save(
@@ -801,7 +801,7 @@ pub fn handle_jackpot(
                     }
                     5 => {
                         // Prizes five rank
-                        ticketWinning += Uint128(1);
+                        ticket_winning += Uint128(1);
                         // Remove the address from the array and save
                         let new_addresses = remove_from_storage(&deps, &info, &winner);
                         winner_storage(deps.storage).save(
@@ -818,9 +818,9 @@ pub fn handle_jackpot(
     }
 
     // Build the amount transaction
-    let mut amountToSend: Vec<Coin> = vec![];
+    let mut amount_to_send: Vec<Coin> = vec![];
 
-    if !jackpotAmount.is_zero() {
+    if !jackpot_amount.is_zero() {
         // Get the contract balance
         let balance = deps
             .querier
@@ -831,32 +831,32 @@ pub fn handle_jackpot(
             return Err(ContractError::EmptyBalance {});
         }
         // Ensure the contract have sufficient balance to handle the transaction
-        if balance.amount < jackpotAmount {
+        if balance.amount < jackpot_amount {
             return Err(ContractError::NoFunds {});
         }
-        amountToSend.push(Coin {
+        amount_to_send.push(Coin {
             denom: state.denom_delegation.clone(),
-            amount: jackpotAmount,
+            amount: jackpot_amount,
         });
     }
 
-    if !ticketWinning.is_zero() {
+    if !ticket_winning.is_zero() {
         // Get the contract ticket balance
-        let ticketBalance = deps
+        let ticket_balance = deps
             .querier
             .query_balance(&_env.contract.address, &state.denom_ticket)
             .unwrap();
         // Ensure the contract have the balance
-        if !ticketBalance.amount.is_zero() || ticketBalance.amount > ticketWinning {
-            amountToSend.push(Coin {
+        if !ticket_balance.amount.is_zero() || ticket_balance.amount > ticket_winning {
+            amount_to_send.push(Coin {
                 denom: state.denom_ticket.clone(),
-                amount: ticketWinning,
+                amount: ticket_winning,
             });
         }
     }
 
     // Check if no amount to send return ok
-    if amountToSend.is_empty() {
+    if amount_to_send.is_empty() {
         return Ok(HandleResponse {
             messages: vec![],
             attributes: vec![
@@ -874,7 +874,7 @@ pub fn handle_jackpot(
             .api
             .human_address(&deps.api.canonical_address(&info.sender).unwrap())
             .unwrap(),
-        amount: amountToSend,
+        amount: amount_to_send,
     };
 
     // Send the jackpot
@@ -917,9 +917,9 @@ pub fn handle_proposal(
     }
 
     let mut proposal_amount: Uint128 = Uint128::zero();
-    let mut proposalPrizeRank: Vec<u8> = vec![];
+    let mut proposal_prize_rank: Vec<u8> = vec![];
 
-    let proposalType = if let Proposal::HolderFeePercentage = proposal {
+    let proposal_type = if let Proposal::HolderFeePercentage = proposal {
         match amount {
             Some(percentage) => {
                 if percentage.u128() as u8 > state.holders_max_percentage_reward {
@@ -975,8 +975,8 @@ pub fn handle_proposal(
         Proposal::JackpotRewardPercentage
     } else if let Proposal::LotteryEveryBlockTime = proposal {
         match amount {
-            Some(blockTime) => {
-                proposal_amount = blockTime;
+            Some(block_time) => {
+                proposal_amount = block_time;
             }
             None => {
                 return Err(ContractError::ParamRequiredForThisProposal(
@@ -988,8 +988,8 @@ pub fn handle_proposal(
         Proposal::LotteryEveryBlockTime
     } else if let Proposal::MinAmountDelegator = proposal {
         match amount {
-            Some(minAmount) => {
-                proposal_amount = minAmount;
+            Some(min_amount) => {
+                proposal_amount = min_amount;
             }
             None => {
                 return Err(ContractError::ParamRequiredForThisProposal(
@@ -1001,8 +1001,8 @@ pub fn handle_proposal(
         Proposal::MinAmountDelegator
     } else if let Proposal::MinAmountValidator = proposal {
         match amount {
-            Some(minAmount) => {
-                proposal_amount = minAmount;
+            Some(min_amount) => {
+                proposal_amount = min_amount;
             }
             None => {
                 return Err(ContractError::ParamRequiredForThisProposal(
@@ -1019,23 +1019,23 @@ pub fn handle_proposal(
                         "prize_per_rank 4 separated numbers between 0 to 100".to_string(),
                     ));
                 }
-                let mut totalPercentage = 0;
+                let mut total_percentage = 0;
                 for rank in ranks.clone() {
                     if (rank as u8) > 100 {
                         return Err(ContractError::ParamRequiredForThisProposal(
                             "prize_per_rank numbers between 0 to 100".to_string(),
                         ));
                     }
-                    totalPercentage += rank;
+                    total_percentage += rank;
                 }
                 // Ensure the repartition sum is 100%
-                if totalPercentage != 100 {
+                if total_percentage != 100 {
                     return Err(ContractError::ParamRequiredForThisProposal(
                         "prize_per_rank numbers sum need to be 100".to_string(),
                     ));
                 }
 
-                proposalPrizeRank = ranks;
+                proposal_prize_rank = ranks;
             }
             None => {
                 return Err(ContractError::ParamRequiredForThisProposal(
@@ -1046,8 +1046,8 @@ pub fn handle_proposal(
         Proposal::PrizePerRank
     } else if let Proposal::ClaimEveryBlock = proposal {
         match amount {
-            Some(blockTime) => {
-                proposal_amount = blockTime;
+            Some(block_time) => {
+                proposal_amount = block_time;
             }
             None => {
                 return Err(ContractError::ParamRequiredForThisProposal(
@@ -1060,10 +1060,10 @@ pub fn handle_proposal(
         return Err(ContractError::ProposalNotFound {});
     };
 
-    let senderToCanonical = deps.api.canonical_address(&info.sender).unwrap();
+    let sender_to_canonical = deps.api.canonical_address(&info.sender).unwrap();
 
-    let newPoll = PollInfoState {
-        creator: senderToCanonical,
+    let new_poll = PollInfoState {
+        creator: sender_to_canonical,
         status: PollStatus::InProgress,
         end_height: _env.block.height + state.poll_end_height,
         start_height: _env.block.height,
@@ -1071,12 +1071,12 @@ pub fn handle_proposal(
         yes_voters: vec![],
         no_voters: vec![],
         amount: proposal_amount,
-        prize_rank: proposalPrizeRank,
-        proposal: proposalType,
+        prize_rank: proposal_prize_rank,
+        proposal: proposal_type,
     };
 
     // Save poll
-    poll_storage(deps.storage).save(&state.poll_count.to_be_bytes(), &newPoll)?;
+    poll_storage(deps.storage).save(&state.poll_count.to_be_bytes(), &new_poll)?;
 
     // Save state
     config(deps.storage).save(&state)?;
@@ -1119,16 +1119,16 @@ pub fn handle_vote(
     match approve {
         true => {
             poll_storage(deps.storage).update::<_, StdError>(&poll_id.to_be_bytes(), |poll| {
-                let mut pollData = poll.unwrap();
-                pollData.yes_voters.push(sender.clone());
-                Ok(pollData)
+                let mut poll_data = poll.unwrap();
+                poll_data.yes_voters.push(sender.clone());
+                Ok(poll_data)
             })?;
         }
         false => {
             poll_storage(deps.storage).update::<_, StdError>(&poll_id.to_be_bytes(), |poll| {
-                let mut pollData = poll.unwrap();
-                pollData.no_voters.push(sender.clone());
-                Ok(pollData)
+                let mut poll_data = poll.unwrap();
+                poll_data.no_voters.push(sender.clone());
+                Ok(poll_data)
             })?;
         }
     }
@@ -1167,12 +1167,12 @@ pub fn handle_reject_proposal(
     }
 
     poll_storage(deps.storage).update::<_, StdError>(&poll_id.to_be_bytes(), |poll| {
-        let mut pollData = poll.unwrap();
+        let mut poll_data = poll.unwrap();
         // Update the status to rejected by the creator
-        pollData.status = PollStatus::RejectedByCreator;
+        poll_data.status = PollStatus::RejectedByCreator;
         // Update the end eight to now
-        pollData.end_height = _env.block.height;
-        Ok(pollData)
+        poll_data.end_height = _env.block.height;
+        Ok(poll_data)
     })?;
 
     Ok(HandleResponse {
@@ -1188,11 +1188,11 @@ pub fn handle_reject_proposal(
 fn total_weight(deps: &DepsMut, state: &State, addresses: &Vec<CanonicalAddr>) -> Uint128 {
     let mut weight = Uint128::zero();
     for address in addresses {
-        let humanAddress = deps.api.human_address(&address).unwrap();
+        let human_address = deps.api.human_address(&address).unwrap();
 
         let balance = deps
             .querier
-            .query_balance(humanAddress, &state.denom_share)
+            .query_balance(human_address, &state.denom_share)
             .unwrap();
 
         if !balance.amount.is_zero() {
@@ -1228,26 +1228,26 @@ pub fn handle_present_proposal(
     }
     println!("{:?}", store);
     // Calculating the weight
-    let yesWeight = total_weight(&deps, &state, &store.yes_voters);
+    let yes_weight = total_weight(&deps, &state, &store.yes_voters);
     // let noWeight = total_weight(&deps, &state, &store.no_voters);
-    println!("{}", yesWeight.u128());
+    println!("{}", yes_weight.u128());
 
     // Get the amount
-    let mut finalVoteWeightInPercentage: u128 = 0;
-    if !yesWeight.is_zero() {
-        let yesWeightByHundred = yesWeight.u128() * 100;
-        finalVoteWeightInPercentage = yesWeightByHundred / state.token_holder_supply.u128();
+    let mut final_vote_weight_in_percentage: u128 = 0;
+    if !yes_weight.is_zero() {
+        let yes_weight_by_hundred = yes_weight.u128() * 100;
+        final_vote_weight_in_percentage = yes_weight_by_hundred / state.token_holder_supply.u128();
     }
 
     // Reject the proposal
     if
-    /*noWeight.u128() >= yesWeight.u128() ||*/
-    finalVoteWeightInPercentage < 60 {
+    /*noWeight.u128() >= yes_weight.u128() ||*/
+    final_vote_weight_in_percentage < 60 {
         poll_storage(deps.storage).update::<_, StdError>(&poll_id.to_be_bytes(), |poll| {
-            let mut pollData = poll.unwrap();
+            let mut poll_data = poll.unwrap();
             // Update the status to rejected
-            pollData.status = PollStatus::Rejected;
-            Ok(pollData)
+            poll_data.status = PollStatus::Rejected;
+            Ok(poll_data)
         })?;
         return Ok(HandleResponse {
             messages: vec![],
@@ -1293,10 +1293,10 @@ pub fn handle_present_proposal(
 
     // Save to storage
     poll_storage(deps.storage).update::<_, StdError>(&poll_id.to_be_bytes(), |poll| {
-        let mut pollData = poll.unwrap();
+        let mut poll_data = poll.unwrap();
         // Update the status to passed
-        pollData.status = PollStatus::Passed;
-        Ok(pollData)
+        poll_data.status = PollStatus::Passed;
+        Ok(poll_data)
     })?;
 
     config(deps.storage).save(&state)?;
@@ -1402,27 +1402,25 @@ fn query_poll(deps: Deps, poll_id: u64) -> Result<GetPollResponse, ContractError
 
 fn query_round(deps: Deps) -> Result<RoundResponse, ContractError> {
     let state = config_read(deps.storage).load()?;
-    let fromGenesis = state.block_time_play - state.drand_genesis_time;
-    let next_round = (fromGenesis as f64 / state.drand_period as f64) + 1.0;
-    let next_roundFormat = next_round as u64;
+    let from_genesis = state.block_time_play - state.drand_genesis_time;
+    let next_round = (from_genesis as f64 / state.drand_period as f64) + 1.0;
 
     Ok(RoundResponse {
-        next_round: next_roundFormat,
+        next_round: next_round as u64,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+    use crate::msg::{HandleMsg, InitMsg};
     use cosmwasm_std::testing::{
-        mock_dependencies, mock_env, mock_info, BankQuerier, MockApi, MockQuerier, MockStorage,
+        mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
         MOCK_CONTRACT_ADDR,
     };
     use cosmwasm_std::{
-        coins, from_binary, Api, Attribute, Binary, CanonicalAddr, CosmosMsg, Decimal,
-        FullDelegation, HumanAddr, MessageInfo, OwnedDeps, QuerierResult, StdError::NotFound,
-        Storage, Uint128, Validator,
+        Api, Binary, CanonicalAddr, CosmosMsg, Decimal, FullDelegation, HumanAddr, OwnedDeps,
+        StdError::NotFound, Uint128, Validator,
     };
     use regex::Regex;
 
@@ -1439,7 +1437,6 @@ mod tests {
         const CLAIM_REWARD: Vec<CanonicalAddr> = vec![];
         const BLOCK_TIME_PLAY: u64 = 1610566920;
         const EVERY_BLOCK_TIME_PLAY: u64 = 50000;
-        const BLOCK_CLAIM: u64 = 0;
         const EVERY_BLOCK_CLAIM: u64 = 50000;
         const BLOCK_ICO_TIME_FRAME: u64 = 1000000000;
         const HOLDERS_REWARDS: Uint128 = Uint128(5_221);
@@ -1597,9 +1594,9 @@ mod tests {
         let mut env = mock_env();
         env.block.time = 1610566920;
         let now = env.block.time;
-        let fromGenesis = env.block.time - GENESIS_TIME;
+        let from_genesis = env.block.time - GENESIS_TIME;
         // let time = 1610566920 - 1595431050;
-        let round = (fromGenesis as f64 / PERIOD) + 1.0;
+        let round = (from_genesis as f64 / PERIOD) + 1.0;
 
         assert_eq!(result, true);
         println!("{:?}", pk);
@@ -1607,7 +1604,7 @@ mod tests {
         println!("{:?}", env);
         // println!("{}", time);
         println!("{}", round.floor());
-        println!("{}", fromGenesis);
+        println!("{}", from_genesis);
     }*/
     mod register {
         use super::*;
@@ -1792,7 +1789,6 @@ mod tests {
     mod claim_ticket {
         use super::*;
         use crate::error::ContractError;
-        use cosmwasm_std::attr;
 
         fn init_balance_and_staking_default(deps: &mut MockQuerier, balance: Uint128) {
             deps.update_balance(
@@ -2112,7 +2108,6 @@ mod tests {
     mod public_sale {
         use super::*;
         use crate::error::ContractError;
-        use cosmwasm_std::attr;
 
         #[test]
         fn balance_contract_empty() {
@@ -2247,7 +2242,6 @@ mod tests {
     mod buy_ticket {
         use super::*;
         use crate::error::ContractError;
-        use cosmwasm_std::attr;
 
         #[test]
         fn contract_balance_empty() {
@@ -2372,7 +2366,6 @@ mod tests {
     mod play {
         use super::*;
         use crate::error::ContractError;
-        use cosmwasm_std::attr;
 
         fn init_combination(deps: &mut OwnedDeps<MockStorage, MockApi, MockQuerier>) {
             // Init the bucket with players to storage
@@ -3467,12 +3460,12 @@ mod tests {
         // Test proposal is expired
         let env = mock_env();
         poll_storage(deps.as_mut().storage).update::<_, StdError>(&1_u64.to_be_bytes(), |poll| {
-            let mut pollData = poll.unwrap();
+            let mut poll_data = poll.unwrap();
             // Update the status to rejected by the creator
-            pollData.status = PollStatus::RejectedByCreator;
+            poll_data.status = PollStatus::RejectedByCreator;
             // Update the end eight to now
-            pollData.end_height = env.block.height - 1;
-            Ok(pollData)
+            poll_data.end_height = env.block.height - 1;
+            Ok(poll_data)
         });
         let res = handle(deps.as_mut(), env.clone(), info.clone(), msg.clone());
         match res {
@@ -3537,10 +3530,10 @@ mod tests {
         // Test error the proposal is not inProgress
         let info = mock_info(HumanAddr::from("creator"), &[]);
         poll_storage(deps.as_mut().storage).update::<_, StdError>(&1_u64.to_be_bytes(), |poll| {
-            let mut pollData = poll.unwrap();
+            let mut poll_data = poll.unwrap();
             // Update the status to rejected by the creator
-            pollData.status = PollStatus::RejectedByCreator;
-            Ok(pollData)
+            poll_data.status = PollStatus::RejectedByCreator;
+            Ok(poll_data)
         });
         let res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone());
         match res {
@@ -3550,10 +3543,10 @@ mod tests {
         // Test error the proposal already expired
         let info = mock_info(HumanAddr::from("creator"), &[]);
         poll_storage(deps.as_mut().storage).update::<_, StdError>(&1_u64.to_be_bytes(), |poll| {
-            let mut pollData = poll.unwrap();
+            let mut poll_data = poll.unwrap();
             // Update the end eight to now
-            pollData.end_height = env.block.height - 1;
-            Ok(pollData)
+            poll_data.end_height = env.block.height - 1;
+            Ok(poll_data)
         });
         let res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone());
         match res {
@@ -3664,7 +3657,7 @@ mod tests {
             );
         }
         #[test]
-        fn present_proposal_with_voters_YES_WEIGHT() {
+        fn present_proposal_with_voters_yes_weight() {
             let mut deps = mock_dependencies(&[]);
             default_init(&mut deps);
             let info = mock_info(HumanAddr::from("sender"), &[]);
