@@ -223,7 +223,11 @@ pub fn try_add(
         })];
         clear_bounty(deps.storage, round);
     }
-    response.attributes = vec![attr("function_type", "add")];
+    response.attributes = vec![
+        attr("function_type", "add"),
+        attr("round", round.to_string()),
+        attr("randomness", msg.to_string()),
+    ];
     Ok(response)
 }
 
