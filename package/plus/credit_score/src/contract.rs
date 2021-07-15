@@ -185,23 +185,19 @@ fn query_specific(deps: Deps, epoch: u64) -> StdResult<Binary> {
     to_binary(&response)
 }
 
+#[cfg(test)]
 mod tests {
 
+    use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 
-    use super::*;
-
-    #[test]
-    fn query_list() {
-        let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
-
+    fn init_contract(deps: &mut DepsMut) {
         // init and setup
         let msg = InitMsg {};
         let info = mock_info("fake_sender_addr", &[]);
 
         // we can just call .unwrap() to assert this was a success
-        let res = init(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+        let res = init(deps.branch(), mock_env(), info.clone(), msg).unwrap();
         assert_eq!(0, res.messages.len());
 
         let msg = HandleMsg::StartNew {
@@ -219,8 +215,16 @@ mod tests {
                 score: 2,
             }],
         };
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-        handle(deps.as_mut(), mock_env(), info.clone(), msg_two.clone()).unwrap();
+        handle(deps.branch(), mock_env(), info.clone(), msg.clone()).unwrap();
+        handle(deps.branch(), mock_env(), info.clone(), msg_two.clone()).unwrap();
+    }
+
+    #[test]
+    fn query_list() {
+        let mut deps = mock_dependencies(&[]);
+        deps.api.canonical_length = 44;
+
+        init_contract(&mut deps.as_mut());
 
         // Offering should be listed
         let res = query(
@@ -242,30 +246,7 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         deps.api.canonical_length = 44;
 
-        let msg = InitMsg {};
-        let info = mock_info("fake_sender_addr", &[]);
-
-        // we can just call .unwrap() to assert this was a success
-        let res = init(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
-        assert_eq!(0, res.messages.len());
-
-        let msg = HandleMsg::StartNew {
-            epoch: 1u64,
-            data: vec![Data {
-                address: String::from("abcdef"),
-                score: 2,
-            }],
-        };
-
-        let msg_two = HandleMsg::StartNew {
-            epoch: 2u64,
-            data: vec![Data {
-                address: String::from("abcdef"),
-                score: 2,
-            }],
-        };
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-        handle(deps.as_mut(), mock_env(), info.clone(), msg_two.clone()).unwrap();
+        init_contract(&mut deps.as_mut());
 
         // Offering should be listed
         let res = query(deps.as_ref(), mock_env(), QueryMsg::QueryLatest {}).unwrap();
@@ -278,30 +259,7 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         deps.api.canonical_length = 44;
 
-        let msg = InitMsg {};
-        let info = mock_info("fake_sender_addr", &[]);
-
-        // we can just call .unwrap() to assert this was a success
-        let res = init(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
-        assert_eq!(0, res.messages.len());
-
-        let msg = HandleMsg::StartNew {
-            epoch: 1u64,
-            data: vec![Data {
-                address: String::from("abcdef"),
-                score: 2,
-            }],
-        };
-
-        let msg_two = HandleMsg::StartNew {
-            epoch: 2u64,
-            data: vec![Data {
-                address: String::from("abcdef"),
-                score: 2,
-            }],
-        };
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-        handle(deps.as_mut(), mock_env(), info.clone(), msg_two.clone()).unwrap();
+        init_contract(&mut deps.as_mut());
 
         // get first epoch
         let mut res = query(
@@ -327,31 +285,9 @@ mod tests {
     fn update_latest() {
         let mut deps = mock_dependencies(&[]);
         deps.api.canonical_length = 44;
-
-        let msg = InitMsg {};
         let info = mock_info("fake_sender_addr", &[]);
 
-        // we can just call .unwrap() to assert this was a success
-        let res = init(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
-        assert_eq!(0, res.messages.len());
-
-        let msg = HandleMsg::StartNew {
-            epoch: 1u64,
-            data: vec![Data {
-                address: String::from("abcdef"),
-                score: 2,
-            }],
-        };
-
-        let msg_two = HandleMsg::StartNew {
-            epoch: 2u64,
-            data: vec![Data {
-                address: String::from("abcdef"),
-                score: 2,
-            }],
-        };
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-        handle(deps.as_mut(), mock_env(), info.clone(), msg_two.clone()).unwrap();
+        init_contract(&mut deps.as_mut());
 
         // test update latest epoch without epoch input
         let mut msg_three = HandleMsg::UpdateLatest {
@@ -388,31 +324,9 @@ mod tests {
     fn update_specific() {
         let mut deps = mock_dependencies(&[]);
         deps.api.canonical_length = 44;
-
-        let msg = InitMsg {};
         let info = mock_info("fake_sender_addr", &[]);
 
-        // we can just call .unwrap() to assert this was a success
-        let res = init(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
-        assert_eq!(0, res.messages.len());
-
-        let msg = HandleMsg::StartNew {
-            epoch: 1u64,
-            data: vec![Data {
-                address: String::from("abcdef"),
-                score: 2,
-            }],
-        };
-
-        let msg_two = HandleMsg::StartNew {
-            epoch: 2u64,
-            data: vec![Data {
-                address: String::from("abcdef"),
-                score: 2,
-            }],
-        };
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
-        handle(deps.as_mut(), mock_env(), info.clone(), msg_two.clone()).unwrap();
+        init_contract(&mut deps.as_mut());
 
         let msg_three = HandleMsg::UpdateSpecific {
             epoch: 1,

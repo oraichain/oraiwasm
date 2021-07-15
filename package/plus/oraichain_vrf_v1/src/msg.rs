@@ -7,7 +7,8 @@ pub struct InitMsg {
     pub pubkey: Binary,
     /// The denom in which bounties are paid. This is typically the fee token of the chain.
     pub bounty_denom: String,
-    pub signature: Binary, // the first signature, for round 0
+    pub signature: Binary, // the first signature, for round 0,
+    pub user_input: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -20,11 +21,15 @@ pub enum HandleMsg {
     SetFees {
         fees: Uint128,
         signature: Binary,
+        user_input: String,
     },
     Add {
         signature: Binary,
+        user_input: String,
     },
-    InvokeAdd {},
+    InvokeAdd {
+        user_input: String,
+    },
     WithdrawFees {
         fees: Uint128,
     },
@@ -47,6 +52,7 @@ pub struct RandomData {
     pub round: u64,
     pub signature: Binary,
     pub previous_signature: Binary,
+    pub user_input: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

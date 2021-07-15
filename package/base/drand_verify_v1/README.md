@@ -10,7 +10,7 @@ All Signatures can be aggregated into one signature to verify a single message s
 
 Create a small random chain on blockchain using a smart contract
 
-Smart contract is initialized with aggregated public key of all participants (priv-pub pairs generated from BLS signature scheme) and first signature from singing the zero round. At every round, a previous signature, current round, random seed (coming from the user input when creating a random request) are required to generate a new signature. Aggregating all new signatures forms a new aggregated signature, which is used to generate a new truly decentralized randomness figure.
+Smart contract is initialized with aggregated public key of all participants (priv-pub pairs generated from BLS signature scheme) and first signature from singing the zero round. At every round, a previous_signature and new aggregated signature are required to generate new truly decentralized randomness.
 
 Has an executor to aggregate the signature & update it on the random chain smart contract
 
@@ -28,7 +28,7 @@ Has one participant, also executor, only random chain smart contract
 
 ### Step 1
 
-The participant generates a new signature (sign on message including: # round, random seed of the requestor, and the aggregated signature of the previous round) with k-minute interval.
+The participant generates a new signature (sign on message including: # round & aggregated signature of the previous round) with k-minute interval.
 
 ### Step 2
 
@@ -42,7 +42,7 @@ Example Oraichain VRF query: https://lcd.testnet.orai.io/wasm/v1beta1/contract/o
 
 ### User interaction
 
-If you want to generate your own random seed, please enter the [Oraichain VRF](https://scan.orai.io/randomness) web page. Next, click the `generate` button to start the process. It should take roughly 30 seconds to 1 minute to get the new seed. The web page will refresh automatically when there is an update so you can collect the new seed.
+If you want to generate your own random seed, please enter the [Oraichain VRF](https://scan.orai.io/vrf) web page. Next, click the `generate` button to start the process. It should take roughly 30 seconds to 1 minute to get the new seed. The web page will refresh automatically when there is an update so you can collect the new seed.
 
 ## Phase 2
 
@@ -60,7 +60,7 @@ A user creates a random request to a random request smart contract to trigger th
 
 ### Step 2
 
-Participants generate signatures (sign on a message including: # round, random seed, and the aggregated signature of the previous round).
+Participants generate signatures (sign on a message including: # round & aggregated signature of the previous round).
 
 ### Step 3
 
