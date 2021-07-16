@@ -43,6 +43,6 @@ if [ "$build_schema" == 'true' ]; then
 fi
 
 # show content
-ls -lh "artifacts/$name.wasm"
+du -h "artifacts/$name.wasm"
 
 echo "done"

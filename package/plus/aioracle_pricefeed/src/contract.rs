@@ -1,4 +1,5 @@
 use aioracle::create_contract_with_aggregate;
+use aioracle::handle_aioracle;
 use cosmwasm_std::StdResult;
 
 create_contract_with_aggregate!(aggregate);
