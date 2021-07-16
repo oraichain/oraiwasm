@@ -24,7 +24,7 @@ At the moment, only phase 1 is implemented, tested and run successfully.
 
 Has one participant, also executor, only random chain smart contract
 
-![image](https://mermaid.orai.io/eyJjb2RlIjoiZ3JhcGggVERcbiAgICBBW1BhcnRpY2lwYW50XSAtLT58Um91bmQgbnwgQihTaWduYXR1cmUpXG4gICAgQiAtLT4gQ3tWZXJpZnl9XG4gICAgQyAtLT58VHJ1ZXwgRFtEZXJpdmUgcmFuZG9tbmVzc11cbiAgICBDIC0tPnxGYWxzZXwgRVtJbnZhbGlkIHNpZ25hdHVyZV0iLCJtZXJtYWlkIjoie1xuICBcInRoZW1lXCI6IFwiZGVmYXVsdFwiXG59IiwidXBkYXRlRWRpdG9yIjpmYWxzZSwiYXV0b1N5bmMiOnRydWUsInVwZGF0ZURpYWdyYW0iOmZhbHNlfQ)
+![image](./step-1.png)
 
 ### Step 1
 
