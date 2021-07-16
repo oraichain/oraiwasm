@@ -1,6 +1,6 @@
 ## How to run and query
 
-current credit score aioracle smart contract: orai1xrwwv8d6dnz3ulxgwqjqdxprxxhu9jwrmsnp50
+current credit score aioracle smart contract: ```orai1xrwwv8d6dnz3ulxgwqjqdxprxxhu9jwrmsnp50```
 
 All commands below are used in the repository: https://github.com/oraichain/oraicli
 
