@@ -28,7 +28,7 @@ pub enum ContractError {
     CannotEncode(String),
 
     #[error("InvalidDenom")]
-    InvalidDenom(String),
+    InvalidDenom { expected_denom: String },
 
     #[error("FeesTooLow")]
     FeesTooLow(String),
