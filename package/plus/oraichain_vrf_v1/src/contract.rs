@@ -2,7 +2,9 @@ use cosmwasm_std::{
     attr, coins, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
     HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult, Storage, Uint128,
 };
-use drand_verify_v1::{derive_randomness, g1_from_variable, verify};
+use drand_verify_v1::{
+    derive_randomness, g1_from_variable, g2_from_fixed, g2_from_variable, verify,
+};
 
 use crate::errors::{HandleError, QueryError};
 use crate::msg::{BountiesResponse, Bounty, HandleMsg, InitMsg, QueryMsg, RandomData};
@@ -18,7 +20,7 @@ pub fn init(
     msg: InitMsg,
 ) -> Result<InitResponse, HandleError> {
     // verify signature for genesis round
-    let pk = g1_from_variable(&msg.pubkey).map_err(|_| HandleError::InvalidPubkey {})?;
+    let pk = g2_from_variable(&msg.pubkey).map_err(|_| HandleError::InvalidPubkey {})?;
     let valid = verify(
         &pk,
         0,
@@ -91,7 +93,7 @@ pub fn try_set_fees(
         }
     };
 
-    let pk = g1_from_variable(&pubkey).map_err(|_| HandleError::InvalidPubkey {})?;
+    let pk = g2_from_variable(&pubkey).map_err(|_| HandleError::InvalidPubkey {})?;
     // verify signature
     let valid = verify(
         &pk,
@@ -211,7 +213,7 @@ pub fn try_add(
         }
     };
 
-    let pk = g1_from_variable(&pubkey).map_err(|_| HandleError::InvalidPubkey {})?;
+    let pk = g2_from_variable(&pubkey).map_err(|_| HandleError::InvalidPubkey {})?;
     // verify signature
     let valid = verify(
         &pk,
@@ -344,6 +346,7 @@ mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
     use cosmwasm_std::{from_binary, Coin, HumanAddr, Uint128};
+    use hex_literal::hex;
 
     const PUB_KEY: &str = "pzOZRhfkA57am7gdqjYr9eFT65WXt8hm2SETYIsGsDm7D/a6OV5Vdgvn0XL6ePeJ";
     const BOUNTY_DENOM: &str = "orai";
@@ -381,6 +384,18 @@ mod tests {
         let res = init(deps, mock_env(), info, msg).unwrap();
 
         return res;
+    }
+
+    #[test]
+    fn verify_g2() {
+        let pubkey = hex!("830d7338e18e70b6f511aae944c16d5d9720d4e20a27205b4636ceb226214d42d6a2e965d7abce9295be8dbf38e4a2174b702c3121d092b7d93e9d319e343bc160c8e13b9c12601b9539edc7876d5ba16d2fdc7cc906e91bb46748bfd7064685");
+        let signature = hex!("38cbf5fe262203ee022be47fd25a676caddbec2738a0e28db2ffe771672d122838013d8ab8f0644d6deac55f3a02aa13");
+        let pk = g2_from_fixed(pubkey)
+            .map_err(|_| HandleError::InvalidPubkey {})
+            .unwrap();
+        // let valid = verify(&pk, 1, &vec![], &vec![], &signature).unwrap_or(false);
+        // println!("valid :{}", valid);
+        // // not valid signature for round 0
     }
 
     #[test]
