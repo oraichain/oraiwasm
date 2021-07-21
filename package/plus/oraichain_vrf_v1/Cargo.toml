@@ -45,3 +45,4 @@ cosmwasm-vm = { version = "0.13.2", default-features = false, features = [
   "iterator",
 ] }
 cosmwasm-schema = { version = "0.13.2" }
+hex-literal = "0.3.1"
