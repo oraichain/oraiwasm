@@ -26,9 +26,9 @@ pub fn handle(
         HandleMsg::OracleHandle { msg } => {
             let result = handle_aioracle(deps, env, info, msg);
             if result.is_err() {
-                return Err(ContractError::OracleContractError {
-                    error: result.expect_err("Error on handle ai oracle, not possible because we already check if the result has error"),
-                });
+                return Err(ContractError::OracleContractError(
+                    result.expect_err("Error on handle ai oracle, not possible because we already check if the result has error"),
+                ));
             }
             let handle_response =
                 result.expect("Cannot get error here, since we already check error above");

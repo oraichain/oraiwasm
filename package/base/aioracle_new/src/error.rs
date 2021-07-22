@@ -6,33 +6,30 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Unauthorized")]
+    #[error("Unauthorized: {0}")]
     Unauthorized(String),
 
     #[error("The threshold is invalid - should not be greater than 100")]
     InvalidThresHold(),
 
-    #[error("Reported")]
+    #[error("Reported: {0}")]
     Reported(String),
 
-    #[error("ValidatorNotFound")]
+    #[error("ValidatorNotFound: {0}")]
     ValidatorNotFound(String),
 
     #[error("InvalidValidators")]
     InvalidValidators(),
 
-    #[error("CannotDecode")]
+    #[error("CannotDecode: {0}")]
     CannotDecode(String),
 
-    #[error("CannotEncode")]
+    #[error("CannotEncode: {0}")]
     CannotEncode(String),
 
-    #[error("InvalidDenom")]
+    #[error("InvalidDenom: Expected denom is: {expected_denom}")]
     InvalidDenom { expected_denom: String },
 
-    #[error("FeesTooLow")]
+    #[error("FeesTooLow: {0}")]
     FeesTooLow(String),
-
-    #[error("CannotGetState")]
-    CannotGetState(),
 }

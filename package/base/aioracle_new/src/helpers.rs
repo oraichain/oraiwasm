@@ -257,19 +257,6 @@ fn try_create_airequest(
     info: MessageInfo,
     ai_request_msg: AIRequestMsg,
 ) -> Result<HandleResponse, ContractError> {
-    // check sent funds
-    let denom = "orai";
-
-    let matching_coin = info.sent_funds.iter().find(|fund| fund.denom == denom);
-    let fees: Coin = match matching_coin {
-        Some(coin) => coin.to_owned(),
-        None => {
-            return Err(ContractError::InvalidDenom {
-                expected_denom: denom.to_string(),
-            });
-        }
-    };
-
     // validate list validators
     if !validate_validators(deps.as_ref(), ai_request_msg.validators.clone()) {
         return Err(ContractError::InvalidValidators());
@@ -283,6 +270,19 @@ fn try_create_airequest(
         query_validator_fees(deps.as_ref(), ai_request_msg.validators.clone());
 
     total = total + dsource_fees + validator_fees;
+    // if total > 0 {
+    // check sent funds
+    let denom = "orai";
+    let matching_coin = info.sent_funds.iter().find(|fund| fund.denom == denom);
+    let fees: Coin = match matching_coin {
+        Some(coin) => coin.to_owned(),
+        None => {
+            return Err(ContractError::InvalidDenom {
+                expected_denom: denom.to_string(),
+            });
+        }
+    };
+
     if fees.amount < Uint128::from(total) {
         return Err(ContractError::FeesTooLow(format!(
             "Fees too low. Expected {}, got {}",
@@ -290,6 +290,7 @@ fn try_create_airequest(
             fees.amount.to_string()
         )));
     };
+    // }
 
     // set request after verifying the fees
     let request_id = increment_requests(deps.storage)?;
