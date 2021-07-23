@@ -101,8 +101,16 @@ pub fn update_share_sig(
         threshold,
     } = config_read(deps.storage).load()?;
 
-    let mut random_data = query_get(deps.as_ref(), share_sig.round)?;
-    let mut new_sigs = random_data.sigs.clone();
+    let mut share_data = query_get(deps.as_ref(), share_sig.round)?;
+    // if too late, unauthorized to add more signature
+    if share_data.sigs.len() >= threshold as usize {
+        return Err(ContractError::Unauthorized(format!(
+            "{} can not sign more because all neccessary signatures are collected",
+            info.sender
+        )));
+    }
+
+    let mut new_sigs = share_data.sigs.clone();
     match new_sigs
         .iter_mut()
         .find(|sig| sig.sender.eq(&member.address))
@@ -120,9 +128,9 @@ pub fn update_share_sig(
         }
     }
     // update new sigs
-    random_data.sigs = new_sigs;
+    share_data.sigs = new_sigs;
     // update back data
-    let msg = to_binary(&random_data)?;
+    let msg = to_binary(&share_data)?;
     beacons_storage(deps.storage).set(&share_sig.round.to_be_bytes(), &msg);
 
     let mut response = HandleResponse::default();
@@ -244,16 +252,16 @@ fn query_get(deps: Deps, round: u64) -> Result<DistributedShareData, ContractErr
     let value = beacons
         .get(&round.to_be_bytes())
         .ok_or(ContractError::NoBeacon {})?;
-    let random_data: DistributedShareData = from_binary(&value.into())?;
-    Ok(random_data)
+    let share_data: DistributedShareData = from_binary(&value.into())?;
+    Ok(share_data)
 }
 
 fn query_latest(deps: Deps) -> Result<DistributedShareData, ContractError> {
     let store = beacons_storage_read(deps.storage);
     let mut iter = store.range(None, None, Order::Descending);
     let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
-    let random_data: DistributedShareData = from_binary(&value.into())?;
-    Ok(random_data)
+    let share_data: DistributedShareData = from_binary(&value.into())?;
+    Ok(share_data)
 }
 
 #[cfg(test)]
