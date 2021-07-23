@@ -63,7 +63,14 @@ pub fn init_share(
         }
     };
 
-    // update share
+    // update share, once and only, to make random verifiable
+    if member.share.is_some() {
+        return Err(ContractError::Unauthorized(format!(
+            "{} can not change the share once submitted",
+            info.sender
+        )));
+    }
+
     member.share = Some(share);
     let msg = to_binary(&member)?;
     members_storage(deps.storage).set(&member.address.as_bytes(), &msg);
