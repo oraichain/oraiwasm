@@ -1,6 +1,6 @@
 [package]
 edition = "2018"
-name = "aioracle_pricefeed"
+name = "aioracle_farming"
 version = "0.1.0"
 
 exclude = [

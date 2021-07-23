@@ -1,4 +1,4 @@
-use cosmwasm_std::{CosmosMsg, HumanAddr, StdResult, Storage, Uint128};
+use cosmwasm_std::{Binary, CosmosMsg, HumanAddr, StdResult, Storage, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, U64Key, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -53,7 +53,7 @@ pub struct Report {
     pub validator: HumanAddr,
     pub block_height: u64,
     pub dsources_results: Vec<DataSourceResult>,
-    pub aggregated_result: String,
+    pub aggregated_result: Binary,
     pub status: bool,
 }
 

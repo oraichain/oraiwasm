@@ -99,7 +99,7 @@ mod tests {
 
     #[test]
     fn proper_initialization() {
-        let test_str:String = format!("[{{\"name\":\"ETH\",\"prices\":\"hello\"}},{{\"name\":\"BTC\",\"prices\":\"hellohello\"}}]");
+        let test_str:String = format!("[{{\"name\":\"ETH\",\"prices\":[\"hello\"]}},{{\"name\":\"BTC\",\"prices\":[\"hellohello\"]}}]");
         let test: Vec<Data> = from_slice(test_str.as_bytes()).unwrap();
         println!("test data: {}", test[0].name);
     }

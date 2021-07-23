@@ -17,7 +17,7 @@ use cw_storage_plus::Bound;
 
 const DEFAULT_LIMIT: u8 = 10;
 const MAX_LIMIT: u8 = 30;
-type AggregateHandler = fn(&mut DepsMut, &Env, &MessageInfo, &[String]) -> StdResult<String>;
+type AggregateHandler = fn(&mut DepsMut, &Env, &MessageInfo, &[String]) -> StdResult<Binary>;
 
 pub fn query_datasources(deps: Deps) -> StdResult<Binary> {
     let state = query_state(deps.storage)?;
@@ -257,23 +257,6 @@ fn try_create_airequest(
     info: MessageInfo,
     ai_request_msg: AIRequestMsg,
 ) -> Result<HandleResponse, ContractError> {
-    // check sent funds
-    let mut fees: Coin = Coin {
-        denom: String::from("orai"),
-        amount: Uint128(0),
-    };
-    if info.sent_funds.len() > 0 {
-        let funds = info.sent_funds[0].clone();
-        // check funds type
-        if !fees.denom.eq("orai") {
-            return Err(ContractError::InvalidDenom(format!(
-                "Invalid denom coin. Expected orai, got {}",
-                fees.denom.as_str()
-            )));
-        };
-        fees.amount = funds.amount;
-    }
-
     // validate list validators
     if !validate_validators(deps.as_ref(), ai_request_msg.validators.clone()) {
         return Err(ContractError::InvalidValidators());
@@ -287,13 +270,27 @@ fn try_create_airequest(
         query_validator_fees(deps.as_ref(), ai_request_msg.validators.clone());
 
     total = total + dsource_fees + validator_fees;
-    if fees.amount < Uint128::from(total) {
-        return Err(ContractError::FeesTooLow(format!(
-            "Fees too low. Expected {}, got {}",
-            total.to_string(),
-            fees.amount.to_string()
-        )));
-    };
+    if total > 0 {
+        // check sent funds
+        let denom = "orai";
+        let matching_coin = info.sent_funds.iter().find(|fund| fund.denom == denom);
+        let fees: Coin = match matching_coin {
+            Some(coin) => coin.to_owned(),
+            None => {
+                return Err(ContractError::InvalidDenom {
+                    expected_denom: denom.to_string(),
+                });
+            }
+        };
+
+        if fees.amount < Uint128::from(total) {
+            return Err(ContractError::FeesTooLow(format!(
+                "Fees too low. Expected {}, got {}",
+                total.to_string(),
+                fees.amount.to_string()
+            )));
+        };
+    }
 
     // set request after verifying the fees
     let request_id = increment_requests(deps.storage)?;
@@ -442,7 +439,7 @@ fn try_aggregate(
         validator,
         dsources_results,
         block_height: env.block.height,
-        aggregated_result,
+        aggregated_result: aggregated_result.clone(),
         status: report_status,
     };
 
@@ -487,7 +484,7 @@ fn try_aggregate(
 
     let res = HandleResponse {
         messages: cosmos_msgs,
-        attributes: vec![attr("contract", env.contract.address.clone())],
+        attributes: vec![attr("aggregated_result", aggregated_result)],
         data: None,
     };
 

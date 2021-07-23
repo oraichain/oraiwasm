@@ -203,7 +203,7 @@ pub fn aggregate(
     _env: &Env,
     info: &MessageInfo,
     results: &[String],
-) -> StdResult<String> {
+) -> StdResult<Binary> {
     // append the list
     let mut final_result: String = String::from("");
     for result in results {
@@ -216,14 +216,14 @@ pub fn aggregate(
             aggregate_msg.data,
         );
         if update_result.is_err() {
-            return Ok("".to_string());
+            return Ok(to_binary("")?);
         }
 
         final_result.push_str(result);
         final_result.push('&');
     }
     final_result.pop();
-    Ok(final_result)
+    Ok(to_binary(&final_result)?)
 }
 
 #[cfg(test)]
