@@ -484,7 +484,14 @@ fn try_aggregate(
 
     let res = HandleResponse {
         messages: cosmos_msgs,
-        attributes: vec![attr("aggregated_result", aggregated_result)],
+        attributes: vec![
+            attr("aggregated_result", aggregated_result),
+            attr("request_id", request_id),
+            attr("reporter", report.validator),
+            attr("report_status", report.status),
+            attr("block_height", report.block_height),
+            attr("function_type", "aggregate_and_report"),
+        ],
         data: None,
     };
 
