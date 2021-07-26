@@ -15,6 +15,14 @@ pub struct ShareSig {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct AggregateSig {
+    pub sender: String,
+    pub sig: Binary,
+    pub signed_sig: Binary,
+    pub pubkey: Binary,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MemberMsg {
     pub address: String, // orai wallet for easy lookup
     pub pubkey: Binary,
@@ -39,9 +47,29 @@ pub struct UpdateShareSigMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    InitShare { share: ShareMsg },
-    RequestRandom { input: Binary },
-    UpdateShareSig { share_sig: UpdateShareSigMsg },
+    InitShare {
+        share: ShareMsg,
+    },
+    RequestRandom {
+        input: Binary,
+    },
+    UpdateShareSig {
+        share_sig: UpdateShareSigMsg,
+    },
+    AggregateSignature {
+        sig: Binary,
+        signed_sig: Binary,
+        round: u64,
+    },
+    UpdateThresHold {
+        threshold: u32,
+    },
+    UpdateFees {
+        fee: Coin,
+    },
+    UpdateMembers {
+        members: Vec<MemberMsg>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -60,4 +88,5 @@ pub struct DistributedShareData {
     pub sigs: Vec<ShareSig>,
     pub round: u64,
     pub input: Binary,
+    pub aggregate_sig: AggregateSig,
 }

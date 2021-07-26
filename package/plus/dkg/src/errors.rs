@@ -1,11 +1,11 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::{Binary, StdError};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ContractError {
     #[error("StdError: {0}")]
     StdError(#[from] StdError),
-    #[error("Unauthorized")]
+    #[error("Unauthorized, {0}")]
     Unauthorized(String),
     #[error("Round must be greater than 0: {round}")]
     InvalidRound { round: u64 },
@@ -19,4 +19,6 @@ pub enum ContractError {
     UnknownError {},
     #[error("No beacon exists in the database")]
     NoBeacon {},
+    #[error("Round already finished with round: {round} & signature: {sig}")]
+    FinishedRound { round: u64, sig: Binary },
 }

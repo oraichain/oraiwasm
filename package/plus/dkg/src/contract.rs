@@ -1,22 +1,22 @@
 use cosmwasm_std::{
-    coins, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
-    InitResponse, MessageInfo, Order,
+    attr, coins, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    HandleResponse, InitResponse, MessageInfo, Order,
 };
 
 use crate::errors::ContractError;
 use crate::msg::{
-    DistributedShareData, HandleMsg, InitMsg, MemberMsg, QueryMsg, ShareMsg, ShareSig,
-    UpdateShareSigMsg,
+    AggregateSig, DistributedShareData, HandleMsg, InitMsg, MemberMsg, QueryMsg, ShareMsg,
+    ShareSig, UpdateShareSigMsg,
 };
 use crate::state::{
     beacons_storage, beacons_storage_read, config, config_read, members_storage,
-    members_storage_read, Config,
+    members_storage_read, owner, owner_read, Config, Owner,
 };
 
 pub fn init(
     deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: InitMsg,
 ) -> Result<InitResponse, ContractError> {
     // init with a signature, pubkey and denom for bounty
@@ -32,6 +32,10 @@ pub fn init(
         members_store.set(&member.address.as_bytes(), &msg);
     }
 
+    owner(deps.storage).save(&Owner {
+        owner: info.sender.to_string(),
+    })?;
+
     Ok(InitResponse::default())
 }
 
@@ -45,7 +49,80 @@ pub fn handle(
         HandleMsg::InitShare { share } => init_share(deps, info, share),
         HandleMsg::UpdateShareSig { share_sig } => update_share_sig(deps, env, info, share_sig),
         HandleMsg::RequestRandom { input } => request_random(deps, info, input),
+        HandleMsg::AggregateSignature {
+            sig,
+            signed_sig,
+            round,
+        } => aggregate_sig(deps, info, sig, signed_sig, round),
+        HandleMsg::UpdateThresHold { threshold } => update_threshold(deps, info, threshold),
+        HandleMsg::UpdateFees { fee } => update_fees(deps, info, fee),
+        HandleMsg::UpdateMembers { members } => update_members(deps, info, members),
     }
+}
+
+pub fn update_members(
+    deps: DepsMut,
+    info: MessageInfo,
+    members: Vec<MemberMsg>,
+) -> Result<HandleResponse, ContractError> {
+    let owner = owner_read(deps.storage).load()?;
+    if !owner.owner.eq(info.sender.as_str()) {
+        return Err(ContractError::Unauthorized(
+            "Not an owner to update members".to_string(),
+        ));
+    }
+
+    // store all members by their addresses
+    let mut members_store = members_storage(deps.storage);
+    // ready to remove all old members before adding new
+    let old_members: Vec<MemberMsg> = members_store
+        .range(None, None, Order::Ascending)
+        .map(|(_key, value)| from_binary(&value.into()).unwrap())
+        .collect();
+    for old_member in old_members {
+        members_store.remove(old_member.address.as_bytes());
+    }
+    for member in members {
+        let msg = to_binary(&member)?;
+        members_store.set(&member.address.as_bytes(), &msg);
+    }
+    Ok(HandleResponse::default())
+}
+
+pub fn update_threshold(
+    deps: DepsMut,
+    info: MessageInfo,
+    threshold: u32,
+) -> Result<HandleResponse, ContractError> {
+    let owner = owner_read(deps.storage).load()?;
+    if !owner.owner.eq(info.sender.as_str()) {
+        return Err(ContractError::Unauthorized(
+            "Not an owner to update members".to_string(),
+        ));
+    }
+    let mut config_data = config_read(deps.storage).load()?;
+    config_data.threshold = threshold;
+    // init with a signature, pubkey and denom for bounty
+    config(deps.storage).save(&config_data)?;
+    Ok(HandleResponse::default())
+}
+
+pub fn update_fees(
+    deps: DepsMut,
+    info: MessageInfo,
+    fee: Coin,
+) -> Result<HandleResponse, ContractError> {
+    let owner = owner_read(deps.storage).load()?;
+    if !owner.owner.eq(info.sender.as_str()) {
+        return Err(ContractError::Unauthorized(
+            "Not an owner to update members".to_string(),
+        ));
+    }
+    let mut config_data = config_read(deps.storage).load()?;
+    config_data.fee = Some(fee);
+    // init with a signature, pubkey and denom for bounty
+    config(deps.storage).save(&config_data)?;
+    Ok(HandleResponse::default())
 }
 
 pub fn init_share(
@@ -154,6 +231,63 @@ pub fn update_share_sig(
     Ok(response)
 }
 
+pub fn aggregate_sig(
+    deps: DepsMut,
+    info: MessageInfo,
+    sig: Binary,
+    signed_sig: Binary,
+    round: u64,
+) -> Result<HandleResponse, ContractError> {
+    // check member
+    let member = match query_member(deps.as_ref(), info.sender.as_str()) {
+        Ok(m) => m,
+        Err(_) => {
+            return Err(ContractError::Unauthorized(format!(
+                "{} is not the member",
+                info.sender
+            )))
+        }
+    };
+
+    // check if the round has finished or not
+    let mut share_data = query_get(deps.as_ref(), round)?;
+    if !share_data.aggregate_sig.sender.eq("") {
+        return Err(ContractError::FinishedRound { round, sig });
+    }
+    let Config { fee: _, threshold } = config_read(deps.storage).load()?;
+
+    // if too early => cannot add aggregated signature
+    if share_data.sigs.len() < threshold as usize {
+        return Err(ContractError::Unauthorized(format!(
+            "{} cannot add aggregated signature when the # of signatures is below the threshold",
+            info.sender
+        )));
+    }
+
+    share_data.aggregate_sig = AggregateSig {
+        sender: info.sender.to_string(),
+        sig,
+        signed_sig,
+        pubkey: member.pubkey,
+    };
+    let msg = to_binary(&share_data)?;
+    beacons_storage(deps.storage).set(&round.to_be_bytes(), &msg);
+
+    // return response events
+    let response = HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("function_type", "aggregate_sig"),
+            attr("share_data", to_binary(&share_data)?),
+            attr("aggregate_sig", to_binary(&share_data.aggregate_sig)?),
+            attr("round", round),
+            attr("sender", info.sender),
+        ],
+        data: None,
+    };
+    Ok(response)
+}
+
 pub fn request_random(
     deps: DepsMut,
     info: MessageInfo,
@@ -203,14 +337,27 @@ pub fn request_random(
     let msg = to_binary(&DistributedShareData {
         round,
         sigs: vec![],
-        input,
+        input: input.clone(),
+        aggregate_sig: AggregateSig {
+            sender: "".to_string(),
+            sig: to_binary("")?,
+            signed_sig: to_binary("")?,
+            pubkey: to_binary("")?,
+        },
     })?;
 
     beacons_storage(deps.storage).set(&round.to_be_bytes(), &msg);
 
     // return the round
-    let mut response = HandleResponse::default();
-    response.data = Some(Binary::from(round.to_be_bytes()));
+    let response = HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("function_type", "request_random"),
+            attr("input", input),
+            attr("round", round),
+        ],
+        data: Some(Binary::from(round.to_be_bytes())),
+    };
     Ok(response)
 }
 
