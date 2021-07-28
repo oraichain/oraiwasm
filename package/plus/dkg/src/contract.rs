@@ -9,9 +9,11 @@ use crate::msg::{
     ShareSig, UpdateShareSigMsg,
 };
 use crate::state::{
-    beacons_storage, beacons_storage_read, config, config_read, members_storage,
-    members_storage_read, owner, owner_read, Config, Owner,
+    beacons_handle_storage, beacons_handle_storage_read, beacons_storage, beacons_storage_read,
+    config, config_read, members_storage, members_storage_read, owner, owner_read, Config, Owner,
 };
+
+use sha2::{Digest, Sha256};
 
 pub fn init(
     deps: DepsMut,
@@ -209,6 +211,7 @@ pub fn update_share_sig(
     // update back data
     let msg = to_binary(&share_data)?;
     beacons_storage(deps.storage).set(&share_sig.round.to_be_bytes(), &msg);
+    beacons_handle_storage(deps.storage).set(&share_sig.round.to_be_bytes(), &msg);
 
     let mut response = HandleResponse::default();
     // send fund to member, by fund / threshold, the late member will not get paid
@@ -264,14 +267,19 @@ pub fn aggregate_sig(
         )));
     }
 
+    let randomness = derive_randomness(&sig);
+
     share_data.aggregate_sig = AggregateSig {
         sender: info.sender.to_string(),
         sig,
         signed_sig,
         pubkey: member.pubkey,
+        randomness: randomness.into(),
     };
     let msg = to_binary(&share_data)?;
     beacons_storage(deps.storage).set(&round.to_be_bytes(), &msg);
+    // remove round from the handle queue
+    beacons_handle_storage(deps.storage).remove(&round.to_be_bytes());
 
     // return response events
     let response = HandleResponse {
@@ -295,15 +303,11 @@ pub fn request_random(
 ) -> Result<HandleResponse, ContractError> {
     let Config {
         fee: fee_val,
-        threshold,
+        threshold: _,
     } = config_read(deps.storage).load()?;
     // get next round and
     let round = match query_latest(deps.as_ref()) {
         Ok(v) => {
-            // at least threshold
-            if v.sigs.len() < threshold as usize {
-                return Err(ContractError::PendingRound { round: v.round });
-            }
             v.round + 1 // next round
         }
         Err(err) => {
@@ -343,10 +347,13 @@ pub fn request_random(
             sig: to_binary("")?,
             signed_sig: to_binary("")?,
             pubkey: to_binary("")?,
+            randomness: to_binary("")?,
         },
     })?;
 
     beacons_storage(deps.storage).set(&round.to_be_bytes(), &msg);
+    // this is used to store current handling rounds
+    beacons_handle_storage(deps.storage).set(&round.to_be_bytes(), &msg);
 
     // return the round
     let response = HandleResponse {
@@ -368,6 +375,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::GetMember { address } => to_binary(&query_member(deps, address.as_str())?)?,
         QueryMsg::GetMembers {} => to_binary(&query_members(deps)?)?,
         QueryMsg::LatestRound {} => to_binary(&query_latest(deps)?)?,
+        QueryMsg::EarliestHandling {} => to_binary(&query_earliest(deps)?)?,
     };
     Ok(response)
 }
@@ -411,11 +419,29 @@ fn query_latest(deps: Deps) -> Result<DistributedShareData, ContractError> {
     Ok(share_data)
 }
 
+fn query_earliest(deps: Deps) -> Result<DistributedShareData, ContractError> {
+    let store = beacons_handle_storage_read(deps.storage);
+    let mut iter = store.range(None, None, Order::Ascending);
+    let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
+    let share_data: DistributedShareData = from_binary(&value.into())?;
+    Ok(share_data)
+}
+
+/// Derives a 32 byte randomness from the beacon's signature
+pub fn derive_randomness(signature: &[u8]) -> [u8; 32] {
+    let mut hasher = Sha256::new();
+    hasher.update(signature);
+    hasher.finalize().into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::msg::MemberMsg;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::{
+        testing::{mock_dependencies, mock_env, mock_info},
+        Api, HumanAddr,
+    };
     use hex;
 
     fn initialization(deps: DepsMut) -> InitResponse {
