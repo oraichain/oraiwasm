@@ -250,7 +250,7 @@ mod tests {
         let temp_bytes = temp.as_bytes();
         let temp_cannonical = CanonicalAddr::from(temp_bytes);
         println!("cannonical addr: {}", temp_cannonical);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
         //let temp_human = deps.api.human_address(&temp_cannonical).unwrap();
         //println!("human from cannonical: {}", temp_human);
         println!(

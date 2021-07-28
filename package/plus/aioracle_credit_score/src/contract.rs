@@ -274,7 +274,7 @@ mod tests {
     #[test]
     fn query_datasources() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
 
         init_contract(&mut deps.as_mut());
 
@@ -294,7 +294,7 @@ mod tests {
     #[test]
     fn query_list() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
 
         init_contract(&mut deps.as_mut());
 
@@ -316,7 +316,7 @@ mod tests {
     #[test]
     fn query_latest() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
 
         init_contract(&mut deps.as_mut());
 
@@ -329,7 +329,7 @@ mod tests {
     #[test]
     fn query_specific() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
 
         init_contract(&mut deps.as_mut());
 
@@ -356,7 +356,7 @@ mod tests {
     #[test]
     fn update_latest() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
         let info = mock_info("fake_sender_addr", &[]);
 
         init_contract(&mut deps.as_mut());
@@ -392,7 +392,7 @@ mod tests {
     #[test]
     fn update_specific() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
         let info = mock_info("fake_sender_addr", &[]);
 
         init_contract(&mut deps.as_mut());

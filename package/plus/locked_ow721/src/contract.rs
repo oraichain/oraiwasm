@@ -580,7 +580,7 @@ mod tests {
     #[test]
     fn proper_initialization() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
 
         let owner = owner_read(&deps.storage).load().unwrap();
@@ -597,7 +597,7 @@ mod tests {
     #[test]
     fn change_owner() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
 
         let msg = HandleMsg::ChangeOwner {
@@ -625,7 +625,7 @@ mod tests {
     #[test]
     fn add_pubkey() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgs1QU=").unwrap();
         let msg = HandleMsg::AddPubKey {
@@ -652,7 +652,7 @@ mod tests {
     #[test]
     fn remove_pubkey() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
         let msg = HandleMsg::RemovePubKey {
@@ -679,7 +679,7 @@ mod tests {
     #[test]
     fn disable_pubkey() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
         let msg = HandleMsg::DisablePubKey {
@@ -706,7 +706,7 @@ mod tests {
     #[test]
     fn enable_pubkey() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
         let msg = HandleMsg::EnablePubKey {
@@ -752,7 +752,7 @@ mod tests {
     #[test]
     fn test_query_pubkeys() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
 
         // Offering should be listed
