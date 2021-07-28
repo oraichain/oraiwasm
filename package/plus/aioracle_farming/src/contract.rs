@@ -76,7 +76,7 @@ mod tests {
     #[test]
     fn query_datasources() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
 
         init_contract(&mut deps.as_mut());
 

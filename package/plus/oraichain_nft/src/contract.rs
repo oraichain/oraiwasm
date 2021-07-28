@@ -604,7 +604,7 @@ mod tests {
     use super::*;
     use cw721::ApprovedForAllResponse;
 
-    const MINTER: &str = "oagi4wjzdtzm02z9xy6m0xf3du52rma1w8uz6j2vup0";
+    const MINTER: &str = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3d";
     const CONTRACT_NAME: &str = "Magic Power";
     const SYMBOL: &str = "MGK";
 
@@ -614,7 +614,7 @@ mod tests {
             symbol: SYMBOL.to_string(),
             minter: MINTER.into(),
         };
-        let info = mock_info("oagi4wjzdtzm02z9xy6m0xf3du52rma1w8uz6j2vup0", &[]);
+        let info = mock_info(MINTER, &[]);
         let res = init(deps, mock_env(), info, msg).unwrap();
         assert_eq!(0, res.messages.len());
     }
@@ -629,7 +629,7 @@ mod tests {
             symbol: SYMBOL.to_string(),
             minter: MINTER.into(),
         };
-        let info = mock_info("oagi4wjzdtzm02z9xy6m0xf3du52rma1w8uz6j2vup0", &[]);
+        let info = mock_info(MINTER, &[]);
 
         // we can just call .unwrap() to assert this was a success
         let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();

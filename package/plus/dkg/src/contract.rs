@@ -510,7 +510,7 @@ mod tests {
     #[test]
     fn proper_initialization() {
         let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 44;
+        deps.api.canonical_length = 54;
         let res = initialization(deps.as_mut());
         assert_eq!(res.messages.len(), 0);
 
