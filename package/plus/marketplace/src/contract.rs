@@ -1,10 +1,10 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, SellNft};
+use crate::msg::{HandleMsg, InfoMsg, InitMsg, QueryMsg, SellNft};
 use crate::package::{ContractInfoResponse, OfferingsResponse, QueryOfferingsResult};
 use crate::state::{increment_offerings, Offering, CONTRACT_INFO, OFFERINGS};
 use cosmwasm_std::{
     attr, from_binary, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, InitResponse, MessageInfo, Order, StdResult, WasmMsg,
+    HandleResponse, InitResponse, MessageInfo, Order, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
@@ -18,8 +18,13 @@ const DEFAULT_LIMIT: u8 = 100;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(deps: DepsMut, _env: Env, _info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
-    let info = ContractInfoResponse { name: msg.name };
+pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+    let info = ContractInfoResponse {
+        name: msg.name,
+        creator: info.sender.to_string(),
+        is_free: true,
+        fee: None,
+    };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
 }
@@ -32,21 +37,54 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::MintNft { contract, msg } => try_handle_mint(deps, info, contract, msg),
+        HandleMsg::MintNft { contract, msg } => try_handle_mint(deps, info, env, contract, msg),
         HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, offering_id),
         HandleMsg::BuyNft { offering_id } => try_buy(deps, env, info, offering_id),
         HandleMsg::ReceiveNft(msg) => try_receive_nft(deps, info, msg),
+        HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
+        HandleMsg::UpdateInfo(info_msg) => try_update_info(deps, info, info_msg),
     }
+}
+
+fn check_sent_funds(
+    sent_funds: Vec<Coin>,
+    info: &ContractInfoResponse,
+) -> Result<Coin, ContractError> {
+    // collect buyer amount from sent_funds
+    if sent_funds.len() == 0 {
+        if !info.is_free {
+            return Err(ContractError::InvalidSentFundAmount {});
+        } else {
+            return Ok(Coin {
+                denom: "orai".to_string(),
+                amount: Uint128::from(0u64),
+            });
+        }
+    }
+    if let Some(fee) = info.fee.clone() {
+        if sent_funds[0].amount.lt(&fee.amount) {
+            return Err(ContractError::InsufficientFunds {});
+        }
+        if !sent_funds[0].denom.eq(&fee.denom) {
+            return Err(ContractError::InvalidDenomAmount {});
+        }
+    }
+    return Ok(sent_funds[0].clone());
 }
 
 // ============================== Message Handlers ==============================
 
 pub fn try_handle_mint(
-    _deps: DepsMut,
-    _info: MessageInfo,
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
     contract: HumanAddr,
     msg: Binary,
 ) -> Result<HandleResponse, ContractError> {
+    // collect mint amount from sent_funds
+    let info_response = CONTRACT_INFO.load(deps.storage)?;
+    let funds = check_sent_funds(info.sent_funds, &info_response)?;
+
     let mint = WasmMsg::Execute {
         contract_addr: contract.clone(),
         msg,
@@ -54,9 +92,82 @@ pub fn try_handle_mint(
     }
     .into();
 
+    let bank_msg: CosmosMsg = BankMsg::Send {
+        from_address: env.contract.address,
+        to_address: HumanAddr::from(info_response.creator),
+        amount: vec![Coin {
+            denom: funds.denom,
+            amount: funds.amount,
+        }],
+    }
+    .into();
+    let mut response = HandleResponse::default();
+    response.messages.push(mint);
+    // if there is fund => add bank message
+    if !funds.amount.is_zero() {
+        response.messages.push(bank_msg);
+    }
+    response.attributes = vec![attr("action", "mint_nft"), attr("contract_addr", contract)];
+
+    // khong cho user chu dong mint tren nay, va tinh fees
+
+    Ok(response)
+}
+
+pub fn try_withdraw_funds(
+    deps: DepsMut,
+    _info: MessageInfo,
+    env: Env,
+    funds: Coin,
+) -> Result<HandleResponse, ContractError> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    let bank_msg: CosmosMsg = BankMsg::Send {
+        from_address: env.contract.address,
+        to_address: HumanAddr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
+        amount: vec![Coin {
+            denom: funds.denom.clone(),
+            amount: funds.amount,
+        }],
+    }
+    .into();
+
     Ok(HandleResponse {
-        messages: vec![mint],
-        attributes: vec![attr("action", "mint_nft"), attr("contract_addr", contract)],
+        messages: vec![bank_msg],
+        attributes: vec![
+            attr("action", "withdraw_funds"),
+            attr("denom", funds.denom),
+            attr("amount", funds.amount),
+            attr("receiver", contract_info.creator),
+        ],
+        data: None,
+    })
+}
+
+pub fn try_update_info(
+    deps: DepsMut,
+    info: MessageInfo,
+    info_msg: InfoMsg,
+) -> Result<HandleResponse, ContractError> {
+    let mut contract_info = CONTRACT_INFO.load(deps.storage)?;
+    if !info.sender.to_string().eq(&contract_info.creator) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if let Some(name) = info_msg.name {
+        contract_info.name = name;
+    }
+    if let Some(creator) = info_msg.creator {
+        contract_info.creator = creator;
+    }
+    if let Some(is_free) = info_msg.is_free {
+        contract_info.is_free = is_free;
+    }
+    contract_info.fee = info_msg.fee;
+    CONTRACT_INFO.save(deps.storage, &contract_info)?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![attr("action", "update_info")],
         data: None,
     })
 }
@@ -67,16 +178,6 @@ pub fn try_buy(
     info: MessageInfo,
     offering_id: u64,
 ) -> Result<HandleResponse, ContractError> {
-    // collect buyer amount from sent_funds
-    if info.sent_funds.len() == 0 {
-        return Err(ContractError::InvalidSentFundAmount {});
-    }
-    let amount = info.sent_funds[0].amount;
-    println!("denom is: {}", info.sent_funds[0].denom);
-    if !info.sent_funds[0].denom.eq(&String::from("orai")) {
-        return Err(ContractError::InvalidDenomAmount {});
-    }
-
     // check if offering exists
     let off_result = OFFERINGS.load(deps.storage, &offering_id.to_be_bytes());
     // check if offering exists or not
@@ -84,10 +185,22 @@ pub fn try_buy(
         return Err(ContractError::InvalidGetOffering {});
     }
     let off: Offering = off_result?;
+    let mut amount = Uint128::from(0u64);
 
     // check for enough coins
-    if amount.lt(&off.price) {
-        return Err(ContractError::InsufficientFunds {});
+    if !off.price.is_zero() {
+        // collect buyer amount from sent_funds
+        if info.sent_funds.len() == 0 {
+            return Err(ContractError::InvalidSentFundAmount {});
+        }
+        amount = info.sent_funds[0].amount;
+        println!("denom is: {}", info.sent_funds[0].denom);
+        if !info.sent_funds[0].denom.eq(&String::from("orai")) {
+            return Err(ContractError::InvalidDenomAmount {});
+        }
+        if amount.lt(&off.price) {
+            return Err(ContractError::InsufficientFunds {});
+        }
     }
 
     // create transfer msg to send ORAI to the seller
@@ -144,6 +257,7 @@ pub fn try_buy(
             attr("seller", seller),
             attr("paid_price", price_string),
             attr("token_id", off.token_id),
+            attr("offering_id", offering_id),
             attr("contract_addr", contract_addr),
         ],
         data: None,
@@ -222,6 +336,7 @@ pub fn try_withdraw(
                 attr("action", "withdraw_nft"),
                 attr("seller", info.sender),
                 attr("offering_id", offering_id),
+                attr("token_id", off.token_id),
             ],
             data: None,
         });
@@ -236,12 +351,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             offset,
             order,
         } => to_binary(&query_offerings(deps, limit, offset, order)?),
+        QueryMsg::GetOffering { offering_id } => query_offering(deps, offering_id),
+        QueryMsg::GetContractInfo {} => query_contract_info(deps),
     }
 }
 
 // ============================== Query Handlers ==============================
 
-fn query_offerings(
+pub fn query_offerings(
     deps: Deps,
     limit: Option<u8>,
     offset: Option<u64>,
@@ -276,6 +393,16 @@ fn query_offerings(
     Ok(OfferingsResponse {
         offerings: res?, // Placeholder
     })
+}
+
+pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<Binary> {
+    let offering: Offering = OFFERINGS.load(deps.storage, &offering_id.to_be_bytes())?;
+    Ok(to_binary(&offering)?)
+}
+
+pub fn query_contract_info(deps: Deps) -> StdResult<Binary> {
+    let contract_info: ContractInfoResponse = CONTRACT_INFO.load(deps.storage)?;
+    Ok(to_binary(&contract_info)?)
 }
 
 fn parse_offering(api: &dyn Api, item: StdResult<KV<Offering>>) -> StdResult<QueryOfferingsResult> {
@@ -370,7 +497,7 @@ mod tests {
         // beneficiary can release it
         let info = mock_info("anyone", &vec![coin(5, "orai")]);
 
-        let sell_msg = SellNft { price: Uint128(1) };
+        let sell_msg = SellNft { price: Uint128(0) };
         let sell_msg_second = SellNft { price: Uint128(2) };
 
         println!("msg: {}", to_binary(&sell_msg).unwrap());
@@ -413,10 +540,10 @@ mod tests {
         // assert_eq!(2, value.offerings.len());
 
         let msg2 = HandleMsg::BuyNft {
-            offering_id: value.offerings[0].id,
+            offering_id: value.offerings[1].id,
         };
 
-        let info_buy = mock_info("cw20ContractAddr", &coins(5, "orai"));
+        let info_buy = mock_info("cw20ContractAddr", &coins(1, "orai"));
 
         let _res = handle(deps.as_mut(), mock_env(), info_buy, msg2).unwrap();
 
@@ -433,6 +560,183 @@ mod tests {
         .unwrap();
         let value2: OfferingsResponse = from_binary(&res2).unwrap();
         // assert_eq!(1, value2.offerings.len());
+    }
+
+    #[test]
+    fn check_sent_funds_empty() {
+        let info = mock_info("creator", &vec![]);
+        let amount = check_sent_funds(
+            info.sent_funds,
+            &ContractInfoResponse {
+                name: String::from("foo"),
+                creator: String::from("bar"),
+                is_free: true,
+                fee: None,
+            },
+        );
+        let is_err = amount.is_err();
+        let amount_unwrap = amount.unwrap();
+        println!("{:?}", amount_unwrap);
+        assert_eq!(is_err, false);
+        assert_eq!(Uint128::from(0u64), amount_unwrap.amount);
+        assert_eq!(String::from("orai"), amount_unwrap.denom);
+    }
+
+    #[test]
+    fn check_sent_funds_not_empty() {
+        let info = mock_info("creator", &coins(5, "orai"));
+        let amount = check_sent_funds(
+            info.sent_funds,
+            &ContractInfoResponse {
+                name: String::from("foo"),
+                creator: String::from("bar"),
+                is_free: true,
+                fee: None,
+            },
+        );
+        let is_err = amount.is_err();
+        let amount_unwrap = amount.unwrap();
+        println!("{:?}", amount_unwrap);
+        assert_eq!(is_err, false);
+        assert_eq!(Uint128::from(5u64), amount_unwrap.amount);
+        assert_eq!(String::from("orai"), amount_unwrap.denom);
+    }
+
+    #[test]
+    fn check_sent_funds_not_free_no_fee() {
+        let mut info = mock_info("creator", &vec![]);
+        let amount = check_sent_funds(
+            info.sent_funds,
+            &ContractInfoResponse {
+                name: String::from("foo"),
+                creator: String::from("bar"),
+                is_free: false,
+                fee: None,
+            },
+        );
+        let mut is_err = amount.is_err();
+        assert_eq!(is_err, true);
+
+        // now we have fees
+        info = mock_info("creator", &coins(5, "orai"));
+        let amount_2nd = check_sent_funds(
+            info.sent_funds,
+            &ContractInfoResponse {
+                name: String::from("foo"),
+                creator: String::from("bar"),
+                is_free: false,
+                fee: None,
+            },
+        );
+        is_err = amount_2nd.is_err();
+        assert_eq!(is_err, false);
+        assert_eq!(Uint128::from(5u64), amount_2nd.unwrap().amount);
+    }
+
+    #[test]
+    fn check_sent_funds_not_free_has_fee() {
+        let mut info = mock_info("creator", &coins(5, "orai"));
+        // fees greater than provided => error
+        let amount = check_sent_funds(
+            info.sent_funds,
+            &ContractInfoResponse {
+                name: String::from("foo"),
+                creator: String::from("bar"),
+                is_free: false,
+                fee: Some(Coin {
+                    denom: String::from("orai"),
+                    amount: Uint128::from(6u64),
+                }),
+            },
+        );
+        let mut is_err = amount.is_err();
+        assert_eq!(is_err, true);
+        println!("{:?}", amount.err());
+
+        // invalid denom
+        info = mock_info("creator", &coins(5, "orai"));
+        let amount_wrong_denom = check_sent_funds(
+            info.sent_funds,
+            &ContractInfoResponse {
+                name: String::from("foo"),
+                creator: String::from("bar"),
+                is_free: false,
+                fee: Some(Coin {
+                    denom: String::from("uorai"),
+                    amount: Uint128::from(1u64),
+                }),
+            },
+        );
+        is_err = amount_wrong_denom.is_err();
+        assert_eq!(is_err, true);
+        println!("{:?}", amount_wrong_denom.err());
+
+        // now we have fees
+        info = mock_info("creator", &coins(5, "orai"));
+        let amount_2nd = check_sent_funds(
+            info.sent_funds,
+            &ContractInfoResponse {
+                name: String::from("foo"),
+                creator: String::from("bar"),
+                is_free: false,
+                fee: Some(Coin {
+                    denom: String::from("orai"),
+                    amount: Uint128::from(4u64),
+                }),
+            },
+        );
+        is_err = amount_2nd.is_err();
+        assert_eq!(is_err, false);
+        assert_eq!(Uint128::from(5u64), amount_2nd.unwrap().amount);
+    }
+
+    #[test]
+    fn update_info_test() {
+        let mut deps = mock_dependencies(&coins(5, "orai"));
+
+        let msg = InitMsg {
+            name: String::from("test market"),
+        };
+        let info = mock_info("creator", &vec![coin(5, "orai")]);
+        let _res = init(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+        // update contract to set fees
+        let update_info = InfoMsg {
+            name: None,
+            creator: None,
+            is_free: Some(false),
+            fee: Some(Coin {
+                denom: "orai".to_string(),
+                amount: Uint128::from(2u64),
+            }),
+        };
+        let update_info_msg = HandleMsg::UpdateInfo(update_info);
+
+        // random account cannot update info, only creator
+        let info_unauthorized = mock_info("anyone", &vec![coin(5, "orai")]);
+
+        let mut response = handle(
+            deps.as_mut(),
+            mock_env(),
+            info_unauthorized.clone(),
+            update_info_msg.clone(),
+        );
+        assert_eq!(response.is_err(), true);
+        println!("{:?}", response.expect_err("msg"));
+
+        // now we can update the info using creator
+        response = handle(
+            deps.as_mut(),
+            mock_env(),
+            info.clone(),
+            update_info_msg.clone(),
+        );
+        assert_eq!(response.is_err(), false);
+
+        let query_info = QueryMsg::GetContractInfo {};
+        let res: Binary = query(deps.as_ref(), mock_env(), query_info).unwrap();
+        let res_info: ContractInfoResponse = from_binary(&res).unwrap();
+        println!("{:?}", res_info);
     }
 
     #[test]
