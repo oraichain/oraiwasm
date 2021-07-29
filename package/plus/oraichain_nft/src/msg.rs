@@ -38,6 +38,13 @@ pub enum HandleMsg {
         token_id: String,
         msg: Option<Binary>,
     },
+
+    UpdateNft {
+        token_id: String,
+        name: String,
+        description: Option<String>,
+    },
+
     /// Allows operator to transfer / send the token from the owner's account.
     /// If expiration is set, then this allowance has a time/height limit
     Approve {
@@ -77,6 +84,14 @@ pub struct MintMsg {
     pub description: Option<String>,
     /// A URI pointing to an image representing the asset
     pub image: Option<String>,
+    // min_royalty: Fraction,
+    // /// Indicates the minimum allowed `royalty` to be set on a `Collectible` when an Artist creates it.
+    // max_royalty: Fraction,
+    // /// Percentage fee to pay back to Mintgate when a `Token` is being sold.
+    // /// This field can be set up when the contract is deployed.
+    // mintgate_fee: Fraction,
+    // /// Designated MintGate NEAR account id to receive `mintgate_fee` after a sale.
+    // mintgate_fee_account_id: AccountId,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

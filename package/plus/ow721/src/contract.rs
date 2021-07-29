@@ -958,6 +958,7 @@ mod tests {
     #[test]
     fn approving_all_revoking_all() {
         let mut deps = mock_dependencies(&[]);
+        deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
 
         // Mint a couple tokens (from the same owner)
