@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, HumanAddr};
+use cosmwasm_std::{Binary, HumanAddr, Uint128};
 use cw721::Expiration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -14,6 +14,8 @@ pub struct InitMsg {
     /// This is designed for a base NFT that is controlled by an external program
     /// or contract. You will likely replace this with custom logic in custom NFTs
     pub minter: HumanAddr,
+
+    pub minter_fee: Option<Uint128>,
 }
 
 /// This is like Cw721HandleMsg but we add a Mint command for an owner

@@ -6,7 +6,7 @@ use cosmwasm_std::testing::{
 };
 use cosmwasm_std::{
     attr, coins, from_binary, from_slice, to_binary, Api, CosmosMsg, HandleResponse, HumanAddr,
-    OwnedDeps, WasmMsg,
+    OwnedDeps, Uint128, WasmMsg,
 };
 
 use cw721::{
@@ -18,13 +18,14 @@ const MINTER: &str = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3d";
 const CONTRACT_NAME: &str = "Magic Power";
 const SYMBOL: &str = "MGK";
 
-fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
+fn setup_contract(minter_fee: Option<Uint128>) -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, "orai"));
     deps.api.canonical_length = 54;
     let msg = InitMsg {
         name: CONTRACT_NAME.to_string(),
         symbol: SYMBOL.to_string(),
         minter: MINTER.into(),
+        minter_fee,
     };
     let info = mock_info(MINTER, &[]);
     let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -34,18 +35,7 @@ fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
 
 #[test]
 fn proper_initialization() {
-    let mut deps = setup_contract();
-
-    let msg = InitMsg {
-        name: CONTRACT_NAME.to_string(),
-        symbol: SYMBOL.to_string(),
-        minter: MINTER.into(),
-    };
-    let info = mock_info(MINTER, &[]);
-
-    // we can just call .unwrap() to assert this was a success
-    let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
-    assert_eq!(0, res.messages.len());
+    let deps = setup_contract(None);
 
     // it worked, let's query the state
     let res: MinterResponse =
@@ -58,6 +48,7 @@ fn proper_initialization() {
         ContractInfoResponse {
             name: CONTRACT_NAME.to_string(),
             symbol: SYMBOL.to_string(),
+            minter_fee: 0u128.into(),
         }
     );
 
@@ -83,7 +74,7 @@ fn proper_initialization() {
 
 #[test]
 fn minting() {
-    let mut deps = setup_contract();
+    let mut deps = setup_contract(None);
 
     let token_id = "petrify".to_string();
     let name = "Petrify with Gaze".to_string();
@@ -187,7 +178,7 @@ fn minting() {
 
 #[test]
 fn transferring_nft() {
-    let mut deps = setup_contract();
+    let mut deps = setup_contract(None);
 
     // Mint a token
     let token_id = "melt".to_string();
@@ -245,7 +236,7 @@ fn transferring_nft() {
 
 #[test]
 fn sending_nft() {
-    let mut deps = setup_contract();
+    let mut deps = setup_contract(None);
 
     // Mint a token
     let token_id = "melt".to_string();
@@ -313,7 +304,7 @@ fn sending_nft() {
 
 #[test]
 fn approving_revoking() {
-    let mut deps = setup_contract();
+    let mut deps = setup_contract(None);
 
     // Mint a token
     let token_id = "grow".to_string();
@@ -405,7 +396,7 @@ fn approving_revoking() {
 
 #[test]
 fn approving_all_revoking_all() {
-    let mut deps = setup_contract();
+    let mut deps = setup_contract(None);
 
     // Mint a couple tokens (from the same owner)
     let token_id1 = "grow1".to_string();
@@ -663,7 +654,7 @@ fn approving_all_revoking_all() {
 
 #[test]
 fn query_tokens_by_owner() {
-    let mut deps = setup_contract();
+    let mut deps = setup_contract(None);
     let minter = mock_info(MINTER, &[]);
 
     // Mint a couple tokens (from the same owner)
@@ -812,7 +803,7 @@ fn query_tokens_by_owner() {
 
 #[test]
 fn mint_nft_invalid_args() {
-    let mut deps = setup_contract();
+    let mut deps = setup_contract(None);
     let token_id = "petrify".to_string();
     let name = "Petrify with Gaze".to_string();
     let description = "Very long".repeat(200); // 1800 > 1024
@@ -840,7 +831,7 @@ fn mint_nft_invalid_args() {
 
 #[test]
 fn update_nft() {
-    let mut deps = setup_contract();
+    let mut deps = setup_contract(None);
 
     let token_id = "petrify".to_string();
     let name = "Petrify with Gaze".to_string();
@@ -897,24 +888,13 @@ fn update_nft() {
 
 #[test]
 fn proper_withdraw_fees() {
-    let mut deps = setup_contract();
-
-    let msg = InitMsg {
-        name: CONTRACT_NAME.to_string(),
-        symbol: SYMBOL.to_string(),
-        minter: MINTER.into(),
-    };
+    let mut deps = setup_contract(None);
 
     let info = mock_info(MINTER, &[]);
-
-    // we can just call .unwrap() to assert this was a success
-    let res = init(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
-    assert_eq!(0, res.messages.len());
-
     let ret = handle(
         deps.as_mut(),
         mock_env(),
-        info.clone(),
+        info,
         HandleMsg::WithdrawFees {
             address: MINTER.into(),
             fees: 1000,

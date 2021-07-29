@@ -38,6 +38,7 @@ pub fn init(
     let info = ContractInfoResponse {
         name: msg.name,
         symbol: msg.symbol,
+        minter_fee: msg.minter_fee.unwrap_or_default(),
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     let minter = deps.api.canonical_address(&msg.minter)?;

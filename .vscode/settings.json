@@ -1,3 +1,4 @@
-// {
-//     "rust-analyzer.runnables.overrideCargo": "${env:HOME}/.cargo/bin/cargo -q"
-// }
+{
+    "rust-analyzer.runnables.overrideCargo": "cargo -q",
+    "rust-analyzer.cargo.allFeatures": false
+}
