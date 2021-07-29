@@ -43,6 +43,7 @@ pub enum HandleMsg {
         token_id: String,
         name: String,
         description: Option<String>,
+        image: Option<String>,
     },
 
     /// Allows operator to transfer / send the token from the owner's account.
@@ -83,7 +84,7 @@ pub struct MintMsg {
     /// Describes the asset to which this NFT represents (may be empty)
     pub description: Option<String>,
     /// A URI pointing to an image representing the asset
-    pub image: Option<String>,
+    pub image: String,
     // min_royalty: Fraction,
     // /// Indicates the minimum allowed `royalty` to be set on a `Collectible` when an Artist creates it.
     // max_royalty: Fraction,

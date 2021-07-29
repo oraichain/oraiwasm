@@ -34,7 +34,7 @@ library = []
 [dependencies]
 cw0 = "0.5.0"
 cw2 = "0.5.0"
-cw721 = "0.5.0"
+cw721 = { path = "../../base/cw721" }
 cw-storage-plus = { version = "0.5.0", features = ["iterator"] }
 cosmwasm-std = { version = "0.13.2" }
 schemars = "0.7"

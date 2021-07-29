@@ -10,6 +10,7 @@ use cw721::{
     NftInfoResponse, NumTokensResponse, OwnerOfResponse, TokensResponse,
 };
 
+use crate::check_size;
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, MintMsg, MinterResponse, QueryMsg};
 use crate::state::{
@@ -75,7 +76,8 @@ pub fn handle(
             token_id,
             name,
             description,
-        } => handle_update_nft(deps, env, info, token_id, name, description),
+            image,
+        } => handle_update_nft(deps, env, info, token_id, name, description, image),
         HandleMsg::ChangeMinter { minter } => handle_change_minter(deps, env, info, minter),
     }
 }
@@ -93,26 +95,20 @@ pub fn handle_mint(
         return Err(ContractError::Unauthorized {});
     }
 
-    if msg.name.len() > 140 {
-        return Err(ContractError::InvalidArgument {
-            reason: "name exceeds 140 chars".to_string(),
-        });
-    }
-
+    let name = msg.name;
+    check_size!(name, 140);
     let description = msg.description.unwrap_or_default();
-    if description.len() > 1024 {
-        return Err(ContractError::InvalidArgument {
-            reason: "description exceeds 1024 chars".to_string(),
-        });
-    }
+    check_size!(description, 1024);
+    let image = msg.image;
+    check_size!(image, 1024);
 
     // create the token
     let token = TokenInfo {
         owner: deps.api.canonical_address(&msg.owner)?,
         approvals: vec![],
-        name: msg.name,
+        name,
         description,
-        image: msg.image,
+        image,
     };
     tokens().update(deps.storage, &msg.token_id, |old| match old {
         Some(_) => Err(ContractError::Claimed {}),
@@ -160,19 +156,26 @@ pub fn handle_update_nft(
     token_id: String,
     name: String,
     description: Option<String>,
+    image: Option<String>,
 ) -> Result<HandleResponse, ContractError> {
-    let owner_raw = deps.api.canonical_address(&info.sender)?;
-    let owner = OWNER.load(deps.storage)?;
-    if !owner.eq(&owner_raw) {
-        return Err(ContractError::Unauthorized {});
-    }
+    let sender_raw = deps.api.canonical_address(&info.sender)?;
 
     // update name and description if existed
     tokens().update(deps.storage, &token_id, |old| match old {
         Some(mut token) => {
+            // only owner can update token
+            if !token.owner.eq(&sender_raw) {
+                return Err(ContractError::Unauthorized {});
+            }
+            check_size!(name, 140);
             token.name = name;
-            if description.is_some() {
-                token.description = description.unwrap();
+            if let Some(description_val) = description {
+                check_size!(description_val, 1024);
+                token.description = description_val;
+            }
+            if let Some(image_val) = image {
+                check_size!(image_val, 1024);
+                token.image = image_val;
             }
             Ok(token)
         }
@@ -413,7 +416,7 @@ fn check_can_approve(
     }
 }
 
-/// returns true iff the sender can transfer ownership of the token
+/// returns true if the sender can transfer ownership of the token
 fn check_can_send(
     deps: Deps,
     env: &Env,

@@ -76,7 +76,7 @@ pub struct MintMsg {
     /// Describes the asset to which this NFT represents (may be empty)
     pub description: Option<String>,
     /// A URI pointing to an image representing the asset
-    pub image: Option<String>,
+    pub image: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

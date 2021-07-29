@@ -708,7 +708,7 @@ mod tests {
             NftInfoResponse {
                 name: name.clone(),
                 description: description.clone(),
-                image: None,
+                image: "".to_string(),
             }
         );
 
@@ -718,7 +718,7 @@ mod tests {
             owner: "hercules".into(),
             name: "copy cat".into(),
             description: None,
-            image: None,
+            image: "".to_string(),
         });
 
         let allowed = mock_info(MINTER, &[]);
@@ -749,7 +749,7 @@ mod tests {
             owner: "venus".into(),
             name: name.clone(),
             description: Some(description.clone()),
-            image: None,
+            image: "".to_string(),
         });
 
         let minter = mock_info(MINTER, &[]);
@@ -808,7 +808,7 @@ mod tests {
             owner: "venus".into(),
             name: name.clone(),
             description: Some(description.clone()),
-            image: None,
+            image: "".to_string(),
         });
 
         let minter = mock_info(MINTER, &[]);
@@ -877,7 +877,7 @@ mod tests {
             owner: "demeter".into(),
             name: name.clone(),
             description: Some(description.clone()),
-            image: None,
+            image: "".to_string(),
         });
 
         let minter = mock_info(MINTER, &[]);
@@ -974,7 +974,7 @@ mod tests {
             owner: "demeter".into(),
             name: name1.clone(),
             description: Some(description1.clone()),
-            image: None,
+            image: "".to_string(),
         });
 
         let minter = mock_info(MINTER, &[]);
@@ -985,7 +985,7 @@ mod tests {
             owner: "demeter".into(),
             name: name2.clone(),
             description: Some(description2.clone()),
-            image: None,
+            image: "".to_string(),
         });
 
         handle(deps.as_mut(), mock_env(), minter, mint_msg2).unwrap();
@@ -1160,7 +1160,7 @@ mod tests {
             owner: demeter.clone(),
             name: "Growing power".to_string(),
             description: Some("Allows the owner the power to grow anything".to_string()),
-            image: None,
+            image: "".to_string(),
         });
         handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
 
@@ -1171,7 +1171,7 @@ mod tests {
             description: Some(
                 "Allows the owner the power to grow anything even faster".to_string(),
             ),
-            image: None,
+            image: "".to_string(),
         });
         handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
 
@@ -1180,7 +1180,7 @@ mod tests {
             owner: demeter.clone(),
             name: "Sing a lullaby".to_string(),
             description: Some("Calm even the most excited children".to_string()),
-            image: None,
+            image: "".to_string(),
         });
         handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
 

@@ -1,5 +1,4 @@
 use crate::contract::*;
-#[cfg(test)]
 use crate::error::ContractError;
 use crate::msg::*;
 use cosmwasm_std::testing::{
@@ -89,16 +88,14 @@ fn minting() {
     let token_id = "petrify".to_string();
     let name = "Petrify with Gaze".to_string();
     let description = "Allows the owner to petrify anyone looking at him or her".to_string();
-
+    let image = "".to_string();
+    let owner = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3t".to_string();
     let mint_str = format!(
-            "{{\"token_id\":\"petrify\",\"owner\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"{}\",\"description\":\"{}\"
+            "{{\"token_id\":\"petrify\",\"owner\":\"{}\",\"name\":\"{}\",\"description\":\"{}\",\"image\":\"{}\"
     }}",
-            name, description
+           owner, name, description,image
         );
-    println!(
-        "length count: {}",
-        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".len()
-    );
+    println!("length count: {}", owner.len());
     let mint_msg: MintMsg = from_slice(mint_str.as_bytes()).unwrap();
     println!(
         "mint msg: {}",
@@ -151,7 +148,7 @@ fn minting() {
         NftInfoResponse {
             name: name.clone(),
             description: description.clone(),
-            image: None,
+            image: "".to_string(),
         }
     );
 
@@ -161,7 +158,7 @@ fn minting() {
         owner: "hercules".into(),
         name: "copy cat".into(),
         description: None,
-        image: None,
+        image: "".to_string(),
     });
 
     let allowed = mock_info(MINTER, &[]);
@@ -202,7 +199,7 @@ fn transferring_nft() {
         owner: "venus".into(),
         name: name.clone(),
         description: Some(description.clone()),
-        image: None,
+        image: "".to_string(),
     });
 
     let minter = mock_info(MINTER, &[]);
@@ -260,7 +257,7 @@ fn sending_nft() {
         owner: "venus".into(),
         name: name.clone(),
         description: Some(description.clone()),
-        image: None,
+        image: "".to_string(),
     });
 
     let minter = mock_info(MINTER, &[]);
@@ -328,7 +325,7 @@ fn approving_revoking() {
         owner: "demeter".into(),
         name: name.clone(),
         description: Some(description.clone()),
-        image: None,
+        image: "".to_string(),
     });
 
     let minter = mock_info(MINTER, &[]);
@@ -423,7 +420,7 @@ fn approving_all_revoking_all() {
         owner: "demeter".into(),
         name: name1.clone(),
         description: Some(description1.clone()),
-        image: None,
+        image: "".to_string(),
     });
 
     let minter = mock_info(MINTER, &[]);
@@ -434,7 +431,7 @@ fn approving_all_revoking_all() {
         owner: "demeter".into(),
         name: name2.clone(),
         description: Some(description2.clone()),
-        image: None,
+        image: "".to_string(),
     });
 
     handle(deps.as_mut(), mock_env(), minter, mint_msg2).unwrap();
@@ -681,7 +678,7 @@ fn query_tokens_by_owner() {
         owner: demeter.clone(),
         name: "Growing power".to_string(),
         description: Some("Allows the owner the power to grow anything".to_string()),
-        image: None,
+        image: "".to_string(),
     });
     handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
 
@@ -690,7 +687,7 @@ fn query_tokens_by_owner() {
         owner: ceres.clone(),
         name: "More growing power".to_string(),
         description: Some("Allows the owner the power to grow anything even faster".to_string()),
-        image: None,
+        image: "".to_string(),
     });
     handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
 
@@ -699,7 +696,7 @@ fn query_tokens_by_owner() {
         owner: demeter.clone(),
         name: "Sing a lullaby".to_string(),
         description: Some("Calm even the most excited children".to_string()),
-        image: None,
+        image: "".to_string(),
     });
     handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
 
@@ -811,4 +808,65 @@ fn query_tokens_by_owner() {
     )
     .unwrap();
     assert_eq!(&by_demeter[1..], &tokens.tokens[..]);
+}
+
+#[test]
+fn update_nft() {
+    let mut deps = setup_contract();
+
+    let token_id = "petrify".to_string();
+    let name = "Petrify with Gaze".to_string();
+    let description = "Allows the owner to petrify anyone looking at him or her".to_string();
+    let image = "https://ipfs.io/ipfs/QmWCp5t1TLsLQyjDFa87ZAp72zYqmC7L2DsNjFdpH8bBoz".to_string();
+    let owner = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3t".to_string();
+    let mint_str = format!(
+            "{{\"token_id\":\"petrify\",\"owner\":\"{}\",\"name\":\"{}\",\"description\":\"{}\",\"image\":\"{}\"
+    }}",
+    owner, name, description,image
+        );
+    println!("length count: {}", owner.len());
+    let mint_msg: MintMsg = from_slice(mint_str.as_bytes()).unwrap();
+    println!(
+        "mint msg: {}",
+        deps.api.canonical_address(&mint_msg.owner).unwrap()
+    );
+
+    let mint_msg = HandleMsg::Mint(mint_msg);
+    let allowed = mock_info(MINTER, &[]);
+    handle(deps.as_mut(), mock_env(), allowed.clone(), mint_msg).unwrap();
+
+    // now update
+    handle(
+        deps.as_mut(),
+        mock_env(),
+        mock_info(owner, &[]),
+        HandleMsg::UpdateNft {
+            token_id: token_id.clone(),
+            name: "new name".to_string(),
+            description: None,
+            image: None,
+        },
+    )
+    .unwrap();
+
+    // this nft info is correct
+    let info: NftInfoResponse = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::NftInfo {
+                token_id: token_id.clone(),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        info,
+        NftInfoResponse {
+            name: "new name".to_string(),
+            description: description.clone(),
+            image: image.clone(),
+        }
+    );
 }
