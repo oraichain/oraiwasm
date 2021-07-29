@@ -17,7 +17,7 @@ pub struct TokenInfo {
     /// Describes the asset to which this NFT represents
     pub description: String,
     /// A URI pointing to an image representing the asset
-    pub image: Option<String>,
+    pub image: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

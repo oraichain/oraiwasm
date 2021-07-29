@@ -10,6 +10,7 @@ use cw721::{
     NftInfoResponse, NumTokensResponse, OwnerOfResponse, TokensResponse,
 };
 
+use crate::check_size;
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, MintMsg, MinterResponse, QueryMsg};
 use crate::state::{
@@ -71,6 +72,12 @@ pub fn handle(
             token_id,
             msg,
         } => handle_send_nft(deps, env, info, contract, token_id, msg),
+        HandleMsg::UpdateNft {
+            token_id,
+            name,
+            description,
+            image,
+        } => handle_update_nft(deps, env, info, token_id, name, description, image),
         HandleMsg::ChangeMinter { minter } => handle_change_minter(deps, env, info, minter),
     }
 }
@@ -88,13 +95,20 @@ pub fn handle_mint(
         return Err(ContractError::Unauthorized {});
     }
 
+    let name = msg.name;
+    check_size!(name, 140);
+    let description = msg.description.unwrap_or_default();
+    check_size!(description, 1024);
+    let image = msg.image;
+    check_size!(image, 1024);
+
     // create the token
     let token = TokenInfo {
         owner: deps.api.canonical_address(&msg.owner)?,
         approvals: vec![],
-        name: msg.name,
-        description: msg.description.unwrap_or_default(),
-        image: msg.image,
+        name,
+        description,
+        image,
     };
     tokens().update(deps.storage, &msg.token_id, |old| match old {
         Some(_) => Err(ContractError::Claimed {}),
@@ -133,6 +147,42 @@ pub fn handle_transfer_nft(
         ],
         data: None,
     })
+}
+
+pub fn handle_update_nft(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    token_id: String,
+    name: String,
+    description: Option<String>,
+    image: Option<String>,
+) -> Result<HandleResponse, ContractError> {
+    let sender_raw = deps.api.canonical_address(&info.sender)?;
+
+    // update name and description if existed
+    tokens().update(deps.storage, &token_id, |old| match old {
+        Some(mut token) => {
+            // only owner can update token
+            if !token.owner.eq(&sender_raw) {
+                return Err(ContractError::Unauthorized {});
+            }
+            check_size!(name, 140);
+            token.name = name;
+            if let Some(description_val) = description {
+                check_size!(description_val, 1024);
+                token.description = description_val;
+            }
+            if let Some(image_val) = image {
+                check_size!(image_val, 1024);
+                token.image = image_val;
+            }
+            Ok(token)
+        }
+        None => Err(ContractError::TokenNotFound {}),
+    })?;
+
+    Ok(HandleResponse::default())
 }
 
 pub fn handle_send_nft(
@@ -366,7 +416,7 @@ fn check_can_approve(
     }
 }
 
-/// returns true iff the sender can transfer ownership of the token
+/// returns true if the sender can transfer ownership of the token
 fn check_can_send(
     deps: Deps,
     env: &Env,
@@ -594,624 +644,4 @@ fn humanize_approval(api: &dyn Api, approval: &Approval) -> StdResult<cw721::App
         spender: api.human_address(&approval.spender)?,
         expires: approval.expires,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{from_binary, from_slice, CosmosMsg, WasmMsg};
-
-    use super::*;
-    use cw721::ApprovedForAllResponse;
-
-    const MINTER: &str = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3d";
-    const CONTRACT_NAME: &str = "Magic Power";
-    const SYMBOL: &str = "MGK";
-
-    fn setup_contract(deps: DepsMut) {
-        let msg = InitMsg {
-            name: CONTRACT_NAME.to_string(),
-            symbol: SYMBOL.to_string(),
-            minter: MINTER.into(),
-        };
-        let info = mock_info(MINTER, &[]);
-        let res = init(deps, mock_env(), info, msg).unwrap();
-        assert_eq!(0, res.messages.len());
-    }
-
-    #[test]
-    fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 54;
-
-        let msg = InitMsg {
-            name: CONTRACT_NAME.to_string(),
-            symbol: SYMBOL.to_string(),
-            minter: MINTER.into(),
-        };
-        let info = mock_info(MINTER, &[]);
-
-        // we can just call .unwrap() to assert this was a success
-        let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
-        assert_eq!(0, res.messages.len());
-
-        // it worked, let's query the state
-        let res = query_minter(deps.as_ref()).unwrap();
-        assert_eq!(MINTER, res.minter.as_str());
-        let info = query_contract_info(deps.as_ref()).unwrap();
-        assert_eq!(
-            info,
-            ContractInfoResponse {
-                name: CONTRACT_NAME.to_string(),
-                symbol: SYMBOL.to_string(),
-            }
-        );
-
-        let count = query_num_tokens(deps.as_ref()).unwrap();
-        assert_eq!(0, count.count);
-
-        // list the token_ids
-        let tokens = query_all_tokens(deps.as_ref(), None, None).unwrap();
-        assert_eq!(0, tokens.tokens.len());
-    }
-
-    #[test]
-    fn minting() {
-        let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 54;
-        setup_contract(deps.as_mut());
-
-        let token_id = "petrify".to_string();
-        let name = "Petrify with Gaze".to_string();
-        let description = "Allows the owner to petrify anyone looking at him or her".to_string();
-
-        let mint_str = format!(
-            "{{\"token_id\":\"petrify\",\"owner\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"name\":\"{}\",\"description\":\"{}\"
-    }}",
-            name, description
-        );
-        println!(
-            "length count: {}",
-            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".len()
-        );
-        let mint_msg: MintMsg = from_slice(mint_str.as_bytes()).unwrap();
-        println!(
-            "mint msg: {}",
-            deps.api.canonical_address(&mint_msg.owner).unwrap()
-        );
-
-        let mint_msg = HandleMsg::Mint(mint_msg);
-
-        // random cannot mint
-        let random = mock_info("random", &[]);
-        let err = handle(deps.as_mut(), mock_env(), random, mint_msg.clone()).unwrap_err();
-        match err {
-            ContractError::Unauthorized {} => {}
-            e => panic!("unexpected error: {}", e),
-        }
-
-        // minter can mint
-        let allowed = mock_info(MINTER, &[]);
-        let _ = handle(deps.as_mut(), mock_env(), allowed, mint_msg.clone()).unwrap();
-
-        // ensure num tokens increases
-        let count = query_num_tokens(deps.as_ref()).unwrap();
-        assert_eq!(1, count.count);
-
-        // unknown nft returns error
-        let _ = query_nft_info(deps.as_ref(), "unknown".to_string()).unwrap_err();
-
-        // this nft info is correct
-        let info = query_nft_info(deps.as_ref(), token_id.clone()).unwrap();
-        assert_eq!(
-            info,
-            NftInfoResponse {
-                name: name.clone(),
-                description: description.clone(),
-                image: None,
-            }
-        );
-
-        // Cannot mint same token_id again
-        let mint_msg2 = HandleMsg::Mint(MintMsg {
-            token_id: token_id.clone(),
-            owner: "hercules".into(),
-            name: "copy cat".into(),
-            description: None,
-            image: None,
-        });
-
-        let allowed = mock_info(MINTER, &[]);
-        let err = handle(deps.as_mut(), mock_env(), allowed, mint_msg2).unwrap_err();
-        match err {
-            ContractError::Claimed {} => {}
-            e => panic!("unexpected error: {}", e),
-        }
-
-        // list the token_ids
-        let tokens = query_all_tokens(deps.as_ref(), None, None).unwrap();
-        assert_eq!(1, tokens.tokens.len());
-        assert_eq!(vec![token_id], tokens.tokens);
-    }
-
-    #[test]
-    fn transferring_nft() {
-        let mut deps = mock_dependencies(&[]);
-        setup_contract(deps.as_mut());
-
-        // Mint a token
-        let token_id = "melt".to_string();
-        let name = "Melting power".to_string();
-        let description = "Allows the owner to melt anyone looking at him or her".to_string();
-
-        let mint_msg = HandleMsg::Mint(MintMsg {
-            token_id: token_id.clone(),
-            owner: "venus".into(),
-            name: name.clone(),
-            description: Some(description.clone()),
-            image: None,
-        });
-
-        let minter = mock_info(MINTER, &[]);
-        handle(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
-
-        // random cannot transfer
-        let random = mock_info("random", &[]);
-        let transfer_msg = HandleMsg::TransferNft {
-            recipient: "random".into(),
-            token_id: token_id.clone(),
-        };
-
-        let err = handle(deps.as_mut(), mock_env(), random, transfer_msg.clone()).unwrap_err();
-
-        match err {
-            ContractError::Unauthorized {} => {}
-            e => panic!("unexpected error: {}", e),
-        }
-
-        // owner can
-        let random = mock_info("venus", &[]);
-        let transfer_msg = HandleMsg::TransferNft {
-            recipient: "random".into(),
-            token_id: token_id.clone(),
-        };
-
-        let res = handle(deps.as_mut(), mock_env(), random, transfer_msg.clone()).unwrap();
-
-        assert_eq!(
-            res,
-            HandleResponse {
-                messages: vec![],
-                attributes: vec![
-                    attr("action", "transfer_nft"),
-                    attr("sender", "venus"),
-                    attr("recipient", "random"),
-                    attr("token_id", token_id),
-                ],
-                data: None,
-            }
-        );
-    }
-
-    #[test]
-    fn sending_nft() {
-        let mut deps = mock_dependencies(&[]);
-        setup_contract(deps.as_mut());
-
-        // Mint a token
-        let token_id = "melt".to_string();
-        let name = "Melting power".to_string();
-        let description = "Allows the owner to melt anyone looking at him or her".to_string();
-
-        let mint_msg = HandleMsg::Mint(MintMsg {
-            token_id: token_id.clone(),
-            owner: "venus".into(),
-            name: name.clone(),
-            description: Some(description.clone()),
-            image: None,
-        });
-
-        let minter = mock_info(MINTER, &[]);
-        handle(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
-
-        let msg = to_binary("You now have the melting power").unwrap();
-        let target = HumanAddr::from("another_contract");
-        let send_msg = HandleMsg::SendNft {
-            contract: target.clone(),
-            token_id: token_id.clone(),
-            msg: Some(msg.clone()),
-        };
-
-        let random = mock_info("random", &[]);
-        let err = handle(deps.as_mut(), mock_env(), random, send_msg.clone()).unwrap_err();
-        match err {
-            ContractError::Unauthorized {} => {}
-            e => panic!("unexpected error: {}", e),
-        }
-
-        // but owner can
-        let random = mock_info("venus", &[]);
-        let res = handle(deps.as_mut(), mock_env(), random, send_msg).unwrap();
-
-        let payload = Cw721ReceiveMsg {
-            sender: "venus".into(),
-            token_id: token_id.clone(),
-            msg: Some(msg),
-        };
-        let expected = payload.into_cosmos_msg(target.clone()).unwrap();
-        // ensure expected serializes as we think it should
-        match &expected {
-            CosmosMsg::Wasm(WasmMsg::Execute { contract_addr, .. }) => {
-                assert_eq!(contract_addr, &target)
-            }
-            m => panic!("Unexpected message type: {:?}", m),
-        }
-        // and make sure this is the request sent by the contract
-        assert_eq!(
-            res,
-            HandleResponse {
-                messages: vec![expected],
-                attributes: vec![
-                    attr("action", "send_nft"),
-                    attr("sender", "venus"),
-                    attr("recipient", "another_contract"),
-                    attr("token_id", token_id),
-                ],
-                data: None,
-            }
-        );
-    }
-
-    #[test]
-    fn approving_revoking() {
-        let mut deps = mock_dependencies(&[]);
-        setup_contract(deps.as_mut());
-
-        // Mint a token
-        let token_id = "grow".to_string();
-        let name = "Growing power".to_string();
-        let description = "Allows the owner to grow anything".to_string();
-
-        let mint_msg = HandleMsg::Mint(MintMsg {
-            token_id: token_id.clone(),
-            owner: "demeter".into(),
-            name: name.clone(),
-            description: Some(description.clone()),
-            image: None,
-        });
-
-        let minter = mock_info(MINTER, &[]);
-        handle(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
-
-        // Give random transferring power
-        let approve_msg = HandleMsg::Approve {
-            spender: "random".into(),
-            token_id: token_id.clone(),
-            expires: None,
-        };
-        let owner = mock_info("demeter", &[]);
-        let res = handle(deps.as_mut(), mock_env(), owner, approve_msg).unwrap();
-        assert_eq!(
-            res,
-            HandleResponse {
-                messages: vec![],
-                attributes: vec![
-                    attr("action", "approve"),
-                    attr("sender", "demeter"),
-                    attr("spender", "random"),
-                    attr("token_id", token_id.clone()),
-                ],
-                data: None,
-            }
-        );
-
-        // random can now transfer
-        let random = mock_info("random", &[]);
-        let transfer_msg = HandleMsg::TransferNft {
-            recipient: "person".into(),
-            token_id: token_id.clone(),
-        };
-        handle(deps.as_mut(), mock_env(), random, transfer_msg).unwrap();
-
-        // Approvals are removed / cleared
-        let query_msg = QueryMsg::OwnerOf {
-            token_id: token_id.clone(),
-            include_expired: None,
-        };
-        let res: OwnerOfResponse =
-            from_binary(&query(deps.as_ref(), mock_env(), query_msg.clone()).unwrap()).unwrap();
-        assert_eq!(
-            res,
-            OwnerOfResponse {
-                owner: "person".into(),
-                approvals: vec![],
-            }
-        );
-
-        // Approve, revoke, and check for empty, to test revoke
-        let approve_msg = HandleMsg::Approve {
-            spender: "random".into(),
-            token_id: token_id.clone(),
-            expires: None,
-        };
-        let owner = mock_info("person", &[]);
-        handle(deps.as_mut(), mock_env(), owner.clone(), approve_msg).unwrap();
-
-        let revoke_msg = HandleMsg::Revoke {
-            spender: "random".into(),
-            token_id: token_id.clone(),
-        };
-        handle(deps.as_mut(), mock_env(), owner, revoke_msg).unwrap();
-
-        // Approvals are now removed / cleared
-        let res: OwnerOfResponse =
-            from_binary(&query(deps.as_ref(), mock_env(), query_msg).unwrap()).unwrap();
-        assert_eq!(
-            res,
-            OwnerOfResponse {
-                owner: "person".into(),
-                approvals: vec![],
-            }
-        );
-    }
-
-    #[test]
-    fn approving_all_revoking_all() {
-        let mut deps = mock_dependencies(&[]);
-        setup_contract(deps.as_mut());
-
-        // Mint a couple tokens (from the same owner)
-        let token_id1 = "grow1".to_string();
-        let name1 = "Growing power".to_string();
-        let description1 = "Allows the owner the power to grow anything".to_string();
-        let token_id2 = "grow2".to_string();
-        let name2 = "More growing power".to_string();
-        let description2 = "Allows the owner the power to grow anything even faster".to_string();
-
-        let mint_msg1 = HandleMsg::Mint(MintMsg {
-            token_id: token_id1.clone(),
-            owner: "demeter".into(),
-            name: name1.clone(),
-            description: Some(description1.clone()),
-            image: None,
-        });
-
-        let minter = mock_info(MINTER, &[]);
-        handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg1).unwrap();
-
-        let mint_msg2 = HandleMsg::Mint(MintMsg {
-            token_id: token_id2.clone(),
-            owner: "demeter".into(),
-            name: name2.clone(),
-            description: Some(description2.clone()),
-            image: None,
-        });
-
-        handle(deps.as_mut(), mock_env(), minter, mint_msg2).unwrap();
-
-        // paginate the token_ids
-        let tokens = query_all_tokens(deps.as_ref(), None, Some(1)).unwrap();
-        assert_eq!(1, tokens.tokens.len());
-        assert_eq!(vec![token_id1.clone()], tokens.tokens);
-        let tokens = query_all_tokens(deps.as_ref(), Some(token_id1.clone()), Some(3)).unwrap();
-        assert_eq!(1, tokens.tokens.len());
-        assert_eq!(vec![token_id2.clone()], tokens.tokens);
-
-        // demeter gives random full (operator) power over her tokens
-        let approve_all_msg = HandleMsg::ApproveAll {
-            operator: "random".into(),
-            expires: None,
-        };
-        let owner = mock_info("demeter", &[]);
-        let res = handle(deps.as_mut(), mock_env(), owner, approve_all_msg).unwrap();
-        assert_eq!(
-            res,
-            HandleResponse {
-                messages: vec![],
-                attributes: vec![
-                    attr("action", "approve_all"),
-                    attr("sender", "demeter"),
-                    attr("operator", "random"),
-                ],
-                data: None,
-            }
-        );
-
-        // random can now transfer
-        let random = mock_info("random", &[]);
-        let transfer_msg = HandleMsg::TransferNft {
-            recipient: "person".into(),
-            token_id: token_id1.clone(),
-        };
-        handle(deps.as_mut(), mock_env(), random.clone(), transfer_msg).unwrap();
-
-        // random can now send
-        let inner_msg = WasmMsg::Execute {
-            contract_addr: "another_contract".into(),
-            msg: to_binary("You now also have the growing power").unwrap(),
-            send: vec![],
-        };
-        let msg: CosmosMsg = CosmosMsg::Wasm(inner_msg);
-
-        let send_msg = HandleMsg::SendNft {
-            contract: "another_contract".into(),
-            token_id: token_id2.clone(),
-            msg: Some(to_binary(&msg).unwrap()),
-        };
-        handle(deps.as_mut(), mock_env(), random, send_msg).unwrap();
-
-        // Approve_all, revoke_all, and check for empty, to test revoke_all
-        let approve_all_msg = HandleMsg::ApproveAll {
-            operator: "operator".into(),
-            expires: None,
-        };
-        // person is now the owner of the tokens
-        let owner = mock_info("person", &[]);
-        handle(deps.as_mut(), mock_env(), owner.clone(), approve_all_msg).unwrap();
-
-        let res = query_all_approvals(deps.as_ref(), mock_env(), "person".into(), true, None, None)
-            .unwrap();
-        assert_eq!(
-            res,
-            ApprovedForAllResponse {
-                operators: vec![cw721::Approval {
-                    spender: "operator".into(),
-                    expires: Expiration::Never {}
-                }]
-            }
-        );
-
-        // second approval
-        let buddy_expires = Expiration::AtHeight(1234567);
-        let approve_all_msg = HandleMsg::ApproveAll {
-            operator: "buddy".into(),
-            expires: Some(buddy_expires),
-        };
-        let owner = mock_info("person", &[]);
-        handle(deps.as_mut(), mock_env(), owner.clone(), approve_all_msg).unwrap();
-
-        // and paginate queries
-        let res = query_all_approvals(
-            deps.as_ref(),
-            mock_env(),
-            "person".into(),
-            true,
-            None,
-            Some(1),
-        )
-        .unwrap();
-        assert_eq!(
-            res,
-            ApprovedForAllResponse {
-                operators: vec![cw721::Approval {
-                    spender: "buddy".into(),
-                    expires: buddy_expires,
-                }]
-            }
-        );
-        let res = query_all_approvals(
-            deps.as_ref(),
-            mock_env(),
-            "person".into(),
-            true,
-            Some("buddy".into()),
-            Some(2),
-        )
-        .unwrap();
-        assert_eq!(
-            res,
-            ApprovedForAllResponse {
-                operators: vec![cw721::Approval {
-                    spender: "operator".into(),
-                    expires: Expiration::Never {}
-                }]
-            }
-        );
-
-        let revoke_all_msg = HandleMsg::RevokeAll {
-            operator: "operator".into(),
-        };
-        handle(deps.as_mut(), mock_env(), owner, revoke_all_msg).unwrap();
-
-        // Approvals are removed / cleared without affecting others
-        let res = query_all_approvals(
-            deps.as_ref(),
-            mock_env(),
-            "person".into(),
-            false,
-            None,
-            None,
-        )
-        .unwrap();
-        assert_eq!(
-            res,
-            ApprovedForAllResponse {
-                operators: vec![cw721::Approval {
-                    spender: "buddy".into(),
-                    expires: buddy_expires,
-                }]
-            }
-        );
-
-        // ensure the filter works (nothing should be here
-        let mut late_env = mock_env();
-        late_env.block.height = 1234568; //expired
-        let res = query_all_approvals(deps.as_ref(), late_env, "person".into(), false, None, None)
-            .unwrap();
-        assert_eq!(0, res.operators.len());
-    }
-
-    #[test]
-    fn query_tokens_by_owner() {
-        let mut deps = mock_dependencies(&[]);
-        setup_contract(deps.as_mut());
-        let minter = mock_info(MINTER, &[]);
-
-        // Mint a couple tokens (from the same owner)
-        let token_id1 = "grow1".to_string();
-        let demeter = HumanAddr::from("Demeter");
-        let token_id2 = "grow2".to_string();
-        let ceres = HumanAddr::from("Ceres");
-        let token_id3 = "sing".to_string();
-
-        let mint_msg = HandleMsg::Mint(MintMsg {
-            token_id: token_id1.clone(),
-            owner: demeter.clone(),
-            name: "Growing power".to_string(),
-            description: Some("Allows the owner the power to grow anything".to_string()),
-            image: None,
-        });
-        handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
-
-        let mint_msg = HandleMsg::Mint(MintMsg {
-            token_id: token_id2.clone(),
-            owner: ceres.clone(),
-            name: "More growing power".to_string(),
-            description: Some(
-                "Allows the owner the power to grow anything even faster".to_string(),
-            ),
-            image: None,
-        });
-        handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
-
-        let mint_msg = HandleMsg::Mint(MintMsg {
-            token_id: token_id3.clone(),
-            owner: demeter.clone(),
-            name: "Sing a lullaby".to_string(),
-            description: Some("Calm even the most excited children".to_string()),
-            image: None,
-        });
-        handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
-
-        // get all tokens in order:
-        let expected = vec![token_id1.clone(), token_id2.clone(), token_id3.clone()];
-        let tokens = query_all_tokens(deps.as_ref(), None, None).unwrap();
-        assert_eq!(&expected, &tokens.tokens);
-        // paginate
-        let tokens = query_all_tokens(deps.as_ref(), None, Some(2)).unwrap();
-        assert_eq!(&expected[..2], &tokens.tokens[..]);
-        let tokens = query_all_tokens(deps.as_ref(), Some(expected[1].clone()), None).unwrap();
-        assert_eq!(&expected[2..], &tokens.tokens[..]);
-
-        // get by owner
-        let by_ceres = vec![token_id2.clone()];
-        let by_demeter = vec![token_id1.clone(), token_id3.clone()];
-        // all tokens by owner
-        let tokens = query_tokens(deps.as_ref(), demeter.clone(), None, None).unwrap();
-        assert_eq!(&by_demeter, &tokens.tokens);
-        let tokens = query_tokens(deps.as_ref(), ceres.clone(), None, None).unwrap();
-        assert_eq!(&by_ceres, &tokens.tokens);
-
-        // paginate for demeter
-        let tokens = query_tokens(deps.as_ref(), demeter.clone(), None, Some(1)).unwrap();
-        assert_eq!(&by_demeter[..1], &tokens.tokens[..]);
-        let tokens = query_tokens(
-            deps.as_ref(),
-            demeter.clone(),
-            Some(by_demeter[0].clone()),
-            Some(3),
-        )
-        .unwrap();
-        assert_eq!(&by_demeter[1..], &tokens.tokens[..]);
-    }
 }
