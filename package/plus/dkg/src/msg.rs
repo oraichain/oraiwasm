@@ -20,6 +20,7 @@ pub struct AggregateSig {
     pub sig: Binary,
     pub signed_sig: Binary,
     pub pubkey: Binary,
+    pub randomness: Binary,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -80,6 +81,7 @@ pub enum QueryMsg {
     GetMember { address: String },
     GetMembers {},
     LatestRound {},
+    EarliestHandling {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

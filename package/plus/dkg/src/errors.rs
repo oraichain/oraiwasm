@@ -13,7 +13,7 @@ pub enum ContractError {
     NoFundsSent { expected_denom: String },
     #[error("Less funds were sent with the expected token: {expected_denom}")]
     LessFundsSent { expected_denom: String },
-    #[error("Round is processing 0: {round}")]
+    #[error("Round {round} is processing")]
     PendingRound { round: u64 },
     #[error("Unexpected error")]
     UnknownError {},
