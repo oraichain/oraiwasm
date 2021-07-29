@@ -14,7 +14,7 @@ macro_rules! check_size {
     ($arg:ident, $len:expr) => {{
         if $arg.len() > $len {
             return Err(ContractError::InvalidArgument {
-                reason: concat!("`", stringify!($arg), "` exceeds ", $len, " chars").to_string(),
+                reason: format!("`{}` exceeds {} chars", stringify!($arg), $len),
             });
         }
     }};

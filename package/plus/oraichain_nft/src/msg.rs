@@ -71,6 +71,12 @@ pub enum HandleMsg {
 
     /// Mint a new NFT, can only be called by the contract minter
     Mint(MintMsg),
+
+    /// Withdraw balance of smart contract to the specific address
+    WithdrawFees {
+        address: HumanAddr,
+        fees: u128,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

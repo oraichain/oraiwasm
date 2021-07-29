@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, to_binary, Api, Binary, BlockInfo, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, Order, StdError, StdResult, KV,
+    attr, coins, to_binary, Api, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, HandleResponse,
+    HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, KV,
 };
 
 use cw0::maybe_canonical;
@@ -20,8 +20,12 @@ use crate::state::{
 use cw_storage_plus::Bound;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:ow721";
+const CONTRACT_NAME: &str = "crates.io:oraichain_nft";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const DENOM: &str = "orai";
+const DEFAULT_LIMIT: u32 = 10;
+const MAX_LIMIT: u32 = 30;
+const MAX_CHARS_SIZE: usize = 1024;
 
 pub fn init(
     deps: DepsMut,
@@ -79,6 +83,9 @@ pub fn handle(
             image,
         } => handle_update_nft(deps, env, info, token_id, name, description, image),
         HandleMsg::ChangeMinter { minter } => handle_change_minter(deps, env, info, minter),
+        HandleMsg::WithdrawFees { address, fees } => {
+            handle_withdraw_fees(deps, env, info, address, fees)
+        }
     }
 }
 
@@ -96,11 +103,11 @@ pub fn handle_mint(
     }
 
     let name = msg.name;
-    check_size!(name, 140);
+    check_size!(name, MAX_CHARS_SIZE);
     let description = msg.description.unwrap_or_default();
-    check_size!(description, 1024);
+    check_size!(description, MAX_CHARS_SIZE);
     let image = msg.image;
-    check_size!(image, 1024);
+    check_size!(image, MAX_CHARS_SIZE);
 
     // create the token
     let token = TokenInfo {
@@ -167,14 +174,14 @@ pub fn handle_update_nft(
             if !token.owner.eq(&sender_raw) {
                 return Err(ContractError::Unauthorized {});
             }
-            check_size!(name, 140);
+            check_size!(name, MAX_CHARS_SIZE);
             token.name = name;
             if let Some(description_val) = description {
-                check_size!(description_val, 1024);
+                check_size!(description_val, MAX_CHARS_SIZE);
                 token.description = description_val;
             }
             if let Some(image_val) = image {
-                check_size!(image_val, 1024);
+                check_size!(image_val, MAX_CHARS_SIZE);
                 token.image = image_val;
             }
             Ok(token)
@@ -416,6 +423,38 @@ fn check_can_approve(
     }
 }
 
+pub fn handle_withdraw_fees(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    address: HumanAddr,
+    fees: u128,
+) -> Result<HandleResponse, ContractError> {
+    let owner_raw = deps.api.canonical_address(&info.sender)?;
+    let owner = OWNER.load(deps.storage)?;
+    if !owner.eq(&owner_raw) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let withdraw_msg = BankMsg::Send {
+        from_address: env.contract.address.clone(),
+        to_address: address.clone(),
+        amount: coins(fees, DENOM),
+    }
+    .into();
+    let res = HandleResponse {
+        messages: vec![withdraw_msg],
+        attributes: vec![
+            attr("function_type", "withdraw_fees"),
+            attr("to_address", address),
+            attr("amount", fees),
+        ],
+        data: None,
+    };
+
+    Ok(res)
+}
+
 /// returns true if the sender can transfer ownership of the token
 fn check_can_send(
     deps: Deps,
@@ -536,9 +575,6 @@ fn query_owner_of(
         approvals: humanize_approvals(deps.api, &env.block, &info, include_expired)?,
     })
 }
-
-const DEFAULT_LIMIT: u32 = 10;
-const MAX_LIMIT: u32 = 30;
 
 fn query_all_approvals(
     deps: Deps,

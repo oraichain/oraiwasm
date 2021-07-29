@@ -5,8 +5,8 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    attr, from_binary, from_slice, to_binary, Api, CosmosMsg, HandleResponse, HumanAddr, OwnedDeps,
-    WasmMsg,
+    attr, coins, from_binary, from_slice, to_binary, Api, CosmosMsg, HandleResponse, HumanAddr,
+    OwnedDeps, WasmMsg,
 };
 
 use cw721::{
@@ -19,7 +19,7 @@ const CONTRACT_NAME: &str = "Magic Power";
 const SYMBOL: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies(&coins(100000, "orai"));
     deps.api.canonical_length = 54;
     let msg = InitMsg {
         name: CONTRACT_NAME.to_string(),
@@ -893,4 +893,44 @@ fn update_nft() {
             image: image.clone(),
         }
     );
+}
+
+#[test]
+fn proper_withdraw_fees() {
+    let mut deps = setup_contract();
+
+    let msg = InitMsg {
+        name: CONTRACT_NAME.to_string(),
+        symbol: SYMBOL.to_string(),
+        minter: MINTER.into(),
+    };
+
+    let info = mock_info(MINTER, &[]);
+
+    // we can just call .unwrap() to assert this was a success
+    let res = init(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    let ret = handle(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        HandleMsg::WithdrawFees {
+            address: MINTER.into(),
+            fees: 1000,
+        },
+    )
+    .unwrap();
+
+    println!("Got result: {:?}", ret.attributes);
+    // this is for mocking
+    deps.querier
+        .update_balance(HumanAddr::from(MINTER), coins(1000, "orai"));
+    let receiver_balance = deps
+        .as_ref()
+        .querier
+        .query_balance(HumanAddr::from(MINTER), "orai")
+        .unwrap();
+
+    println!("receiver balance: {}", receiver_balance.amount);
 }
