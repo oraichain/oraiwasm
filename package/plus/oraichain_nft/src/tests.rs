@@ -91,9 +91,9 @@ fn minting() {
     let image = "".to_string();
     let owner = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3t".to_string();
     let mint_str = format!(
-            "{{\"token_id\":\"petrify\",\"owner\":\"{}\",\"name\":\"{}\",\"description\":\"{}\",\"image\":\"{}\"
+            "{{\"token_id\":\"{}\",\"owner\":\"{}\",\"name\":\"{}\",\"description\":\"{}\",\"image\":\"{}\"
     }}",
-           owner, name, description,image
+    token_id, owner, name, description,image
         );
     println!("length count: {}", owner.len());
     let mint_msg: MintMsg = from_slice(mint_str.as_bytes()).unwrap();
@@ -811,6 +811,34 @@ fn query_tokens_by_owner() {
 }
 
 #[test]
+fn mint_nft_invalid_args() {
+    let mut deps = setup_contract();
+    let token_id = "petrify".to_string();
+    let name = "Petrify with Gaze".to_string();
+    let description = "Very long".repeat(200); // 1800 > 1024
+    let image = "https://ipfs.io/ipfs/QmWCp5t1TLsLQyjDFa87ZAp72zYqmC7L2DsNjFdpH8bBoz".to_string();
+    let owner = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3t".to_string();
+    let mint_str = format!(
+            "{{\"token_id\":\"{}\",\"owner\":\"{}\",\"name\":\"{}\",\"description\":\"{}\",\"image\":\"{}\"
+    }}",
+    token_id, owner, name, description,image
+        );
+    println!("length count: {}", owner.len());
+    let mint_msg: MintMsg = from_slice(mint_str.as_bytes()).unwrap();
+
+    let mint_msg = HandleMsg::Mint(mint_msg);
+    let allowed = mock_info(MINTER, &[]);
+    let err = handle(deps.as_mut(), mock_env(), allowed.clone(), mint_msg).unwrap_err();
+
+    match err {
+        ContractError::InvalidArgument { reason } => {
+            assert_eq!(reason, "`description` exceeds 1024 chars");
+        }
+        e => panic!("unexpected error: {}", e),
+    }
+}
+
+#[test]
 fn update_nft() {
     let mut deps = setup_contract();
 
@@ -820,16 +848,12 @@ fn update_nft() {
     let image = "https://ipfs.io/ipfs/QmWCp5t1TLsLQyjDFa87ZAp72zYqmC7L2DsNjFdpH8bBoz".to_string();
     let owner = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3t".to_string();
     let mint_str = format!(
-            "{{\"token_id\":\"petrify\",\"owner\":\"{}\",\"name\":\"{}\",\"description\":\"{}\",\"image\":\"{}\"
+            "{{\"token_id\":\"{}\",\"owner\":\"{}\",\"name\":\"{}\",\"description\":\"{}\",\"image\":\"{}\"
     }}",
-    owner, name, description,image
+    token_id, owner, name, description,image
         );
     println!("length count: {}", owner.len());
     let mint_msg: MintMsg = from_slice(mint_str.as_bytes()).unwrap();
-    println!(
-        "mint msg: {}",
-        deps.api.canonical_address(&mint_msg.owner).unwrap()
-    );
 
     let mint_msg = HandleMsg::Mint(mint_msg);
     let allowed = mock_info(MINTER, &[]);
