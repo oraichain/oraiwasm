@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
 
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
@@ -24,6 +24,10 @@ pub enum HandleMsg {
         contract: HumanAddr,
         msg: Binary,
     },
+    WithdrawFunds {
+        funds: Coin,
+    },
+    UpdateInfo(InfoMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -39,6 +43,14 @@ pub struct BuyNft {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct InfoMsg {
+    pub name: Option<String>,
+    pub creator: Option<String>,
+    pub is_free: Option<bool>,
+    pub fee: Option<Coin>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     // GetOfferings returns a list of all offerings
@@ -47,4 +59,8 @@ pub enum QueryMsg {
         limit: Option<u8>,
         order: Option<u8>,
     },
+    GetOffering {
+        offering_id: u64,
+    },
+    GetContractInfo {},
 }
