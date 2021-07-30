@@ -1,4 +1,3 @@
-#![allow(dead_code, unused_imports)]
 use crate::contract::*;
 use crate::error::ContractError;
 use crate::msg::*;
@@ -19,7 +18,7 @@ fn sort_offering() {
     let mut deps = mock_dependencies(&coins(5, "orai"));
 
     let msg = InitMsg {
-        name: String::from("test market"),
+        name: String::from("test market orai"),
         denom: "orai".into(),
         fee: None,
     };

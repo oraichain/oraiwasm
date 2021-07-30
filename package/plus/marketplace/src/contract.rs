@@ -3,13 +3,14 @@ use crate::msg::{HandleMsg, InfoMsg, InitMsg, QueryMsg, SellNft};
 use crate::package::{ContractInfoResponse, OfferingsResponse, QueryOfferingsResult};
 use crate::state::{increment_offerings, Offering, CONTRACT_INFO, OFFERINGS};
 use cosmwasm_std::{
-    attr, coin, from_binary, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    attr, coins, from_binary, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
     HandleResponse, InitResponse, MessageInfo, Order, StdResult, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use cw_storage_plus::Bound;
 use std::convert::TryInto;
+use std::ops::Sub;
 use std::usize;
 
 // settings for pagination
@@ -37,50 +38,23 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::MintNft { contract, msg } => try_handle_mint(deps, info, env, contract, msg),
+        HandleMsg::MintNft { contract, msg } => try_handle_mint(deps, info, contract, msg),
         HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, offering_id),
-        HandleMsg::BuyNft { offering_id } => try_buy(deps, env, info, offering_id),
+        HandleMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
         HandleMsg::ReceiveNft(msg) => try_receive_nft(deps, info, msg),
         HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
         HandleMsg::UpdateInfo(info_msg) => try_update_info(deps, info, info_msg),
     }
 }
 
-fn check_sent_funds(
-    sent_funds: Vec<Coin>,
-    info: &ContractInfoResponse,
-) -> Result<Coin, ContractError> {
-    let mut fund = coin(0, &info.denom);
-
-    if let Some(fee) = &info.fee {
-        match sent_funds.iter().find(|fund| fund.denom == info.denom) {
-            Some(coin) => {
-                if coin.amount.is_zero() {
-                    return Err(ContractError::InsufficientFunds {});
-                }
-                fund.amount = fee.multiply(coin.amount);
-            }
-            None => {
-                return Err(ContractError::InvalidDenomAmount {});
-            }
-        };
-    }
-
-    Ok(fund)
-}
-
 // ============================== Message Handlers ==============================
 
 pub fn try_handle_mint(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
+    _deps: DepsMut,
+    _info: MessageInfo,
     contract: HumanAddr,
     msg: Binary,
 ) -> Result<HandleResponse, ContractError> {
-    // collect mint amount from sent_funds
-    let info_response = CONTRACT_INFO.load(deps.storage)?;
-
     let mint_msg = WasmMsg::Execute {
         contract_addr: contract.clone(),
         msg,
@@ -101,16 +75,13 @@ pub fn try_withdraw_funds(
     deps: DepsMut,
     _info: MessageInfo,
     env: Env,
-    funds: Coin,
+    fund: Coin,
 ) -> Result<HandleResponse, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address,
         to_address: HumanAddr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
-        amount: vec![Coin {
-            denom: funds.denom.clone(),
-            amount: funds.amount,
-        }],
+        amount: vec![fund.clone()],
     }
     .into();
 
@@ -118,8 +89,8 @@ pub fn try_withdraw_funds(
         messages: vec![bank_msg],
         attributes: vec![
             attr("action", "withdraw_funds"),
-            attr("denom", funds.denom),
-            attr("amount", funds.amount),
+            attr("denom", fund.denom),
+            attr("amount", fund.amount),
             attr("receiver", contract_info.creator),
         ],
         data: None,
@@ -155,35 +126,58 @@ pub fn try_update_info(
 
 pub fn try_buy(
     deps: DepsMut,
-    env: Env,
     info: MessageInfo,
+    env: Env,
     offering_id: u64,
 ) -> Result<HandleResponse, ContractError> {
-    // check if offering exists
-    let off_result = OFFERINGS.load(deps.storage, &offering_id.to_be_bytes());
-    // check if offering exists or not
-    if off_result.is_err() {
-        return Err(ContractError::InvalidGetOffering {});
-    }
-    let off: Offering = off_result?;
-    let mut amount: Vec<Coin> = vec![];
-    // check for enough coins
-    if !off.price.is_zero() {
-        // collect buyer amount from sent_funds
-        if info.sent_funds.len() == 0 {
-            return Err(ContractError::InvalidSentFundAmount {});
-        }
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
-        let matching_coin = info.sent_funds.iter().find(|fund| fund.denom == "orai");
-        match matching_coin {
-            Some(coin) => {
-                if coin.amount.lt(&off.price) {
+    // check if offering exists
+    let off = match OFFERINGS.load(deps.storage, &offering_id.to_be_bytes()) {
+        Ok(v) => v,
+        // should override error ?
+        Err(_) => return Err(ContractError::InvalidGetOffering {}),
+    };
+
+    let seller_addr = deps.api.human_address(&off.seller)?;
+
+    let mut cosmos_msgs = vec![];
+    // check for enough coins, if has price then payout to all participants
+    if !off.price.is_zero() {
+        match info
+            .sent_funds
+            .iter()
+            .find(|fund| fund.denom == contract_info.denom)
+        {
+            Some(sent_fund) => {
+                if sent_fund.amount.lt(&off.price) {
                     return Err(ContractError::InsufficientFunds {});
                 }
-                amount.push(Coin {
-                    denom: String::from("orai"),
-                    amount: coin.amount,
-                });
+
+                let mut owner_amount = sent_fund.amount;
+
+                // pay for the owner of this minter contract if there is fee
+                if let Some(fee) = &contract_info.fee {
+                    let fee_amount = fee.multiply(sent_fund.amount);
+                    owner_amount = owner_amount.sub(fee_amount)?;
+                    cosmos_msgs.push(
+                        BankMsg::Send {
+                            from_address: env.contract.address.clone(),
+                            to_address: HumanAddr::from(contract_info.creator),
+                            amount: coins(fee_amount.u128(), contract_info.denom.clone()),
+                        }
+                        .into(),
+                    );
+                }
+                // create transfer msg to send ORAI to the seller
+                cosmos_msgs.push(
+                    BankMsg::Send {
+                        from_address: env.contract.address,
+                        to_address: seller_addr.clone(),
+                        amount: coins(owner_amount.u128(), contract_info.denom),
+                    }
+                    .into(),
+                );
             }
             None => {
                 return Err(ContractError::InvalidDenomAmount {});
@@ -191,45 +185,21 @@ pub fn try_buy(
         };
     }
 
-    // create transfer msg to send ORAI to the seller
-    let seller_result = deps.api.human_address(&off.seller);
-    // check if when parsing to human address there is an error
-    if seller_result.is_err() {
-        return Err(ContractError::InvalidSellerAddr {});
-    }
-
-    // here
-    let seller: HumanAddr = seller_result?;
-    let bank_msg: CosmosMsg = BankMsg::Send {
-        from_address: env.contract.address,
-        to_address: seller.clone(),
-        amount,
-    }
-    .into();
-
     // create transfer cw721 msg
     let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
         recipient: info.sender.clone(),
         token_id: off.token_id.clone(),
     };
-    let contract_addr_result = deps.api.human_address(&off.contract_addr);
-    if contract_addr_result.is_err() {
-        return Err(ContractError::InvalidContractAddr {});
-    }
-    let contract_addr: HumanAddr = contract_addr_result?;
-    let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: contract_addr.clone(),
-        msg: to_binary(&transfer_cw721_msg)?,
-        send: vec![],
-    };
-
+    let contract_addr = deps.api.human_address(&off.contract_addr)?;
     // if everything is fine transfer cw20 to seller
-    // let cw20_transfer_cosmos_msg: CosmosMsg = exec_cw20_transfer.into();
-    // transfer nft to buyer
-    let cw721_transfer_cosmos_msg: CosmosMsg = exec_cw721_transfer.into();
-
-    // let cosmos_msgs = vec![cw20_transfer_cosmos_msg, cw721_transfer_cosmos_msg];
-    let cosmos_msgs = vec![bank_msg, cw721_transfer_cosmos_msg];
+    cosmos_msgs.push(
+        WasmMsg::Execute {
+            contract_addr,
+            msg: to_binary(&transfer_cw721_msg)?,
+            send: vec![],
+        }
+        .into(),
+    );
 
     //delete offering
     OFFERINGS.remove(deps.storage, &offering_id.to_be_bytes());
@@ -241,11 +211,10 @@ pub fn try_buy(
         attributes: vec![
             attr("action", "buy_nft"),
             attr("buyer", info.sender),
-            attr("seller", seller),
+            attr("seller", seller_addr),
             attr("paid_price", price_string),
             attr("token_id", off.token_id),
             attr("offering_id", offering_id),
-            attr("contract_addr", contract_addr),
         ],
         data: None,
     })

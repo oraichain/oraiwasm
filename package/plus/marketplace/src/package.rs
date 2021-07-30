@@ -1,5 +1,5 @@
 use crate::fraction::Fraction;
-use cosmwasm_std::{Coin, HumanAddr, Uint128};
+use cosmwasm_std::{HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
