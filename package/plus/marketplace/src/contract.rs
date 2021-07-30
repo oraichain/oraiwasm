@@ -1,10 +1,10 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InfoMsg, InitMsg, QueryMsg, SellNft};
 use crate::package::{ContractInfoResponse, OfferingsResponse, QueryOfferingsResult};
-use crate::state::{increment_offerings, Offering, CONTRACT_INFO, OFFERINGS};
+use crate::state::{increment_offerings, offerings, Offering, CONTRACT_INFO};
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, InitResponse, MessageInfo, Order, StdResult, WasmMsg,
+    HandleResponse, InitResponse, MessageInfo, Order, StdError, StdResult, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
@@ -133,7 +133,7 @@ pub fn try_buy(
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     // check if offering exists
-    let off = match OFFERINGS.load(deps.storage, &offering_id.to_be_bytes()) {
+    let off = match offerings().load(deps.storage, &offering_id.to_be_bytes()) {
         Ok(v) => v,
         // should override error ?
         Err(_) => return Err(ContractError::InvalidGetOffering {}),
@@ -202,7 +202,7 @@ pub fn try_buy(
     );
 
     //delete offering
-    OFFERINGS.remove(deps.storage, &offering_id.to_be_bytes());
+    offerings().remove(deps.storage, &offering_id.to_be_bytes())?;
 
     let price_string = format!("{:?} {}", info.sent_funds, info.sender);
 
@@ -242,7 +242,7 @@ pub fn try_receive_nft(
         price: msg.price.clone(),
     };
 
-    OFFERINGS.save(deps.storage, &offering_id.to_be_bytes(), &off)?;
+    offerings().save(deps.storage, &offering_id.to_be_bytes(), &off)?;
 
     let price_string = format!("{}", msg.price);
 
@@ -267,7 +267,7 @@ pub fn try_withdraw(
 ) -> Result<HandleResponse, ContractError> {
     // check if token_id is currently sold by the requesting address
     let storage_key = offering_id.to_be_bytes();
-    let off = OFFERINGS.load(deps.storage, &storage_key)?;
+    let off = offerings().load(deps.storage, &storage_key)?;
     if off.seller == deps.api.canonical_address(&info.sender)? {
         // transfer token back to original owner
         let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
@@ -284,7 +284,7 @@ pub fn try_withdraw(
         let cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![exec_cw721_transfer.into()];
 
         // remove offering
-        OFFERINGS.remove(deps.storage, &storage_key);
+        offerings().remove(deps.storage, &storage_key)?;
 
         return Ok(HandleResponse {
             messages: cw721_transfer_cosmos_msg,
@@ -307,6 +307,22 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             offset,
             order,
         } => to_binary(&query_offerings(deps, limit, offset, order)?),
+        QueryMsg::GetOfferingsBySeller {
+            seller,
+            limit,
+            offset,
+            order,
+        } => to_binary(&query_offerings_by_seller(
+            deps, seller, limit, offset, order,
+        )?),
+        QueryMsg::GetOfferingsByContract {
+            contract,
+            limit,
+            offset,
+            order,
+        } => to_binary(&query_offerings_by_contract(
+            deps, contract, limit, offset, order,
+        )?),
         QueryMsg::GetOffering { offering_id } => query_offering(deps, offering_id),
         QueryMsg::GetContractInfo {} => query_contract_info(deps),
     }
@@ -314,14 +330,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 // ============================== Query Handlers ==============================
 
-pub fn query_offerings(
-    deps: Deps,
+fn _get_range_params(
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> StdResult<OfferingsResponse> {
+) -> (usize, Option<Bound>, Option<Bound>, Order) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-
     let mut min: Option<Bound> = None;
     let mut max: Option<Bound> = None;
     let mut order_enum = Order::Descending;
@@ -339,20 +353,68 @@ pub fn query_offerings(
             Order::Descending => max = offset_value,
         }
     };
+    (limit, min, max, order_enum)
+}
 
-    let res: StdResult<Vec<QueryOfferingsResult>> = OFFERINGS
+pub fn query_offerings(
+    deps: Deps,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<OfferingsResponse> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+
+    let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(deps.api, kv_item))
         .collect();
 
-    Ok(OfferingsResponse {
-        offerings: res?, // Placeholder
-    })
+    Ok(OfferingsResponse { offerings: res? })
+}
+
+pub fn query_offerings_by_seller(
+    deps: Deps,
+    seller: HumanAddr,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<OfferingsResponse> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let seller_raw = deps.api.canonical_address(&seller)?;
+    let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
+        .idx
+        .seller
+        .items(deps.storage, &seller_raw, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| parse_offering(deps.api, kv_item))
+        .collect();
+
+    Ok(OfferingsResponse { offerings: res? })
+}
+
+pub fn query_offerings_by_contract(
+    deps: Deps,
+    contract: HumanAddr,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<OfferingsResponse> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let contract_raw = deps.api.canonical_address(&contract)?;
+    let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
+        .idx
+        .contract
+        .items(deps.storage, &contract_raw, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| parse_offering(deps.api, kv_item))
+        .collect();
+
+    Ok(OfferingsResponse { offerings: res? })
 }
 
 pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<Binary> {
-    let offering: Offering = OFFERINGS.load(deps.storage, &offering_id.to_be_bytes())?;
+    let offering: Offering = offerings().load(deps.storage, &offering_id.to_be_bytes())?;
     Ok(to_binary(&offering)?)
 }
 

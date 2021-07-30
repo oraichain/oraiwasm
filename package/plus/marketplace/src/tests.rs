@@ -2,10 +2,10 @@ use crate::contract::*;
 use crate::error::ContractError;
 use crate::msg::*;
 use crate::package::*;
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MockQuerier, MockStorage};
+use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
     coin, coins, from_binary, from_slice, to_binary, Api, CosmosMsg, HandleResponse, HumanAddr,
-    OwnedDeps, Uint128, WasmMsg,
+    Order, OwnedDeps, Uint128,
 };
 
 use cw721::{
@@ -28,10 +28,20 @@ fn sort_offering() {
     // beneficiary can release it
     let info = mock_info("anyone", &vec![coin(50000000, "orai")]);
 
-    for i in 1..100 {
+    for i in 1..50 {
         let sell_msg = SellNft { price: Uint128(i) };
         let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
             sender: HumanAddr::from("seller"),
+            token_id: String::from(format!("SellableNFT {}", i)),
+            msg: to_binary(&sell_msg).ok(),
+        });
+        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    }
+
+    for i in 50..100 {
+        let sell_msg = SellNft { price: Uint128(i) };
+        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+            sender: HumanAddr::from("tupt"),
             token_id: String::from(format!("SellableNFT {}", i)),
             msg: to_binary(&sell_msg).ok(),
         });
@@ -42,10 +52,26 @@ fn sort_offering() {
     let res = query(
         deps.as_ref(),
         mock_env(),
-        QueryMsg::GetOfferings {
+        QueryMsg::GetOfferingsBySeller {
+            seller: "seller".into(),
             limit: Some(100),
             offset: Some(40),
-            order: Some(2),
+            order: Some(Order::Descending as u8),
+        },
+    )
+    .unwrap();
+    let value: OfferingsResponse = from_binary(&res).unwrap();
+    let ids: Vec<u64> = value.offerings.iter().map(|f| f.id).collect();
+    println!("value: {:?}", ids);
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::GetOfferingsBySeller {
+            seller: "tupt".into(),
+            limit: Some(100),
+            offset: Some(40),
+            order: Some(Order::Ascending as u8),
         },
     )
     .unwrap();

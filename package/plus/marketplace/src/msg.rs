@@ -62,6 +62,18 @@ pub enum QueryMsg {
         limit: Option<u8>,
         order: Option<u8>,
     },
+    GetOfferingsBySeller {
+        seller: HumanAddr,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
+    GetOfferingsByContract {
+        contract: HumanAddr,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
     GetOffering {
         offering_id: u64,
     },
