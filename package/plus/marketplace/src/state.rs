@@ -3,7 +3,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{CanonicalAddr, StdResult, Storage, Uint128};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
+use cosmwasm_storage::{Bucket, ReadonlyBucket};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Offering {
@@ -50,4 +51,22 @@ pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>
         ),
     };
     IndexedMap::new("offerings", indexes)
+}
+
+const PREFIX_ROYALTIES: &[u8] = b"royalties";
+/// returns a bucket with all royalties by this contract (query it by spender)
+pub fn royalties<'a>(
+    storage: &'a mut dyn Storage,
+    contract: &CanonicalAddr,
+) -> Bucket<'a, Vec<CanonicalAddr>> {
+    Bucket::multilevel(storage, &[PREFIX_ROYALTIES, contract.as_slice()])
+}
+
+/// returns a bucket with all royalties authorized by this contract (query it by spender)
+/// (read-only version for queries)
+pub fn royalties_read<'a>(
+    storage: &'a dyn Storage,
+    contract: &CanonicalAddr,
+) -> ReadonlyBucket<'a, Vec<CanonicalAddr>> {
+    ReadonlyBucket::multilevel(storage, &[PREFIX_ROYALTIES, contract.as_slice()])
 }

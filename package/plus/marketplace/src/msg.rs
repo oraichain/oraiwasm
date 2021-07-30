@@ -10,6 +10,7 @@ pub struct InitMsg {
     pub name: String,
     pub fee: Option<Fraction>,
     pub denom: String,
+    pub royalties: Vec<Fraction>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -51,6 +52,7 @@ pub struct InfoMsg {
     pub creator: Option<String>,
     pub fee: Option<Fraction>,
     pub denom: Option<String>,
+    pub royalties: Option<Vec<Fraction>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

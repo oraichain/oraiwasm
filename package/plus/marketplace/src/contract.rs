@@ -1,10 +1,10 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InfoMsg, InitMsg, QueryMsg, SellNft};
 use crate::package::{ContractInfoResponse, OfferingsResponse, QueryOfferingsResult};
-use crate::state::{increment_offerings, offerings, Offering, CONTRACT_INFO};
+use crate::state::{increment_offerings, offerings, royalties, Offering, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, InitResponse, MessageInfo, Order, StdError, StdResult, WasmMsg,
+    attr, coins, from_binary, to_binary, Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg,
+    Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order, StdResult, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
@@ -25,6 +25,7 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
         creator: info.sender.to_string(),
         denom: msg.denom,
         fee: msg.fee,
+        royalties: msg.royalties,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -113,6 +114,9 @@ pub fn try_update_info(
         if let Some(creator) = info_msg.creator {
             contract_info.creator = creator;
         }
+        if let Some(royalties) = info_msg.royalties {
+            contract_info.royalties = royalties;
+        }
         contract_info.fee = info_msg.fee;
         Ok(contract_info)
     })?;
@@ -138,6 +142,11 @@ pub fn try_buy(
         // should override error ?
         Err(_) => return Err(ContractError::InvalidGetOffering {}),
     };
+
+    let mut contract_royalties = royalties(deps.storage, &off.contract_addr);
+    let mut payout_royalties = contract_royalties
+        .load(off.token_id.as_bytes())
+        .unwrap_or(vec![]);
 
     let seller_addr = deps.api.human_address(&off.seller)?;
 
@@ -169,6 +178,9 @@ pub fn try_buy(
                         .into(),
                     );
                 }
+
+                // payout for all royalties and update
+                // TODO:///
                 // create transfer msg to send ORAI to the seller
                 cosmos_msgs.push(
                     BankMsg::Send {
@@ -200,6 +212,12 @@ pub fn try_buy(
         }
         .into(),
     );
+
+    // with this token_id => add seller to royalties
+    if payout_royalties.len() < contract_info.royalties.len() {
+        payout_royalties.push(off.seller.clone());
+        contract_royalties.save(off.token_id.as_bytes(), &payout_royalties)?;
+    }
 
     //delete offering
     offerings().remove(deps.storage, &offering_id.to_be_bytes())?;

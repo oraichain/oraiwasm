@@ -35,8 +35,6 @@ pub const MINTER: Item<CanonicalAddr> = Item::new("minter");
 pub const OWNER: Item<CanonicalAddr> = Item::new("owner");
 pub const TOKEN_COUNT: Item<u64> = Item::new("num_tokens");
 
-/// token id => List of royalty address
-pub const PAYOUTS: Map<&str, Vec<CanonicalAddr>> = Map::new("payouts");
 pub const OPERATORS: Map<(&[u8], &[u8]), Expiration> = Map::new("operators");
 
 pub fn num_tokens(storage: &dyn Storage) -> StdResult<u64> {

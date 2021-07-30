@@ -21,6 +21,7 @@ fn sort_offering() {
         name: String::from("test market orai"),
         denom: "orai".into(),
         fee: None,
+        royalties: vec![],
     };
     let info = mock_info("creator", &vec![coin(5, "orai")]);
     let _res = init(deps.as_mut(), mock_env(), info, msg).unwrap();

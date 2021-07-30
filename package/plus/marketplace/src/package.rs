@@ -11,6 +11,8 @@ pub struct ContractInfoResponse {
     pub fee: Option<Fraction>,
     /// the accepted denom
     pub denom: String,
+    /// this defines the levels to payout all up
+    pub royalties: Vec<Fraction>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
