@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, HumanAddr};
 use cw721::Expiration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -14,8 +14,6 @@ pub struct InitMsg {
     /// This is designed for a base NFT that is controlled by an external program
     /// or contract. You will likely replace this with custom logic in custom NFTs
     pub minter: HumanAddr,
-
-    pub minter_fee: Option<Uint128>,
 }
 
 /// This is like Cw721HandleMsg but we add a Mint command for an owner
@@ -73,12 +71,6 @@ pub enum HandleMsg {
 
     /// Mint a new NFT, can only be called by the contract minter
     Mint(MintMsg),
-
-    /// Withdraw balance of smart contract to the specific address
-    WithdrawFees {
-        address: HumanAddr,
-        fees: u128,
-    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -95,12 +87,6 @@ pub struct MintMsg {
     pub image: String,
     // min_royalty: Fraction,
     // /// Indicates the minimum allowed `royalty` to be set on a `Collectible` when an Artist creates it.
-    // max_royalty: Fraction,
-    // /// Percentage fee to pay back to Mintgate when a `Token` is being sold.
-    // /// This field can be set up when the contract is deployed.
-    // mintgate_fee: Fraction,
-    // /// Designated MintGate NEAR account id to receive `mintgate_fee` after a sale.
-    // mintgate_fee_account_id: AccountId,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

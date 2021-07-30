@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, coins, to_binary, Api, BankMsg, Binary, BlockInfo, Deps, DepsMut, Env, HandleResponse,
-    HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, KV,
+    attr, to_binary, Api, Binary, BlockInfo, Deps, DepsMut, Env, HandleResponse, HumanAddr,
+    InitResponse, MessageInfo, Order, StdError, StdResult, KV,
 };
 
 use cw0::maybe_canonical;
@@ -22,7 +22,6 @@ use cw_storage_plus::Bound;
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:oraichain_nft";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
-const DENOM: &str = "orai";
 const DEFAULT_LIMIT: u32 = 10;
 const MAX_LIMIT: u32 = 30;
 const MAX_CHARS_SIZE: usize = 1024;
@@ -38,7 +37,6 @@ pub fn init(
     let info = ContractInfoResponse {
         name: msg.name,
         symbol: msg.symbol,
-        minter_fee: msg.minter_fee.unwrap_or_default(),
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     let minter = deps.api.canonical_address(&msg.minter)?;
@@ -84,9 +82,6 @@ pub fn handle(
             image,
         } => handle_update_nft(deps, env, info, token_id, name, description, image),
         HandleMsg::ChangeMinter { minter } => handle_change_minter(deps, env, info, minter),
-        HandleMsg::WithdrawFees { address, fees } => {
-            handle_withdraw_fees(deps, env, info, address, fees)
-        }
     }
 }
 
@@ -136,6 +131,7 @@ pub fn handle_mint(
     })
 }
 
+/// this is trigger when there is buy_nft action
 pub fn handle_transfer_nft(
     deps: DepsMut,
     env: Env,
@@ -144,6 +140,8 @@ pub fn handle_transfer_nft(
     token_id: String,
 ) -> Result<HandleResponse, ContractError> {
     _transfer_nft(deps, &env, &info, &recipient, &token_id)?;
+
+    // need transfer_payout as well
 
     Ok(HandleResponse {
         messages: vec![],
@@ -422,38 +420,6 @@ fn check_can_approve(
         }
         None => Err(ContractError::Unauthorized {}),
     }
-}
-
-pub fn handle_withdraw_fees(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    address: HumanAddr,
-    fees: u128,
-) -> Result<HandleResponse, ContractError> {
-    let owner_raw = deps.api.canonical_address(&info.sender)?;
-    let owner = OWNER.load(deps.storage)?;
-    if !owner.eq(&owner_raw) {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let withdraw_msg = BankMsg::Send {
-        from_address: env.contract.address.clone(),
-        to_address: address.clone(),
-        amount: coins(fees, DENOM),
-    }
-    .into();
-    let res = HandleResponse {
-        messages: vec![withdraw_msg],
-        attributes: vec![
-            attr("function_type", "withdraw_fees"),
-            attr("to_address", address),
-            attr("amount", fees),
-        ],
-        data: None,
-    };
-
-    Ok(res)
 }
 
 /// returns true if the sender can transfer ownership of the token

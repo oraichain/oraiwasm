@@ -18,14 +18,13 @@ const MINTER: &str = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3d";
 const CONTRACT_NAME: &str = "Magic Power";
 const SYMBOL: &str = "MGK";
 
-fn setup_contract(minter_fee: Option<Uint128>) -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
+fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, "orai"));
     deps.api.canonical_length = 54;
     let msg = InitMsg {
         name: CONTRACT_NAME.to_string(),
         symbol: SYMBOL.to_string(),
         minter: MINTER.into(),
-        minter_fee,
     };
     let info = mock_info(MINTER, &[]);
     let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -35,7 +34,7 @@ fn setup_contract(minter_fee: Option<Uint128>) -> OwnedDeps<MockStorage, MockApi
 
 #[test]
 fn proper_initialization() {
-    let deps = setup_contract(None);
+    let deps = setup_contract();
 
     // it worked, let's query the state
     let res: MinterResponse =
@@ -48,7 +47,6 @@ fn proper_initialization() {
         ContractInfoResponse {
             name: CONTRACT_NAME.to_string(),
             symbol: SYMBOL.to_string(),
-            minter_fee: 0u128.into(),
         }
     );
 
@@ -74,7 +72,7 @@ fn proper_initialization() {
 
 #[test]
 fn minting() {
-    let mut deps = setup_contract(None);
+    let mut deps = setup_contract();
 
     let token_id = "petrify".to_string();
     let name = "Petrify with Gaze".to_string();
@@ -178,7 +176,7 @@ fn minting() {
 
 #[test]
 fn transferring_nft() {
-    let mut deps = setup_contract(None);
+    let mut deps = setup_contract();
 
     // Mint a token
     let token_id = "melt".to_string();
@@ -236,7 +234,7 @@ fn transferring_nft() {
 
 #[test]
 fn sending_nft() {
-    let mut deps = setup_contract(None);
+    let mut deps = setup_contract();
 
     // Mint a token
     let token_id = "melt".to_string();
@@ -304,7 +302,7 @@ fn sending_nft() {
 
 #[test]
 fn approving_revoking() {
-    let mut deps = setup_contract(None);
+    let mut deps = setup_contract();
 
     // Mint a token
     let token_id = "grow".to_string();
@@ -396,7 +394,7 @@ fn approving_revoking() {
 
 #[test]
 fn approving_all_revoking_all() {
-    let mut deps = setup_contract(None);
+    let mut deps = setup_contract();
 
     // Mint a couple tokens (from the same owner)
     let token_id1 = "grow1".to_string();
@@ -654,7 +652,7 @@ fn approving_all_revoking_all() {
 
 #[test]
 fn query_tokens_by_owner() {
-    let mut deps = setup_contract(None);
+    let mut deps = setup_contract();
     let minter = mock_info(MINTER, &[]);
 
     // Mint a couple tokens (from the same owner)
@@ -803,7 +801,7 @@ fn query_tokens_by_owner() {
 
 #[test]
 fn mint_nft_invalid_args() {
-    let mut deps = setup_contract(None);
+    let mut deps = setup_contract();
     let token_id = "petrify".to_string();
     let name = "Petrify with Gaze".to_string();
     let description = "Very long".repeat(200); // 1800 > 1024
@@ -831,7 +829,7 @@ fn mint_nft_invalid_args() {
 
 #[test]
 fn update_nft() {
-    let mut deps = setup_contract(None);
+    let mut deps = setup_contract();
 
     let token_id = "petrify".to_string();
     let name = "Petrify with Gaze".to_string();
@@ -884,33 +882,4 @@ fn update_nft() {
             image: image.clone(),
         }
     );
-}
-
-#[test]
-fn proper_withdraw_fees() {
-    let mut deps = setup_contract(None);
-
-    let info = mock_info(MINTER, &[]);
-    let ret = handle(
-        deps.as_mut(),
-        mock_env(),
-        info,
-        HandleMsg::WithdrawFees {
-            address: MINTER.into(),
-            fees: 1000,
-        },
-    )
-    .unwrap();
-
-    println!("Got result: {:?}", ret.attributes);
-    // this is for mocking
-    deps.querier
-        .update_balance(HumanAddr::from(MINTER), coins(1000, "orai"));
-    let receiver_balance = deps
-        .as_ref()
-        .querier
-        .query_balance(HumanAddr::from(MINTER), "orai")
-        .unwrap();
-
-    println!("receiver balance: {}", receiver_balance.amount);
 }

@@ -5,16 +5,11 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{CanonicalAddr, StdResult, Storage, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
-pub static CONFIG_KEY: &[u8] = b"config";
-
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Offering {
     pub token_id: String,
-
     pub contract_addr: CanonicalAddr,
-
     pub seller: CanonicalAddr,
-
     pub price: Uint128,
 }
 

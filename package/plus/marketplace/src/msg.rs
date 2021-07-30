@@ -1,5 +1,6 @@
 use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
 
+use crate::fraction::Fraction;
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -7,6 +8,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
     pub name: String,
+    pub fee: Option<Fraction>,
+    pub denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -46,8 +49,8 @@ pub struct BuyNft {
 pub struct InfoMsg {
     pub name: Option<String>,
     pub creator: Option<String>,
-    pub is_free: Option<bool>,
-    pub fee: Option<Coin>,
+    pub fee: Option<Fraction>,
+    pub denom: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
