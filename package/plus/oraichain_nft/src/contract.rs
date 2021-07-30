@@ -3,8 +3,6 @@ use cosmwasm_std::{
     InitResponse, MessageInfo, Order, StdError, StdResult, KV,
 };
 
-use cw0::maybe_canonical;
-use cw2::set_contract_version;
 use cw721::{
     AllNftInfoResponse, ApprovedForAllResponse, ContractInfoResponse, Cw721ReceiveMsg, Expiration,
     NftInfoResponse, NumTokensResponse, OwnerOfResponse, TokensResponse,
@@ -32,11 +30,10 @@ pub fn init(
     msg_info: MessageInfo,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
     let info = ContractInfoResponse {
-        name: msg.name,
+        name: msg.name.unwrap_or(CONTRACT_NAME.to_string()),
         symbol: msg.symbol,
+        version: msg.version.unwrap_or(CONTRACT_VERSION.to_string()),
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     let minter = deps.api.canonical_address(&msg.minter)?;
@@ -552,7 +549,10 @@ fn query_all_approvals(
     limit: Option<u32>,
 ) -> StdResult<ApprovedForAllResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start_canon = maybe_canonical(deps.api, start_after)?;
+    // transpose option result into option
+    let start_canon = start_after
+        .map(|x| deps.api.canonical_address(&x))
+        .transpose()?;
     let start = start_canon.map(Bound::exclusive);
 
     let owner_raw = deps.api.canonical_address(&owner)?;

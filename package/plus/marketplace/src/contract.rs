@@ -3,8 +3,8 @@ use crate::msg::{HandleMsg, InfoMsg, InitMsg, QueryMsg, SellNft};
 use crate::package::{ContractInfoResponse, OfferingsResponse, QueryOfferingsResult};
 use crate::state::{increment_offerings, offerings, royalties, Offering, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg,
-    Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order, StdResult, WasmMsg,
+    attr, coins, from_binary, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    HandleResponse, InitResponse, MessageInfo, Order, StdResult, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
@@ -203,7 +203,7 @@ pub fn try_buy(
         token_id: off.token_id.clone(),
     };
     let contract_addr = deps.api.human_address(&off.contract_addr)?;
-    // if everything is fine transfer cw20 to seller
+    // if everything is fine transfer native token to seller
     cosmos_msgs.push(
         WasmMsg::Execute {
             contract_addr,

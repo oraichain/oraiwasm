@@ -6,7 +6,7 @@ use cosmwasm_std::testing::{
 };
 use cosmwasm_std::{
     attr, coins, from_binary, from_slice, to_binary, Api, CosmosMsg, HandleResponse, HumanAddr,
-    OwnedDeps, Uint128, WasmMsg,
+    OwnedDeps, WasmMsg,
 };
 
 use cw721::{
@@ -16,15 +16,17 @@ use cw721::{
 
 const MINTER: &str = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3d";
 const CONTRACT_NAME: &str = "Magic Power";
+const CONTRACT_VERSION: &str = "0.1.1";
 const SYMBOL: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, "orai"));
     deps.api.canonical_length = 54;
     let msg = InitMsg {
-        name: CONTRACT_NAME.to_string(),
+        name: Some(CONTRACT_NAME.to_string()),
         symbol: SYMBOL.to_string(),
         minter: MINTER.into(),
+        version: Some(CONTRACT_VERSION.to_string()),
     };
     let info = mock_info(MINTER, &[]);
     let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -47,6 +49,7 @@ fn proper_initialization() {
         ContractInfoResponse {
             name: CONTRACT_NAME.to_string(),
             symbol: SYMBOL.to_string(),
+            version: CONTRACT_VERSION.to_string(),
         }
     );
 
