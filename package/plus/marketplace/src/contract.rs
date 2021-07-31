@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::fraction::{Payout, PrettyPayout};
+use crate::fraction::{Fraction, Payout, PrettyPayout};
 use crate::msg::{HandleMsg, InfoMsg, InitMsg, QueryMsg, SellNft};
 use crate::package::{ContractInfoResponse, OfferingsResponse, QueryOfferingsResult};
 use crate::state::{
@@ -23,13 +23,18 @@ const DEFAULT_LIMIT: u8 = 100;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+pub fn init(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InitMsg,
+) -> Result<InitResponse, ContractError> {
     let info = ContractInfoResponse {
         name: msg.name,
         creator: info.sender.to_string(),
         denom: msg.denom,
-        fee: msg.fee,
-        royalties: msg.royalties,
+        fee: check_royalty(msg.fee)?,
+        royalties: check_royalties(msg.royalties)?,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -102,6 +107,25 @@ pub fn try_withdraw_funds(
     })
 }
 
+fn check_royalties(royalties: Vec<Fraction>) -> Result<Vec<Fraction>, ContractError> {
+    for royalty in &royalties {
+        if !royalty.check() {
+            return Err(ContractError::InvalidRoyalty {});
+        }
+    }
+    Ok(royalties)
+}
+
+fn check_royalty(royalty: Option<Fraction>) -> Result<Option<Fraction>, ContractError> {
+    // get mutable reference to prevent copy value
+    if let Some(val) = &royalty {
+        if !val.check() {
+            return Err(ContractError::InvalidRoyalty {});
+        }
+    }
+    Ok(royalty)
+}
+
 pub fn try_update_info(
     deps: DepsMut,
     info: MessageInfo,
@@ -119,9 +143,9 @@ pub fn try_update_info(
             contract_info.creator = creator;
         }
         if let Some(royalties) = info_msg.royalties {
-            contract_info.royalties = royalties;
+            contract_info.royalties = check_royalties(royalties)?;
         }
-        contract_info.fee = info_msg.fee;
+        contract_info.fee = check_royalty(info_msg.fee)?;
         Ok(contract_info)
     })?;
 

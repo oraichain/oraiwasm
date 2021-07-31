@@ -21,6 +21,7 @@ impl Fraction {
     /// - Has a non-zero denominator, and
     /// - The `nom` is less than or equal `denom`.
     pub fn check(&self) -> bool {
+        println!("checking {} {}", self.nom, self.denom);
         !self.denom.is_zero() && self.nom.le(&self.denom)
     }
 

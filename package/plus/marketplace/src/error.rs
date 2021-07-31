@@ -34,6 +34,9 @@ pub enum ContractError {
     #[error("The offering contract address is invalid")]
     InvalidContractAddr {},
 
+    #[error("The royalties are invalid")]
+    InvalidRoyalty {},
+
     #[error("Token Id from the original contract is already on sale")]
     TokenOnSale {},
 }

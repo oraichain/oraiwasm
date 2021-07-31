@@ -28,7 +28,7 @@ fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
         royalties: vec![
             Fraction {
                 nom: 300u128.into(),
-                denom: 1000u128.into(),
+                denom: 0u128.into(),
             },
             Fraction {
                 nom: 300u128.into(),
