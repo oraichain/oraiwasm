@@ -79,5 +79,14 @@ pub enum QueryMsg {
     GetOffering {
         offering_id: u64,
     },
+    GetPayoutsByContractTokenId {
+        contract: HumanAddr,
+        token_id: String,
+        pretty: Option<bool>,
+    },
+    GetOfferingByContractTokenId {
+        contract: HumanAddr,
+        token_id: String,
+    },
     GetContractInfo {},
 }

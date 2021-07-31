@@ -1,10 +1,14 @@
 use crate::error::ContractError;
+use crate::fraction::{Payout, PrettyPayout};
 use crate::msg::{HandleMsg, InfoMsg, InitMsg, QueryMsg, SellNft};
 use crate::package::{ContractInfoResponse, OfferingsResponse, QueryOfferingsResult};
-use crate::state::{increment_offerings, offerings, royalties, Offering, CONTRACT_INFO};
+use crate::state::{
+    get_contract_token_id, increment_offerings, offerings, royalties, royalties_read, Offering,
+    CONTRACT_INFO,
+};
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, InitResponse, MessageInfo, Order, StdResult, WasmMsg,
+    HandleResponse, InitResponse, MessageInfo, Order, StdError, StdResult, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
@@ -128,14 +132,38 @@ pub fn try_update_info(
     })
 }
 
+fn get_payouts(
+    addresses: Vec<HumanAddr>,
+    contract_info: &ContractInfoResponse,
+) -> StdResult<Vec<Payout>> {
+    let mut payouts: Vec<Payout> = vec![];
+
+    // from last to first to payout
+    for i in (0..addresses.len()).rev() {
+        let mut royalty = contract_info.royalties[i].clone();
+        if !payouts.is_empty() {
+            let prev_ind = payouts.len() - 1;
+            // update previous share
+            royalty = royalty.mul(&payouts[prev_ind].1);
+            payouts[prev_ind].1 = payouts[prev_ind].1.sub(&royalty);
+        }
+        payouts.push((addresses[i].clone(), royalty));
+    }
+
+    // pay for the owner of this minter contract if there is fee
+    if let Some(fee) = &contract_info.fee {
+        payouts.push((HumanAddr::from(contract_info.creator.clone()), fee.clone()));
+    }
+
+    Ok(payouts)
+}
+
 pub fn try_buy(
     deps: DepsMut,
     info: MessageInfo,
     env: Env,
     offering_id: u64,
 ) -> Result<HandleResponse, ContractError> {
-    let contract_info = CONTRACT_INFO.load(deps.storage)?;
-
     // check if offering exists
     let off = match offerings().load(deps.storage, &offering_id.to_be_bytes()) {
         Ok(v) => v,
@@ -143,11 +171,12 @@ pub fn try_buy(
         Err(_) => return Err(ContractError::InvalidGetOffering {}),
     };
 
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let mut contract_royalties = royalties(deps.storage, &off.contract_addr);
     let mut payout_royalties = contract_royalties
         .load(off.token_id.as_bytes())
         .unwrap_or(vec![]);
-
+    let max_payout_level = contract_info.royalties.len();
     let seller_addr = deps.api.human_address(&off.seller)?;
 
     let mut cosmos_msgs = vec![];
@@ -165,22 +194,32 @@ pub fn try_buy(
 
                 let mut owner_amount = sent_fund.amount;
 
+                let mut addresses = vec![];
+                for address in &payout_royalties {
+                    addresses.push(deps.api.human_address(address)?);
+                }
+
+                let mut payouts = get_payouts(addresses, &contract_info)?;
+
                 // pay for the owner of this minter contract if there is fee
-                if let Some(fee) = &contract_info.fee {
-                    let fee_amount = fee.multiply(sent_fund.amount);
+                if let Some(fee) = contract_info.fee {
+                    payouts.push((HumanAddr::from(contract_info.creator), fee));
+                }
+
+                // payout for all royalties and update
+                for (address, fraction) in payouts {
+                    let fee_amount = fraction.multiply(sent_fund.amount);
                     owner_amount = owner_amount.sub(fee_amount)?;
                     cosmos_msgs.push(
                         BankMsg::Send {
                             from_address: env.contract.address.clone(),
-                            to_address: HumanAddr::from(contract_info.creator),
+                            to_address: address,
                             amount: coins(fee_amount.u128(), contract_info.denom.clone()),
                         }
                         .into(),
                     );
                 }
 
-                // payout for all royalties and update
-                // TODO:///
                 // create transfer msg to send ORAI to the seller
                 cosmos_msgs.push(
                     BankMsg::Send {
@@ -214,7 +253,7 @@ pub fn try_buy(
     );
 
     // with this token_id => add seller to royalties
-    if payout_royalties.len() < contract_info.royalties.len() {
+    if payout_royalties.len() < max_payout_level {
         payout_royalties.push(off.seller.clone());
         contract_royalties.save(off.token_id.as_bytes(), &payout_royalties)?;
     }
@@ -249,12 +288,22 @@ pub fn try_receive_nft(
     }?;
 
     // check if same token Id form same original contract is already on sale
+    let contract_addr = deps.api.canonical_address(&info.sender)?;
+    let offering = offerings().idx.contract_token_id.item(
+        deps.storage,
+        get_contract_token_id(contract_addr.to_vec(), &rcv_msg.token_id).into(),
+    )?;
+
+    if offering.is_some() {
+        return Err(ContractError::TokenOnSale {});
+    }
+
     // get OFFERING_COUNT
     let offering_id = increment_offerings(deps.storage)?;
 
     // save Offering
     let off = Offering {
-        contract_addr: deps.api.canonical_address(&info.sender)?,
+        contract_addr,
         token_id: rcv_msg.token_id,
         seller: deps.api.canonical_address(&rcv_msg.sender)?,
         price: msg.price.clone(),
@@ -341,8 +390,19 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => to_binary(&query_offerings_by_contract(
             deps, contract, limit, offset, order,
         )?),
-        QueryMsg::GetOffering { offering_id } => query_offering(deps, offering_id),
-        QueryMsg::GetContractInfo {} => query_contract_info(deps),
+        QueryMsg::GetOffering { offering_id } => to_binary(&query_offering(deps, offering_id)?),
+        QueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
+            &query_offering_by_contract_tokenid(deps, contract, token_id)?,
+        ),
+        QueryMsg::GetPayoutsByContractTokenId {
+            contract,
+            token_id,
+            pretty,
+        } => format_payouts(
+            query_payouts_by_contract_tokenid(deps, contract, token_id)?,
+            pretty.unwrap_or(true),
+        ),
+        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
     }
 }
 
@@ -431,14 +491,60 @@ pub fn query_offerings_by_contract(
     Ok(OfferingsResponse { offerings: res? })
 }
 
-pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<Binary> {
-    let offering: Offering = offerings().load(deps.storage, &offering_id.to_be_bytes())?;
-    Ok(to_binary(&offering)?)
+pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<Offering> {
+    offerings().load(deps.storage, &offering_id.to_be_bytes())
 }
 
-pub fn query_contract_info(deps: Deps) -> StdResult<Binary> {
-    let contract_info: ContractInfoResponse = CONTRACT_INFO.load(deps.storage)?;
-    Ok(to_binary(&contract_info)?)
+pub fn query_offering_by_contract_tokenid(
+    deps: Deps,
+    contract: HumanAddr,
+    token_id: String,
+) -> StdResult<Offering> {
+    let contract_raw = deps.api.canonical_address(&contract)?;
+    let offering = offerings().idx.contract_token_id.item(
+        deps.storage,
+        get_contract_token_id(contract_raw.to_vec(), &token_id).into(),
+    )?;
+    match offering {
+        Some(v) => Ok(v.1),
+        None => Err(StdError::generic_err("Offering not found")),
+    }
+}
+
+fn format_payouts(payouts: Vec<Payout>, as_percentage: bool) -> StdResult<Binary> {
+    match as_percentage {
+        true => {
+            let pretty_payouts: Vec<PrettyPayout> = payouts
+                .iter()
+                .map(|(address, fraction)| (address.to_string(), fraction.to_string()))
+                .collect();
+            to_binary(&pretty_payouts)
+        }
+        false => to_binary(&payouts),
+    }
+}
+
+pub fn query_payouts_by_contract_tokenid(
+    deps: Deps,
+    contract: HumanAddr,
+    token_id: String,
+) -> StdResult<Vec<Payout>> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    let contract_raw = deps.api.canonical_address(&contract)?;
+    let payout_royalties = royalties_read(deps.storage, &contract_raw)
+        .load(token_id.as_bytes())
+        .unwrap_or(vec![]);
+
+    let mut addresses = vec![];
+    for address in &payout_royalties {
+        addresses.push(deps.api.human_address(address)?);
+    }
+
+    get_payouts(addresses, &contract_info)
+}
+
+pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfoResponse> {
+    CONTRACT_INFO.load(deps.storage)
 }
 
 fn parse_offering(api: &dyn Api, item: StdResult<KV<Offering>>) -> StdResult<QueryOfferingsResult> {
