@@ -3,23 +3,19 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{CanonicalAddr, StdResult, Storage, Uint128};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
-
-pub static CONFIG_KEY: &[u8] = b"config";
+use cosmwasm_storage::{Bucket, ReadonlyBucket};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, U128Key, UniqueIndex};
+use sha2::{Digest, Sha256};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Offering {
     pub token_id: String,
-
     pub contract_addr: CanonicalAddr,
-
     pub seller: CanonicalAddr,
-
     pub price: Uint128,
 }
 
 /// OFFERINGS is a map which maps the offering_id to an offering. Offering_id is derived from OFFERINGS_COUNT.
-pub const OFFERINGS: Map<&[u8], Offering> = Map::new("offerings");
 pub const OFFERINGS_COUNT: Item<u64> = Item::new("num_offerings");
 pub const CONTRACT_INFO: Item<ContractInfoResponse> = Item::new("marketplace_info");
 
@@ -36,16 +32,28 @@ pub fn increment_offerings(storage: &mut dyn Storage) -> StdResult<u64> {
 pub struct OfferingIndexes<'a> {
     pub seller: MultiIndex<'a, Offering>,
     pub contract: MultiIndex<'a, Offering>,
+    pub contract_token_id: UniqueIndex<'a, U128Key, Offering>,
 }
 
 impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Offering>> + '_> {
-        let v: Vec<&dyn Index<Offering>> = vec![&self.seller, &self.contract];
+        let v: Vec<&dyn Index<Offering>> =
+            vec![&self.seller, &self.contract, &self.contract_token_id];
         Box::new(v.into_iter())
     }
 }
 
-pub fn offerings<'a>() -> IndexedMap<'a, &'a str, Offering, OfferingIndexes<'a>> {
+pub fn get_contract_token_id(contract: Vec<u8>, token_id: &str) -> u128 {
+    let mut hasher = Sha256::new();
+    hasher.update(contract);
+    hasher.update(token_id.as_bytes());
+    let mut dst = [0; 16];
+    dst.copy_from_slice(&hasher.finalize()[0..16]);
+    u128::from_be_bytes(dst)
+}
+
+// this IndexedMap instance has a lifetime
+pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>> {
     let indexes = OfferingIndexes {
         seller: MultiIndex::new(|o| o.seller.to_vec(), "offerings", "offerings__seller"),
         contract: MultiIndex::new(
@@ -53,6 +61,28 @@ pub fn offerings<'a>() -> IndexedMap<'a, &'a str, Offering, OfferingIndexes<'a>>
             "offerings",
             "offerings__contract",
         ),
+        contract_token_id: UniqueIndex::new(
+            |o| U128Key::new(get_contract_token_id(o.contract_addr.to_vec(), &o.token_id)),
+            "request__id",
+        ),
     };
     IndexedMap::new("offerings", indexes)
+}
+
+const PREFIX_ROYALTIES: &[u8] = b"royalties";
+/// returns a bucket with all royalties by this contract (query it by spender)
+pub fn royalties<'a>(
+    storage: &'a mut dyn Storage,
+    contract: &CanonicalAddr,
+) -> Bucket<'a, Vec<CanonicalAddr>> {
+    Bucket::multilevel(storage, &[PREFIX_ROYALTIES, contract.as_slice()])
+}
+
+/// returns a bucket with all royalties authorized by this contract (query it by spender)
+/// (read-only version for queries)
+pub fn royalties_read<'a>(
+    storage: &'a dyn Storage,
+    contract: &CanonicalAddr,
+) -> ReadonlyBucket<'a, Vec<CanonicalAddr>> {
+    ReadonlyBucket::multilevel(storage, &[PREFIX_ROYALTIES, contract.as_slice()])
 }

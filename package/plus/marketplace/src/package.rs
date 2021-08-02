@@ -1,4 +1,5 @@
-use cosmwasm_std::{Coin, HumanAddr, Uint128};
+use crate::fraction::Fraction;
+use cosmwasm_std::{HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -6,8 +7,12 @@ use serde::{Deserialize, Serialize};
 pub struct ContractInfoResponse {
     pub name: String,
     pub creator: String,
-    pub is_free: bool,
-    pub fee: Option<Coin>,
+    /// Percentage fee to pay back to Mintgate when a `Token` is being sold.
+    pub fee: Option<Fraction>,
+    /// the accepted denom
+    pub denom: String,
+    /// this defines the levels to payout all up
+    pub royalties: Vec<Fraction>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

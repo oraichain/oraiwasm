@@ -3,8 +3,6 @@ use cosmwasm_std::{
     InitResponse, MessageInfo, Order, StdError, StdResult, KV,
 };
 
-use cw0::maybe_canonical;
-use cw2::set_contract_version;
 use cw721::{
     AllNftInfoResponse, ApprovedForAllResponse, ContractInfoResponse, Cw721ReceiveMsg, Expiration,
     NftInfoResponse, NumTokensResponse, OwnerOfResponse, TokensResponse,
@@ -20,8 +18,11 @@ use crate::state::{
 use cw_storage_plus::Bound;
 
 // version info for migration info
-const CONTRACT_NAME: &str = "crates.io:ow721";
+const CONTRACT_NAME: &str = "crates.io:oraichain_nft";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
+const DEFAULT_LIMIT: u32 = 10;
+const MAX_LIMIT: u32 = 30;
+const MAX_CHARS_SIZE: usize = 1024;
 
 pub fn init(
     deps: DepsMut,
@@ -29,11 +30,10 @@ pub fn init(
     msg_info: MessageInfo,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-
     let info = ContractInfoResponse {
-        name: msg.name,
+        name: msg.name.unwrap_or(CONTRACT_NAME.to_string()),
         symbol: msg.symbol,
+        version: msg.version.unwrap_or(CONTRACT_VERSION.to_string()),
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     let minter = deps.api.canonical_address(&msg.minter)?;
@@ -96,11 +96,11 @@ pub fn handle_mint(
     }
 
     let name = msg.name;
-    check_size!(name, 140);
+    check_size!(name, MAX_CHARS_SIZE);
     let description = msg.description.unwrap_or_default();
-    check_size!(description, 1024);
+    check_size!(description, MAX_CHARS_SIZE);
     let image = msg.image;
-    check_size!(image, 1024);
+    check_size!(image, MAX_CHARS_SIZE);
 
     // create the token
     let token = TokenInfo {
@@ -128,6 +128,7 @@ pub fn handle_mint(
     })
 }
 
+/// this is trigger when there is buy_nft action
 pub fn handle_transfer_nft(
     deps: DepsMut,
     env: Env,
@@ -136,6 +137,8 @@ pub fn handle_transfer_nft(
     token_id: String,
 ) -> Result<HandleResponse, ContractError> {
     _transfer_nft(deps, &env, &info, &recipient, &token_id)?;
+
+    // need transfer_payout as well
 
     Ok(HandleResponse {
         messages: vec![],
@@ -167,14 +170,14 @@ pub fn handle_update_nft(
             if !token.owner.eq(&sender_raw) {
                 return Err(ContractError::Unauthorized {});
             }
-            check_size!(name, 140);
+            check_size!(name, MAX_CHARS_SIZE);
             token.name = name;
             if let Some(description_val) = description {
-                check_size!(description_val, 1024);
+                check_size!(description_val, MAX_CHARS_SIZE);
                 token.description = description_val;
             }
             if let Some(image_val) = image {
-                check_size!(image_val, 1024);
+                check_size!(image_val, MAX_CHARS_SIZE);
                 token.image = image_val;
             }
             Ok(token)
@@ -537,9 +540,6 @@ fn query_owner_of(
     })
 }
 
-const DEFAULT_LIMIT: u32 = 10;
-const MAX_LIMIT: u32 = 30;
-
 fn query_all_approvals(
     deps: Deps,
     env: Env,
@@ -549,7 +549,10 @@ fn query_all_approvals(
     limit: Option<u32>,
 ) -> StdResult<ApprovedForAllResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start_canon = maybe_canonical(deps.api, start_after)?;
+    // transpose option result into option
+    let start_canon = start_after
+        .map(|x| deps.api.canonical_address(&x))
+        .transpose()?;
     let start = start_canon.map(Bound::exclusive);
 
     let owner_raw = deps.api.canonical_address(&owner)?;

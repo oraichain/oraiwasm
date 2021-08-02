@@ -5,8 +5,8 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    attr, from_binary, from_slice, to_binary, Api, CosmosMsg, HandleResponse, HumanAddr, OwnedDeps,
-    WasmMsg,
+    attr, coins, from_binary, from_slice, to_binary, Api, CosmosMsg, HandleResponse, HumanAddr,
+    OwnedDeps, WasmMsg,
 };
 
 use cw721::{
@@ -16,15 +16,17 @@ use cw721::{
 
 const MINTER: &str = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3d";
 const CONTRACT_NAME: &str = "Magic Power";
+const CONTRACT_VERSION: &str = "0.1.1";
 const SYMBOL: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies(&coins(100000, "orai"));
     deps.api.canonical_length = 54;
     let msg = InitMsg {
-        name: CONTRACT_NAME.to_string(),
+        name: Some(CONTRACT_NAME.to_string()),
         symbol: SYMBOL.to_string(),
         minter: MINTER.into(),
+        version: Some(CONTRACT_VERSION.to_string()),
     };
     let info = mock_info(MINTER, &[]);
     let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -34,18 +36,7 @@ fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
 
 #[test]
 fn proper_initialization() {
-    let mut deps = setup_contract();
-
-    let msg = InitMsg {
-        name: CONTRACT_NAME.to_string(),
-        symbol: SYMBOL.to_string(),
-        minter: MINTER.into(),
-    };
-    let info = mock_info(MINTER, &[]);
-
-    // we can just call .unwrap() to assert this was a success
-    let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
-    assert_eq!(0, res.messages.len());
+    let deps = setup_contract();
 
     // it worked, let's query the state
     let res: MinterResponse =
@@ -58,6 +49,7 @@ fn proper_initialization() {
         ContractInfoResponse {
             name: CONTRACT_NAME.to_string(),
             symbol: SYMBOL.to_string(),
+            version: CONTRACT_VERSION.to_string(),
         }
     );
 

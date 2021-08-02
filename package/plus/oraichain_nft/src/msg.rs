@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
-    /// name of the NFT contract
-    pub name: String,
+    /// name of the NFT contract, can use default
+    pub name: Option<String>,
+    pub version: Option<String>,
     /// symbol of the NFT contract
     pub symbol: String,
 
@@ -87,12 +88,6 @@ pub struct MintMsg {
     pub image: String,
     // min_royalty: Fraction,
     // /// Indicates the minimum allowed `royalty` to be set on a `Collectible` when an Artist creates it.
-    // max_royalty: Fraction,
-    // /// Percentage fee to pay back to Mintgate when a `Token` is being sold.
-    // /// This field can be set up when the contract is deployed.
-    // mintgate_fee: Fraction,
-    // /// Designated MintGate NEAR account id to receive `mintgate_fee` after a sale.
-    // mintgate_fee_account_id: AccountId,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

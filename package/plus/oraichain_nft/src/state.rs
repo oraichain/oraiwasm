@@ -12,6 +12,8 @@ pub struct TokenInfo {
     /// approvals are stored here, as we clear them all upon transfer and cannot accumulate much
     pub approvals: Vec<Approval>,
 
+    ///
+
     /// Identifies the asset to which this NFT represents
     pub name: String,
     /// Describes the asset to which this NFT represents
@@ -33,7 +35,6 @@ pub const MINTER: Item<CanonicalAddr> = Item::new("minter");
 pub const OWNER: Item<CanonicalAddr> = Item::new("owner");
 pub const TOKEN_COUNT: Item<u64> = Item::new("num_tokens");
 
-// pub const TOKENS: Map<&str, TokenInfo> = Map::new("tokens");
 pub const OPERATORS: Map<(&[u8], &[u8]), Expiration> = Map::new("operators");
 
 pub fn num_tokens(storage: &dyn Storage) -> StdResult<u64> {

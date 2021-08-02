@@ -1,5 +1,6 @@
 use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
 
+use crate::fraction::Fraction;
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -7,6 +8,9 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
     pub name: String,
+    pub fee: Option<Fraction>,
+    pub denom: String,
+    pub royalties: Vec<Fraction>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -46,8 +50,9 @@ pub struct BuyNft {
 pub struct InfoMsg {
     pub name: Option<String>,
     pub creator: Option<String>,
-    pub is_free: Option<bool>,
-    pub fee: Option<Coin>,
+    pub fee: Option<Fraction>,
+    pub denom: Option<String>,
+    pub royalties: Option<Vec<Fraction>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -59,8 +64,29 @@ pub enum QueryMsg {
         limit: Option<u8>,
         order: Option<u8>,
     },
+    GetOfferingsBySeller {
+        seller: HumanAddr,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
+    GetOfferingsByContract {
+        contract: HumanAddr,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
     GetOffering {
         offering_id: u64,
+    },
+    GetPayoutsByContractTokenId {
+        contract: HumanAddr,
+        token_id: String,
+        pretty: Option<bool>,
+    },
+    GetOfferingByContractTokenId {
+        contract: HumanAddr,
+        token_id: String,
     },
     GetContractInfo {},
 }
