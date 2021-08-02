@@ -155,6 +155,10 @@ pub fn init_share(
     members_storage(deps.storage).set(&member.address.as_bytes(), &msg);
 
     let mut response = HandleResponse::default();
+    response.attributes = vec![
+        attr("function_type", "init_share"),
+        attr("member", info.sender),
+    ];
     response.data = Some(msg);
     Ok(response)
 }
@@ -196,12 +200,12 @@ pub fn update_share_sig(
     {
         Some(s) => {
             // update if found
-            s.sig = share_sig.sig;
+            s.sig = share_sig.sig.clone();
         }
         None => {
             // append at the end
             new_sigs.push(ShareSig {
-                sig: share_sig.sig,
+                sig: share_sig.sig.clone(),
                 sender: member.address,
             })
         }
@@ -224,13 +228,19 @@ pub fn update_share_sig(
             );
             response.messages = vec![CosmosMsg::Bank(BankMsg::Send {
                 from_address: env.contract.address,
-                to_address: info.sender,
+                to_address: info.sender.clone(),
                 amount: paid_fee,
             })];
         }
     }
 
     response.data = Some(msg);
+    response.attributes = vec![
+        attr("function_type", "update_share_sig"),
+        attr("sender", info.sender),
+        attr("round", share_sig.round),
+        attr("signature", share_sig.sig),
+    ];
     Ok(response)
 }
 
