@@ -2,6 +2,7 @@ use cosmwasm_std::{
     attr, coins, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
     HandleResponse, InitResponse, MessageInfo, Order,
 };
+use cw_storage_plus::{Bound, Endian};
 
 use crate::errors::ContractError;
 use crate::msg::{
@@ -14,6 +15,10 @@ use crate::state::{
 };
 
 use sha2::{Digest, Sha256};
+
+// settings for pagination
+const MAX_LIMIT: u8 = 30;
+const DEFAULT_LIMIT: u8 = 10;
 
 pub fn init(
     deps: DepsMut,
@@ -59,7 +64,23 @@ pub fn handle(
         HandleMsg::UpdateThresHold { threshold } => update_threshold(deps, info, threshold),
         HandleMsg::UpdateFees { fee } => update_fees(deps, info, fee),
         HandleMsg::UpdateMembers { members } => update_members(deps, info, members),
+        HandleMsg::RemoveShare { address } => remove_share(deps, info, address),
     }
+}
+
+pub fn remove_share(
+    deps: DepsMut,
+    info: MessageInfo,
+    address: String,
+) -> Result<HandleResponse, ContractError> {
+    let owner = owner_read(deps.storage).load()?;
+    if !owner.owner.eq(info.sender.as_str()) {
+        return Err(ContractError::Unauthorized(
+            "Not an owner to update members".to_string(),
+        ));
+    }
+    members_storage(deps.storage).remove(&address.as_bytes());
+    Ok(HandleResponse::default())
 }
 
 pub fn update_members(
@@ -383,7 +404,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::ContractInfo {} => to_binary(&query_contract_info(deps)?)?,
         QueryMsg::GetRound { round } => to_binary(&query_get(deps, round)?)?,
         QueryMsg::GetMember { address } => to_binary(&query_member(deps, address.as_str())?)?,
-        QueryMsg::GetMembers {} => to_binary(&query_members(deps)?)?,
+        QueryMsg::GetMembers {
+            limit,
+            offset,
+            order,
+        } => to_binary(&query_members(deps, limit, offset, order)?)?,
         QueryMsg::LatestRound {} => to_binary(&query_latest(deps)?)?,
         QueryMsg::EarliestHandling {} => to_binary(&query_earliest(deps)?)?,
     };
@@ -399,9 +424,36 @@ fn query_member(deps: Deps, address: &str) -> Result<MemberMsg, ContractError> {
     Ok(member)
 }
 
-fn query_members(deps: Deps) -> Result<Vec<MemberMsg>, ContractError> {
+fn query_members(
+    deps: Deps,
+    limit: Option<u8>,
+    offset: Option<u8>,
+    order: Option<u8>,
+) -> Result<Vec<MemberMsg>, ContractError> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+
+    let mut min: Option<&[u8]> = None;
+    let mut max: Option<&[u8]> = None;
+    let mut order_enum = Order::Ascending;
+    if let Some(num) = order {
+        if num == 2 {
+            order_enum = Order::Descending;
+        }
+    };
+    let offset_bytes = offset.unwrap_or(0u8).to_be_bytes();
+    let offset_vec = offset_bytes.to_vec();
+    let offset_slice = offset_vec.as_slice();
+
+    // if there is offset, assign to min or max
+    let offset_value = Some(offset_slice);
+    match order_enum {
+        Order::Ascending => min = offset_value,
+        Order::Descending => max = offset_value,
+    }
+
     let members = members_storage_read(deps.storage)
-        .range(None, None, Order::Ascending)
+        .range(min, max, order_enum)
+        .take(limit)
         .map(|(_key, value)| from_binary(&value.into()).unwrap())
         .collect();
     Ok(members)
@@ -513,7 +565,16 @@ mod tests {
     }
 
     fn query_members(deps: Deps) -> String {
-        let ret = query(deps, mock_env(), QueryMsg::GetMembers {}).unwrap();
+        let ret = query(
+            deps,
+            mock_env(),
+            QueryMsg::GetMembers {
+                limit: None,
+                offset: None,
+                order: None,
+            },
+        )
+        .unwrap();
         String::from_utf8(ret.to_vec()).unwrap()
     }
 

@@ -71,15 +71,27 @@ pub enum HandleMsg {
     UpdateMembers {
         members: Vec<MemberMsg>,
     },
+
+    RemoveShare {
+        address: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     ContractInfo {},
-    GetRound { round: u64 },
-    GetMember { address: String },
-    GetMembers {},
+    GetRound {
+        round: u64,
+    },
+    GetMember {
+        address: String,
+    },
+    GetMembers {
+        limit: Option<u8>,
+        offset: Option<u8>,
+        order: Option<u8>,
+    },
     LatestRound {},
     EarliestHandling {},
 }

@@ -1,4 +1,4 @@
-{
-    "rust-analyzer.runnables.overrideCargo": "cargo -q",
-    "rust-analyzer.cargo.allFeatures": false        
-}
+// {
+//     "rust-analyzer.runnables.overrideCargo": "cargo -q",
+//     "rust-analyzer.cargo.allFeatures": false
+// }
