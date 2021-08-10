@@ -164,83 +164,80 @@ pub fn try_buy(
         Err(_) => return Err(ContractError::InvalidGetOffering {}),
     };
 
-    let contract_info = CONTRACT_INFO.load(deps.storage)?;
-
     let seller_addr = deps.api.human_address(&off.seller)?;
 
     let mut cosmos_msgs = vec![];
     // check for enough coins, if has price then payout to all participants
     if !off.price.is_zero() {
-        match info
+        let contract_info = CONTRACT_INFO.load(deps.storage)?;
+        // find the desired coin to process
+        if let Some(sent_fund) = info
             .sent_funds
             .iter()
-            .find(|fund| fund.denom == contract_info.denom)
+            .find(|fund| fund.denom.eq(&contract_info.denom))
         {
-            Some(sent_fund) => {
-                if sent_fund.amount.lt(&off.price) {
-                    return Err(ContractError::InsufficientFunds {});
-                }
+            if sent_fund.amount.lt(&off.price) {
+                return Err(ContractError::InsufficientFunds {});
+            }
 
-                let mut seller_amount = sent_fund.amount;
+            let mut seller_amount = sent_fund.amount;
 
-                // pay for the owner of this minter contract if there is fee set in marketplace
-                if contract_info.fee > 0 {
-                    let fee_amount = off.price.mul(Decimal::permille(contract_info.fee));
-                    seller_amount = seller_amount.sub(fee_amount)?;
-                    cosmos_msgs.push(
-                        BankMsg::Send {
-                            from_address: env.contract.address.clone(),
-                            to_address: HumanAddr::from(contract_info.creator),
-                            amount: coins(fee_amount.u128(), contract_info.denom.clone()),
-                        }
-                        .into(),
-                    );
-                }
-
-                // pay for creator
-                if let Ok((creator_addr, creator_royalty)) =
-                    royalties_read(deps.storage, &off.contract_addr).load(off.token_id.as_bytes())
-                {
-                    let creator_amount = off.price.mul(Decimal::percent(creator_royalty));
-                    seller_amount = seller_amount.sub(creator_amount)?;
-                    cosmos_msgs.push(
-                        BankMsg::Send {
-                            from_address: env.contract.address.clone(),
-                            to_address: deps.api.human_address(&creator_addr)?,
-                            amount: coins(creator_amount.u128(), contract_info.denom.clone()),
-                        }
-                        .into(),
-                    );
-                }
-
-                // payout for the previous owner
-                if let Some(owner_royalty) = off.royalty {
-                    let owner_amount = off.price.mul(Decimal::percent(owner_royalty));
-                    seller_amount = seller_amount.sub(owner_amount)?;
-                    cosmos_msgs.push(
-                        BankMsg::Send {
-                            from_address: env.contract.address.clone(),
-                            to_address: deps.api.human_address(&off.seller)?,
-                            amount: coins(owner_amount.u128(), contract_info.denom.clone()),
-                        }
-                        .into(),
-                    );
-                }
-
-                // pay the left to the seller
+            // pay for the owner of this minter contract if there is fee set in marketplace
+            if contract_info.fee > 0 {
+                let fee_amount = off.price.mul(Decimal::permille(contract_info.fee));
+                seller_amount = seller_amount.sub(fee_amount)?;
                 cosmos_msgs.push(
                     BankMsg::Send {
-                        from_address: env.contract.address,
-                        to_address: seller_addr.clone(),
-                        amount: coins(seller_amount.u128(), contract_info.denom),
+                        from_address: env.contract.address.clone(),
+                        to_address: HumanAddr::from(contract_info.creator),
+                        amount: coins(fee_amount.u128(), &contract_info.denom),
                     }
                     .into(),
                 );
             }
-            None => {
-                return Err(ContractError::InvalidDenomAmount {});
+
+            // pay for creator
+            if let Ok((creator_addr, creator_royalty)) =
+                royalties_read(deps.storage, &off.contract_addr).load(off.token_id.as_bytes())
+            {
+                let creator_amount = off.price.mul(Decimal::percent(creator_royalty));
+                seller_amount = seller_amount.sub(creator_amount)?;
+                cosmos_msgs.push(
+                    BankMsg::Send {
+                        from_address: env.contract.address.clone(),
+                        to_address: deps.api.human_address(&creator_addr)?,
+                        amount: coins(creator_amount.u128(), &contract_info.denom),
+                    }
+                    .into(),
+                );
             }
-        };
+
+            // payout for the previous owner
+            if let Some(owner_royalty) = off.royalty {
+                let owner_amount = off.price.mul(Decimal::percent(owner_royalty));
+                seller_amount = seller_amount.sub(owner_amount)?;
+                cosmos_msgs.push(
+                    BankMsg::Send {
+                        from_address: env.contract.address.clone(),
+                        to_address: deps.api.human_address(&off.seller)?,
+                        amount: coins(owner_amount.u128(), &contract_info.denom),
+                    }
+                    .into(),
+                );
+            }
+
+            // pay the left to the seller
+            cosmos_msgs.push(
+                BankMsg::Send {
+                    from_address: env.contract.address,
+                    to_address: seller_addr.clone(),
+                    amount: coins(seller_amount.u128(), &contract_info.denom),
+                }
+                .into(),
+            );
+        } else {
+            return Err(ContractError::InvalidDenomAmount {});
+        }
     }
 
     // create transfer cw721 msg
@@ -248,21 +245,19 @@ pub fn try_buy(
         recipient: info.sender.clone(),
         token_id: off.token_id.clone(),
     };
-    let contract_addr = deps.api.human_address(&off.contract_addr)?;
-    // if everything is fine transfer native token to seller
+
+    //delete offering
+    offerings().remove(deps.storage, &offering_id.to_be_bytes())?;
+
+    // if everything is fine transfer NFT token to buyer
     cosmos_msgs.push(
         WasmMsg::Execute {
-            contract_addr,
+            contract_addr: deps.api.human_address(&off.contract_addr)?,
             msg: to_binary(&transfer_cw721_msg)?,
             send: vec![],
         }
         .into(),
     );
-
-    //delete offering
-    offerings().remove(deps.storage, &offering_id.to_be_bytes())?;
-
-    let price_string = format!("{:?} {}", info.sent_funds, info.sender);
 
     Ok(HandleResponse {
         messages: cosmos_msgs,
@@ -270,7 +265,6 @@ pub fn try_buy(
             attr("action", "buy_nft"),
             attr("buyer", info.sender),
             attr("seller", seller_addr),
-            attr("paid_price", price_string),
             attr("token_id", off.token_id),
             attr("offering_id", offering_id),
         ],
