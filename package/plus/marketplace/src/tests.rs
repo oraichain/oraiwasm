@@ -1,11 +1,13 @@
+use std::ops::Mul;
+
 use crate::contract::*;
 use crate::error::ContractError;
-use crate::fraction::Fraction;
 use crate::msg::*;
-use crate::package::*;
+use crate::state::*;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
+use cosmwasm_std::Decimal;
 use cosmwasm_std::{coin, coins, from_binary, to_binary, HumanAddr, Order, OwnedDeps, Uint128};
 
 use cw721::Cw721ReceiveMsg;
@@ -20,30 +22,21 @@ fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let msg = InitMsg {
         name: String::from(CONTRACT_NAME),
         denom: DENOM.into(),
-        fee: Some(Fraction {
-            nom: 25u128.into(),
-            denom: 1000u128.into(),
-        }),
-        // 30% > 30% > 30%
-        royalties: vec![
-            Fraction {
-                nom: 300u128.into(),
-                denom: 1000u128.into(),
-            },
-            Fraction {
-                nom: 300u128.into(),
-                denom: 1000u128.into(),
-            },
-            Fraction {
-                nom: 300u128.into(),
-                denom: 1000u128.into(),
-            },
-        ],
+        fee: 1,          // 0.1%
+        max_royalty: 30, // 30%
     };
     let info = mock_info(CREATOR, &[]);
     let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
     deps
+}
+
+#[test]
+fn test_price() {
+    let price = Uint128::from(1000u128);
+    let percent = Decimal::percent(20);
+    let payout = price.mul(percent);
+    println!("payout : {}", payout);
 }
 
 #[test]
@@ -54,7 +47,10 @@ fn sort_offering() {
     let info = mock_info("anyone", &vec![coin(50000000, DENOM)]);
 
     for i in 1..50 {
-        let sell_msg = SellNft { price: Uint128(i) };
+        let sell_msg = SellNft {
+            price: Uint128(i),
+            royalty: None,
+        };
         let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
             sender: HumanAddr::from("seller"),
             token_id: String::from(format!("SellableNFT {}", i)),
@@ -64,7 +60,10 @@ fn sort_offering() {
     }
 
     for i in 50..100 {
-        let sell_msg = SellNft { price: Uint128(i) };
+        let sell_msg = SellNft {
+            price: Uint128(i),
+            royalty: None,
+        };
         let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
             sender: HumanAddr::from("tupt"),
             token_id: String::from(format!("SellableNFT {}", i)),
@@ -115,7 +114,11 @@ fn test_royalties() {
     let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
         sender: HumanAddr::from("seller"),
         token_id: String::from("SellableNFT"),
-        msg: to_binary(&SellNft { price: Uint128(50) }).ok(),
+        msg: to_binary(&SellNft {
+            price: Uint128(50),
+            royalty: Some(10),
+        })
+        .ok(),
     });
     handle(deps.as_mut(), mock_env(), info_sell.clone(), msg).unwrap();
 
@@ -127,7 +130,11 @@ fn test_royalties() {
     let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
         sender: HumanAddr::from("buyer"),
         token_id: String::from("SellableNFT"),
-        msg: to_binary(&SellNft { price: Uint128(70) }).ok(),
+        msg: to_binary(&SellNft {
+            price: Uint128(70),
+            royalty: Some(10),
+        })
+        .ok(),
     });
     handle(deps.as_mut(), mock_env(), info_sell.clone(), msg).unwrap();
 
@@ -140,7 +147,11 @@ fn test_royalties() {
     let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
         sender: HumanAddr::from("buyer1"),
         token_id: String::from("SellableNFT"),
-        msg: to_binary(&SellNft { price: Uint128(90) }).ok(),
+        msg: to_binary(&SellNft {
+            price: Uint128(90),
+            royalty: Some(10),
+        })
+        .ok(),
     });
     handle(deps.as_mut(), mock_env(), info_sell.clone(), msg).unwrap();
 
@@ -157,7 +168,6 @@ fn test_royalties() {
             QueryMsg::GetPayoutsByContractTokenId {
                 contract: "nft_contract".into(),
                 token_id: "SellableNFT".into(),
-                pretty: None,
             },
         )
         .unwrap()
@@ -175,8 +185,14 @@ fn sell_offering_happy_path() {
     // beneficiary can release it
     let info = mock_info("anyone", &vec![coin(5, DENOM)]);
 
-    let sell_msg = SellNft { price: Uint128(0) };
-    let sell_msg_second = SellNft { price: Uint128(2) };
+    let sell_msg = SellNft {
+        price: Uint128(0),
+        royalty: Some(10),
+    };
+    let sell_msg_second = SellNft {
+        price: Uint128(2),
+        royalty: Some(10),
+    };
 
     println!("msg: {:?}", sell_msg);
 
@@ -208,11 +224,8 @@ fn update_info_test() {
         creator: None,
         denom: Some(DENOM.to_string()),
         // 2.5% free
-        fee: Some(Fraction {
-            nom: 25u128.into(),
-            denom: 1000u128.into(),
-        }),
-        royalties: None,
+        fee: Some(5),
+        max_royalty: None,
     };
     let update_info_msg = HandleMsg::UpdateInfo(update_info);
 
@@ -234,7 +247,7 @@ fn update_info_test() {
     assert_eq!(response.is_err(), false);
 
     let query_info = QueryMsg::GetContractInfo {};
-    let res_info: ContractInfoResponse =
+    let res_info: ContractInfo =
         from_binary(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
     println!("{:?}", res_info);
 }
@@ -246,7 +259,10 @@ fn withdraw_offering_happy_path() {
     // beneficiary can release it
     let info = mock_info("anyone", &coins(2, DENOM));
 
-    let sell_msg = SellNft { price: Uint128(50) };
+    let sell_msg = SellNft {
+        price: Uint128(50),
+        royalty: Some(10),
+    };
 
     println!("msg :{}", to_binary(&sell_msg).unwrap());
 
