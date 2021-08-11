@@ -1,25 +1,38 @@
 use crate::error::ContractError;
-use crate::fraction::{Fraction, Payout, PrettyPayout};
-use crate::msg::{HandleMsg, InfoMsg, InitMsg, QueryMsg, SellNft};
-use crate::package::{ContractInfoResponse, OfferingsResponse, QueryOfferingsResult};
+use crate::msg::{
+    HandleMsg, InfoMsg, InitMsg, OfferingsResponse, PayoutMsg, QueryMsg, QueryOfferingsResult,
+    SellNft,
+};
 use crate::state::{
-    get_contract_token_id, increment_offerings, offerings, royalties, royalties_read, Offering,
-    CONTRACT_INFO,
+    get_contract_token_id, increment_offerings, offerings, royalties, royalties_read, ContractInfo,
+    Offering, CONTRACT_INFO,
 };
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, InitResponse, MessageInfo, Order, StdError, StdResult, WasmMsg,
+    attr, coins, from_binary, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order, StdError, StdResult, Storage,
+    Uint128, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use cw_storage_plus::Bound;
 use std::convert::TryInto;
-use std::ops::Sub;
+use std::ops::{Mul, Sub};
 use std::usize;
 
 // settings for pagination
 const MAX_LIMIT: u8 = 100;
-const DEFAULT_LIMIT: u8 = 100;
+const DEFAULT_LIMIT: u8 = 20;
+const MAX_ROYALTY_PERCENT: u64 = 50;
+const MAX_FEE_PERMILLE: u64 = 100;
+
+fn sanitize_royalty(royalty: u64, limit: u64, name: &str) -> Result<u64, ContractError> {
+    if royalty > limit {
+        return Err(ContractError::InvalidArgument {
+            arg: name.to_string(),
+        });
+    }
+    Ok(royalty)
+}
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -29,12 +42,12 @@ pub fn init(
     info: MessageInfo,
     msg: InitMsg,
 ) -> Result<InitResponse, ContractError> {
-    let info = ContractInfoResponse {
+    let info = ContractInfo {
         name: msg.name,
         creator: info.sender.to_string(),
         denom: msg.denom,
-        fee: check_royalty(msg.fee)?,
-        royalties: check_royalties(msg.royalties)?,
+        fee: sanitize_royalty(msg.fee, MAX_FEE_PERMILLE, "fee")?,
+        max_royalty: sanitize_royalty(msg.max_royalty, MAX_ROYALTY_PERCENT, "max_royalty")?,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -61,20 +74,24 @@ pub fn handle(
 
 pub fn try_handle_mint(
     _deps: DepsMut,
-    _info: MessageInfo,
+    info: MessageInfo,
     contract: HumanAddr,
     msg: Binary,
 ) -> Result<HandleResponse, ContractError> {
     let mint_msg = WasmMsg::Execute {
         contract_addr: contract.clone(),
-        msg,
+        msg: msg.clone(),
         send: vec![],
     }
     .into();
 
     let response = HandleResponse {
         messages: vec![mint_msg],
-        attributes: vec![attr("action", "mint_nft"), attr("contract_addr", contract)],
+        attributes: vec![
+            attr("action", "mint_nft"),
+            attr("invoker", info.sender),
+            attr("mint_msg", msg),
+        ],
         data: None,
     };
 
@@ -107,25 +124,6 @@ pub fn try_withdraw_funds(
     })
 }
 
-fn check_royalties(royalties: Vec<Fraction>) -> Result<Vec<Fraction>, ContractError> {
-    for royalty in &royalties {
-        if !royalty.check() {
-            return Err(ContractError::InvalidRoyalty {});
-        }
-    }
-    Ok(royalties)
-}
-
-fn check_royalty(royalty: Option<Fraction>) -> Result<Option<Fraction>, ContractError> {
-    // get mutable reference to prevent copy value
-    if let Some(val) = &royalty {
-        if !val.check() {
-            return Err(ContractError::InvalidRoyalty {});
-        }
-    }
-    Ok(royalty)
-}
-
 pub fn try_update_info(
     deps: DepsMut,
     info: MessageInfo,
@@ -142,44 +140,24 @@ pub fn try_update_info(
         if let Some(creator) = info_msg.creator {
             contract_info.creator = creator;
         }
-        if let Some(royalties) = info_msg.royalties {
-            contract_info.royalties = check_royalties(royalties)?;
+        if let Some(fee) = info_msg.fee {
+            contract_info.fee = sanitize_royalty(fee, MAX_FEE_PERMILLE, "fee")?;
         }
-        contract_info.fee = check_royalty(info_msg.fee)?;
+        if let Some(max_royalty) = info_msg.max_royalty {
+            contract_info.max_royalty =
+                sanitize_royalty(max_royalty, MAX_ROYALTY_PERCENT, "max_royalty")?;
+        }
         Ok(contract_info)
     })?;
 
     Ok(HandleResponse {
         messages: vec![],
-        attributes: vec![attr("action", "update_info")],
+        attributes: vec![
+            attr("action", "update_info"),
+            attr("info_sender", info.sender),
+        ],
         data: to_binary(&new_contract_info).ok(),
     })
-}
-
-fn get_payouts(
-    addresses: Vec<HumanAddr>,
-    contract_info: &ContractInfoResponse,
-) -> StdResult<Vec<Payout>> {
-    let mut payouts: Vec<Payout> = vec![];
-
-    // from last to first to payout
-    for i in (0..addresses.len()).rev() {
-        let mut royalty = contract_info.royalties[i].clone();
-        if !payouts.is_empty() {
-            let prev_ind = payouts.len() - 1;
-            // update previous share
-            royalty = royalty.mul(&payouts[prev_ind].1);
-            payouts[prev_ind].1 = payouts[prev_ind].1.sub(&royalty);
-        }
-        payouts.push((addresses[i].clone(), royalty));
-    }
-
-    // pay for the owner of this minter contract if there is fee
-    if let Some(fee) = &contract_info.fee {
-        payouts.push((HumanAddr::from(contract_info.creator.clone()), fee.clone()));
-    }
-
-    Ok(payouts)
 }
 
 pub fn try_buy(
@@ -195,69 +173,87 @@ pub fn try_buy(
         Err(_) => return Err(ContractError::InvalidGetOffering {}),
     };
 
-    let contract_info = CONTRACT_INFO.load(deps.storage)?;
-    let mut contract_royalties = royalties(deps.storage, &off.contract_addr);
-    let mut payout_royalties = contract_royalties
-        .load(off.token_id.as_bytes())
-        .unwrap_or(vec![]);
-    let max_payout_level = contract_info.royalties.len();
     let seller_addr = deps.api.human_address(&off.seller)?;
 
     let mut cosmos_msgs = vec![];
     // check for enough coins, if has price then payout to all participants
     if !off.price.is_zero() {
-        match info
+        let contract_info = CONTRACT_INFO.load(deps.storage)?;
+        // find the desired coin to process
+        if let Some(sent_fund) = info
             .sent_funds
             .iter()
-            .find(|fund| fund.denom == contract_info.denom)
+            .find(|fund| fund.denom.eq(&contract_info.denom))
         {
-            Some(sent_fund) => {
-                if sent_fund.amount.lt(&off.price) {
-                    return Err(ContractError::InsufficientFunds {});
-                }
+            if sent_fund.amount.lt(&off.price) {
+                return Err(ContractError::InsufficientFunds {});
+            }
 
-                let mut owner_amount = sent_fund.amount;
+            let mut seller_amount = sent_fund.amount;
 
-                let mut addresses = vec![];
-                for address in &payout_royalties {
-                    addresses.push(deps.api.human_address(address)?);
-                }
-
-                let mut payouts = get_payouts(addresses, &contract_info)?;
-
-                // pay for the owner of this minter contract if there is fee
-                if let Some(fee) = contract_info.fee {
-                    payouts.push((HumanAddr::from(contract_info.creator), fee));
-                }
-
-                // payout for all royalties and update
-                for (address, fraction) in payouts {
-                    let fee_amount = fraction.multiply(sent_fund.amount);
-                    owner_amount = owner_amount.sub(fee_amount)?;
+            // pay for the owner of this minter contract if there is fee set in marketplace
+            if contract_info.fee > 0 {
+                let fee_amount = off.price.mul(Decimal::permille(contract_info.fee));
+                // Rust will automatically floor down the value to 0 if amount is too small => error
+                if fee_amount.gt(&Uint128::from(0u128)) {
+                    seller_amount = seller_amount.sub(fee_amount)?;
                     cosmos_msgs.push(
                         BankMsg::Send {
                             from_address: env.contract.address.clone(),
-                            to_address: address,
-                            amount: coins(fee_amount.u128(), contract_info.denom.clone()),
+                            to_address: HumanAddr::from(contract_info.creator),
+                            amount: coins(fee_amount.u128(), &contract_info.denom),
                         }
                         .into(),
                     );
                 }
+            }
 
-                // create transfer msg to send ORAI to the seller
-                cosmos_msgs.push(
-                    BankMsg::Send {
-                        from_address: env.contract.address,
-                        to_address: seller_addr.clone(),
-                        amount: coins(owner_amount.u128(), contract_info.denom),
-                    }
-                    .into(),
-                );
+            // pay for creator
+            if let Ok((creator_addr, creator_royalty)) =
+                royalties_read(deps.storage, &off.contract_addr).load(off.token_id.as_bytes())
+            {
+                let creator_amount = off.price.mul(Decimal::percent(creator_royalty));
+                if creator_amount.gt(&Uint128::from(0u128)) {
+                    seller_amount = seller_amount.sub(creator_amount)?;
+                    cosmos_msgs.push(
+                        BankMsg::Send {
+                            from_address: env.contract.address.clone(),
+                            to_address: deps.api.human_address(&creator_addr)?,
+                            amount: coins(creator_amount.u128(), &contract_info.denom),
+                        }
+                        .into(),
+                    );
+                }
             }
-            None => {
-                return Err(ContractError::InvalidDenomAmount {});
+
+            // payout for the previous owner
+            if let Some(owner_royalty) = off.royalty {
+                let owner_amount = off.price.mul(Decimal::percent(owner_royalty));
+                if owner_amount.gt(&Uint128::from(0u128)) {
+                    seller_amount = seller_amount.sub(owner_amount)?;
+                    cosmos_msgs.push(
+                        BankMsg::Send {
+                            from_address: env.contract.address.clone(),
+                            to_address: deps.api.human_address(&off.seller)?,
+                            amount: coins(owner_amount.u128(), &contract_info.denom),
+                        }
+                        .into(),
+                    );
+                }
             }
-        };
+
+            // pay the left to the seller
+            cosmos_msgs.push(
+                BankMsg::Send {
+                    from_address: env.contract.address,
+                    to_address: seller_addr.clone(),
+                    amount: coins(seller_amount.u128(), &contract_info.denom),
+                }
+                .into(),
+            );
+        } else {
+            return Err(ContractError::InvalidSentFundsAmount {});
+        }
     }
 
     // create transfer cw721 msg
@@ -265,27 +261,19 @@ pub fn try_buy(
         recipient: info.sender.clone(),
         token_id: off.token_id.clone(),
     };
-    let contract_addr = deps.api.human_address(&off.contract_addr)?;
-    // if everything is fine transfer native token to seller
+
+    //delete offering
+    offerings().remove(deps.storage, &offering_id.to_be_bytes())?;
+
+    // if everything is fine transfer NFT token to buyer
     cosmos_msgs.push(
         WasmMsg::Execute {
-            contract_addr,
+            contract_addr: deps.api.human_address(&off.contract_addr)?,
             msg: to_binary(&transfer_cw721_msg)?,
             send: vec![],
         }
         .into(),
     );
-
-    // with this token_id => add seller to royalties
-    if payout_royalties.len() < max_payout_level {
-        payout_royalties.push(off.seller.clone());
-        contract_royalties.save(off.token_id.as_bytes(), &payout_royalties)?;
-    }
-
-    //delete offering
-    offerings().remove(deps.storage, &offering_id.to_be_bytes())?;
-
-    let price_string = format!("{:?} {}", info.sent_funds, info.sender);
 
     Ok(HandleResponse {
         messages: cosmos_msgs,
@@ -293,7 +281,6 @@ pub fn try_buy(
             attr("action", "buy_nft"),
             attr("buyer", info.sender),
             attr("seller", seller_addr),
-            attr("paid_price", price_string),
             attr("token_id", off.token_id),
             attr("offering_id", offering_id),
         ],
@@ -301,6 +288,7 @@ pub fn try_buy(
     })
 }
 
+/// when user sell NFT to
 pub fn try_receive_nft(
     deps: DepsMut,
     info: MessageInfo,
@@ -324,13 +312,39 @@ pub fn try_receive_nft(
 
     // get OFFERING_COUNT
     let offering_id = increment_offerings(deps.storage)?;
+    let seller = deps.api.canonical_address(&rcv_msg.sender)?;
+    let mut royalty = msg.royalty;
+    let royalty_creator_result =
+        royalties_read(deps.storage, &contract_addr).load(rcv_msg.token_id.as_bytes());
+    // if is the first time or owner is creator, add creator royalty less than max_royalty, else add offering royalty
+    if royalty_creator_result.is_err()
+        || deps
+            .api
+            .human_address(&royalty_creator_result.unwrap().0)?
+            .eq(&rcv_msg.sender)
+    {
+        royalty = None;
+        let contract_info = CONTRACT_INFO.load(deps.storage)?;
+        royalties(deps.storage, &contract_addr).save(
+            rcv_msg.token_id.as_bytes(),
+            &(
+                seller.clone(),
+                sanitize_royalty(
+                    msg.royalty.unwrap_or(0),
+                    contract_info.max_royalty,
+                    "royalty",
+                )?,
+            ),
+        )?;
+    }
 
     // save Offering
     let off = Offering {
         contract_addr,
         token_id: rcv_msg.token_id,
-        seller: deps.api.canonical_address(&rcv_msg.sender)?,
+        seller,
         price: msg.price.clone(),
+        royalty,
     };
 
     offerings().save(deps.storage, &offering_id.to_be_bytes(), &off)?;
@@ -418,13 +432,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
             &query_offering_by_contract_tokenid(deps, contract, token_id)?,
         ),
-        QueryMsg::GetPayoutsByContractTokenId {
-            contract,
-            token_id,
-            pretty,
-        } => format_payouts(
-            query_payouts_by_contract_tokenid(deps, contract, token_id)?,
-            pretty.unwrap_or(true),
+        QueryMsg::GetPayoutsByContractTokenId { contract, token_id } => to_binary(
+            &query_payouts_by_contract_tokenid(deps, contract, token_id)?,
         ),
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
     }
@@ -469,7 +478,7 @@ pub fn query_offerings(
     let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .range(deps.storage, min, max, order_enum)
         .take(limit)
-        .map(|kv_item| parse_offering(deps.api, kv_item))
+        .map(|kv_item| parse_offering(deps.storage, deps.api, kv_item))
         .collect();
 
     Ok(OfferingsResponse { offerings: res? })
@@ -489,7 +498,7 @@ pub fn query_offerings_by_seller(
         .seller
         .items(deps.storage, &seller_raw, min, max, order_enum)
         .take(limit)
-        .map(|kv_item| parse_offering(deps.api, kv_item))
+        .map(|kv_item| parse_offering(deps.storage, deps.api, kv_item))
         .collect();
 
     Ok(OfferingsResponse { offerings: res? })
@@ -509,14 +518,33 @@ pub fn query_offerings_by_contract(
         .contract
         .items(deps.storage, &contract_raw, min, max, order_enum)
         .take(limit)
-        .map(|kv_item| parse_offering(deps.api, kv_item))
+        .map(|kv_item| parse_offering(deps.storage, deps.api, kv_item))
         .collect();
 
     Ok(OfferingsResponse { offerings: res? })
 }
 
-pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<Offering> {
-    offerings().load(deps.storage, &offering_id.to_be_bytes())
+pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<QueryOfferingsResult> {
+    let offering = offerings().load(deps.storage, &offering_id.to_be_bytes())?;
+    let mut royalty_creator: Option<PayoutMsg> = None;
+    let royalty_creator_result =
+        royalties_read(deps.storage, &offering.contract_addr).load(offering.token_id.as_bytes());
+    if royalty_creator_result.is_ok() {
+        let royalty_creator_result_unwrap = royalty_creator_result.unwrap();
+        royalty_creator = Some(PayoutMsg {
+            creator: deps.api.human_address(&royalty_creator_result_unwrap.0)?,
+            royalty: royalty_creator_result_unwrap.1,
+        })
+    }
+    Ok(QueryOfferingsResult {
+        id: offering_id,
+        token_id: offering.token_id,
+        price: offering.price,
+        contract_addr: deps.api.human_address(&offering.contract_addr)?,
+        seller: deps.api.human_address(&offering.seller)?,
+        royalty_creator,
+        royalty_owner: offering.royalty,
+    })
 }
 
 pub fn query_offering_by_contract_tokenid(
@@ -535,53 +563,51 @@ pub fn query_offering_by_contract_tokenid(
     }
 }
 
-fn format_payouts(payouts: Vec<Payout>, as_percentage: bool) -> StdResult<Binary> {
-    match as_percentage {
-        true => {
-            let pretty_payouts: Vec<PrettyPayout> = payouts
-                .iter()
-                .map(|(address, fraction)| (address.to_string(), fraction.to_string()))
-                .collect();
-            to_binary(&pretty_payouts)
-        }
-        false => to_binary(&payouts),
-    }
-}
-
 pub fn query_payouts_by_contract_tokenid(
     deps: Deps,
     contract: HumanAddr,
     token_id: String,
-) -> StdResult<Vec<Payout>> {
-    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+) -> StdResult<PayoutMsg> {
     let contract_raw = deps.api.canonical_address(&contract)?;
-    let payout_royalties = royalties_read(deps.storage, &contract_raw)
-        .load(token_id.as_bytes())
-        .unwrap_or(vec![]);
-
-    let mut addresses = vec![];
-    for address in &payout_royalties {
-        addresses.push(deps.api.human_address(address)?);
-    }
-
-    get_payouts(addresses, &contract_info)
+    let royalty = royalties_read(deps.storage, &contract_raw).load(token_id.as_bytes())?;
+    Ok(PayoutMsg {
+        creator: deps.api.human_address(&royalty.0)?,
+        royalty: royalty.1,
+    })
 }
 
-pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfoResponse> {
+pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
 }
 
-fn parse_offering(api: &dyn Api, item: StdResult<KV<Offering>>) -> StdResult<QueryOfferingsResult> {
+fn parse_offering<'a>(
+    storage: &'a dyn Storage,
+    api: &dyn Api,
+    item: StdResult<KV<Offering>>,
+) -> StdResult<QueryOfferingsResult> {
     item.and_then(|(k, offering)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array
         let id: u64 = u64::from_be_bytes(k.try_into().unwrap());
+        let royalty_owner = offering.royalty;
+        let mut royalty_creator: Option<PayoutMsg> = None;
+        let royalty_result =
+            royalties_read(storage, &offering.contract_addr).load(offering.token_id.as_bytes());
+        if royalty_result.is_ok() {
+            let royalty_result_unwrap = royalty_result.unwrap();
+            royalty_creator = Some(PayoutMsg {
+                creator: api.human_address(&royalty_result_unwrap.0)?,
+                royalty: royalty_result_unwrap.1,
+            });
+        }
         Ok(QueryOfferingsResult {
             id,
             token_id: offering.token_id,
             price: offering.price,
             contract_addr: api.human_address(&offering.contract_addr)?,
             seller: api.human_address(&offering.seller)?,
+            royalty_creator,
+            royalty_owner,
         })
     })
 }

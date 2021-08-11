@@ -19,8 +19,8 @@ pub enum ContractError {
     #[error("Invalid zero amount")]
     InvalidZeroAmount {},
 
-    #[error("Invalid denom amount")]
-    InvalidDenomAmount {},
+    #[error("Invalid sent funds")]
+    InvalidSentFundsAmount {},
 
     #[error("Sent funds amount is empty")]
     InvalidSentFundAmount {},
@@ -34,9 +34,16 @@ pub enum ContractError {
     #[error("The offering contract address is invalid")]
     InvalidContractAddr {},
 
-    #[error("The royalties are invalid")]
-    InvalidRoyalty {},
+    #[error("The argument {arg} are invalid")]
+    InvalidArgument { arg: String },
 
     #[error("Token Id from the original contract is already on sale")]
     TokenOnSale {},
+
+    #[error(
+        "Token Id from the original contract is on sale. It must be withdrawn to update royalty"
+    )]
+    TokenCurrentlyOnSale {},
+    #[error("Token Id from the original contract has never been sold. It has no royalty yet")]
+    TokenNeverBeenSold {},
 }
