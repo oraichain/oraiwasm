@@ -49,7 +49,7 @@ Puts an NFT token up for sale.
 
 ```shell
 
-# Execute send_nft action to put token up for sale for specified_price on the auction_nft
+# Execute ask_nft action to put token up for bid for specified_price on the auction_nft
 # msg in base64 format: eyJsaXN0X3ByaWNlIjp7ImFkZHJlc3MiOiJvdzIwIiwiYW1vdW50IjoiNTAifX0=
 cosmwasm-simulate handle ow721 `{
   "ask_nft": {
