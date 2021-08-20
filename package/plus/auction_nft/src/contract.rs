@@ -214,7 +214,7 @@ pub fn try_claim_winner(
     };
 
     // check is auction finished
-    if off.end.lt(&env.block.height) {
+    if off.end.gt(&env.block.height) {
         return Err(ContractError::AuctionNotFinished {});
     }
     let asker_addr = deps.api.human_address(&off.asker)?;

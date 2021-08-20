@@ -5,6 +5,7 @@ use crate::state::*;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
+use cosmwasm_std::HandleResponse;
 use cosmwasm_std::{
     coin, coins, from_binary, to_binary, Env, HumanAddr, Order, OwnedDeps, Uint128,
 };
@@ -395,4 +396,58 @@ fn cancel_auction_unhappy_path() {
         ContractError::Unauthorized {} => {}
         e => panic!("unexpected error: {}", e),
     }
+}
+
+#[test]
+fn claim_winner_happy_path() {
+    let (mut deps, contract_env) = setup_contract();
+
+    // beneficiary can release it
+    let info = mock_info("anyone", &coins(2, DENOM));
+
+    let sell_msg = AskNftMsg {
+        price: Uint128(50),
+        cancel_fee: Some(10),
+        start: Some(contract_env.block.height + 15),
+        end: Some(contract_env.block.height + 100),
+    };
+
+    println!("msg :{}", to_binary(&sell_msg).unwrap());
+
+    let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+        sender: HumanAddr::from("asker"),
+        token_id: String::from("BiddableNFT"),
+        msg: to_binary(&sell_msg).ok(),
+    });
+    let _res = handle(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
+
+    // bid auction
+    let bid_info = mock_info("bidder", &coins(sell_msg.price.u128(), DENOM));
+    let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+    let mut bid_contract_env = contract_env.clone();
+    bid_contract_env.block.height = contract_env.block.height + 20; // > 15 at block start
+    let _res = handle(deps.as_mut(), bid_contract_env, bid_info.clone(), bid_msg).unwrap();
+
+    let cancel_bid_msg = HandleMsg::CancelBid { auction_id: 1 };
+    let _res = handle(
+        deps.as_mut(),
+        contract_env.clone(),
+        bid_info,
+        cancel_bid_msg,
+    )
+    .unwrap();
+
+    // now claim winner after expired
+    let claim_info = mock_info("claimer", &coins(0, DENOM));
+    let claim_msg = HandleMsg::ClaimWinner { auction_id: 1 };
+    let mut claim_contract_env = contract_env.clone();
+    claim_contract_env.block.height = contract_env.block.height + 120; // > 100 at block end
+    let HandleResponse { attributes, .. } =
+        handle(deps.as_mut(), claim_contract_env, claim_info, claim_msg).unwrap();
+    let attr = attributes
+        .iter()
+        .find(|attr| attr.key.eq("token_id"))
+        .unwrap();
+    assert_eq!(attr.value, "BiddableNFT");
+    println!("{:?}", attributes);
 }
