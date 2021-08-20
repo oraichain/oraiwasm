@@ -160,7 +160,7 @@ pub fn try_bid_nft(
             .iter()
             .find(|fund| fund.denom.eq(&contract_info.denom))
         {
-            if sent_fund.amount.le(&off.price) {
+            if sent_fund.amount.lt(&off.price) {
                 return Err(ContractError::InsufficientFunds {});
             }
 
@@ -305,8 +305,8 @@ pub fn try_receive_nft(
     let start = msg.start.unwrap_or(env.block.height);
     let end = msg.end.unwrap_or(start + contract_info.auction_blocks);
 
-    // verify start and end block
-    if start < env.block.height || end < start {
+    // verify start and end block, must start in the future
+    if start.lt(&env.block.height) || end.lt(&start) {
         return Err(ContractError::InvalidBlockNumberArgument { start, end });
     }
 
