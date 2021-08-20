@@ -1,6 +1,6 @@
 # Marketplace Smart Contract
 
-The marketplace smart contracts provides a generic platform used for selling and buying CW721 tokens with CW20 tokens. It maintains a list of all current offerings, including the seller's address, the token ID put up for sale, the list price of the token and the contract address the offerings originated from. This ensures maximum visibility on a per-sale instead of a per-contract basis, allowing users to browse through list of offerings in one central place.
+The auction_nft smart contracts provides a generic platform used for selling and buying CW721 tokens with CW20 tokens. It maintains a list of all current auctions, including the seller's address, the token ID put up for sale, the list price of the token and the contract address the auctions originated from. This ensures maximum visibility on a per-sale instead of a per-contract basis, allowing users to browse through list of auctions in one central place.
 
 ## Requirements
 
@@ -11,37 +11,30 @@ The marketplace smart contracts provides a generic platform used for selling and
 
 > :docker_compose: If you don't want to setup rust you can use docker-compose
 
-```shell
-# link required contracts
-mkdir contract && cd contract
-ln -s ../../../ow20/artifacts ow20
-```
-
 ## Contract Addresses
 
 | Contract    | Address     |
 | :---------- | :---------- |
-| marketplace | marketplace |
-| ow20        | ow20        |
+| auction_nft | auction_nft |
 | ow721       | ow721       |
 
 > :warning: You need to put ow20 and ow721 artifacts folders into artifacts/contract before interacting.
 
 ### Start Simulating
 
-`simulate package/plus/marketplace/artifacts/marketplace.wasm -b '{"address":"fake_receiver_addr","amount":"300000"}' -c contract`
+`simulate package/plus/auction_nft/artifacts/auction_nft.wasm -b '{"address":"fake_receiver_addr","amount":"300000"}' -c contract`
 
 ### Init Smart Contracts
 
 ```shell
-# Init marketplace
-cosmwasm-simulate init marketplace '{
+# Init auction_nft
+cosmwasm-simulate init auction_nft '{
   "name": "nft market"
 }'
 
 # Init ow721
 cosmwasm-simulate init ow721 '{
-  "minter": "marketplace",
+  "minter": "auction_nft",
   "name": "nft collection",
   "symbol": "NFT"
 }'
@@ -55,28 +48,13 @@ Puts an NFT token up for sale.
 > :warning: The seller needs to be the owner of the token to be able to sell it.
 
 ```shell
-# Execute mint to create new NFT Token with fake_receiver_addr account
-cosmwasm-simulate handle marketplace `{
-  "mint_nft": {
-    "contract": "ow721",
-    "msg": {
-      "mint": {
-        "description": "nft desc",
-        "image": "https://ipfs.io/ipfs/QmWCp5t1TLsLQyjDFa87ZAp72zYqmC7L2DsNjFdpH8bBoz",
-        "name": "nft rare",
-        "owner": "fake_receiver_addr",
-        "token_id": "123456"
-      }
-    }
-  }
-}`
 
-# Execute send_nft action to put token up for sale for specified_price on the marketplace
+# Execute send_nft action to put token up for sale for specified_price on the auction_nft
 # msg in base64 format: eyJsaXN0X3ByaWNlIjp7ImFkZHJlc3MiOiJvdzIwIiwiYW1vdW50IjoiNTAifX0=
 cosmwasm-simulate handle ow721 `{
-  "send_nft": {
-    "contract": "marketplace",
-    "msg": {"price": "50"},
+  "ask_nft": {
+    "contract": "auction_nft",
+    "msg": {"price": "50",cancel_fee: 1,start: 15, end: 140},
     "token_id": "123456"
   }
 }`
@@ -85,38 +63,38 @@ cosmwasm-simulate handle ow721 `{
 
 ### Query Offerings
 
-Retrieves a list of all currently listed offerings.
+Retrieves a list of all currently listed auctions.
 
 ```shell
-cosmwasm-simulate query marketplace '{
-  "get_offerings": {}
+cosmwasm-simulate query auction_nft '{
+  "get_auctions": {}
 }'
 ```
 
 ### Withdraw CW721 Token Offering
 
-Withdraws an NFT token offering from the global offerings list and returns the NFT token back to its owner.
+Withdraws an NFT token auction from the global auctions list and returns the NFT token back to its owner.
 
-> :warning: Only the token's owner/seller can withdraw the offering. This will only work after having used `sell_nft` on a token.
+> :warning: Only the token's owner/seller can withdraw the auction. This will only work after having used `sell_nft` on a token.
 
 ```shell
-# Execute withdraw_nft action to withdraw the token with the specified offering_id from the marketplace
-cosmwasm-simulate handle marketplace '{
+# Execute withdraw_nft action to withdraw the token with the specified auction_id from the auction_nft
+cosmwasm-simulate handle auction_nft '{
   "withdraw_nft": {
-    "offering_id": "<INSERT_OFFERING_ID>"
+    "auction_id": "<INSERT_AUCTION_ID>"
   }
 }'
 ```
 
 ### Buy CW721 Token
 
-Buys an NFT token, transferring funds to the seller and the token to the buyer.
+Buys an NFT token, transferring funds to the asker and the token to the bidder.
 
-> :warning: This will only work after having used `sell_nft` on a token.
+> :warning: This will only work after having used `ask_nft` on a token.
 
 ```shell
-# Execute send action to buy token with the specified offering_id from the marketplace
+# Execute send action to bid token with the specified auction_id from the auction_nft
 # msg in base64 format: eyJvZmZlcmluZ19pZCI6IjEifQ==
-cosmwasm-simulate handle marketplace '{"buy_nft":{"offering_id":"1"}}'
+cosmwasm-simulate handle auction_nft '{"bid_nft":{"auction_id":"1"}}'
 
 ```
