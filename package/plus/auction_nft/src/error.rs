@@ -40,6 +40,12 @@ pub enum ContractError {
     #[error("Token Id from the original contract is already on sale")]
     TokenOnSale {},
 
+    #[error("Auction is not started yet")]
+    AuctionNotStarted {},
+
+    #[error("Auction is not finished yet")]
+    AuctionNotFinished {},
+
     #[error("The start {start} and end {end} are invalid")]
     InvalidBlockNumberArgument { start: u64, end: u64 },
 }

@@ -18,6 +18,7 @@ pub struct Auction {
     // end block number, by default is current block height + duration in number of blocks
     pub end: u64,
     pub price: Uint128,
+    pub orig_price: Uint128,
     pub cancel_fee: Option<u64>,
 }
 

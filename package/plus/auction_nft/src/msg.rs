@@ -21,7 +21,9 @@ pub enum HandleMsg {
     BidNft {
         auction_id: u64,
     },
-
+    ClaimWinner {
+        auction_id: u64,
+    },
     /// Ask an NFT for a minimum price, must pay fee for auction maketplace
     ReceiveNft(Cw721ReceiveMsg),
     // asker withdraw nft, it is ok, they have pay fee, we dont get fee from bidders
