@@ -138,7 +138,7 @@ fn sell_auction_happy_path() {
     )
     .unwrap_err()
     {
-        ContractError::TokenOnSale {} => {}
+        ContractError::TokenOnAuction {} => {}
         e => panic!("unexpected error: {}", e),
     }
 }
@@ -186,113 +186,113 @@ fn update_info_test() {
     println!("{:?}", res_info);
 }
 
-#[test]
-fn withdraw_auction_happy_path() {
-    let (mut deps, contract_env) = setup_contract();
+// #[test]
+// fn withdraw_auction_happy_path() {
+//     let (mut deps, contract_env) = setup_contract();
 
-    // beneficiary can release it
-    let info = mock_info("anyone", &coins(2, DENOM));
+//     // beneficiary can release it
+//     let info = mock_info("anyone", &coins(2, DENOM));
 
-    let sell_msg = AskNftMsg {
-        price: Uint128(50),
-        cancel_fee: Some(10),
-        start: None,
-        end: None,
-    };
+//     let sell_msg = AskNftMsg {
+//         price: Uint128(50),
+//         cancel_fee: Some(10),
+//         start: None,
+//         end: None,
+//     };
 
-    println!("msg :{}", to_binary(&sell_msg).unwrap());
+//     println!("msg :{}", to_binary(&sell_msg).unwrap());
 
-    let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-        sender: HumanAddr::from("asker"),
-        token_id: String::from("BiddableNFT"),
-        msg: to_binary(&sell_msg).ok(),
-    });
-    let _res = handle(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
+//     let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+//         sender: HumanAddr::from("asker"),
+//         token_id: String::from("BiddableNFT"),
+//         msg: to_binary(&sell_msg).ok(),
+//     });
+//     let _res = handle(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
 
-    // Auction should be listed
-    let res = query(
-        deps.as_ref(),
-        contract_env.clone(),
-        QueryMsg::GetAuctions {
-            options: PagingOptions {
-                limit: None,
-                offset: None,
-                order: None,
-            },
-        },
-    )
-    .unwrap();
-    let value: AuctionsResponse = from_binary(&res).unwrap();
-    assert_eq!(1, value.items.len());
+//     // Auction should be listed
+//     let res = query(
+//         deps.as_ref(),
+//         contract_env.clone(),
+//         QueryMsg::GetAuctions {
+//             options: PagingOptions {
+//                 limit: None,
+//                 offset: None,
+//                 order: None,
+//             },
+//         },
+//     )
+//     .unwrap();
+//     let value: AuctionsResponse = from_binary(&res).unwrap();
+//     assert_eq!(1, value.items.len());
 
-    // withdraw auction
-    let withdraw_info = mock_info("asker", &coins(2, DENOM));
-    let withdraw_msg = HandleMsg::WithdrawNft {
-        auction_id: value.items[0].id.clone(),
-    };
-    let _res = handle(
-        deps.as_mut(),
-        contract_env.clone(),
-        withdraw_info,
-        withdraw_msg,
-    )
-    .unwrap();
+//     // withdraw auction
+//     let withdraw_info = mock_info("asker", &coins(2, DENOM));
+//     let withdraw_msg = HandleMsg::WithdrawNft {
+//         auction_id: value.items[0].id.clone(),
+//     };
+//     let _res = handle(
+//         deps.as_mut(),
+//         contract_env.clone(),
+//         withdraw_info,
+//         withdraw_msg,
+//     )
+//     .unwrap();
 
-    // Auction should be removed
-    let res2 = query(
-        deps.as_ref(),
-        contract_env.clone(),
-        QueryMsg::GetAuctions {
-            options: PagingOptions {
-                limit: None,
-                offset: None,
-                order: None,
-            },
-        },
-    )
-    .unwrap();
-    let value2: AuctionsResponse = from_binary(&res2).unwrap();
-    assert_eq!(0, value2.items.len());
-}
+//     // Auction should be removed
+//     let res2 = query(
+//         deps.as_ref(),
+//         contract_env.clone(),
+//         QueryMsg::GetAuctions {
+//             options: PagingOptions {
+//                 limit: None,
+//                 offset: None,
+//                 order: None,
+//             },
+//         },
+//     )
+//     .unwrap();
+//     let value2: AuctionsResponse = from_binary(&res2).unwrap();
+//     assert_eq!(0, value2.items.len());
+// }
 
-#[test]
-fn withdraw_auction_unhappy_path() {
-    let (mut deps, contract_env) = setup_contract();
+// #[test]
+// fn withdraw_auction_unhappy_path() {
+//     let (mut deps, contract_env) = setup_contract();
 
-    // beneficiary can release it
-    let info = mock_info("anyone", &coins(2, DENOM));
+//     // beneficiary can release it
+//     let info = mock_info("anyone", &coins(2, DENOM));
 
-    let sell_msg = AskNftMsg {
-        price: Uint128(50),
-        cancel_fee: Some(10),
-        start: None,
-        end: None,
-    };
+//     let sell_msg = AskNftMsg {
+//         price: Uint128(50),
+//         cancel_fee: Some(10),
+//         start: None,
+//         end: None,
+//     };
 
-    println!("msg :{}", to_binary(&sell_msg).unwrap());
+//     println!("msg :{}", to_binary(&sell_msg).unwrap());
 
-    let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-        sender: HumanAddr::from("asker"),
-        token_id: String::from("BiddableNFT"),
-        msg: to_binary(&sell_msg).ok(),
-    });
-    let _res = handle(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
+//     let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+//         sender: HumanAddr::from("asker"),
+//         token_id: String::from("BiddableNFT"),
+//         msg: to_binary(&sell_msg).ok(),
+//     });
+//     let _res = handle(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
 
-    // withdraw auction
-    let withdraw_info = mock_info("hacker", &coins(2, DENOM));
-    let withdraw_msg = HandleMsg::WithdrawNft { auction_id: 1 };
-    match handle(
-        deps.as_mut(),
-        contract_env.clone(),
-        withdraw_info,
-        withdraw_msg,
-    )
-    .unwrap_err()
-    {
-        ContractError::Unauthorized {} => {}
-        e => panic!("unexpected error: {}", e),
-    }
-}
+//     // withdraw auction
+//     let withdraw_info = mock_info("hacker", &coins(2, DENOM));
+//     let withdraw_msg = HandleMsg::WithdrawNft { auction_id: 1 };
+//     match handle(
+//         deps.as_mut(),
+//         contract_env.clone(),
+//         withdraw_info,
+//         withdraw_msg,
+//     )
+//     .unwrap_err()
+//     {
+//         ContractError::Unauthorized {} => {}
+//         e => panic!("unexpected error: {}", e),
+//     }
+// }
 
 #[test]
 fn cancel_auction_happy_path() {

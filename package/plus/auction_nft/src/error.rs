@@ -37,8 +37,8 @@ pub enum ContractError {
     #[error("The argument {arg} are invalid")]
     InvalidArgument { arg: String },
 
-    #[error("Token Id from the original contract is already on sale")]
-    TokenOnSale {},
+    #[error("Token Id from the original contract is already on auction")]
+    TokenOnAuction {},
 
     #[error("Auction is not started yet")]
     AuctionNotStarted {},
@@ -48,4 +48,7 @@ pub enum ContractError {
 
     #[error("The start {start} and end {end} are invalid")]
     InvalidBlockNumberArgument { start: u64, end: u64 },
+
+    #[error("Expected bidder: {bidder}, got: {sender}")]
+    InvalidBidder { bidder: String, sender: String },
 }

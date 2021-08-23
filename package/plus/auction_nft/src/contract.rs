@@ -61,7 +61,7 @@ pub fn handle(
     match msg {
         HandleMsg::BidNft { auction_id } => try_bid_nft(deps, info, env, auction_id),
         HandleMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
-        HandleMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
+        // HandleMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
         HandleMsg::ReceiveNft(msg) => try_receive_nft(deps, info, env, msg),
         HandleMsg::CancelBid { auction_id } => try_cancel_bid(deps, info, env, auction_id),
         HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
@@ -184,6 +184,8 @@ pub fn try_bid_nft(
         } else {
             return Err(ContractError::InvalidDenomAmount {});
         }
+    } else {
+        return Err(ContractError::InvalidZeroAmount {});
     }
 
     Ok(HandleResponse {
@@ -238,14 +240,17 @@ pub fn try_claim_winner(
 
         // send fund the asker
         let fund_amount = off.price.mul(Decimal::permille(1000 - contract_info.fee));
-        cosmos_msgs.push(
-            BankMsg::Send {
-                from_address: env.contract.address,
-                to_address: asker_addr,
-                amount: coins(fund_amount.u128(), &contract_info.denom),
-            }
-            .into(),
-        );
+        // only send when fund is greater than zero
+        if !fund_amount.is_zero() {
+            cosmos_msgs.push(
+                BankMsg::Send {
+                    from_address: env.contract.address,
+                    to_address: asker_addr,
+                    amount: coins(fund_amount.u128(), &contract_info.denom),
+                }
+                .into(),
+            );
+        }
     } else {
         // return nft back to asker
         cosmos_msgs.push(
@@ -296,7 +301,7 @@ pub fn try_receive_nft(
     )?;
 
     if auction.is_some() {
-        return Err(ContractError::TokenOnSale {});
+        return Err(ContractError::TokenOnAuction {});
     }
 
     // get Auctions count
@@ -367,26 +372,31 @@ pub fn try_cancel_bid(
                 let asker_addr = deps.api.human_address(&off.asker)?;
                 let asker_amount = sent_amount.mul(Decimal::permille(cancel_fee));
                 sent_amount = sent_amount.sub(&asker_amount)?;
-                // transfer fee to asker
+                // only allow sending if asker amount is greater than 0
+                if !asker_amount.is_zero() {
+                    // transfer fee to asker
+                    cosmos_msgs.push(
+                        BankMsg::Send {
+                            from_address: env.contract.address.clone(),
+                            to_address: asker_addr,
+                            amount: coins(asker_amount.u128(), &contract_info.denom),
+                        }
+                        .into(),
+                    );
+                }
+            }
+
+            // refund the bidder
+            if !sent_amount.is_zero() {
                 cosmos_msgs.push(
                     BankMsg::Send {
                         from_address: env.contract.address.clone(),
-                        to_address: asker_addr,
-                        amount: coins(asker_amount.u128(), &contract_info.denom),
+                        to_address: bidder_addr,
+                        amount: coins(sent_amount.u128(), &contract_info.denom),
                     }
                     .into(),
                 );
             }
-
-            // refund the bidder
-            cosmos_msgs.push(
-                BankMsg::Send {
-                    from_address: env.contract.address.clone(),
-                    to_address: bidder_addr,
-                    amount: coins(sent_amount.u128(), &contract_info.denom),
-                }
-                .into(),
-            );
 
             // update auction with bid price is original price
             off.bidder = None;
@@ -403,71 +413,76 @@ pub fn try_cancel_bid(
                 ],
                 data: None,
             });
+        } else {
+            return Err(ContractError::InvalidBidder {
+                bidder: bidder_addr.to_string(),
+                sender: info.sender.to_string(),
+            });
         }
     }
     Err(ContractError::Unauthorized {})
 }
 
-// when asker withdraw nft, we refund the bidder, asker pay for contract fee, and remove the auction
-pub fn try_withdraw_nft(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    auction_id: u64,
-) -> Result<HandleResponse, ContractError> {
-    // check if token_id is currently sold by the requesting address
-    let key = auction_id.to_be_bytes();
-    let auctions = auctions();
-    let off = auctions.load(deps.storage, &key)?;
-    let asker_addr = deps.api.human_address(&off.asker)?;
+// // when asker withdraw nft, we refund the bidder, asker pay for contract fee, and remove the auction
+// pub fn try_withdraw_nft(
+//     deps: DepsMut,
+//     info: MessageInfo,
+//     env: Env,
+//     auction_id: u64,
+// ) -> Result<HandleResponse, ContractError> {
+//     // check if token_id is currently sold by the requesting address
+//     let key = auction_id.to_be_bytes();
+//     let auctions = auctions();
+//     let off = auctions.load(deps.storage, &key)?;
+//     let asker_addr = deps.api.human_address(&off.asker)?;
 
-    // only asker can withdraw
-    if asker_addr.eq(&info.sender) {
-        let contract_info = CONTRACT_INFO.load(deps.storage)?;
-        // transfer token back to original owner
-        let mut cosmos_msgs = vec![];
-        cosmos_msgs.push(
-            WasmMsg::Execute {
-                contract_addr: deps.api.human_address(&off.contract_addr)?,
-                msg: to_binary(&Cw721HandleMsg::TransferNft {
-                    recipient: asker_addr,
-                    token_id: off.token_id.clone(),
-                })?,
-                send: vec![],
-            }
-            .into(),
-        );
+//     // only asker can withdraw
+//     if asker_addr.eq(&info.sender) {
+//         let contract_info = CONTRACT_INFO.load(deps.storage)?;
+//         // transfer token back to original owner
+//         let mut cosmos_msgs = vec![];
+//         cosmos_msgs.push(
+//             WasmMsg::Execute {
+//                 contract_addr: deps.api.human_address(&off.contract_addr)?,
+//                 msg: to_binary(&Cw721HandleMsg::TransferNft {
+//                     recipient: asker_addr,
+//                     token_id: off.token_id.clone(),
+//                 })?,
+//                 send: vec![],
+//             }
+//             .into(),
+//         );
 
-        // refund the bidder
-        if let Some(bidder) = off.bidder {
-            let bidder_addr = deps.api.human_address(&bidder)?;
-            // transfer money to previous bidder
-            cosmos_msgs.push(
-                BankMsg::Send {
-                    from_address: env.contract.address,
-                    to_address: bidder_addr,
-                    amount: coins(off.price.u128(), &contract_info.denom),
-                }
-                .into(),
-            );
-        }
+//         // refund the bidder
+//         if let Some(bidder) = off.bidder {
+//             let bidder_addr = deps.api.human_address(&bidder)?;
+//             // transfer money to previous bidder
+//             cosmos_msgs.push(
+//                 BankMsg::Send {
+//                     from_address: env.contract.address,
+//                     to_address: bidder_addr,
+//                     amount: coins(off.price.u128(), &contract_info.denom),
+//                 }
+//                 .into(),
+//             );
+//         }
 
-        // remove auction
-        auctions.remove(deps.storage, &key)?;
+//         // remove auction
+//         auctions.remove(deps.storage, &key)?;
 
-        return Ok(HandleResponse {
-            messages: cosmos_msgs,
-            attributes: vec![
-                attr("action", "withdraw_nft"),
-                attr("asker", info.sender),
-                attr("auction_id", auction_id),
-                attr("token_id", off.token_id),
-            ],
-            data: None,
-        });
-    }
-    Err(ContractError::Unauthorized {})
-}
+//         return Ok(HandleResponse {
+//             messages: cosmos_msgs,
+//             attributes: vec![
+//                 attr("action", "withdraw_nft"),
+//                 attr("asker", info.sender),
+//                 attr("auction_id", auction_id),
+//                 attr("token_id", off.token_id),
+//             ],
+//             data: None,
+//         });
+//     }
+//     Err(ContractError::Unauthorized {})
+// }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {

@@ -27,9 +27,9 @@ pub enum HandleMsg {
     /// Ask an NFT for a minimum price, must pay fee for auction maketplace
     ReceiveNft(Cw721ReceiveMsg),
     // asker withdraw nft, it is ok, they have pay fee, we dont get fee from bidders
-    WithdrawNft {
-        auction_id: u64,
-    },
+    // WithdrawNft {
+    //     auction_id: u64,
+    // },
     // withdraw funds from auction marketplace to the owner wallet
     WithdrawFunds {
         funds: Coin,
