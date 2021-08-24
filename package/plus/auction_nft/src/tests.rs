@@ -45,6 +45,7 @@ fn sort_auction() {
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
             cancel_fee: Some(1),
+            buyout_price: Some(Uint128(i)),
         };
         let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
             sender: HumanAddr::from("asker"),
@@ -102,12 +103,14 @@ fn sell_auction_happy_path() {
         cancel_fee: Some(10),
         start: None,
         end: None,
+        buyout_price: None,
     };
     let sell_msg_second = AskNftMsg {
         price: Uint128(2),
         cancel_fee: Some(10),
         start: None,
         end: None,
+        buyout_price: None,
     };
 
     println!("msg: {:?}", sell_msg);
@@ -306,6 +309,7 @@ fn cancel_auction_happy_path() {
         cancel_fee: Some(10),
         start: None,
         end: None,
+        buyout_price: None,
     };
 
     println!("msg :{}", to_binary(&sell_msg).unwrap());
@@ -367,6 +371,7 @@ fn cancel_auction_unhappy_path() {
         cancel_fee: Some(10),
         start: None,
         end: None,
+        buyout_price: None,
     };
 
     println!("msg :{}", to_binary(&sell_msg).unwrap());
@@ -410,6 +415,7 @@ fn claim_winner_happy_path() {
         cancel_fee: Some(10),
         start: Some(contract_env.block.height + 15),
         end: Some(contract_env.block.height + 100),
+        buyout_price: Some(Uint128(1000)),
     };
 
     println!("msg :{}", to_binary(&sell_msg).unwrap());

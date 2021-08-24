@@ -1,4 +1,4 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::{StdError, Uint128};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -42,6 +42,12 @@ pub enum ContractError {
 
     #[error("Auction is not started yet")]
     AuctionNotStarted {},
+
+    #[error("Auction has finished with price {price} greater than buyout price {buyout_price}")]
+    AuctionFinishedBuyOut {
+        price: Uint128,
+        buyout_price: Uint128,
+    },
 
     #[error("Auction is not finished yet")]
     AuctionNotFinished {},

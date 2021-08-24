@@ -44,6 +44,7 @@ pub struct AskNftMsg {
     pub cancel_fee: Option<u64>,
     pub start: Option<u64>,
     pub end: Option<u64>,
+    pub buyout_price: Option<Uint128>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -99,7 +100,7 @@ pub struct QueryAuctionsResult {
     pub contract_addr: HumanAddr,
     pub asker: HumanAddr,
     pub bidder: Option<HumanAddr>,
-    pub cancel_fee: u64,
+    pub cancel_fee: Option<u64>,
     pub start: u64,
     pub end: u64,
 }

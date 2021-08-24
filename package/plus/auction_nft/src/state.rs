@@ -19,6 +19,7 @@ pub struct Auction {
     pub end: u64,
     pub price: Uint128,
     pub orig_price: Uint128,
+    pub buyout_price: Option<Uint128>,
     pub cancel_fee: Option<u64>,
 }
 

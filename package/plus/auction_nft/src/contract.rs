@@ -149,6 +149,16 @@ pub fn try_bid_nft(
         return Err(ContractError::AuctionNotStarted {});
     }
 
+    // check if price already >= buyout price. If yes => wont allow to bid
+    if let Some(buyout_price) = off.buyout_price {
+        if off.price.ge(&buyout_price) {
+            return Err(ContractError::AuctionFinishedBuyOut {
+                price: off.price,
+                buyout_price,
+            });
+        }
+    }
+
     let mut cosmos_msgs = vec![];
     // check minimum price
     // check for enough coins, if has price then payout to all participants
@@ -217,8 +227,15 @@ pub fn try_claim_winner(
 
     // check is auction finished
     if off.end.gt(&env.block.height) {
-        return Err(ContractError::AuctionNotFinished {});
+        if let Some(buyout_price) = off.buyout_price {
+            if off.price.lt(&buyout_price) {
+                return Err(ContractError::AuctionNotFinished {});
+            }
+        } else {
+            return Err(ContractError::AuctionNotFinished {});
+        }
     }
+
     let asker_addr = deps.api.human_address(&off.asker)?;
     let mut cosmos_msgs = vec![];
     if let Some(bidder) = off.bidder {
@@ -328,6 +345,7 @@ pub fn try_receive_nft(
         end,
         bidder: None,
         cancel_fee: msg.cancel_fee,
+        buyout_price: msg.buyout_price,
     };
 
     // add new auctions
@@ -606,15 +624,30 @@ pub fn query_auction_by_contract_tokenid(
     deps: Deps,
     contract: HumanAddr,
     token_id: String,
-) -> StdResult<Auction> {
+) -> StdResult<QueryAuctionsResult> {
     let contract_raw = deps.api.canonical_address(&contract)?;
     let auction = auctions().idx.contract_token_id.item(
         deps.storage,
         get_contract_token_id(contract_raw.to_vec(), &token_id).into(),
     )?;
-    match auction {
-        Some(v) => Ok(v.1),
-        None => Err(StdError::generic_err("Auction not found")),
+    if let Some(auction_obj) = auction {
+        let auction = auction_obj.1;
+        let auction_result = QueryAuctionsResult {
+            id: u64::from_be_bytes(auction_obj.0.try_into().unwrap()),
+            token_id: auction.token_id,
+            price: auction.price,
+            contract_addr: deps.api.human_address(&auction.contract_addr)?,
+            asker: deps.api.human_address(&auction.asker)?,
+            bidder: auction
+                .bidder
+                .map(|can_addr| deps.api.human_address(&can_addr).unwrap_or_default()),
+            cancel_fee: auction.cancel_fee,
+            start: auction.start,
+            end: auction.end,
+        };
+        Ok(auction_result)
+    } else {
+        Err(StdError::generic_err("Auction not found"))
     }
 }
 
@@ -635,7 +668,7 @@ fn parse_auction(api: &dyn Api, item: StdResult<KV<Auction>>) -> StdResult<Query
             asker: api.human_address(&auction.asker)?,
             start: auction.start,
             end: auction.end,
-            cancel_fee: auction.cancel_fee.unwrap_or_default(),
+            cancel_fee: auction.cancel_fee,
             // bidder can be None
             bidder: auction
                 .bidder
