@@ -1,3 +1,5 @@
+use std::ops::Mul;
+
 use crate::contract::*;
 use crate::error::ContractError;
 use crate::msg::*;
@@ -5,10 +7,13 @@ use crate::state::*;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
+use cosmwasm_std::Decimal;
 use cosmwasm_std::HandleResponse;
 use cosmwasm_std::{
     coin, coins, from_binary, to_binary, Env, HumanAddr, Order, OwnedDeps, Uint128,
 };
+
+use std::ops::Add;
 
 use cw721::Cw721ReceiveMsg;
 
@@ -24,6 +29,7 @@ fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
         denom: DENOM.into(),
         fee: 1, // 0.1%
         auction_blocks: 1,
+        step_price: 10,
     };
     let info = mock_info(CREATOR, &[]);
     let contract_env = mock_env();
@@ -46,6 +52,9 @@ fn sort_auction() {
             end: Some(contract_env.block.height + 100),
             cancel_fee: Some(1),
             buyout_price: Some(Uint128(i)),
+            start_timestamp: None,
+            end_timestamp: None,
+            step_price: None,
         };
         let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
             sender: HumanAddr::from("asker"),
@@ -104,6 +113,9 @@ fn sell_auction_happy_path() {
         start: None,
         end: None,
         buyout_price: None,
+        start_timestamp: None,
+        end_timestamp: None,
+        step_price: None,
     };
     let sell_msg_second = AskNftMsg {
         price: Uint128(2),
@@ -111,6 +123,9 @@ fn sell_auction_happy_path() {
         start: None,
         end: None,
         buyout_price: None,
+        start_timestamp: None,
+        end_timestamp: None,
+        step_price: None,
     };
 
     println!("msg: {:?}", sell_msg);
@@ -123,7 +138,7 @@ fn sell_auction_happy_path() {
 
     let msg_second = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
         sender: HumanAddr::from("asker"),
-        token_id: String::from("BiddableNFT"),
+        token_id: String::from("BiddableNFTT"),
         msg: to_binary(&sell_msg_second).ok(),
     });
     let _res = handle(
@@ -133,17 +148,58 @@ fn sell_auction_happy_path() {
         msg.clone(),
     )
     .unwrap();
-    match handle(
+    // match handle(
+    //     deps.as_mut(),
+    //     contract_env.clone(),
+    //     info.clone(),
+    //     msg_second.clone(),
+    // )
+    // .unwrap_err()
+    // {
+    //     ContractError::TokenOnAuction {} => {}
+    //     e => panic!("unexpected error: {}", e),
+    // }
+
+    let _ = handle(
         deps.as_mut(),
         contract_env.clone(),
         info.clone(),
-        msg_second,
+        msg_second.clone(),
     )
-    .unwrap_err()
-    {
-        ContractError::TokenOnAuction {} => {}
-        e => panic!("unexpected error: {}", e),
-    }
+    .unwrap();
+
+    let result: AuctionsResponse = from_binary(
+        &query(
+            deps.as_ref(),
+            contract_env.clone(),
+            QueryMsg::GetAuctions {
+                options: PagingOptions {
+                    offset: Some(0),
+                    limit: Some(3),
+                    order: Some(1),
+                },
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    println!("{:?}", result);
+    let result_second: AuctionsResponse = from_binary(
+        &query(
+            deps.as_ref(),
+            contract_env,
+            QueryMsg::GetAuctions {
+                options: PagingOptions {
+                    offset: Some(0),
+                    limit: Some(3),
+                    order: Some(2),
+                },
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    println!("{:?}", result_second);
 }
 
 #[test]
@@ -158,6 +214,7 @@ fn update_info_test() {
         // 2.5% free
         fee: Some(5),
         auction_blocks: None,
+        step_price: None,
     };
     let update_info_msg = HandleMsg::UpdateInfo(update_info);
 
@@ -310,6 +367,9 @@ fn cancel_auction_happy_path() {
         start: None,
         end: None,
         buyout_price: None,
+        start_timestamp: None,
+        end_timestamp: None,
+        step_price: None,
     };
 
     println!("msg :{}", to_binary(&sell_msg).unwrap());
@@ -372,6 +432,9 @@ fn cancel_auction_unhappy_path() {
         start: None,
         end: None,
         buyout_price: None,
+        start_timestamp: None,
+        end_timestamp: None,
+        step_price: None,
     };
 
     println!("msg :{}", to_binary(&sell_msg).unwrap());
@@ -410,12 +473,25 @@ fn claim_winner_happy_path() {
     // beneficiary can release it
     let info = mock_info("anyone", &coins(2, DENOM));
 
+    let contract_info: ContractInfo = from_binary(
+        &query(
+            deps.as_ref(),
+            contract_env.clone(),
+            QueryMsg::GetContractInfo {},
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
     let sell_msg = AskNftMsg {
         price: Uint128(50),
         cancel_fee: Some(10),
         start: Some(contract_env.block.height + 15),
         end: Some(contract_env.block.height + 100),
         buyout_price: Some(Uint128(1000)),
+        start_timestamp: None,
+        end_timestamp: None,
+        step_price: None,
     };
 
     println!("msg :{}", to_binary(&sell_msg).unwrap());
@@ -428,7 +504,20 @@ fn claim_winner_happy_path() {
     let _res = handle(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
 
     // bid auction
-    let bid_info = mock_info("bidder", &coins(sell_msg.price.u128(), DENOM));
+    let bid_info = mock_info(
+        "bidder",
+        &coins(
+            sell_msg
+                .price
+                .add(
+                    sell_msg
+                        .price
+                        .mul(Decimal::percent(contract_info.step_price)),
+                )
+                .u128(),
+            DENOM,
+        ),
+    );
     let bid_msg = HandleMsg::BidNft { auction_id: 1 };
     let mut bid_contract_env = contract_env.clone();
     bid_contract_env.block.height = contract_env.block.height + 20; // > 15 at block start

@@ -43,7 +43,7 @@ pub enum ContractError {
     #[error("Auction is not started yet")]
     AuctionNotStarted {},
 
-    #[error("Auction has finished with price {price} greater than buyout price {buyout_price}")]
+    #[error("Auction has finished with price: {price}orai greater than or equal to buyout price {buyout_price}orai")]
     AuctionFinishedBuyOut {
         price: Uint128,
         buyout_price: Uint128,

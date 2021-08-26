@@ -21,6 +21,9 @@ pub struct Auction {
     pub orig_price: Uint128,
     pub buyout_price: Option<Uint128>,
     pub cancel_fee: Option<u64>,
+    pub start_timestamp: Uint128,
+    pub end_timestamp: Uint128,
+    pub step_price: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -33,6 +36,7 @@ pub struct ContractInfo {
     pub denom: String,
     /// this defines the number of blocks until the end of auction
     pub auction_blocks: u64,
+    pub step_price: u64,
 }
 
 pub const AUCTIONS_COUNT: Item<u64> = Item::new("num_auctions");

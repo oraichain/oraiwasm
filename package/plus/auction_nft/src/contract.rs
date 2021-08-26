@@ -9,13 +9,13 @@ use crate::state::{
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg,
     Decimal, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order, StdError,
-    StdResult, WasmMsg,
+    StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use cw_storage_plus::Bound;
 use std::convert::TryInto;
-use std::ops::{Mul, Sub};
+use std::ops::{Add, Mul, Sub};
 use std::usize;
 
 // settings for pagination
@@ -46,6 +46,7 @@ pub fn init(
         denom: msg.denom,
         fee: sanitize_fee(msg.fee, MAX_FEE_PERMILLE, "fee")?,
         auction_blocks: msg.auction_blocks,
+        step_price: msg.step_price,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -118,6 +119,9 @@ pub fn try_update_info(
         if let Some(auction_blocks) = msg.auction_blocks {
             contract_info.auction_blocks = auction_blocks
         }
+        if let Some(step_price) = msg.step_price {
+            contract_info.step_price = step_price
+        }
         Ok(contract_info)
     })?;
 
@@ -170,7 +174,11 @@ pub fn try_bid_nft(
             .iter()
             .find(|fund| fund.denom.eq(&contract_info.denom))
         {
-            if sent_fund.amount.lt(&off.price) {
+            let off_price = &off.price;
+            if sent_fund
+                .amount
+                .lt(&off_price.add(&off.price.mul(Decimal::percent(contract_info.step_price))))
+            {
                 return Err(ContractError::InsufficientFunds {});
             }
 
@@ -346,6 +354,9 @@ pub fn try_receive_nft(
         bidder: None,
         cancel_fee: msg.cancel_fee,
         buyout_price: msg.buyout_price,
+        start_timestamp: msg.start_timestamp.unwrap_or(Uint128::from(0u64)),
+        end_timestamp: msg.end_timestamp.unwrap_or(Uint128::from(0u64)),
+        step_price: msg.step_price.unwrap_or(contract_info.step_price),
     };
 
     // add new auctions
@@ -527,7 +538,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 fn _get_range_params(options: &PagingOptions) -> (usize, Option<Bound>, Option<Bound>, Order) {
     let limit = options.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
+    // let mut max: Option<Bound> = None;
     let mut order_enum = Order::Descending;
     if let Some(num) = options.order {
         if num == 1 {
@@ -538,12 +549,13 @@ fn _get_range_params(options: &PagingOptions) -> (usize, Option<Bound>, Option<B
     // if there is offset, assign to min or max
     if let Some(offset) = options.offset {
         let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
-        match order_enum {
-            Order::Ascending => min = offset_value,
-            Order::Descending => max = offset_value,
-        }
+        // match order_enum {
+        //     Order::Ascending => min = offset_value,
+        //     Order::Descending => min = offset_value,
+        // }
+        min = offset_value;
     };
-    (limit, min, max, order_enum)
+    (limit, min, None, order_enum)
 }
 
 pub fn query_auctions(deps: Deps, options: &PagingOptions) -> StdResult<AuctionsResponse> {
@@ -636,6 +648,7 @@ pub fn query_auction_by_contract_tokenid(
             id: u64::from_be_bytes(auction_obj.0.try_into().unwrap()),
             token_id: auction.token_id,
             price: auction.price,
+            orig_price: auction.orig_price,
             contract_addr: deps.api.human_address(&auction.contract_addr)?,
             asker: deps.api.human_address(&auction.asker)?,
             bidder: auction
@@ -644,6 +657,10 @@ pub fn query_auction_by_contract_tokenid(
             cancel_fee: auction.cancel_fee,
             start: auction.start,
             end: auction.end,
+            start_timestamp: auction.start_timestamp,
+            end_timestamp: auction.end_timestamp,
+            buyout_price: auction.buyout_price,
+            step_price: auction.step_price,
         };
         Ok(auction_result)
     } else {
@@ -664,15 +681,20 @@ fn parse_auction(api: &dyn Api, item: StdResult<KV<Auction>>) -> StdResult<Query
             id,
             token_id: auction.token_id,
             price: auction.price,
+            orig_price: auction.orig_price,
             contract_addr: api.human_address(&auction.contract_addr)?,
             asker: api.human_address(&auction.asker)?,
             start: auction.start,
             end: auction.end,
+            start_timestamp: auction.start_timestamp,
+            end_timestamp: auction.end_timestamp,
             cancel_fee: auction.cancel_fee,
             // bidder can be None
             bidder: auction
                 .bidder
                 .map(|can_addr| api.human_address(&can_addr).unwrap_or_default()),
+            buyout_price: auction.buyout_price,
+            step_price: auction.step_price,
         })
     })
 }

@@ -8,8 +8,8 @@ use crate::state::{
 };
 use bech32;
 use cosmwasm_std::{
-    attr, from_slice, to_binary, to_vec, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult, Uint128,
+    attr, from_binary, from_slice, to_binary, to_vec, BankMsg, Binary, Coin, CosmosMsg, Deps,
+    DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult, Uint128,
 };
 use std::u64;
 
@@ -103,7 +103,7 @@ pub fn query_airequests(
 ) -> StdResult<AIRequestsResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
+    let max: Option<Bound> = None;
     let mut order_enum = Order::Descending;
     if let Some(num) = order {
         if num == 1 {
@@ -114,10 +114,11 @@ pub fn query_airequests(
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
         let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
-        match order_enum {
-            Order::Ascending => min = offset_value,
-            Order::Descending => max = offset_value,
-        }
+        // match order_enum {
+        //     Order::Ascending => min = offset_value,
+        //     Order::Descending => max = offset_value,
+        // }
+        min = offset_value;
     };
 
     let res: StdResult<Vec<_>> = ai_requests()
@@ -294,6 +295,10 @@ fn try_create_airequest(
 
     // set request after verifying the fees
     let request_id = increment_requests(deps.storage)?;
+
+    let data_sources: Vec<HumanAddr> = from_binary(&query_datasources(deps.as_ref())?)?;
+    let test_cases: Vec<HumanAddr> = from_binary(&query_testcases(deps.as_ref())?)?;
+
     let ai_request = AIRequest {
         request_id,
         validators: ai_request_msg.validators,
@@ -304,6 +309,8 @@ fn try_create_airequest(
         status: false,
         reward: vec![],
         successful_reports_count: 0,
+        data_sources,
+        test_cases,
     };
 
     ai_requests().save(deps.storage, &request_id.to_be_bytes(), &ai_request)?;

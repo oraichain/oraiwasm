@@ -9,6 +9,7 @@ pub struct InitMsg {
     pub fee: u64,
     pub denom: String,
     pub auction_blocks: u64,
+    pub step_price: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -44,7 +45,10 @@ pub struct AskNftMsg {
     pub cancel_fee: Option<u64>,
     pub start: Option<u64>,
     pub end: Option<u64>,
+    pub start_timestamp: Option<Uint128>,
+    pub end_timestamp: Option<Uint128>,
     pub buyout_price: Option<Uint128>,
+    pub step_price: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -54,6 +58,7 @@ pub struct UpdateContractMsg {
     pub fee: Option<u64>,
     pub denom: Option<String>,
     pub auction_blocks: Option<u64>,
+    pub step_price: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -97,12 +102,17 @@ pub struct QueryAuctionsResult {
     pub id: u64,
     pub token_id: String,
     pub price: Uint128,
+    pub orig_price: Uint128,
     pub contract_addr: HumanAddr,
     pub asker: HumanAddr,
     pub bidder: Option<HumanAddr>,
     pub cancel_fee: Option<u64>,
     pub start: u64,
     pub end: u64,
+    pub buyout_price: Option<Uint128>,
+    pub start_timestamp: Uint128,
+    pub end_timestamp: Uint128,
+    pub step_price: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
