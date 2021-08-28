@@ -36,6 +36,9 @@ pub enum HandleMsg {
         funds: Coin,
     },
     UpdateInfo(UpdateContractMsg),
+    EmergencyCancel {
+        auction_id: u64,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -381,8 +381,30 @@ fn cancel_auction_happy_path() {
     });
     let _res = handle(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
 
+    let contract_info: ContractInfo = from_binary(
+        &query(
+            deps.as_ref(),
+            contract_env.clone(),
+            QueryMsg::GetContractInfo {},
+        )
+        .unwrap(),
+    )
+    .unwrap();
     // bid auction
-    let bid_info = mock_info("bidder", &coins(sell_msg.price.u128(), DENOM));
+    let bid_info = mock_info(
+        "bidder",
+        &coins(
+            sell_msg
+                .price
+                .add(
+                    sell_msg
+                        .price
+                        .mul(Decimal::percent(contract_info.step_price)),
+                )
+                .u128(),
+            DENOM,
+        ),
+    );
     let bid_msg = HandleMsg::BidNft { auction_id: 1 };
     let _res = handle(
         deps.as_mut(),
@@ -392,16 +414,17 @@ fn cancel_auction_happy_path() {
     )
     .unwrap();
 
-    let cancel_bid_msg = HandleMsg::CancelBid { auction_id: 1 };
+    let cancel_auction_msg = HandleMsg::EmergencyCancel { auction_id: 1 };
+    let creator_info = mock_info(CREATOR, &[]);
     let _res = handle(
         deps.as_mut(),
         contract_env.clone(),
-        bid_info,
-        cancel_bid_msg,
+        creator_info,
+        cancel_auction_msg,
     )
     .unwrap();
 
-    // Auction should be listed
+    // Auction should not be listed
     let res = query(
         deps.as_ref(),
         contract_env.clone(),
@@ -446,8 +469,186 @@ fn cancel_auction_unhappy_path() {
     });
     let _res = handle(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
 
+    let contract_info: ContractInfo = from_binary(
+        &query(
+            deps.as_ref(),
+            contract_env.clone(),
+            QueryMsg::GetContractInfo {},
+        )
+        .unwrap(),
+    )
+    .unwrap();
     // bid auction
-    let bid_info = mock_info("bidder", &coins(sell_msg.price.u128(), DENOM));
+    let bid_info = mock_info(
+        "bidder",
+        &coins(
+            sell_msg
+                .price
+                .add(
+                    sell_msg
+                        .price
+                        .mul(Decimal::percent(contract_info.step_price)),
+                )
+                .u128(),
+            DENOM,
+        ),
+    );
+    let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+    let _res = handle(deps.as_mut(), contract_env.clone(), bid_info, bid_msg).unwrap();
+
+    let hacker_info = mock_info("hacker", &coins(2, DENOM));
+    let cancel_bid_msg = HandleMsg::EmergencyCancel { auction_id: 1 };
+    let result = handle(
+        deps.as_mut(),
+        contract_env.clone(),
+        hacker_info,
+        cancel_bid_msg,
+    );
+    // {
+    //     ContractError::Unauthorized {} => {}
+    //     e => panic!("unexpected error: {}", e),
+    // }
+    assert_eq!(true, result.is_err());
+}
+
+#[test]
+fn cancel_bid_happy_path() {
+    let (mut deps, contract_env) = setup_contract();
+
+    // beneficiary can release it
+    let info = mock_info("anyone", &coins(2, DENOM));
+
+    let sell_msg = AskNftMsg {
+        price: Uint128(50),
+        cancel_fee: Some(10),
+        start: None,
+        end: None,
+        buyout_price: None,
+        start_timestamp: None,
+        end_timestamp: None,
+        step_price: None,
+    };
+
+    println!("msg :{}", to_binary(&sell_msg).unwrap());
+
+    let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+        sender: HumanAddr::from("asker"),
+        token_id: String::from("BiddableNFT"),
+        msg: to_binary(&sell_msg).ok(),
+    });
+    let _res = handle(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
+
+    let contract_info: ContractInfo = from_binary(
+        &query(
+            deps.as_ref(),
+            contract_env.clone(),
+            QueryMsg::GetContractInfo {},
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    // bid auction
+    let bid_info = mock_info(
+        "bidder",
+        &coins(
+            sell_msg
+                .price
+                .add(
+                    sell_msg
+                        .price
+                        .mul(Decimal::percent(contract_info.step_price)),
+                )
+                .u128(),
+            DENOM,
+        ),
+    );
+    let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+    let _res = handle(
+        deps.as_mut(),
+        contract_env.clone(),
+        bid_info.clone(),
+        bid_msg,
+    )
+    .unwrap();
+
+    let cancel_bid_msg = HandleMsg::CancelBid { auction_id: 1 };
+    let _res = handle(
+        deps.as_mut(),
+        contract_env.clone(),
+        bid_info,
+        cancel_bid_msg,
+    )
+    .unwrap();
+
+    // Auction should be listed
+    let res = query(
+        deps.as_ref(),
+        contract_env.clone(),
+        QueryMsg::GetAuctionsByBidder {
+            bidder: Some("bidder".into()),
+            options: PagingOptions {
+                limit: None,
+                offset: None,
+                order: None,
+            },
+        },
+    )
+    .unwrap();
+    let value: AuctionsResponse = from_binary(&res).unwrap();
+    assert_eq!(0, value.items.len());
+}
+
+#[test]
+fn cancel_bid_unhappy_path() {
+    let (mut deps, contract_env) = setup_contract();
+
+    // beneficiary can release it
+    let info = mock_info("anyone", &coins(2, DENOM));
+
+    let sell_msg = AskNftMsg {
+        price: Uint128(50),
+        cancel_fee: Some(10),
+        start: None,
+        end: None,
+        buyout_price: None,
+        start_timestamp: None,
+        end_timestamp: None,
+        step_price: None,
+    };
+
+    println!("msg :{}", to_binary(&sell_msg).unwrap());
+
+    let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+        sender: HumanAddr::from("asker"),
+        token_id: String::from("BiddableNFT"),
+        msg: to_binary(&sell_msg).ok(),
+    });
+    let _res = handle(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
+
+    let contract_info: ContractInfo = from_binary(
+        &query(
+            deps.as_ref(),
+            contract_env.clone(),
+            QueryMsg::GetContractInfo {},
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    // bid auction
+    let bid_info = mock_info(
+        "bidder",
+        &coins(
+            sell_msg
+                .price
+                .add(
+                    sell_msg
+                        .price
+                        .mul(Decimal::percent(contract_info.step_price)),
+                )
+                .u128(),
+            DENOM,
+        ),
+    );
     let bid_msg = HandleMsg::BidNft { auction_id: 1 };
     let _res = handle(deps.as_mut(), contract_env.clone(), bid_info, bid_msg).unwrap();
 
