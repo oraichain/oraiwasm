@@ -313,7 +313,12 @@ pub fn try_receive_nft(
     // get OFFERING_COUNT
     let offering_id = increment_offerings(deps.storage)?;
     let seller = deps.api.canonical_address(&rcv_msg.sender)?;
-    let mut royalty = msg.royalty;
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    let mut royalty = Some(sanitize_royalty(
+        msg.royalty.unwrap_or(0),
+        contract_info.max_royalty,
+        "royalty",
+    )?);
     let royalty_creator_result =
         royalties_read(deps.storage, &contract_addr).load(rcv_msg.token_id.as_bytes());
     // if is the first time or owner is creator, add creator royalty less than max_royalty, else add offering royalty
@@ -324,7 +329,6 @@ pub fn try_receive_nft(
             .eq(&rcv_msg.sender)
     {
         royalty = None;
-        let contract_info = CONTRACT_INFO.load(deps.storage)?;
         royalties(deps.storage, &contract_addr).save(
             rcv_msg.token_id.as_bytes(),
             &(
@@ -551,15 +555,37 @@ pub fn query_offering_by_contract_tokenid(
     deps: Deps,
     contract: HumanAddr,
     token_id: String,
-) -> StdResult<Offering> {
+) -> StdResult<QueryOfferingsResult> {
     let contract_raw = deps.api.canonical_address(&contract)?;
     let offering = offerings().idx.contract_token_id.item(
         deps.storage,
         get_contract_token_id(contract_raw.to_vec(), &token_id).into(),
     )?;
-    match offering {
-        Some(v) => Ok(v.1),
-        None => Err(StdError::generic_err("Offering not found")),
+    if let Some(offering_obj) = offering {
+        let offering_result = offering_obj.1;
+        let mut royalty_creator: Option<PayoutMsg> = None;
+        let royalty_creator_result = royalties_read(deps.storage, &offering_result.contract_addr)
+            .load(offering_result.token_id.as_bytes());
+        if royalty_creator_result.is_ok() {
+            let royalty_creator_result_unwrap = royalty_creator_result.unwrap();
+            royalty_creator = Some(PayoutMsg {
+                creator: deps.api.human_address(&royalty_creator_result_unwrap.0)?,
+                royalty: royalty_creator_result_unwrap.1,
+            })
+        }
+
+        let offering_resposne = QueryOfferingsResult {
+            id: u64::from_be_bytes(offering_obj.0.try_into().unwrap()),
+            token_id: offering_result.token_id,
+            price: offering_result.price,
+            contract_addr: deps.api.human_address(&offering_result.contract_addr)?,
+            seller: deps.api.human_address(&offering_result.seller)?,
+            royalty_creator: royalty_creator,
+            royalty_owner: offering_result.royalty,
+        };
+        Ok(offering_resposne)
+    } else {
+        Err(StdError::generic_err("Offering not found"))
     }
 }
 
