@@ -4,7 +4,6 @@ use aioracle_new::QueryMsg as OracleQueryMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 // Import (via `use`) the `fmt` module to make it available.
-use std::fmt;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {

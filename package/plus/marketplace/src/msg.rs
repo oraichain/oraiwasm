@@ -30,6 +30,7 @@ pub enum HandleMsg {
     WithdrawFunds {
         funds: Coin,
     },
+    WithdrawAll {},
     UpdateInfo(InfoMsg),
 }
 

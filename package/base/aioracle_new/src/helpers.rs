@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::msg::{
-    AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg,
+    AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg, StateMsg,
 };
 use crate::state::{
     ai_requests, increment_requests, num_requests, query_state, save_state, AIRequest,
@@ -9,129 +9,18 @@ use crate::state::{
 use bech32;
 use cosmwasm_std::{
     attr, from_binary, from_slice, to_binary, to_vec, BankMsg, Binary, Coin, CosmosMsg, Deps,
-    DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult, Uint128,
+    DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult,
+    Uint128,
 };
 use std::u64;
 
 use cw_storage_plus::Bound;
 
+use sha2::{Digest, Sha256};
+
 const DEFAULT_LIMIT: u8 = 10;
 const MAX_LIMIT: u8 = 30;
 type AggregateHandler = fn(&mut DepsMut, &Env, &MessageInfo, &[String]) -> StdResult<Binary>;
-
-pub fn query_datasources(deps: Deps) -> StdResult<Binary> {
-    let state = query_state(deps.storage)?;
-    to_binary(&state.dsources)
-}
-
-pub fn query_testcases(deps: Deps) -> StdResult<Binary> {
-    let state = query_state(deps.storage)?;
-    to_binary(&state.tcases)
-}
-
-pub fn query_threshold(deps: Deps) -> StdResult<Binary> {
-    let threshold = THRESHOLD.load(deps.storage)?;
-    to_binary(&threshold)
-}
-
-pub fn query_airequest(deps: Deps, request_id: u64) -> StdResult<AIRequest> {
-    ai_requests().load(deps.storage, &request_id.to_be_bytes())
-}
-
-pub fn query_info(deps: Deps, dsource: HumanAddr, msg: &DataSourceQueryMsg) -> StdResult<String> {
-    deps.querier.query_wasm_smart(dsource, msg)
-}
-
-pub fn query_min_fees_simple(deps: Deps, validators: Vec<HumanAddr>) -> StdResult<Uint128> {
-    let dsources = query_state(deps.storage)?.dsources;
-    let mut total: u64 = 0u64;
-
-    let (dsource_fees, _) = query_dsources_fees(deps, dsources);
-    let (validator_fees, _) = query_validator_fees(deps, validators);
-    total = total + dsource_fees + validator_fees;
-    return Ok(Uint128::from(total));
-}
-
-fn query_dsources_fees(deps: Deps, dsources: Vec<HumanAddr>) -> (u64, Vec<Fees>) {
-    let mut total: u64 = 0u64;
-    let mut list_fees: Vec<Fees> = vec![];
-
-    let query_msg_fees: DataSourceQueryMsg = DataSourceQueryMsg::GetFees {};
-    for dsource in dsources {
-        let fees_result = query_info(deps, dsource.clone(), &query_msg_fees);
-        if fees_result.is_err() {
-            continue;
-        }
-        let fees_parse = fees_result.unwrap().parse::<u64>();
-        if fees_parse.is_err() {
-            continue;
-        }
-        let fees = fees_parse.unwrap();
-        total = total + fees;
-        list_fees.push(Fees {
-            address: dsource,
-            amount: Uint128::from(fees),
-        })
-    }
-    return (total, list_fees);
-}
-
-fn query_validator_fees(deps: Deps, validators: Vec<HumanAddr>) -> (u64, Vec<Fees>) {
-    let mut total: u64 = 0u64;
-    let mut list_fees: Vec<Fees> = vec![];
-
-    for validator in validators {
-        let fees_result = VALIDATOR_FEES.load(deps.storage, validator.as_str());
-        if fees_result.is_err() {
-            continue;
-        }
-        let fees = fees_result.unwrap();
-        total = total + fees;
-        list_fees.push(Fees {
-            address: validator,
-            amount: Uint128::from(fees),
-        })
-    }
-    return (total, list_fees);
-}
-
-pub fn query_airequests(
-    deps: Deps,
-    limit: Option<u8>,
-    offset: Option<u64>,
-    order: Option<u8>,
-) -> StdResult<AIRequestsResponse> {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let mut min: Option<Bound> = None;
-    let max: Option<Bound> = None;
-    let mut order_enum = Order::Descending;
-    if let Some(num) = order {
-        if num == 1 {
-            order_enum = Order::Ascending;
-        }
-    }
-
-    // if there is offset, assign to min or max
-    if let Some(offset) = offset {
-        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
-        // match order_enum {
-        //     Order::Ascending => min = offset_value,
-        //     Order::Descending => max = offset_value,
-        // }
-        min = offset_value;
-    };
-
-    let res: StdResult<Vec<_>> = ai_requests()
-        .range(deps.storage, min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| kv_item.and_then(|(_k, v)| Ok(v)))
-        .collect();
-
-    Ok(AIRequestsResponse {
-        items: res?,
-        total: num_requests(deps.storage)?,
-    })
-}
 
 pub fn init_aioracle(deps: DepsMut, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
     let state = State {
@@ -146,10 +35,35 @@ pub fn init_aioracle(deps: DepsMut, info: MessageInfo, msg: InitMsg) -> StdResul
     Ok(InitResponse::default())
 }
 
+pub fn handle_aioracle(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    msg: HandleMsg,
+    aggregate: AggregateHandler,
+) -> Result<HandleResponse, ContractError> {
+    match msg {
+        HandleMsg::SetState { state } => try_update_state(deps, info, state),
+        HandleMsg::SetValidatorFees { fees } => try_set_validator_fees(deps, info, fees),
+        HandleMsg::CreateAiRequest(ai_request_msg) => {
+            try_create_airequest(deps, info, ai_request_msg)
+        }
+        HandleMsg::Aggregate {
+            request_id,
+            dsource_results,
+        } => try_aggregate(deps, env, info, request_id, dsource_results, aggregate),
+        HandleMsg::SetThreshold(value) => try_set_threshold(deps, info, value),
+    }
+}
+
 pub fn query_aioracle(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetDataSources {} => query_datasources(deps),
         QueryMsg::GetTestCases {} => query_testcases(deps),
+        QueryMsg::GetDataSourcesRequest { request_id } => {
+            query_datasources_request(deps, request_id)
+        }
+        QueryMsg::GetTestCasesRequest { request_id } => query_testcases_request(deps, request_id),
         QueryMsg::GetThreshold {} => query_threshold(deps),
         QueryMsg::GetRequest { request_id } => to_binary(&query_airequest(deps, request_id)?),
         QueryMsg::GetRequests {
@@ -161,10 +75,10 @@ pub fn query_aioracle(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn try_update_datasources(
+fn try_update_state(
     deps: DepsMut,
     info: MessageInfo,
-    dsources: Vec<HumanAddr>,
+    state_msg: StateMsg,
 ) -> Result<HandleResponse, ContractError> {
     let mut state = query_state(deps.storage)?;
     if info.sender != state.owner {
@@ -174,26 +88,15 @@ fn try_update_datasources(
         )));
     }
     // update dsources
-    state.dsources = dsources;
-    save_state(deps.storage, &state)?;
-
-    Ok(HandleResponse::default())
-}
-
-fn try_update_testcases(
-    deps: DepsMut,
-    info: MessageInfo,
-    tcases: Vec<HumanAddr>,
-) -> Result<HandleResponse, ContractError> {
-    let mut state = query_state(deps.storage)?;
-    if info.sender != state.owner {
-        return Err(ContractError::Unauthorized(format!(
-            "{} is not the owner",
-            info.sender
-        )));
+    if let Some(dsources) = state_msg.dsources {
+        state.dsources = dsources;
     }
-    // update tcases
-    state.tcases = tcases;
+    if let Some(tcases) = state_msg.tcases {
+        state.tcases = tcases;
+    }
+    if let Some(owner) = state_msg.owner {
+        state.owner = owner;
+    }
     save_state(deps.storage, &state)?;
 
     Ok(HandleResponse::default())
@@ -381,6 +284,7 @@ fn try_aggregate(
 
     for dsource_result_str in dsource_results {
         let mut dsource_result: DataSourceResult = from_slice(dsource_result_str.as_bytes())?;
+        dsource_result.result = derive_results_hash(dsource_result.result.as_bytes())?;
         let mut is_success = true;
         // check data source status coming from test cases
         for tcase_result in &dsource_result.test_case_results {
@@ -537,26 +441,137 @@ fn try_set_threshold(
     Ok(HandleResponse::default())
 }
 
-pub fn handle_aioracle(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    msg: HandleMsg,
-    aggregate: AggregateHandler,
-) -> Result<HandleResponse, ContractError> {
-    match msg {
-        HandleMsg::SetDataSources { dsources } => try_update_datasources(deps, info, dsources),
-        HandleMsg::SetTestCases { tcases } => try_update_testcases(deps, info, tcases),
-        HandleMsg::SetValidatorFees { fees } => try_set_validator_fees(deps, info, fees),
-        HandleMsg::CreateAiRequest(ai_request_msg) => {
-            try_create_airequest(deps, info, ai_request_msg)
+pub fn query_datasources(deps: Deps) -> StdResult<Binary> {
+    let state = query_state(deps.storage)?;
+    to_binary(&state.dsources)
+}
+
+pub fn query_testcases(deps: Deps) -> StdResult<Binary> {
+    let state = query_state(deps.storage)?;
+    to_binary(&state.tcases)
+}
+
+pub fn query_datasources_request(deps: Deps, request_id: u64) -> StdResult<Binary> {
+    let request = ai_requests().load(deps.storage, &request_id.to_be_bytes())?;
+    to_binary(&request.data_sources)
+}
+
+pub fn query_testcases_request(deps: Deps, request_id: u64) -> StdResult<Binary> {
+    let request = ai_requests().load(deps.storage, &request_id.to_be_bytes())?;
+    to_binary(&request.test_cases)
+}
+
+pub fn query_threshold(deps: Deps) -> StdResult<Binary> {
+    let threshold = THRESHOLD.load(deps.storage)?;
+    to_binary(&threshold)
+}
+
+pub fn query_airequest(deps: Deps, request_id: u64) -> StdResult<AIRequest> {
+    ai_requests().load(deps.storage, &request_id.to_be_bytes())
+}
+
+pub fn query_info(deps: Deps, dsource: HumanAddr, msg: &DataSourceQueryMsg) -> StdResult<String> {
+    deps.querier.query_wasm_smart(dsource, msg)
+}
+
+pub fn query_min_fees_simple(deps: Deps, validators: Vec<HumanAddr>) -> StdResult<Uint128> {
+    let dsources = query_state(deps.storage)?.dsources;
+    let mut total: u64 = 0u64;
+
+    let (dsource_fees, _) = query_dsources_fees(deps, dsources);
+    let (validator_fees, _) = query_validator_fees(deps, validators);
+    total = total + dsource_fees + validator_fees;
+    return Ok(Uint128::from(total));
+}
+
+fn query_dsources_fees(deps: Deps, dsources: Vec<HumanAddr>) -> (u64, Vec<Fees>) {
+    let mut total: u64 = 0u64;
+    let mut list_fees: Vec<Fees> = vec![];
+
+    let query_msg_fees: DataSourceQueryMsg = DataSourceQueryMsg::GetFees {};
+    for dsource in dsources {
+        let fees_result = query_info(deps, dsource.clone(), &query_msg_fees);
+        if fees_result.is_err() {
+            continue;
         }
-        HandleMsg::Aggregate {
-            request_id,
-            dsource_results,
-        } => try_aggregate(deps, env, info, request_id, dsource_results, aggregate),
-        HandleMsg::SetThreshold(value) => try_set_threshold(deps, info, value),
+        let fees_parse = fees_result.unwrap().parse::<u64>();
+        if fees_parse.is_err() {
+            continue;
+        }
+        let fees = fees_parse.unwrap();
+        total = total + fees;
+        list_fees.push(Fees {
+            address: dsource,
+            amount: Uint128::from(fees),
+        })
     }
+    return (total, list_fees);
+}
+
+fn query_validator_fees(deps: Deps, validators: Vec<HumanAddr>) -> (u64, Vec<Fees>) {
+    let mut total: u64 = 0u64;
+    let mut list_fees: Vec<Fees> = vec![];
+
+    for validator in validators {
+        let fees_result = VALIDATOR_FEES.load(deps.storage, validator.as_str());
+        if fees_result.is_err() {
+            continue;
+        }
+        let fees = fees_result.unwrap();
+        total = total + fees;
+        list_fees.push(Fees {
+            address: validator,
+            amount: Uint128::from(fees),
+        })
+    }
+    return (total, list_fees);
+}
+
+pub fn query_airequests(
+    deps: Deps,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<AIRequestsResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let mut min: Option<Bound> = None;
+    let max: Option<Bound> = None;
+    let mut order_enum = Order::Descending;
+    if let Some(num) = order {
+        if num == 1 {
+            order_enum = Order::Ascending;
+        }
+    }
+
+    // if there is offset, assign to min or max
+    if let Some(offset) = offset {
+        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        // match order_enum {
+        //     Order::Ascending => min = offset_value,
+        //     Order::Descending => max = offset_value,
+        // }
+        min = offset_value;
+    };
+
+    let res: StdResult<Vec<_>> = ai_requests()
+        .range(deps.storage, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| kv_item.and_then(|(_k, v)| Ok(v)))
+        .collect();
+
+    Ok(AIRequestsResponse {
+        items: res?,
+        total: num_requests(deps.storage)?,
+    })
+}
+
+/// Derives a 32 byte hash value of data source & test case results for small storage
+pub fn derive_results_hash(results: &[u8]) -> Result<String, StdError> {
+    let mut hasher = Sha256::new();
+    hasher.update(results);
+    let hash: [u8; 32] = hasher.finalize().into();
+    let hash_str = String::from_utf8(hash.to_vec())?;
+    return Ok(hash_str);
 }
 
 // ============================== Test ==============================

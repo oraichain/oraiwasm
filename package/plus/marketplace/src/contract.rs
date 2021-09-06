@@ -67,6 +67,41 @@ pub fn handle(
         HandleMsg::ReceiveNft(msg) => try_receive_nft(deps, info, msg),
         HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
         HandleMsg::UpdateInfo(info_msg) => try_update_info(deps, info, info_msg),
+        HandleMsg::WithdrawAll {} => try_withdraw_all(deps, info),
+    }
+}
+
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::GetOfferings {
+            limit,
+            offset,
+            order,
+        } => to_binary(&query_offerings(deps, limit, offset, order)?),
+        QueryMsg::GetOfferingsBySeller {
+            seller,
+            limit,
+            offset,
+            order,
+        } => to_binary(&query_offerings_by_seller(
+            deps, seller, limit, offset, order,
+        )?),
+        QueryMsg::GetOfferingsByContract {
+            contract,
+            limit,
+            offset,
+            order,
+        } => to_binary(&query_offerings_by_contract(
+            deps, contract, limit, offset, order,
+        )?),
+        QueryMsg::GetOffering { offering_id } => to_binary(&query_offering(deps, offering_id)?),
+        QueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
+            &query_offering_by_contract_tokenid(deps, contract, token_id)?,
+        ),
+        QueryMsg::GetPayoutsByContractTokenId { contract, token_id } => to_binary(
+            &query_payouts_by_contract_tokenid(deps, contract, token_id)?,
+        ),
+        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
     }
 }
 
@@ -369,6 +404,44 @@ pub fn try_receive_nft(
     })
 }
 
+pub fn try_withdraw_all(deps: DepsMut, info: MessageInfo) -> Result<HandleResponse, ContractError> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    let mut msgs = vec![];
+    // Unauthorized
+    if !info.sender.to_string().eq(&contract_info.creator) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let ids = query_offering_ids(deps.as_ref())?;
+    let storage = deps.storage;
+    for id in ids {
+        let storage_key = id.to_be_bytes();
+        let off = offerings().load(storage, &storage_key)?;
+        // check if token_id is currently sold by the requesting address
+        // transfer token back to original owner
+        let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+            recipient: deps.api.human_address(&off.seller)?,
+            token_id: off.token_id.clone(),
+        };
+
+        let exec_cw721_transfer = WasmMsg::Execute {
+            contract_addr: deps.api.human_address(&off.contract_addr)?,
+            msg: to_binary(&transfer_cw721_msg)?,
+            send: vec![],
+        };
+        msgs.push(exec_cw721_transfer.into());
+
+        // remove offering
+        offerings().remove(storage, &storage_key)?;
+    }
+
+    Ok(HandleResponse {
+        messages: msgs,
+        attributes: vec![attr("action", "withdraw_all_nfts")],
+        data: None,
+    })
+}
+
 pub fn try_withdraw(
     deps: DepsMut,
     info: MessageInfo,
@@ -378,6 +451,7 @@ pub fn try_withdraw(
     let storage_key = offering_id.to_be_bytes();
     let off = offerings().load(deps.storage, &storage_key)?;
     if off.seller == deps.api.canonical_address(&info.sender)? {
+        // check if token_id is currently sold by the requesting address
         // transfer token back to original owner
         let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
             recipient: deps.api.human_address(&off.seller)?,
@@ -407,40 +481,6 @@ pub fn try_withdraw(
         });
     }
     Err(ContractError::Unauthorized {})
-}
-
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    match msg {
-        QueryMsg::GetOfferings {
-            limit,
-            offset,
-            order,
-        } => to_binary(&query_offerings(deps, limit, offset, order)?),
-        QueryMsg::GetOfferingsBySeller {
-            seller,
-            limit,
-            offset,
-            order,
-        } => to_binary(&query_offerings_by_seller(
-            deps, seller, limit, offset, order,
-        )?),
-        QueryMsg::GetOfferingsByContract {
-            contract,
-            limit,
-            offset,
-            order,
-        } => to_binary(&query_offerings_by_contract(
-            deps, contract, limit, offset, order,
-        )?),
-        QueryMsg::GetOffering { offering_id } => to_binary(&query_offering(deps, offering_id)?),
-        QueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
-            &query_offering_by_contract_tokenid(deps, contract, token_id)?,
-        ),
-        QueryMsg::GetPayoutsByContractTokenId { contract, token_id } => to_binary(
-            &query_payouts_by_contract_tokenid(deps, contract, token_id)?,
-        ),
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
-    }
 }
 
 // ============================== Query Handlers ==============================
@@ -486,6 +526,15 @@ pub fn query_offerings(
         .collect();
 
     Ok(OfferingsResponse { offerings: res? })
+}
+
+pub fn query_offering_ids(deps: Deps) -> StdResult<Vec<u64>> {
+    let res: StdResult<Vec<u64>> = offerings()
+        .range(deps.storage, None, None, Order::Ascending)
+        .map(|kv_item| kv_item.and_then(|(k, _)| Ok(u64::from_be_bytes(k.try_into().unwrap()))))
+        .collect();
+
+    Ok(res?)
 }
 
 pub fn query_offerings_by_seller(

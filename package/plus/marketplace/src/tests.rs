@@ -109,6 +109,9 @@ fn sort_offering() {
     let value: OfferingsResponse = from_binary(&res).unwrap();
     let ids: Vec<u64> = value.offerings.iter().map(|f| f.id).collect();
     println!("value: {:?}", ids);
+
+    let res_second = query_offering_ids(deps.as_ref()).unwrap();
+    println!("value list ids: {:?}", res_second);
 }
 
 #[test]
@@ -375,4 +378,35 @@ fn withdraw_offering_happy_path() {
     .unwrap();
     let value2: OfferingsResponse = from_binary(&res2).unwrap();
     assert_eq!(0, value2.offerings.len());
+}
+
+#[test]
+fn withdraw_all_offerings_happy_path() {
+    let mut deps = setup_contract();
+
+    // beneficiary can release it
+    let info = mock_info("anyone", &vec![coin(50, DENOM)]);
+
+    for i in 1..5000 {
+        let sell_msg = SellNft {
+            price: Uint128(i),
+            royalty: None,
+        };
+        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+            sender: HumanAddr::from("seller"),
+            token_id: String::from(format!("SellableNFT {}", i)),
+            msg: to_binary(&sell_msg).ok(),
+        });
+        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    }
+
+    let ids = query_offering_ids(deps.as_ref()).unwrap();
+    println!("value list ids: {:?}", ids);
+
+    let msg = HandleMsg::WithdrawAll {};
+    let creator = mock_info(CREATOR, &vec![coin(50, DENOM)]);
+    let _res = handle(deps.as_mut(), mock_env(), creator, msg).unwrap();
+
+    let ids_after_withdraw = query_offering_ids(deps.as_ref()).unwrap();
+    println!("value list ids after withdraw: {:?}", ids_after_withdraw);
 }

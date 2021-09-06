@@ -14,11 +14,8 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    SetDataSources {
-        dsources: Vec<HumanAddr>,
-    },
-    SetTestCases {
-        tcases: Vec<HumanAddr>,
+    SetState {
+        state: StateMsg,
     },
     SetValidatorFees {
         fees: u64,
@@ -39,10 +36,23 @@ pub struct AIRequestMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StateMsg {
+    pub dsources: Option<Vec<HumanAddr>>,
+    pub tcases: Option<Vec<HumanAddr>>,
+    pub owner: Option<HumanAddr>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetDataSources {},
     GetTestCases {},
+    GetDataSourcesRequest {
+        request_id: u64,
+    },
+    GetTestCasesRequest {
+        request_id: u64,
+    },
     GetThreshold {},
     GetRequest {
         request_id: u64,
