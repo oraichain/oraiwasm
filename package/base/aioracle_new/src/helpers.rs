@@ -284,7 +284,7 @@ fn try_aggregate(
 
     for dsource_result_str in dsource_results {
         let mut dsource_result: DataSourceResult = from_slice(dsource_result_str.as_bytes())?;
-        dsource_result.result = derive_results_hash(dsource_result.result.as_bytes())?;
+        let dsource_result_hash = derive_results_hash(dsource_result.result.as_bytes())?;
         let mut is_success = true;
         // check data source status coming from test cases
         for tcase_result in &dsource_result.test_case_results {
@@ -331,6 +331,8 @@ fn try_aggregate(
         }
         // allow failed data source results to be stored on-chain to keep track of what went wrong
         dsource_result.test_case_results = test_case_results.clone();
+        // only store hash of the result to minimize the storage used
+        dsource_result.result = dsource_result_hash;
         dsources_results.push(dsource_result);
     }
 
