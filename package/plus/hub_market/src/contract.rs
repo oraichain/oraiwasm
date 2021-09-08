@@ -122,6 +122,7 @@ pub fn query_admin_list(deps: Deps) -> StdResult<AdminListResponse> {
     Ok(AdminListResponse {
         admins: map_human(deps.api, &cfg.admins)?,
         mutable: cfg.mutable,
+        owner: deps.api.human_address(&cfg.owner)?,
     })
 }
 
@@ -162,6 +163,7 @@ mod tests {
         // ensure expected config
         let expected = AdminListResponse {
             admins: vec![alice.clone(), bob.clone(), carl.clone()],
+            owner: owner.clone(),
             mutable: true,
         };
         assert_eq!(query_admin_list(deps.as_ref()).unwrap(), expected);
@@ -187,6 +189,7 @@ mod tests {
         // ensure expected config
         let expected = AdminListResponse {
             admins: vec![alice.clone(), bob.clone()],
+            owner: owner.clone(),
             mutable: true,
         };
         assert_eq!(query_admin_list(deps.as_ref()).unwrap(), expected);
@@ -204,6 +207,7 @@ mod tests {
         handle(deps.as_mut(), mock_env(), info, HandleMsg::Freeze {}).unwrap();
         let expected = AdminListResponse {
             admins: vec![alice.clone(), bob.clone()],
+            owner: owner.clone(),
             mutable: false,
         };
         assert_eq!(query_admin_list(deps.as_ref()).unwrap(), expected);

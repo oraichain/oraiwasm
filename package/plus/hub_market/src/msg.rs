@@ -48,6 +48,7 @@ where
 pub struct AdminListResponse {
     pub admins: Vec<HumanAddr>,
     pub mutable: bool,
+    pub owner: HumanAddr,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
