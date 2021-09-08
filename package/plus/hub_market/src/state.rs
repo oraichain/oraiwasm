@@ -41,6 +41,49 @@ pub fn admin_list_read(storage: &dyn Storage) -> ReadonlySingleton<AdminList> {
     singleton_read(storage, ADMIN_LIST_KEY)
 }
 
+/// Storage Item, tupple in json format is like: ["royalties","royalties_addr"]
+pub type StorageItem = (String, CanonicalAddr);
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+pub struct Registry {
+    pub storages: Vec<StorageItem>,
+    pub implementation: Option<CanonicalAddr>,
+}
+
+impl Registry {
+    /// returns the item if found, need cloned to make the storage immutable
+    pub fn get_storage(&self, item_key: &str) -> Option<&StorageItem> {
+        self.storages.iter().find(|x| x.0.eq(item_key))
+    }
+
+    pub fn add_storage(&mut self, item_key: &str, addr: CanonicalAddr) {
+        if let Some(old) = self.storages.iter_mut().find(|x| x.0.eq(item_key)) {
+            old.1 = addr;
+        } else {
+            self.storages.push((item_key.to_string(), addr));
+        }
+    }
+
+    /// returns removed item
+    pub fn remove_storage(&mut self, item_key: &str) -> Option<StorageItem> {
+        if let Some(index) = self.storages.iter().position(|x| x.0.eq(item_key)) {
+            return Some(self.storages.remove(index));
+        }
+        None
+    }
+}
+
+// suppose storage registry slots are limited as auction, offering, and maybe rental
+pub const REGISTRY_KEY: &[u8] = b"registry";
+
+// config is all config information
+pub fn registry(storage: &mut dyn Storage) -> Singleton<Registry> {
+    singleton(storage, REGISTRY_KEY)
+}
+
+pub fn registry_read(storage: &dyn Storage) -> ReadonlySingleton<Registry> {
+    singleton_read(storage, REGISTRY_KEY)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -91,5 +134,60 @@ mod tests {
         };
         assert!(!config.can_modify(&alice));
         assert!(!config.can_modify(&bob));
+    }
+
+    #[test]
+    fn add_storage() {
+        let api = MockApi::default();
+        let royalties = api
+            .canonical_address(&HumanAddr::from("royalties"))
+            .unwrap();
+        let auctions = api.canonical_address(&HumanAddr::from("auctions")).unwrap();
+        let offerings = api
+            .canonical_address(&HumanAddr::from("offerings"))
+            .unwrap();
+        let implementation = api
+            .canonical_address(&HumanAddr::from("implementation"))
+            .ok();
+
+        // admin can modify mutable contract
+        let mut registry = Registry {
+            storages: vec![
+                ("royalties".into(), royalties),
+                ("auctions".into(), auctions),
+            ],
+            implementation,
+        };
+        registry.add_storage("offerings", offerings);
+        let found = registry.get_storage("offerings").unwrap();
+        assert_eq!(found.0, "offerings");
+    }
+
+    #[test]
+    fn remove_storage() {
+        let api = MockApi::default();
+        let royalties = api
+            .canonical_address(&HumanAddr::from("royalties"))
+            .unwrap();
+        let auctions = api.canonical_address(&HumanAddr::from("auctions")).unwrap();
+        let offerings = api
+            .canonical_address(&HumanAddr::from("offerings"))
+            .unwrap();
+        let implementation = api
+            .canonical_address(&HumanAddr::from("implementation"))
+            .ok();
+
+        // admin can modify mutable contract
+        let mut registry = Registry {
+            storages: vec![
+                ("royalties".into(), royalties),
+                ("auctions".into(), auctions),
+                ("offerings".into(), offerings),
+            ],
+            implementation,
+        };
+        registry.remove_storage("offerings");
+        let found = registry.get_storage("offerings");
+        assert!(found.is_none());
     }
 }

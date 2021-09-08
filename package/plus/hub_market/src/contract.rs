@@ -1,14 +1,13 @@
-use schemars::JsonSchema;
-use std::fmt;
-
 use cosmwasm_std::{
-    attr, to_binary, Api, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Empty, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, StdResult,
+    attr, to_binary, Api, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
+    HumanAddr, InitResponse, MessageInfo, StdResult, WasmMsg,
 };
 
 use crate::error::ContractError;
-use crate::msg::{AdminListResponse, CanExecuteResponse, HandleMsg, InitMsg, QueryMsg};
-use crate::state::{admin_list, admin_list_read, AdminList};
+use crate::msg::{
+    AdminListResponse, CanExecuteResponse, HandleMsg, InitMsg, MarketHandleMsg, QueryMsg,
+};
+use crate::state::{admin_list, admin_list_read, registry, registry_read, AdminList, Registry};
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
     // list of whitelist
@@ -38,31 +37,77 @@ pub fn handle(
     info: MessageInfo,
     // Note: implement this function with different type to add support for custom messages
     // and then import the rest of this contract code.
-    msg: HandleMsg<Empty>,
-) -> Result<HandleResponse<Empty>, ContractError> {
+    msg: HandleMsg,
+) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::Execute { msgs } => handle_execute(deps, env, info, msgs),
+        HandleMsg::UpdateImplementation { implementation } => {
+            handle_update_implementation(deps, env, info, implementation)
+        }
+        HandleMsg::UpdateStorages { storages } => handle_update_storages(deps, env, info, storages),
         HandleMsg::Freeze {} => handle_freeze(deps, env, info),
         HandleMsg::UpdateAdmins { admins } => handle_update_admins(deps, env, info, admins),
     }
 }
 
-pub fn handle_execute<T>(
+/// update implementation, and call initilize with storages from the hub
+pub fn handle_update_implementation(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msgs: Vec<CosmosMsg<T>>,
-) -> Result<HandleResponse<T>, ContractError>
-where
-    T: Clone + fmt::Debug + PartialEq + JsonSchema,
-{
+    implementation: HumanAddr,
+) -> Result<HandleResponse, ContractError> {
     if !can_execute(deps.as_ref(), &info.sender)? {
         Err(ContractError::Unauthorized {})
     } else {
-        // switch/case for storage and implementation
+        let implementation_addr = deps.api.canonical_address(&implementation)?;
+        let mut messages: Vec<CosmosMsg> = vec![];
+        registry(deps.storage).update(|mut data| -> StdResult<_> {
+            data.implementation = Some(implementation_addr);
+            // send initliaze message to market contract
+            messages.push(
+                WasmMsg::Execute {
+                    contract_addr: implementation,
+                    msg: to_binary(&MarketHandleMsg::Initialize {
+                        storages: data.storages.clone(),
+                    })?,
+                    send: vec![],
+                }
+                .into(),
+            );
+            Ok(data)
+        })?;
+
+        // then call initialize with storage as params
         let mut res = HandleResponse::default();
-        res.messages = msgs;
-        res.attributes = vec![attr("action", "execute")];
+        res.messages = messages;
+        res.attributes = vec![attr("action", "update_implementation")];
+        Ok(res)
+    }
+}
+
+pub fn handle_update_storages(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    storages: Vec<(String, HumanAddr)>,
+) -> Result<HandleResponse, ContractError> {
+    if !can_execute(deps.as_ref(), &info.sender)? {
+        Err(ContractError::Unauthorized {})
+    } else {
+        let mut data = match registry_read(deps.storage).load() {
+            Ok(val) => val,
+            Err(_) => Registry {
+                storages: vec![],
+                implementation: None,
+            },
+        };
+        for (item_key, addr) in &storages {
+            data.add_storage(item_key, deps.api.canonical_address(addr)?);
+        }
+        registry(deps.storage).save(&data)?;
+        // then call initialize with storage as params
+        let mut res = HandleResponse::default();
+        res.attributes = vec![attr("action", "update_storages")];
         Ok(res)
     }
 }
@@ -113,7 +158,8 @@ fn can_execute(deps: Deps, sender: &HumanAddr) -> StdResult<bool> {
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::AdminList {} => to_binary(&query_admin_list(deps)?),
-        QueryMsg::CanExecute { sender, msg } => to_binary(&query_can_execute(deps, sender, msg)?),
+        QueryMsg::CanExecute { sender } => to_binary(&query_can_execute(deps, sender)?),
+        QueryMsg::Registry {} => to_binary(&registry_read(deps.storage).load()?),
     }
 }
 
@@ -126,11 +172,7 @@ pub fn query_admin_list(deps: Deps) -> StdResult<AdminListResponse> {
     })
 }
 
-pub fn query_can_execute(
-    deps: Deps,
-    sender: HumanAddr,
-    _msg: CosmosMsg,
-) -> StdResult<CanExecuteResponse> {
+pub fn query_can_execute(deps: Deps, sender: HumanAddr) -> StdResult<CanExecuteResponse> {
     Ok(CanExecuteResponse {
         can_execute: can_execute(deps, &sender)?,
     })
@@ -140,7 +182,7 @@ pub fn query_can_execute(
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
-    use cosmwasm_std::{coin, coins, BankMsg, StakingMsg, WasmMsg};
+    use cosmwasm_std::{coins, BankMsg, WasmMsg};
 
     #[test]
     fn init_and_modify_config() {
@@ -241,7 +283,7 @@ mod tests {
         let info = mock_info(&owner, &[]);
         init(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
-        let freeze: HandleMsg<Empty> = HandleMsg::Freeze {};
+        let freeze: HandleMsg = HandleMsg::Freeze {};
         let msgs = vec![
             BankMsg::Send {
                 from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
@@ -258,7 +300,9 @@ mod tests {
         ];
 
         // make some nice message
-        let handle_msg = HandleMsg::Execute { msgs: msgs.clone() };
+        let handle_msg = HandleMsg::UpdateImplementation {
+            implementation: HumanAddr::from("market"),
+        };
 
         // bob cannot execute them
         let info = mock_info(&bob, &[]);
@@ -292,31 +336,12 @@ mod tests {
         let info = mock_info(&owner, &[]);
         init(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
-        // let us make some queries... different msg types by owner and by other
-        let send_msg = CosmosMsg::Bank(BankMsg::Send {
-            from_address: MOCK_CONTRACT_ADDR.into(),
-            to_address: anyone.clone(),
-            amount: coins(12345, "ushell"),
-        });
-        let staking_msg = CosmosMsg::Staking(StakingMsg::Delegate {
-            validator: anyone.clone(),
-            amount: coin(70000, "ureef"),
-        });
-
         // owner can send
-        let res = query_can_execute(deps.as_ref(), alice.clone(), send_msg.clone()).unwrap();
-        assert_eq!(res.can_execute, true);
-
-        // owner can stake
-        let res = query_can_execute(deps.as_ref(), bob.clone(), staking_msg.clone()).unwrap();
+        let res = query_can_execute(deps.as_ref(), alice.clone()).unwrap();
         assert_eq!(res.can_execute, true);
 
         // anyone cannot send
-        let res = query_can_execute(deps.as_ref(), anyone.clone(), send_msg.clone()).unwrap();
-        assert_eq!(res.can_execute, false);
-
-        // anyone cannot stake
-        let res = query_can_execute(deps.as_ref(), anyone.clone(), staking_msg.clone()).unwrap();
+        let res = query_can_execute(deps.as_ref(), anyone.clone()).unwrap();
         assert_eq!(res.can_execute, false);
     }
 }
