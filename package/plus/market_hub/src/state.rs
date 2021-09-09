@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Storage};
+use cosmwasm_std::{CanonicalAddr, HumanAddr, Storage};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
@@ -42,11 +42,11 @@ pub fn admin_list_read(storage: &dyn Storage) -> ReadonlySingleton<AdminList> {
 }
 
 /// Storage Item, tupple in json format is like: ["royalties","royalties_addr"]
-pub type StorageItem = (String, CanonicalAddr);
+pub type StorageItem = (String, HumanAddr);
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
 pub struct Registry {
     pub storages: Vec<StorageItem>,
-    pub implementation: Option<CanonicalAddr>,
+    pub implementation: Option<HumanAddr>,
 }
 
 impl Registry {
@@ -55,7 +55,7 @@ impl Registry {
         self.storages.iter().find(|x| x.0.eq(item_key))
     }
 
-    pub fn add_storage(&mut self, item_key: &str, addr: CanonicalAddr) {
+    pub fn add_storage(&mut self, item_key: &str, addr: HumanAddr) {
         if let Some(old) = self.storages.iter_mut().find(|x| x.0.eq(item_key)) {
             old.1 = addr;
         } else {
@@ -138,17 +138,12 @@ mod tests {
 
     #[test]
     fn add_storage() {
-        let api = MockApi::default();
-        let royalties = api
-            .canonical_address(&HumanAddr::from("royalties"))
-            .unwrap();
-        let auctions = api.canonical_address(&HumanAddr::from("auctions")).unwrap();
-        let offerings = api
-            .canonical_address(&HumanAddr::from("offerings"))
-            .unwrap();
-        let implementation = api
-            .canonical_address(&HumanAddr::from("implementation"))
-            .ok();
+        let royalties = HumanAddr::from("royalties");
+
+        let auctions = HumanAddr::from("auctions");
+        let offerings = HumanAddr::from("offerings");
+
+        let implementation = HumanAddr::from("implementation");
 
         // admin can modify mutable contract
         let mut registry = Registry {
@@ -156,7 +151,7 @@ mod tests {
                 ("royalties".into(), royalties),
                 ("auctions".into(), auctions),
             ],
-            implementation,
+            implementation: Some(implementation),
         };
         registry.add_storage("offerings", offerings);
         let found = registry.get_storage("offerings").unwrap();
@@ -165,17 +160,10 @@ mod tests {
 
     #[test]
     fn remove_storage() {
-        let api = MockApi::default();
-        let royalties = api
-            .canonical_address(&HumanAddr::from("royalties"))
-            .unwrap();
-        let auctions = api.canonical_address(&HumanAddr::from("auctions")).unwrap();
-        let offerings = api
-            .canonical_address(&HumanAddr::from("offerings"))
-            .unwrap();
-        let implementation = api
-            .canonical_address(&HumanAddr::from("implementation"))
-            .ok();
+        let royalties = HumanAddr::from("royalties");
+        let auctions = HumanAddr::from("auctions");
+        let offerings = HumanAddr::from("offerings");
+        let implementation = HumanAddr::from("implementation");
 
         // admin can modify mutable contract
         let mut registry = Registry {
@@ -184,7 +172,7 @@ mod tests {
                 ("auctions".into(), auctions),
                 ("offerings".into(), offerings),
             ],
-            implementation,
+            implementation: Some(implementation),
         };
         registry.remove_storage("offerings");
         let found = registry.get_storage("offerings");

@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, HumanAddr};
+use cosmwasm_std::HumanAddr;
 
 use crate::state::StorageItem;
 
@@ -9,6 +9,7 @@ use crate::state::StorageItem;
 pub struct InitMsg {
     pub admins: Vec<HumanAddr>,
     pub mutable: bool,
+    pub storages: Vec<StorageItem>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -22,7 +23,7 @@ pub enum HandleMsg {
     },
 
     UpdateStorages {
-        storages: Vec<(String, HumanAddr)>,
+        storages: Vec<StorageItem>,
     },
 
     /// Freeze will make a mutable contract immutable, must be called by an admin
@@ -59,16 +60,4 @@ pub struct AdminListResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct CanExecuteResponse {
     pub can_execute: bool,
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case")]
-pub enum MarketHandleMsg {
-    /// Transfer is a base message to move a token to another account without triggering actions
-    UpdateStorages {
-        storages: Vec<StorageItem>,
-    },
-    UpdateImplementation {
-        implementation: CanonicalAddr,
-    },
 }

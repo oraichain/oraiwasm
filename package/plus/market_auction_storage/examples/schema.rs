@@ -3,10 +3,10 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use market_implement::msg::{
-    AskNftMsg, AuctionsResponse, HandleMsg, InitMsg, QueryAuctionsResult, QueryMsg,
+use market_auction_storage::msg::{
+    AuctionsResponse, HandleMsg, InitMsg, QueryAuctionsResult, QueryMsg,
 };
-use market_implement::state::ContractInfo;
+use market_auction_storage::state::ContractInfo;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -17,7 +17,6 @@ fn main() {
     export_schema(&schema_for!(InitMsg), &out_dir);
     export_schema(&schema_for!(HandleMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
-    export_schema(&schema_for!(AskNftMsg), &out_dir);
     export_schema(&schema_for!(AuctionsResponse), &out_dir);
     export_schema(&schema_for!(ContractInfo), &out_dir);
     export_schema(&schema_for!(QueryAuctionsResult), &out_dir);
