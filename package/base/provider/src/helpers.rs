@@ -12,7 +12,7 @@ pub fn init_provider(
     info: MessageInfo,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    let state: State = msg.state;
+    let state: State = msg.0;
     // let state: State = State {
     //     language: "node".to_string(),
     //     script_url: "https://gist.githubusercontent.com/tubackkhoa/4ab5353a5b44118ccd697f14df65733f/raw/4a27d2ac4255d23463286898b161eda87d1b95bb/datasource_coingecko.js".to_string(),
@@ -35,7 +35,7 @@ pub fn handle_provider(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::SetState { state } => try_set_state(deps, info, state),
+        HandleMsg::SetState(state) => try_set_state(deps, info, state),
         HandleMsg::SetOwner { owner } => try_set_owner(deps, info, owner),
     }
 }

@@ -43,13 +43,11 @@ pub fn aggregate(
 fn test_update_state() {
     let mut deps = setup_contract();
     let info = mock_info(CREATOR, &[]);
-    let msg = HandleMsg::SetState {
-        state: StateMsg {
-            owner: Some(HumanAddr::from("hey")),
-            dsources: None,
-            tcases: Some(vec![HumanAddr::from("hlhlhlhlhlh")]),
-        },
-    };
+    let msg = HandleMsg::SetState(StateMsg {
+        owner: Some(HumanAddr::from("hey")),
+        dsources: None,
+        tcases: Some(vec![HumanAddr::from("hlhlhlhlhlh")]),
+    });
     let _ = handle_aioracle(
         deps.as_mut(),
         mock_env(),

@@ -19,13 +19,13 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::OracleHandle { msg } => Ok(handle_aioracle(deps, env, info, msg)?),
+        HandleMsg::OracleHandle(msg) => Ok(handle_aioracle(deps, env, info, msg)?),
     }
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::OracleQuery { msg } => query_aioracle(deps, _env, msg),
+        QueryMsg::OracleQuery(msg) => query_aioracle(deps, _env, msg),
     }
 }
 
@@ -81,9 +81,7 @@ mod tests {
         let res = query(
             deps.as_ref(),
             mock_env(),
-            QueryMsg::OracleQuery {
-                msg: OracleQueryMsg::GetDataSources {},
-            },
+            QueryMsg::OracleQuery(OracleQueryMsg::GetDataSources {}),
         )
         .unwrap();
         let value: Vec<HumanAddr> = from_binary(&res).unwrap();

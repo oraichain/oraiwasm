@@ -5,8 +5,9 @@ use crate::msg::{
 };
 use crate::state::{
     ai_requests, increment_requests, num_requests, query_state, save_state, AIRequest,
-    DataSourceResult, Fees, Report, State, TestCaseResult, THRESHOLD, VALIDATOR_FEES,
+    DataSourceResults, Fees, Report, State, TestCaseResults, THRESHOLD, VALIDATOR_FEES,
 };
+use crate::{Rewards, TestCaseResultMsg};
 use bech32;
 use cosmwasm_std::{
     attr, from_binary, from_slice, to_binary, to_vec, BankMsg, Binary, Coin, CosmosMsg, Deps,
@@ -45,7 +46,7 @@ pub fn handle_aioracle(
     aggregate: AggregateHandler,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::SetState { state } => try_update_state(deps, info, state),
+        HandleMsg::SetState(state) => try_update_state(deps, info, state),
         HandleMsg::SetValidatorFees { fees } => try_set_validator_fees(deps, info, fees),
         HandleMsg::CreateAiRequest(ai_request_msg) => {
             try_create_airequest(deps, info, ai_request_msg)
@@ -212,7 +213,10 @@ fn try_create_airequest(
         provider_fees: list_provider_fees,
         validator_fees: list_validator_fees,
         status: false,
-        reward: vec![],
+        rewards: Rewards {
+            address: vec![],
+            amount: vec![],
+        },
         successful_reports_count: 0,
         data_sources,
         test_cases,
@@ -241,65 +245,61 @@ fn try_create_airequest(
     })
 }
 
-fn try_aggregate(
-    mut deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    request_id: u64,
-    dsource_results: Vec<String>,
-    aggregate: AggregateHandler,
-) -> Result<HandleResponse, ContractError> {
-    let ai_requests = ai_requests();
-    let mut ai_request = ai_requests.load(deps.storage, &request_id.to_be_bytes())?;
-    let validator = info.sender.clone();
-    // check permission
-    if ai_request
-        .validators
-        .iter()
-        .position(|addr| addr.eq(&validator))
-        .is_none()
-    {
-        return Err(ContractError::Unauthorized(format!(
-            "{} is not in the validator list",
-            info.sender
-        )));
-    }
-
-    // check reported
-    if ai_request
-        .reports
-        .iter()
-        .position(|report| report.validator.eq(&validator))
-        .is_some()
-    {
-        return Err(ContractError::Reported(format!(
-            "{} has already reported this AI Request",
-            info.sender
-        )));
-    }
-    let mut dsources_results: Vec<DataSourceResult> = Vec::new();
-    let mut test_case_results: Vec<TestCaseResult> = Vec::new();
-    let mut results: Vec<String> = Vec::new();
-
-    // prepare cosmos messages to send rewards
-    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
-
-    for dsource_result_str in dsource_results {
-        let mut dsource_result: DataSourceResultMsg = from_slice(dsource_result_str.as_bytes())?;
-        let mut is_success = true;
-        // check data source status coming from test cases
-        for tcase_result in &dsource_result.test_case_results {
+fn process_test_cases(
+    tcase_results: &Vec<Option<TestCaseResultMsg>>,
+) -> (Option<TestCaseResults>, bool) {
+    let mut test_case_results: Option<TestCaseResults> = None;
+    let mut is_success = true;
+    for tcase_result_option in tcase_results {
+        if let Some(tcase_result) = tcase_result_option {
             if !tcase_result.tcase_status {
                 continue;
             }
+            let mut tcase_results_temp = TestCaseResults {
+                contract: vec![],
+                dsource_status: vec![],
+                tcase_status: vec![],
+            };
+
             // append into new test case list
-            test_case_results.push(tcase_result.to_owned());
+            tcase_results_temp
+                .contract
+                .push(tcase_result.contract.clone());
+            tcase_results_temp
+                .dsource_status
+                .push(tcase_result.dsource_status);
+            tcase_results_temp
+                .tcase_status
+                .push(tcase_result.tcase_status);
+            test_case_results = Some(tcase_results_temp);
 
             if !tcase_result.dsource_status {
                 is_success = false;
                 break;
             }
         }
+    }
+    return (test_case_results, is_success);
+}
+
+fn process_data_sources(
+    dsource_results: Vec<String>,
+    ai_request: &AIRequest,
+    contract_addr: &HumanAddr,
+) -> Result<(DataSourceResults, Vec<String>, Vec<CosmosMsg>), ContractError> {
+    let mut dsources_results = DataSourceResults {
+        contract: vec![],
+        result_hash: vec![],
+        status: vec![],
+        test_case_results: vec![],
+    };
+    // prepare results to aggregate
+    let mut results: Vec<String> = Vec::new();
+    // prepare cosmos messages to send rewards
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+    for dsource_result_str in dsource_results {
+        let dsource_result: DataSourceResultMsg = from_slice(dsource_result_str.as_bytes())?;
+        let (test_case_results, is_success) = process_test_cases(&dsource_result.test_case_results);
 
         if dsource_result.status && is_success {
             // send rewards to the providers
@@ -313,7 +313,7 @@ fn try_aggregate(
                     amount: provider_fee.amount,
                 }];
                 let reward_msg: CosmosMsg = BankMsg::Send {
-                    from_address: env.contract.address.clone(),
+                    from_address: contract_addr.to_owned(),
                     to_address: provider_fee.address.clone(),
                     amount: reward_obj,
                 }
@@ -329,18 +329,85 @@ fn try_aggregate(
 
             // push result to aggregate later
             results.push(result);
-        }
-        // allow failed data source results to be stored on-chain to keep track of what went wrong
-        dsource_result.test_case_results = test_case_results.clone();
-        // only store hash of the result to minimize the storage used
-        let dsource_result_store = DataSourceResult {
-            contract: dsource_result.contract,
-            result_hash: derive_results_hash(dsource_result.result.as_bytes())?,
-            status: dsource_result.status,
-            test_case_results: dsource_result.test_case_results,
         };
-        dsources_results.push(dsource_result_store);
+        // only store hash of the result to minimize the storage used
+        dsources_results.contract.push(dsource_result.contract);
+        dsources_results
+            .result_hash
+            .push(derive_results_hash(dsource_result.result.as_bytes())?);
+        dsources_results.status.push(dsource_result.status);
+        dsources_results.test_case_results.push(test_case_results);
     }
+    Ok((dsources_results, results, cosmos_msgs))
+}
+
+fn validate_ai_request(ai_request: &AIRequest, sender: &HumanAddr) -> Option<ContractError> {
+    if ai_request
+        .validators
+        .iter()
+        .position(|addr| addr.eq(sender))
+        .is_none()
+    {
+        return Some(ContractError::Unauthorized(format!(
+            "{} is not in the validator list",
+            sender
+        )));
+    }
+
+    // check reported
+    if ai_request
+        .reports
+        .iter()
+        .position(|report| report.validator.eq(sender))
+        .is_some()
+    {
+        return Some(ContractError::Reported(format!(
+            "{} has already reported this AI Request",
+            sender
+        )));
+    }
+    return None;
+}
+
+fn collect_rewards(cosmos_msgs: &Vec<CosmosMsg>) -> Rewards {
+    let mut rewards = Rewards {
+        address: vec![],
+        amount: vec![],
+    };
+    for msg in cosmos_msgs {
+        if let CosmosMsg::Bank(msg) = msg {
+            match msg {
+                BankMsg::Send {
+                    from_address: _,
+                    to_address,
+                    amount,
+                } => {
+                    rewards.address.push(to_address.to_owned());
+                    rewards.amount.push(amount.to_owned());
+                }
+            }
+        }
+    }
+    return rewards;
+}
+
+fn try_aggregate(
+    mut deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    request_id: u64,
+    dsource_results: Vec<String>,
+    aggregate: AggregateHandler,
+) -> Result<HandleResponse, ContractError> {
+    let ai_requests = ai_requests();
+    let mut ai_request = ai_requests.load(deps.storage, &request_id.to_be_bytes())?;
+    let validator = info.sender.clone();
+    if let Some(error) = validate_ai_request(&ai_request, &info.sender) {
+        return Err(error);
+    }
+
+    let (dsources_results, results, mut cosmos_msgs) =
+        process_data_sources(dsource_results, &ai_request, &env.contract.address)?;
 
     // get aggregated result
     let aggregated_result_res = aggregate(&mut deps, &env, &info, results.as_slice());
@@ -380,7 +447,7 @@ fn try_aggregate(
     // update report
     ai_request.reports.push(report.clone());
     // update reward
-    ai_request.reward.append(&mut cosmos_msgs.clone());
+    ai_request.rewards = collect_rewards(&cosmos_msgs);
     // check if the reports reach a certain threshold or not. If yes => change status to true
     let threshold = THRESHOLD.load(deps.storage)?;
     // count successful reports to validate if the request is actually finished
