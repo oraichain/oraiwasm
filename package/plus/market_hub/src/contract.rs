@@ -4,9 +4,7 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{
-    AdminListResponse, CanExecuteResponse, HandleMsg, InitMsg, MarketHandleMsg, QueryMsg,
-};
+use crate::msg::{AdminListResponse, CanExecuteResponse, HandleMsg, InitMsg, QueryMsg};
 use crate::state::{admin_list, admin_list_read, registry, registry_read, AdminList, Registry};
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
@@ -17,6 +15,13 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
         owner: deps.api.canonical_address(&info.sender)?,
     };
     admin_list(deps.storage).save(&cfg)?;
+    // storage must appear before implementation, each time update storage, may need to update implementation if the storages is different,
+    // otherwise it still run with old version, it should be like auctions_v2 for storage key
+    let reg = Registry {
+        storages: msg.storages,
+        implementation: None,
+    };
+    registry(deps.storage).save(&reg)?;
     Ok(InitResponse::default())
 }
 
@@ -59,15 +64,14 @@ pub fn handle_update_implementation(
     if !can_execute(deps.as_ref(), &info.sender)? {
         Err(ContractError::Unauthorized {})
     } else {
-        let implementation_addr = deps.api.canonical_address(&implementation).ok();
         let mut messages: Vec<CosmosMsg> = vec![];
         registry(deps.storage).update(|mut data| -> StdResult<_> {
-            data.implementation = implementation_addr;
+            data.implementation = Some(implementation.clone());
             // update current storages for the market contract
             messages.push(
                 WasmMsg::Execute {
-                    contract_addr: implementation,
-                    msg: to_binary(&MarketHandleMsg::UpdateStorages {
+                    contract_addr: implementation.clone(),
+                    msg: to_binary(&HandleMsg::UpdateStorages {
                         storages: data.storages.clone(),
                     })?,
                     send: vec![],
@@ -103,16 +107,16 @@ pub fn handle_update_storages(
         };
         let mut messages: Vec<CosmosMsg> = vec![];
         for (item_key, addr) in &storages {
-            data.add_storage(item_key, deps.api.canonical_address(addr)?);
+            data.add_storage(item_key, addr.clone());
         }
 
         // update implemetation for all storage
         if let Some(implementation) = &data.implementation {
-            for (_, addr) in storages {
+            for (_, addr) in &storages {
                 messages.push(
                     WasmMsg::Execute {
-                        contract_addr: addr,
-                        msg: to_binary(&MarketHandleMsg::UpdateImplementation {
+                        contract_addr: addr.clone(),
+                        msg: to_binary(&HandleMsg::UpdateImplementation {
                             implementation: implementation.clone(),
                         })?,
                         send: vec![],
@@ -199,8 +203,7 @@ pub fn query_can_execute(deps: Deps, sender: HumanAddr) -> StdResult<CanExecuteR
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
-    use cosmwasm_std::{coins, BankMsg, WasmMsg};
+    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 
     #[test]
     fn init_and_modify_config() {
@@ -215,6 +218,7 @@ mod tests {
         // init the contract
         let init_msg = InitMsg {
             admins: vec![alice.clone(), bob.clone(), carl.clone()],
+            storages: vec![],
             mutable: true,
         };
         let info = mock_info(&owner, &[]);
@@ -296,26 +300,19 @@ mod tests {
         // init the contract
         let init_msg = InitMsg {
             admins: vec![alice.clone(), carl.clone()],
+            storages: vec![],
             mutable: false,
         };
         let info = mock_info(&owner, &[]);
         init(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
-        let freeze: HandleMsg = HandleMsg::Freeze {};
-        let msgs = vec![
-            BankMsg::Send {
-                from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-                to_address: bob.clone(),
-                amount: coins(10000, "DAI"),
-            }
-            .into(),
-            WasmMsg::Execute {
-                contract_addr: HumanAddr::from("some contract"),
-                msg: to_binary(&freeze).unwrap(),
-                send: vec![],
-            }
-            .into(),
-        ];
+        // carl cannot freeze it
+        let info = mock_info(&carl, &[]);
+        let res = handle(deps.as_mut(), mock_env(), info, HandleMsg::Freeze {});
+        match res.unwrap_err() {
+            ContractError::Unauthorized { .. } => {}
+            e => panic!("unexpected error: {}", e),
+        }
 
         // make some nice message
         let handle_msg = HandleMsg::UpdateImplementation {
@@ -333,8 +330,10 @@ mod tests {
         // but carl can
         let info = mock_info(&carl, &[]);
         let res = handle(deps.as_mut(), mock_env(), info, handle_msg.clone()).unwrap();
-        assert_eq!(res.messages, msgs);
-        assert_eq!(res.attributes, vec![attr("action", "execute")]);
+        assert_eq!(
+            res.attributes,
+            vec![attr("action", "update_implementation")]
+        );
     }
 
     #[test]
@@ -349,6 +348,7 @@ mod tests {
         // init the contract
         let init_msg = InitMsg {
             admins: vec![alice.clone(), bob.clone()],
+            storages: vec![],
             mutable: false,
         };
         let info = mock_info(&owner, &[]);
