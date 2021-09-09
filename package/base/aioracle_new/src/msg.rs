@@ -2,7 +2,7 @@ use cosmwasm_std::HumanAddr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::state::AIRequest;
+use crate::state::{AIRequest, TestCaseResult};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -33,6 +33,14 @@ pub enum HandleMsg {
 pub struct AIRequestMsg {
     pub validators: Vec<HumanAddr>,
     pub input: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DataSourceResultMsg {
+    pub contract: HumanAddr,
+    pub result: String,
+    pub status: bool,
+    pub test_case_results: Vec<TestCaseResult>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

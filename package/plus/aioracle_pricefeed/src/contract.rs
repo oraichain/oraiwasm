@@ -40,7 +40,10 @@ pub fn aggregate(
     results: &[String],
 ) -> StdResult<Binary> {
     // append the list
-    let mut aggregation_result: Vec<Output> = Vec::new();
+    let mut aggregation_result: Output = Output {
+        name: vec![],
+        price: vec![],
+    };
     let result_str = aggregate_prices_str(results.to_vec());
     let price_data: Vec<Input> = from_slice(result_str.as_bytes())?;
     for res in price_data {
@@ -98,11 +101,8 @@ pub fn aggregate(
         mean_price.insert(mean_price.len().wrapping_sub(largest_precision), '.');
         println!("mean price: {}", mean_price);
 
-        let data: Output = Output {
-            name: res.name,
-            price: mean_price,
-        };
-        aggregation_result.push(data.clone());
+        aggregation_result.name.push(res.name);
+        aggregation_result.price.push(mean_price);
     }
     let result_bin = to_binary(&aggregation_result)?;
     Ok(result_bin)

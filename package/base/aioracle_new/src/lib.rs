@@ -13,6 +13,8 @@ mod error;
 mod helpers;
 mod msg;
 mod state;
+#[cfg(test)]
+mod tests;
 
 // You can override some logic, except pub use crate, other variable should use namespace prefix
 #[macro_export]

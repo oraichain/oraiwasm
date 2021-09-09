@@ -38,7 +38,7 @@ pub struct Fees {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DataSourceResult {
     pub contract: HumanAddr,
-    pub result: String,
+    pub result_hash: String,
     pub status: bool,
     pub test_case_results: Vec<TestCaseResult>,
 }

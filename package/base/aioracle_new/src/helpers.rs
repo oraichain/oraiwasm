@@ -1,6 +1,7 @@
 use crate::error::ContractError;
 use crate::msg::{
-    AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg, StateMsg,
+    AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, DataSourceResultMsg, HandleMsg, InitMsg,
+    QueryMsg, StateMsg,
 };
 use crate::state::{
     ai_requests, increment_requests, num_requests, query_state, save_state, AIRequest,
@@ -17,6 +18,7 @@ use std::u64;
 use cw_storage_plus::Bound;
 
 use sha2::{Digest, Sha256};
+use std::fmt::Write;
 
 const DEFAULT_LIMIT: u8 = 10;
 const MAX_LIMIT: u8 = 30;
@@ -283,8 +285,7 @@ fn try_aggregate(
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
     for dsource_result_str in dsource_results {
-        let mut dsource_result: DataSourceResult = from_slice(dsource_result_str.as_bytes())?;
-        let dsource_result_hash = derive_results_hash(dsource_result.result.as_bytes())?;
+        let mut dsource_result: DataSourceResultMsg = from_slice(dsource_result_str.as_bytes())?;
         let mut is_success = true;
         // check data source status coming from test cases
         for tcase_result in &dsource_result.test_case_results {
@@ -332,8 +333,13 @@ fn try_aggregate(
         // allow failed data source results to be stored on-chain to keep track of what went wrong
         dsource_result.test_case_results = test_case_results.clone();
         // only store hash of the result to minimize the storage used
-        dsource_result.result = dsource_result_hash;
-        dsources_results.push(dsource_result);
+        let dsource_result_store = DataSourceResult {
+            contract: dsource_result.contract,
+            result_hash: derive_results_hash(dsource_result.result.as_bytes())?,
+            status: dsource_result.status,
+            test_case_results: dsource_result.test_case_results,
+        };
+        dsources_results.push(dsource_result_store);
     }
 
     // get aggregated result
@@ -572,66 +578,14 @@ pub fn derive_results_hash(results: &[u8]) -> Result<String, StdError> {
     let mut hasher = Sha256::new();
     hasher.update(results);
     let hash: [u8; 32] = hasher.finalize().into();
-    let hash_str = String::from_utf8(hash.to_vec())?;
-    return Ok(hash_str);
+    let mut s = String::with_capacity(hash.len() * 2);
+    for &b in &hash {
+        let result_write = write!(&mut s, "{:02x}", b);
+        if result_write.is_err() {
+            return Err(StdError::generic_err(
+                "Error while converting data source result to hex string",
+            ));
+        };
+    }
+    Ok(s)
 }
-
-// ============================== Test ==============================
-
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-
-//     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-//     use cosmwasm_std::{coin, coins, from_binary, HumanAddr};
-
-//     #[test]
-//     fn test_query_airequests() {
-//         let mut deps = mock_dependencies(&coins(5, "orai"));
-
-//         let (_hrp, data, variant) =
-//             bech32::decode("oraivaloper1ca6ms99wyx0pftk3df7y00sgyhuy9dler44l9e").unwrap();
-//         // let addr1 = deps.api.human_address(&addr.unwrap());
-//         let encoded = bech32::encode("orai", data, variant).unwrap();
-//         println!("addr :{:?}", encoded);
-//         let msg = InitMsg {
-//             dsources: vec![HumanAddr::from("dsource_coingecko")],
-//             tcases: vec![],
-//             threshold: 50,
-//         };
-//         let info = mock_info("creator", &vec![coin(5, "orai")]);
-//         let _res = init_aioracle(deps.as_mut(), info, msg).unwrap();
-
-//         // beneficiary can release it
-//         let info = mock_info("anyone", &vec![coin(50000000, "orai")]);
-
-//         for i in 1..100 {
-//             let airequest_msg = HandleMsg::CreateAiRequest(AIRequestMsg {
-//                 validators: vec![HumanAddr::from("creator")],
-//                 input: format!("request :{}", i),
-//             });
-//             let _res = handle_aioracle(
-//                 deps.as_mut(),
-//                 mock_env(),
-//                 info.clone(),
-//                 airequest_msg,
-//                 |results| Ok(results.join(",")),
-//             )
-//             .unwrap();
-//         }
-
-//         // Offering should be listed
-//         let res = query_aioracle(
-//             deps.as_ref(),
-//             QueryMsg::GetRequests {
-//                 limit: None,
-//                 offset: None,
-//                 order: Some(1),
-//             },
-//         )
-//         .unwrap();
-//         let value: AIRequestsResponse = from_binary(&res).unwrap();
-//         let ids: Vec<u64> = value.items.iter().map(|f| f.request_id).collect();
-//         println!("value: {:?}", ids);
-//     }
-// }
