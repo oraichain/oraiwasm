@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::{CanonicalAddr, HumanAddr};
 
 use crate::state::StorageItem;
 
@@ -65,5 +65,10 @@ pub struct CanExecuteResponse {
 #[serde(rename_all = "snake_case")]
 pub enum MarketHandleMsg {
     /// Transfer is a base message to move a token to another account without triggering actions
-    Initialize { storages: Vec<StorageItem> },
+    UpdateStorages {
+        storages: Vec<StorageItem>,
+    },
+    UpdateImplementation {
+        implementation: CanonicalAddr,
+    },
 }

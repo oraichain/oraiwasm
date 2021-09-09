@@ -3,7 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, schema_for};
 
-use hub_market::msg::{AdminListResponse, HandleMsg, InitMsg, QueryMsg};
+use market_hub::msg::{AdminListResponse, HandleMsg, InitMsg, QueryMsg};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

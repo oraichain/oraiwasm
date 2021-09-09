@@ -59,15 +59,15 @@ pub fn handle_update_implementation(
     if !can_execute(deps.as_ref(), &info.sender)? {
         Err(ContractError::Unauthorized {})
     } else {
-        let implementation_addr = deps.api.canonical_address(&implementation)?;
+        let implementation_addr = deps.api.canonical_address(&implementation).ok();
         let mut messages: Vec<CosmosMsg> = vec![];
         registry(deps.storage).update(|mut data| -> StdResult<_> {
-            data.implementation = Some(implementation_addr);
-            // send initliaze message to market contract
+            data.implementation = implementation_addr;
+            // update current storages for the market contract
             messages.push(
                 WasmMsg::Execute {
                     contract_addr: implementation,
-                    msg: to_binary(&MarketHandleMsg::Initialize {
+                    msg: to_binary(&MarketHandleMsg::UpdateStorages {
                         storages: data.storages.clone(),
                     })?,
                     send: vec![],
@@ -101,12 +101,30 @@ pub fn handle_update_storages(
                 implementation: None,
             },
         };
+        let mut messages: Vec<CosmosMsg> = vec![];
         for (item_key, addr) in &storages {
             data.add_storage(item_key, deps.api.canonical_address(addr)?);
         }
+
+        // update implemetation for all storage
+        if let Some(implementation) = &data.implementation {
+            for (_, addr) in storages {
+                messages.push(
+                    WasmMsg::Execute {
+                        contract_addr: addr,
+                        msg: to_binary(&MarketHandleMsg::UpdateImplementation {
+                            implementation: implementation.clone(),
+                        })?,
+                        send: vec![],
+                    }
+                    .into(),
+                );
+            }
+        }
         registry(deps.storage).save(&data)?;
-        // then call initialize with storage as params
+
         let mut res = HandleResponse::default();
+        res.messages = messages;
         res.attributes = vec![attr("action", "update_storages")];
         Ok(res)
     }
