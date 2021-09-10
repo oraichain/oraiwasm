@@ -1,12 +1,12 @@
 use crate::contract::*;
 
 use crate::msg::*;
-use crate::state::*;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Api;
 use cosmwasm_std::{coin, coins, from_binary, Env, HumanAddr, Order, OwnedDeps, Uint128};
+use market::{Auction, AuctionHandleMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions};
 
 const CREATOR: &str = "owner";
 const IMPLEMENTATION: &str = "market";
@@ -60,7 +60,7 @@ fn sort_auction() {
             orig_price: Uint128(i),
             bidder: None,
         };
-        let msg = HandleMsg::AddAuction { auction };
+        let msg = HandleMsg::Auction(AuctionHandleMsg::AddAuction { auction });
         let _res = handle(deps.as_mut(), contract_env.clone(), market.clone(), msg).unwrap();
     }
 
@@ -68,14 +68,14 @@ fn sort_auction() {
     let res = query(
         deps.as_ref(),
         contract_env.clone(),
-        QueryMsg::GetAuctionsByAsker {
+        QueryMsg::Auction(AuctionQueryMsg::GetAuctionsByAsker {
             asker: "asker".into(),
             options: PagingOptions {
                 limit: Some(100),
                 offset: Some(40),
                 order: Some(Order::Ascending as u8),
             },
-        },
+        }),
     )
     .unwrap();
     let value: AuctionsResponse = from_binary(&res).unwrap();

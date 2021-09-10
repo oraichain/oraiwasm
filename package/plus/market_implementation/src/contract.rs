@@ -1,11 +1,8 @@
 use crate::error::ContractError;
 use crate::msg::{
-    AskNftMsg, AuctionsResponse, HandleMsg, InitMsg, PagingOptions, QueryAuctionsResult, QueryMsg,
-    UpdateContractMsg,
+    AskNftMsg, HandleMsg, InitMsg, QueryMsg, StorageHandleMsg, StorageQueryMsg, UpdateContractMsg,
 };
-use crate::state::{
-    auctions, get_contract_token_id, increment_auctions, Auction, ContractInfo, CONTRACT_INFO,
-};
+use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg,
     Decimal, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order, StdError,
@@ -13,7 +10,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
-use cw_storage_plus::Bound;
+use market::{Auction, AuctionHandleMsg, AuctionQueryMsg, StorageItem};
 use std::convert::TryInto;
 use std::ops::{Add, Mul, Sub};
 use std::usize;
@@ -47,6 +44,9 @@ pub fn init(
         fee: sanitize_fee(msg.fee, MAX_FEE_PERMILLE, "fee")?,
         auction_blocks: msg.auction_blocks,
         step_price: msg.step_price,
+        governance: msg.governance,
+        // must wait until storage is update then can interact
+        auction_storage: None,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -60,6 +60,7 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
+        HandleMsg::UpdateStorages { storages } => try_update_storages(deps, info, env, storages),
         HandleMsg::BidNft { auction_id } => try_bid_nft(deps, info, env, auction_id),
         HandleMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
         // HandleMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
@@ -71,6 +72,36 @@ pub fn handle(
         HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
+}
+
+pub fn try_update_storages(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    storages: Vec<StorageItem>,
+) -> Result<HandleResponse, ContractError> {
+    // only governance can update the storages, admin of this contract does not allow to update, because he does not know the details
+    let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
+        // Unauthorized
+        if info.sender.ne(&contract_info.governance) {
+            return Err(ContractError::Unauthorized {});
+        }
+        // loop all storages item and switch case key to update the storage implementation
+        for (key, storage_addr) in &storages {
+            // update if there is auctions
+            match key.as_str() {
+                "auctions" => contract_info.auction_storage = Some(storage_addr.clone()),
+            }
+        }
+
+        Ok(contract_info)
+    })?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![attr("action", "update_storages")],
+        data: to_binary(&new_contract_info).ok(),
+    })
 }
 
 pub fn try_withdraw_funds(
@@ -142,10 +173,17 @@ pub fn try_bid_nft(
     env: Env,
     auction_id: u64,
 ) -> Result<HandleResponse, ContractError> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    let auction_storage = match contract_info.auction_storage {
+        Some(v) => v,
+        None => return Err(ContractError::StorageNotReady {}),
+    };
+
     // check if auction exists
-    let auctions = auctions();
-    let key = auction_id.to_be_bytes();
-    let mut off = match auctions.load(deps.storage, &key) {
+    let off: Auction = match deps.querier.query_wasm_smart(
+        auction_storage,
+        &StorageQueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id }),
+    ) {
         Ok(v) => v,
         // should override error ?
         Err(_) => return Err(ContractError::InvalidGetAuction {}),
@@ -201,7 +239,20 @@ pub fn try_bid_nft(
             // update new price and new bidder
             off.bidder = deps.api.canonical_address(&info.sender).ok();
             off.price = sent_fund.amount;
-            auctions.save(deps.storage, &key, &off)?;
+            // push save message to auction_storage
+            cosmos_msgs.push(
+                WasmMsg::Execute {
+                    contract_addr: auction_storage,
+                    msg: to_binary(&StorageHandleMsg::Auction(
+                        AuctionHandleMsg::UpdateAuction {
+                            id: auction_id,
+                            auction: off,
+                        },
+                    ))?,
+                    send: vec![],
+                }
+                .into(),
+            );
         } else {
             return Err(ContractError::InvalidDenomAmount {});
         }
@@ -577,186 +628,11 @@ pub fn try_emergency_cancel_auction(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetAuctions { options } => to_binary(&query_auctions(deps, &options)?),
-        QueryMsg::GetAuctionsByBidder { bidder, options } => {
-            to_binary(&query_auctions_by_bidder(deps, bidder, &options)?)
-        }
-        QueryMsg::GetAuctionsByAsker { asker, options } => {
-            to_binary(&query_auctions_by_asker(deps, asker, &options)?)
-        }
-        QueryMsg::GetAuctionsByContract { contract, options } => {
-            to_binary(&query_auctions_by_contract(deps, contract, &options)?)
-        }
-        QueryMsg::GetAuction { auction_id } => to_binary(&query_auction(deps, auction_id)?),
-        QueryMsg::GetAuctionByContractTokenId { contract, token_id } => to_binary(
-            &query_auction_by_contract_tokenid(deps, contract, token_id)?,
-        ),
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
     }
 }
 
 // ============================== Query Handlers ==============================
-
-fn _get_range_params(options: &PagingOptions) -> (usize, Option<Bound>, Option<Bound>, Order) {
-    let limit = options.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let mut min: Option<Bound> = None;
-    // let mut max: Option<Bound> = None;
-    let mut order_enum = Order::Descending;
-    if let Some(num) = options.order {
-        if num == 1 {
-            order_enum = Order::Ascending;
-        }
-    }
-
-    // if there is offset, assign to min or max
-    if let Some(offset) = options.offset {
-        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
-        // match order_enum {
-        //     Order::Ascending => min = offset_value,
-        //     Order::Descending => min = offset_value,
-        // }
-        min = offset_value;
-    };
-    (limit, min, None, order_enum)
-}
-
-pub fn query_auctions(deps: Deps, options: &PagingOptions) -> StdResult<AuctionsResponse> {
-    let (limit, min, max, order_enum) = _get_range_params(options);
-
-    let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
-        .range(deps.storage, min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| parse_auction(deps.api, kv_item))
-        .collect();
-
-    Ok(AuctionsResponse { items: res? })
-}
-
-pub fn query_auctions_by_asker(
-    deps: Deps,
-    asker: HumanAddr,
-    options: &PagingOptions,
-) -> StdResult<AuctionsResponse> {
-    let (limit, min, max, order_enum) = _get_range_params(options);
-    let asker_raw = deps.api.canonical_address(&asker)?;
-    let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
-        .idx
-        .asker
-        .items(deps.storage, &asker_raw, min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| parse_auction(deps.api, kv_item))
-        .collect();
-
-    Ok(AuctionsResponse { items: res? })
-}
-
-// if bidder is empty, it is pending auctions
-pub fn query_auctions_by_bidder(
-    deps: Deps,
-    bidder: Option<HumanAddr>,
-    options: &PagingOptions,
-) -> StdResult<AuctionsResponse> {
-    let (limit, min, max, order_enum) = _get_range_params(options);
-    let bidder_raw = match bidder {
-        Some(addr) => deps.api.canonical_address(&addr)?,
-        None => CanonicalAddr::default(),
-    };
-    let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
-        .idx
-        .bidder
-        .items(deps.storage, &bidder_raw, min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| parse_auction(deps.api, kv_item))
-        .collect();
-
-    Ok(AuctionsResponse { items: res? })
-}
-
-pub fn query_auctions_by_contract(
-    deps: Deps,
-    contract: HumanAddr,
-    options: &PagingOptions,
-) -> StdResult<AuctionsResponse> {
-    let (limit, min, max, order_enum) = _get_range_params(options);
-    let contract_raw = deps.api.canonical_address(&contract)?;
-    let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
-        .idx
-        .contract
-        .items(deps.storage, &contract_raw, min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| parse_auction(deps.api, kv_item))
-        .collect();
-
-    Ok(AuctionsResponse { items: res? })
-}
-
-pub fn query_auction(deps: Deps, auction_id: u64) -> StdResult<Auction> {
-    auctions().load(deps.storage, &auction_id.to_be_bytes())
-}
-
-pub fn query_auction_by_contract_tokenid(
-    deps: Deps,
-    contract: HumanAddr,
-    token_id: String,
-) -> StdResult<QueryAuctionsResult> {
-    let contract_raw = deps.api.canonical_address(&contract)?;
-    let auction = auctions().idx.contract_token_id.item(
-        deps.storage,
-        get_contract_token_id(contract_raw.to_vec(), &token_id).into(),
-    )?;
-    if let Some(auction_obj) = auction {
-        let auction = auction_obj.1;
-        let auction_result = QueryAuctionsResult {
-            id: u64::from_be_bytes(auction_obj.0.try_into().unwrap()),
-            token_id: auction.token_id,
-            price: auction.price,
-            orig_price: auction.orig_price,
-            contract_addr: deps.api.human_address(&auction.contract_addr)?,
-            asker: deps.api.human_address(&auction.asker)?,
-            bidder: auction
-                .bidder
-                .map(|can_addr| deps.api.human_address(&can_addr).unwrap_or_default()),
-            cancel_fee: auction.cancel_fee,
-            start: auction.start,
-            end: auction.end,
-            start_timestamp: auction.start_timestamp,
-            end_timestamp: auction.end_timestamp,
-            buyout_price: auction.buyout_price,
-            step_price: auction.step_price,
-        };
-        Ok(auction_result)
-    } else {
-        Err(StdError::generic_err("Auction not found"))
-    }
-}
-
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
-}
-
-fn parse_auction(api: &dyn Api, item: StdResult<KV<Auction>>) -> StdResult<QueryAuctionsResult> {
-    item.and_then(|(k, auction)| {
-        // will panic if length is greater than 8, but we can make sure it is u64
-        // try_into will box vector to fixed array
-        let id: u64 = u64::from_be_bytes(k.try_into().unwrap());
-        Ok(QueryAuctionsResult {
-            id,
-            token_id: auction.token_id,
-            price: auction.price,
-            orig_price: auction.orig_price,
-            contract_addr: api.human_address(&auction.contract_addr)?,
-            asker: api.human_address(&auction.asker)?,
-            start: auction.start,
-            end: auction.end,
-            start_timestamp: auction.start_timestamp,
-            end_timestamp: auction.end_timestamp,
-            cancel_fee: auction.cancel_fee,
-            // bidder can be None
-            bidder: auction
-                .bidder
-                .map(|can_addr| api.human_address(&can_addr).unwrap_or_default()),
-            buyout_price: auction.buyout_price,
-            step_price: auction.step_price,
-        })
-    })
 }

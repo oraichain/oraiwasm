@@ -40,6 +40,9 @@ pub enum ContractError {
     #[error("Token Id from the original contract is already on auction")]
     TokenOnAuction {},
 
+    #[error("Storage is not ready yet")]
+    StorageNotReady {},
+
     #[error("Auction is not started yet")]
     AuctionNotStarted {},
 

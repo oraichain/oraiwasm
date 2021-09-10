@@ -1,9 +1,7 @@
 use crate::error::ContractError;
-use crate::msg::{
-    AuctionsResponse, HandleMsg, InitMsg, PagingOptions, QueryAuctionsResult, QueryMsg,
-};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::state::{
-    auctions, get_contract_token_id, increment_auctions, Auction, ContractInfo, CONTRACT_INFO,
+    auctions, get_contract_token_id, increment_auctions, ContractInfo, CONTRACT_INFO,
 };
 use cosmwasm_std::{
     attr, to_binary, Api, Binary, CanonicalAddr, Deps, DepsMut, Env, HandleResponse, InitResponse,
@@ -11,6 +9,10 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw_storage_plus::Bound;
+use market::{
+    Auction, AuctionHandleMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions,
+    QueryAuctionsResult,
+};
 use std::convert::TryInto;
 use std::usize;
 
@@ -46,11 +48,13 @@ pub fn handle(
         HandleMsg::UpdateImplementation { implementation } => {
             try_update_implementation(deps, info, env, implementation)
         }
-        HandleMsg::AddAuction { auction } => try_add_auction(deps, info, env, auction),
-        HandleMsg::UpdateAuction { id, auction } => {
-            try_update_auction(deps, info, env, id, auction)
-        }
-        HandleMsg::RemoveAuction { id } => try_remove_auction(deps, info, env, id),
+        HandleMsg::Auction(auction_handle) => match auction_handle {
+            AuctionHandleMsg::AddAuction { auction } => try_add_auction(deps, info, env, auction),
+            AuctionHandleMsg::UpdateAuction { id, auction } => {
+                try_update_auction(deps, info, env, id, auction)
+            }
+            AuctionHandleMsg::RemoveAuction { id } => try_remove_auction(deps, info, env, id),
+        },
     }
 }
 
@@ -151,20 +155,25 @@ pub fn try_remove_auction(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetAuctions { options } => to_binary(&query_auctions(deps, &options)?),
-        QueryMsg::GetAuctionsByBidder { bidder, options } => {
-            to_binary(&query_auctions_by_bidder(deps, bidder, &options)?)
-        }
-        QueryMsg::GetAuctionsByAsker { asker, options } => {
-            to_binary(&query_auctions_by_asker(deps, asker, &options)?)
-        }
-        QueryMsg::GetAuctionsByContract { contract, options } => {
-            to_binary(&query_auctions_by_contract(deps, contract, &options)?)
-        }
-        QueryMsg::GetAuction { auction_id } => to_binary(&query_auction(deps, auction_id)?),
-        QueryMsg::GetAuctionByContractTokenId { contract, token_id } => to_binary(
-            &query_auction_by_contract_tokenid(deps, contract, token_id)?,
-        ),
+        // implement Query Auction from market base
+        QueryMsg::Auction(auction_query) => match auction_query {
+            AuctionQueryMsg::GetAuctions { options } => to_binary(&query_auctions(deps, &options)?),
+            AuctionQueryMsg::GetAuctionsByBidder { bidder, options } => {
+                to_binary(&query_auctions_by_bidder(deps, bidder, &options)?)
+            }
+            AuctionQueryMsg::GetAuctionsByAsker { asker, options } => {
+                to_binary(&query_auctions_by_asker(deps, asker, &options)?)
+            }
+            AuctionQueryMsg::GetAuctionsByContract { contract, options } => {
+                to_binary(&query_auctions_by_contract(deps, contract, &options)?)
+            }
+            AuctionQueryMsg::GetAuction { auction_id } => {
+                to_binary(&query_auction(deps, auction_id)?)
+            }
+            AuctionQueryMsg::GetAuctionByContractTokenId { contract, token_id } => to_binary(
+                &query_auction_by_contract_tokenid(deps, contract, token_id)?,
+            ),
+        },
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
     }
 }

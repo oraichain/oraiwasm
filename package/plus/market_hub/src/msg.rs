@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::HumanAddr;
 
-use crate::state::StorageItem;
+use market::StorageItem;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InitMsg {

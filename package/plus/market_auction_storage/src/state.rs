@@ -1,30 +1,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, HumanAddr, StdResult, Storage, Uint128};
+use cosmwasm_std::{HumanAddr, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, U128Key, UniqueIndex};
+use market::Auction;
 use sha2::{Digest, Sha256};
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct Auction {
-    pub token_id: String,
-    pub contract_addr: CanonicalAddr,
-    // who askes the minimum price
-    pub asker: CanonicalAddr,
-    // who pays the maximum price
-    pub bidder: Option<CanonicalAddr>,
-    // start block number, by default is current block height
-    pub start: u64,
-    // end block number, by default is current block height + duration in number of blocks
-    pub end: u64,
-    pub price: Uint128,
-    pub orig_price: Uint128,
-    pub buyout_price: Option<Uint128>,
-    pub cancel_fee: Option<u64>,
-    pub start_timestamp: Uint128,
-    pub end_timestamp: Uint128,
-    pub step_price: u64,
-}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
@@ -35,7 +15,7 @@ pub struct ContractInfo {
 }
 
 pub const AUCTIONS_COUNT: Item<u64> = Item::new("num_auctions");
-pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("auction_info");
+pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("contract_info");
 
 pub fn num_auctions(storage: &dyn Storage) -> StdResult<u64> {
     Ok(AUCTIONS_COUNT.may_load(storage)?.unwrap_or_default())

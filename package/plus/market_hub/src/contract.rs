@@ -5,7 +5,8 @@ use cosmwasm_std::{
 
 use crate::error::ContractError;
 use crate::msg::{AdminListResponse, CanExecuteResponse, HandleMsg, InitMsg, QueryMsg};
-use crate::state::{admin_list, admin_list_read, registry, registry_read, AdminList, Registry};
+use crate::state::{admin_list, admin_list_read, registry, registry_read};
+use market::{AdminList, Registry};
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
     // list of whitelist
