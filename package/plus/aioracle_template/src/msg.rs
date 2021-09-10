@@ -12,11 +12,11 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    OracleHandle { msg: OracleHandleMsg },
+    OracleHandle(OracleHandleMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    OracleQuery { msg: OracleQueryMsg },
+    OracleQuery(OracleQueryMsg),
 }

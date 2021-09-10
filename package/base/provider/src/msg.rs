@@ -4,14 +4,12 @@ use serde::{Deserialize, Serialize};
 use crate::state::State;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
-    pub state: State,
-}
+pub struct InitMsg(pub State);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    SetState { state: State },
+    SetState(State),
     SetOwner { owner: String },
 }
 

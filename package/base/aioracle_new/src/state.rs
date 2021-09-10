@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, CosmosMsg, HumanAddr, StdResult, Storage, Uint128};
+use cosmwasm_std::{Binary, Coin, HumanAddr, StdResult, Storage, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, U64Key, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -26,7 +26,7 @@ pub struct AIRequest {
     pub provider_fees: Vec<Fees>,
     pub status: bool,
     pub successful_reports_count: u64,
-    pub reward: Vec<CosmosMsg>,
+    pub rewards: Rewards,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -36,25 +36,31 @@ pub struct Fees {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct DataSourceResult {
-    pub contract: HumanAddr,
-    pub result: String,
-    pub status: bool,
-    pub test_case_results: Vec<TestCaseResult>,
+pub struct Rewards {
+    pub address: Vec<HumanAddr>,
+    pub amount: Vec<Vec<Coin>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct TestCaseResult {
-    pub contract: HumanAddr,
-    pub dsource_status: bool,
-    pub tcase_status: bool,
+pub struct DataSourceResults {
+    pub contract: Vec<HumanAddr>,
+    pub result_hash: Vec<String>,
+    pub status: Vec<bool>,
+    pub test_case_results: Vec<Option<TestCaseResults>>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TestCaseResults {
+    pub contract: Vec<HumanAddr>,
+    pub dsource_status: Vec<bool>,
+    pub tcase_status: Vec<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Report {
     pub validator: HumanAddr,
     pub block_height: u64,
-    pub dsources_results: Vec<DataSourceResult>,
+    pub dsources_results: DataSourceResults,
     pub aggregated_result: Binary,
     pub status: bool,
 }

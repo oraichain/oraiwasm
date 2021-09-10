@@ -14,9 +14,7 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    SetState {
-        state: StateMsg,
-    },
+    SetState(StateMsg),
     SetValidatorFees {
         fees: u64,
     },
@@ -33,6 +31,21 @@ pub enum HandleMsg {
 pub struct AIRequestMsg {
     pub validators: Vec<HumanAddr>,
     pub input: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct DataSourceResultMsg {
+    pub contract: HumanAddr,
+    pub result: String,
+    pub status: bool,
+    pub test_case_results: Vec<Option<TestCaseResultMsg>>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TestCaseResultMsg {
+    pub contract: HumanAddr,
+    pub dsource_status: bool,
+    pub tcase_status: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
