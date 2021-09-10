@@ -25,9 +25,6 @@ pub enum ContractError {
     #[error("Sent funds amount is empty")]
     InvalidSentFundAmount {},
 
-    #[error("There is an error while collecting the auction")]
-    InvalidGetAuction {},
-
     #[error("The auction asker address is invalid")]
     InvalidSellerAddr {},
 

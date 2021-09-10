@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{HumanAddr, StdResult, Storage};
+use cosmwasm_std::{CanonicalAddr, HumanAddr, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, U128Key, UniqueIndex};
 use market::Auction;
 use sha2::{Digest, Sha256};
@@ -11,7 +11,7 @@ pub struct ContractInfo {
     /// the contract that has permission to update the implementation
     pub governance: HumanAddr,
     /// the implementation logic, that is allowed to manage the storage
-    pub implementation: Option<HumanAddr>,
+    pub implementations: Vec<HumanAddr>,
 }
 
 pub const AUCTIONS_COUNT: Item<u64> = Item::new("num_auctions");
@@ -48,9 +48,9 @@ impl<'a> IndexList<Auction> for AuctionIndexes<'a> {
 }
 
 // contract nft + token id => unique id
-pub fn get_contract_token_id(contract: Vec<u8>, token_id: &str) -> u128 {
+pub fn get_contract_token_id(contract: &CanonicalAddr, token_id: &str) -> u128 {
     let mut hasher = Sha256::new();
-    hasher.update(contract);
+    hasher.update(contract.to_vec());
     hasher.update(token_id.as_bytes());
     let mut dst = [0; 16];
     dst.copy_from_slice(&hasher.finalize()[0..16]);
@@ -78,7 +78,7 @@ pub fn auctions<'a>() -> IndexedMap<'a, &'a [u8], Auction, AuctionIndexes<'a>> {
             "auctions__contract",
         ),
         contract_token_id: UniqueIndex::new(
-            |o| U128Key::new(get_contract_token_id(o.contract_addr.to_vec(), &o.token_id)),
+            |o| U128Key::new(get_contract_token_id(&o.contract_addr, &o.token_id)),
             "request__id",
         ),
     };

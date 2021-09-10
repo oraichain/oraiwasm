@@ -31,7 +31,7 @@ pub fn init(
     // first time deploy, it will not know about the implementation
     let info = ContractInfo {
         governance: msg.governance,
-        implementation: None,
+        implementations: vec![],
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -71,13 +71,20 @@ pub fn try_update_implementation(
         return Err(ContractError::Unauthorized {});
     }
 
+    let is_implemented = contract_info.implementations.iter().any(|a| a.eq(&implementation));
+
     // update implementation
-    contract_info.implementation = Some(implementation);
-    CONTRACT_INFO.save(deps.storage, &contract_info)?;
+    if !is_implemented {
+        contract_info.implementations.push(implementation);
+        CONTRACT_INFO.save(deps.storage, &contract_info)?;
+    }
 
     Ok(HandleResponse {
         messages: vec![],
-        attributes: vec![attr("action", "update_info")],
+        attributes: vec![
+            attr("action", "update_info"),
+            attr("is_implemented", is_implemented),
+        ],
         data: to_binary(&contract_info).ok(),
     })
 }
@@ -86,10 +93,10 @@ fn check_permission(deps: Deps, sender: HumanAddr) -> Result<(), ContractError> 
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     // if there is implementation
-    if contract_info.implementation.eq(&sender.into()) {
+    let is_implemented = contract_info.implementations.iter().any(|a| a.eq(&sender));
+    if is_implemented {
         return Ok(());
     }
-
     // Unauthorized
     Err(ContractError::Unauthorized {})
 }
@@ -130,7 +137,10 @@ pub fn try_add_auction(
 
     return Ok(HandleResponse {
         messages: vec![],
-        attributes: vec![attr("action", "add_auction")],
+        attributes: vec![
+            attr("action", "add_auction"),
+            attr("auction_id", id.to_string()),
+        ],
         data: None,
     });
 }
@@ -280,7 +290,7 @@ pub fn query_auction_by_contract_tokenid(
     let contract_raw = deps.api.canonical_address(&contract)?;
     let auction = auctions().idx.contract_token_id.item(
         deps.storage,
-        get_contract_token_id(contract_raw.to_vec(), &token_id).into(),
+        get_contract_token_id(&contract_raw, &token_id).into(),
     )?;
     if let Some(auction_obj) = auction {
         let auction = auction_obj.1;

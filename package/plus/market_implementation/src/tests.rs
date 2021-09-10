@@ -30,6 +30,7 @@ fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
         fee: 1, // 0.1%
         auction_blocks: 1,
         step_price: 10,
+        governance: HumanAddr::from(CREATOR),
     };
     let info = mock_info(CREATOR, &[]);
     let contract_env = mock_env();
@@ -39,67 +40,6 @@ fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
 }
 
 #[test]
-fn sort_auction() {
-    let (mut deps, contract_env) = setup_contract();
-
-    // beneficiary can release it
-    let info = mock_info("anyone", &vec![coin(50000000, DENOM)]);
-
-    for i in 1..50 {
-        let sell_msg = AskNftMsg {
-            price: Uint128(i),
-            start: Some(contract_env.block.height + 15),
-            end: Some(contract_env.block.height + 100),
-            cancel_fee: Some(1),
-            buyout_price: Some(Uint128(i)),
-            start_timestamp: None,
-            end_timestamp: None,
-            step_price: None,
-        };
-        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-            sender: HumanAddr::from("asker"),
-            token_id: String::from(format!("BiddableNFT {}", i)),
-            msg: to_binary(&sell_msg).ok(),
-        });
-        let _res = handle(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
-    }
-
-    // Auction should be listed
-    let res = query(
-        deps.as_ref(),
-        contract_env.clone(),
-        QueryMsg::GetAuctionsByAsker {
-            asker: "asker".into(),
-            options: PagingOptions {
-                limit: Some(100),
-                offset: Some(40),
-                order: Some(Order::Descending as u8),
-            },
-        },
-    )
-    .unwrap();
-    let value: AuctionsResponse = from_binary(&res).unwrap();
-    let ids: Vec<u64> = value.items.iter().map(|f| f.id).collect();
-    println!("value: {:?}", ids);
-
-    let res = query(
-        deps.as_ref(),
-        contract_env.clone(),
-        QueryMsg::GetAuctionsByAsker {
-            asker: "tupt".into(),
-            options: PagingOptions {
-                limit: Some(100),
-                offset: Some(40),
-                order: Some(Order::Ascending as u8),
-            },
-        },
-    )
-    .unwrap();
-    let value: AuctionsResponse = from_binary(&res).unwrap();
-    let ids: Vec<u64> = value.items.iter().map(|f| f.id).collect();
-    println!("value: {:?}", ids);
-}
-
 #[test]
 fn sell_auction_happy_path() {
     let (mut deps, contract_env) = setup_contract();
