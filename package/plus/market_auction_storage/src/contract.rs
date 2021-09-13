@@ -9,7 +9,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw_storage_plus::Bound;
-use market::{
+use market_auction::{
     Auction, AuctionHandleMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions,
     QueryAuctionsResult,
 };

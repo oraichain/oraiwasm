@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{CanonicalAddr, HumanAddr, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, U128Key, UniqueIndex};
-use market::Auction;
+use market_auction::Auction;
 use sha2::{Digest, Sha256};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

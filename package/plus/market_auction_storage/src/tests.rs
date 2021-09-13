@@ -6,7 +6,7 @@ use cosmwasm_std::testing::{
 };
 use cosmwasm_std::Api;
 use cosmwasm_std::{coin, coins, from_binary, Env, HumanAddr, Order, OwnedDeps, Uint128};
-use market::{Auction, AuctionHandleMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions};
+use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions};
 
 const CREATOR: &str = "owner";
 const IMPLEMENTATION: &str = "market";

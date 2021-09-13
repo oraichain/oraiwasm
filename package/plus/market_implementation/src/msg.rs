@@ -1,6 +1,6 @@
 use cosmwasm_std::{Coin, HumanAddr, Uint128};
 use cw721::Cw721ReceiveMsg;
-use market::{AuctionHandleMsg, AuctionQueryMsg, StorageItem};
+use market_auction::{AuctionHandleMsg, AuctionQueryMsg, StorageItem};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

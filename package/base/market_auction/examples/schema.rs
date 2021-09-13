@@ -3,20 +3,21 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use market_auction::{AuctionQueryMsg, AuctionsResponse, QueryAuctionsResult};
-use market_auction_storage::msg::{HandleMsg, InitMsg};
-use market_auction_storage::state::ContractInfo;
+use market_auction::{
+    Auction, AuctionHandleMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions,
+    QueryAuctionsResult,
+};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
-    out_dir.push("artifacts/schema");
+    out_dir.push("schema");
     create_dir_all(&out_dir).unwrap();
     remove_schemas(&out_dir).unwrap();
 
-    export_schema(&schema_for!(InitMsg), &out_dir);
-    export_schema(&schema_for!(HandleMsg), &out_dir);
+    export_schema(&schema_for!(Auction), &out_dir);
+    export_schema(&schema_for!(AuctionHandleMsg), &out_dir);
     export_schema(&schema_for!(AuctionQueryMsg), &out_dir);
     export_schema(&schema_for!(AuctionsResponse), &out_dir);
-    export_schema(&schema_for!(ContractInfo), &out_dir);
+    export_schema(&schema_for!(PagingOptions), &out_dir);
     export_schema(&schema_for!(QueryAuctionsResult), &out_dir);
 }

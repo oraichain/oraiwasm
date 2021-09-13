@@ -9,7 +9,8 @@ use cosmwasm_std::{
     Env, HandleResponse, InitResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
-use market::{Auction, AuctionHandleMsg, AuctionQueryMsg, StorageItem};
+use market_auction::StorageItem;
+use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg};
 use std::ops::{Add, Mul, Sub};
 
 const MAX_FEE_PERMILLE: u64 = 100;
