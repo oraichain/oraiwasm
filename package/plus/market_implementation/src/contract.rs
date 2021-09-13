@@ -3,13 +3,13 @@ use crate::msg::{
     AskNftMsg, HandleMsg, InitMsg, QueryMsg, StorageHandleMsg, StorageQueryMsg, UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
-use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut,
     Env, HandleResponse, InitResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
+use cosmwasm_std::{HumanAddr, StdError};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
-use market::{Auction, AuctionHandleMsg, AuctionQueryMsg, StorageItem};
+use market::{query_proxy, Auction, AuctionHandleMsg, AuctionQueryMsg, StorageItem};
 use std::ops::{Add, Mul, Sub};
 
 const MAX_FEE_PERMILLE: u64 = 100;
@@ -650,9 +650,18 @@ pub fn try_emergency_cancel_auction(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        QueryMsg::Auction(auction_msg) => query_auction(deps, auction_msg),
     }
 }
 
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
+}
+
+pub fn query_auction(deps: Deps, msg: AuctionQueryMsg) -> StdResult<Binary> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    contract_info.auction_storage.map_or(
+        Err(StdError::generic_err(ContractError::StorageNotReady {})),
+        |addr| query_proxy(deps, addr, QueryMsg::Auction(msg)),
+    )
 }

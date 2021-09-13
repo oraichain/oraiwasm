@@ -219,7 +219,6 @@ pub fn query_auctions(deps: Deps, options: &PagingOptions) -> StdResult<Auctions
         .take(limit)
         .map(|kv_item| parse_auction(deps.api, kv_item))
         .collect();
-
     Ok(AuctionsResponse { items: res? })
 }
 

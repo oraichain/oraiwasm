@@ -58,3 +58,11 @@ pub enum ContractError {
     #[error("Expected bidder: {bidder}, got: {sender}")]
     InvalidBidder { bidder: String, sender: String },
 }
+
+impl Into<String> for ContractError {
+    /// Utility for explicit conversion to `String`.
+    #[inline]
+    fn into(self) -> String {
+        self.to_string()
+    }
+}

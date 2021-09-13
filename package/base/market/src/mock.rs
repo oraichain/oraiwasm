@@ -9,7 +9,7 @@ use cosmwasm_std::{
 use serde::de::DeserializeOwned;
 
 const CANONICAL_LENGTH: usize = 54;
-pub type WasmHandler = Box<dyn Fn(&WasmQuery) -> QuerierResult>;
+pub type WasmHandler = fn(&WasmQuery) -> QuerierResult;
 
 pub struct MockQuerier<C: DeserializeOwned = Empty> {
     bank: BankQuerier,
