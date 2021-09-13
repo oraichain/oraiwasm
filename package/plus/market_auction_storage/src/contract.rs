@@ -71,7 +71,10 @@ pub fn try_update_implementation(
         return Err(ContractError::Unauthorized {});
     }
 
-    let is_implemented = contract_info.implementations.iter().any(|a| a.eq(&implementation));
+    let is_implemented = contract_info
+        .implementations
+        .iter()
+        .any(|a| a.eq(&implementation));
 
     // update implementation
     if !is_implemented {

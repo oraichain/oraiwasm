@@ -443,7 +443,7 @@ pub fn try_receive_nft(
     // push save message to auction_storage
     cosmos_msgs.push(
         WasmMsg::Execute {
-            contract_addr: auction_storage_addr,
+            contract_addr: auction_storage_addr.clone(),
             msg: to_binary(&StorageHandleMsg::Auction(AuctionHandleMsg::AddAuction {
                 auction: off,
             }))?,
