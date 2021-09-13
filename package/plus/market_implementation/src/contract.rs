@@ -9,7 +9,8 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{HumanAddr, StdError};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
-use market::{query_proxy, Auction, AuctionHandleMsg, AuctionQueryMsg, StorageItem};
+use market::{query_proxy, StorageItem};
+use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg};
 use std::ops::{Add, Mul, Sub};
 
 const MAX_FEE_PERMILLE: u64 = 100;
@@ -179,11 +180,14 @@ pub fn try_bid_nft(
         None => return Err(ContractError::StorageNotReady {}),
     };
 
-    // check if auction exists
-    let mut off: Auction = deps.querier.query_wasm_smart(
-        auction_storage_addr.clone(),
-        &StorageQueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id }),
-    )?;
+    // check if auction exists, when return StdError => it will show EOF while parsing a JSON value.
+    let mut off: Auction = deps
+        .querier
+        .query_wasm_smart(
+            auction_storage_addr.clone(),
+            &StorageQueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id }),
+        )
+        .map_err(|_op| ContractError::AuctionNotFound {})?;
 
     // check auction started or finished, both means auction not started anymore
     if off.start.gt(&env.block.height) || off.end.lt(&env.block.height) {
@@ -235,10 +239,7 @@ pub fn try_bid_nft(
                 WasmMsg::Execute {
                     contract_addr: auction_storage_addr,
                     msg: to_binary(&StorageHandleMsg::Auction(
-                        AuctionHandleMsg::UpdateAuction {
-                            id: auction_id,
-                            auction: off,
-                        },
+                        AuctionHandleMsg::UpdateAuction { auction: off },
                     ))?,
                     send: vec![],
                 }
@@ -281,10 +282,13 @@ pub fn try_claim_winner(
     };
 
     // check if auction exists
-    let off: Auction = deps.querier.query_wasm_smart(
-        auction_storage_addr.clone(),
-        &StorageQueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id }),
-    )?;
+    let off: Auction = deps
+        .querier
+        .query_wasm_smart(
+            auction_storage_addr.clone(),
+            &StorageQueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id }),
+        )
+        .map_err(|_op| ContractError::AuctionNotFound {})?;
 
     // check is auction finished
     if off.end.gt(&env.block.height) {
@@ -424,6 +428,7 @@ pub fn try_receive_nft(
 
     // save Auction, waiting for finished
     let off = Auction {
+        id: None,
         contract_addr,
         token_id: rcv_msg.token_id.clone(),
         asker,
@@ -445,9 +450,9 @@ pub fn try_receive_nft(
     cosmos_msgs.push(
         WasmMsg::Execute {
             contract_addr: auction_storage_addr.clone(),
-            msg: to_binary(&StorageHandleMsg::Auction(AuctionHandleMsg::AddAuction {
-                auction: off,
-            }))?,
+            msg: to_binary(&StorageHandleMsg::Auction(
+                AuctionHandleMsg::UpdateAuction { auction: off },
+            ))?,
             send: vec![],
         }
         .into(),
@@ -480,10 +485,13 @@ pub fn try_cancel_bid(
     };
 
     // check if auction exists
-    let mut off: Auction = deps.querier.query_wasm_smart(
-        auction_storage.clone(),
-        &StorageQueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id }),
-    )?;
+    let mut off: Auction = deps
+        .querier
+        .query_wasm_smart(
+            auction_storage.clone(),
+            &StorageQueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id }),
+        )
+        .map_err(|_op| ContractError::AuctionNotFound {})?;
 
     // check if token_id is currently sold by the requesting address
     if let Some(bidder) = &off.bidder {
@@ -531,10 +539,7 @@ pub fn try_cancel_bid(
                 WasmMsg::Execute {
                     contract_addr: auction_storage,
                     msg: to_binary(&StorageHandleMsg::Auction(
-                        AuctionHandleMsg::UpdateAuction {
-                            id: auction_id,
-                            auction: off,
-                        },
+                        AuctionHandleMsg::UpdateAuction { auction: off },
                     ))?,
                     send: vec![],
                 }
@@ -581,10 +586,13 @@ pub fn try_emergency_cancel_auction(
     };
 
     // check if auction exists
-    let off: Auction = deps.querier.query_wasm_smart(
-        auction_storage_addr.clone(),
-        &StorageQueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id }),
-    )?;
+    let off: Auction = deps
+        .querier
+        .query_wasm_smart(
+            auction_storage_addr.clone(),
+            &StorageQueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id }),
+        )
+        .map_err(|_op| ContractError::AuctionNotFound {})?;
 
     let asker_addr = deps.api.human_address(&off.asker)?;
 

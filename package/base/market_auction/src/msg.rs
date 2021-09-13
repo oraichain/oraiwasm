@@ -1,4 +1,4 @@
-use cosmwasm_std::{CanonicalAddr, HumanAddr, Uint128};
+use cosmwasm_std::{CanonicalAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -9,31 +9,14 @@ pub struct PagingOptions {
     pub order: Option<u8>,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct QueryAuctionsResult {
-    pub id: u64,
-    pub token_id: String,
-    pub price: Uint128,
-    pub orig_price: Uint128,
-    pub contract_addr: HumanAddr,
-    pub asker: HumanAddr,
-    pub bidder: Option<HumanAddr>,
-    pub cancel_fee: Option<u64>,
-    pub start: u64,
-    pub end: u64,
-    pub buyout_price: Option<Uint128>,
-    pub start_timestamp: Uint128,
-    pub end_timestamp: Uint128,
-    pub step_price: u64,
-}
-
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AuctionsResponse {
-    pub items: Vec<QueryAuctionsResult>,
+    pub items: Vec<Auction>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Auction {
+    pub id: Option<u64>,
     pub token_id: String,
     pub contract_addr: CanonicalAddr,
     // who askes the minimum price
@@ -57,7 +40,6 @@ pub struct Auction {
 #[serde(rename_all = "snake_case")]
 pub enum AuctionHandleMsg {
     // this allow implementation contract to update the storage
-    AddAuction { auction: Auction },
-    UpdateAuction { id: u64, auction: Auction },
+    UpdateAuction { auction: Auction },
     RemoveAuction { id: u64 },
 }

@@ -6,7 +6,7 @@ use cosmwasm_std::testing::{
 };
 use cosmwasm_std::Api;
 use cosmwasm_std::{coin, coins, from_binary, Env, HumanAddr, Order, OwnedDeps, Uint128};
-use market::{Auction, AuctionHandleMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions};
+use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions};
 
 const CREATOR: &str = "owner";
 const IMPLEMENTATION: &str = "market";
@@ -46,6 +46,7 @@ fn sort_auction() {
     let market = mock_info(IMPLEMENTATION, &vec![]);
     for i in 1..50 {
         let auction = Auction {
+            id: None,
             price: Uint128(i),
             start: contract_env.block.height + 15,
             end: contract_env.block.height + 100,
@@ -60,7 +61,7 @@ fn sort_auction() {
             orig_price: Uint128(i),
             bidder: None,
         };
-        let msg = HandleMsg::Auction(AuctionHandleMsg::AddAuction { auction });
+        let msg = HandleMsg::Auction(AuctionHandleMsg::UpdateAuction { auction });
         let _res = handle(deps.as_mut(), contract_env.clone(), market.clone(), msg).unwrap();
     }
 
@@ -79,6 +80,6 @@ fn sort_auction() {
     )
     .unwrap();
     let value: AuctionsResponse = from_binary(&res).unwrap();
-    let ids: Vec<u64> = value.items.iter().map(|f| f.id).collect();
+    let ids: Vec<u64> = value.items.iter().map(|f| f.id.unwrap()).collect();
     println!("value: {:?}", ids);
 }

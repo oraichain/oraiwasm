@@ -40,6 +40,9 @@ pub enum ContractError {
     #[error("Storage is not ready yet")]
     StorageNotReady {},
 
+    #[error("Auction is not found")]
+    AuctionNotFound {},
+
     #[error("Auction is not started yet")]
     AuctionNotStarted {},
 
