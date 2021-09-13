@@ -10,8 +10,6 @@ use sha2::{Digest, Sha256};
 pub struct ContractInfo {
     /// the contract that has permission to update the implementation
     pub governance: HumanAddr,
-    /// the implementation logic, that is allowed to manage the storage
-    pub implementations: Vec<HumanAddr>,
 }
 
 pub const AUCTIONS_COUNT: Item<u64> = Item::new("num_auctions");

@@ -1,12 +1,12 @@
 use cosmwasm_std::{
     attr, to_binary, Api, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
-    HumanAddr, InitResponse, MessageInfo, StdResult, WasmMsg,
+    HumanAddr, InitResponse, MessageInfo, StdError, StdResult, WasmMsg,
 };
 
 use crate::error::ContractError;
 use crate::msg::{AdminListResponse, CanExecuteResponse, HandleMsg, InitMsg, QueryMsg};
 use crate::state::{admin_list, admin_list_read, registry, registry_read};
-use market::{AdminList, Registry};
+use market::{query_proxy, AdminList, Registry, StorageHandleMsg, StorageQueryMsg};
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
     // list of whitelist
@@ -20,7 +20,7 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     // otherwise it still run with old version, it should be like auctions_v2 for storage key
     let reg = Registry {
         storages: msg.storages,
-        implementation: None,
+        implementations: msg.implementations,
     };
     registry(deps.storage).save(&reg)?;
     Ok(InitResponse::default())
@@ -52,6 +52,11 @@ pub fn handle(
         HandleMsg::UpdateStorages { storages } => handle_update_storages(deps, env, info, storages),
         HandleMsg::Freeze {} => handle_freeze(deps, env, info),
         HandleMsg::UpdateAdmins { admins } => handle_update_admins(deps, env, info, admins),
+        HandleMsg::Storage(storage_msg) => match storage_msg {
+            StorageHandleMsg::UpdateStorage { name, msg } => {
+                handle_update_storage_data(deps, env, info, name, msg)
+            }
+        },
     }
 }
 
@@ -67,7 +72,7 @@ pub fn handle_update_implementation(
     } else {
         let mut messages: Vec<CosmosMsg> = vec![];
         registry(deps.storage).update(|mut data| -> StdResult<_> {
-            data.implementation = Some(implementation.clone());
+            data.implementations.push(implementation.clone());
             // update current storages for the market contract
             messages.push(
                 WasmMsg::Execute {
@@ -99,40 +104,52 @@ pub fn handle_update_storages(
     if !can_execute(deps.as_ref(), &info.sender)? {
         Err(ContractError::Unauthorized {})
     } else {
-        let mut data = match registry_read(deps.storage).load() {
-            Ok(val) => val,
-            Err(_) => Registry {
-                storages: vec![],
-                implementation: None,
-            },
-        };
-        let mut messages: Vec<CosmosMsg> = vec![];
+        let mut data = registry_read(deps.storage).load()?;
         for (item_key, addr) in &storages {
             data.add_storage(item_key, addr.clone());
         }
 
-        // update implemetation for all storage
-        if let Some(implementation) = &data.implementation {
-            for (_, addr) in &storages {
-                messages.push(
-                    WasmMsg::Execute {
-                        contract_addr: addr.clone(),
-                        msg: to_binary(&HandleMsg::UpdateImplementation {
-                            implementation: implementation.clone(),
-                        })?,
-                        send: vec![],
-                    }
-                    .into(),
-                );
-            }
-        }
+        // update new data
         registry(deps.storage).save(&data)?;
 
         let mut res = HandleResponse::default();
-        res.messages = messages;
         res.attributes = vec![attr("action", "update_storages")];
         Ok(res)
     }
+}
+
+pub fn handle_update_storage_data(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    name: String,
+    msg: Binary,
+) -> Result<HandleResponse, ContractError> {
+    let registry_obj = registry_read(deps.storage).load()?;
+
+    let can_update = registry_obj
+        .implementations
+        .iter()
+        .any(|f| f.eq(&info.sender));
+    if !can_update {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let storage_addr = get_storage_addr(&registry_obj, &name)?;
+    let mut res = HandleResponse::default();
+    let mut messages: Vec<CosmosMsg> = vec![];
+
+    messages.push(
+        WasmMsg::Execute {
+            contract_addr: storage_addr,
+            msg,
+            send: vec![],
+        }
+        .into(),
+    );
+    res.messages = messages;
+    res.attributes = vec![attr("action", "update_storage_data")];
+    Ok(res)
 }
 
 pub fn handle_freeze(
@@ -183,6 +200,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::AdminList {} => to_binary(&query_admin_list(deps)?),
         QueryMsg::CanExecute { sender } => to_binary(&query_can_execute(deps, sender)?),
         QueryMsg::Registry {} => to_binary(&registry_read(deps.storage).load()?),
+        QueryMsg::Storage(storage_msg) => match storage_msg {
+            StorageQueryMsg::QueryStorageAddr { name } => {
+                to_binary(&query_storage_addr(deps, name)?)
+            }
+            StorageQueryMsg::QueryStorage { name, msg } => query_storage(deps, name, msg),
+        },
     }
 }
 
@@ -199,6 +222,28 @@ pub fn query_can_execute(deps: Deps, sender: HumanAddr) -> StdResult<CanExecuteR
     Ok(CanExecuteResponse {
         can_execute: can_execute(deps, &sender)?,
     })
+}
+
+fn get_storage_addr(registry: &Registry, name: &str) -> StdResult<HumanAddr> {
+    registry
+        .storages
+        .iter()
+        .find(|item| item.0.eq(name))
+        .map(|item| HumanAddr::from(item.1.to_string()))
+        .ok_or(StdError::generic_err("storage not found".to_string()))
+}
+
+// Binary is Vec<u8> and is RefCell
+pub fn query_storage(deps: Deps, name: String, msg: Binary) -> StdResult<Binary> {
+    let registry_obj = registry_read(deps.storage).load()?;
+    let storage_addr = get_storage_addr(&registry_obj, &name)?;
+
+    query_proxy(deps, storage_addr, msg)
+}
+
+pub fn query_storage_addr(deps: Deps, name: String) -> StdResult<HumanAddr> {
+    let registry_obj = registry_read(deps.storage).load()?;
+    get_storage_addr(&registry_obj, &name)
 }
 
 #[cfg(test)]
@@ -220,6 +265,7 @@ mod tests {
         let init_msg = InitMsg {
             admins: vec![alice.clone(), bob.clone(), carl.clone()],
             storages: vec![],
+            implementations: vec![],
             mutable: true,
         };
         let info = mock_info(&owner, &[]);
@@ -302,6 +348,7 @@ mod tests {
         let init_msg = InitMsg {
             admins: vec![alice.clone(), carl.clone()],
             storages: vec![],
+            implementations: vec![],
             mutable: false,
         };
         let info = mock_info(&owner, &[]);
@@ -350,6 +397,7 @@ mod tests {
         let init_msg = InitMsg {
             admins: vec![alice.clone(), bob.clone()],
             storages: vec![],
+            implementations: vec![],
             mutable: false,
         };
         let info = mock_info(&owner, &[]);

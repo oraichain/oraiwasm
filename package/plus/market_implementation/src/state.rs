@@ -16,7 +16,6 @@ pub struct ContractInfo {
     pub auction_blocks: u64,
     pub step_price: u64,
     pub governance: HumanAddr,
-    pub auction_storage: Option<HumanAddr>,
 }
 
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("contract_info");

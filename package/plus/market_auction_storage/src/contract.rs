@@ -27,7 +27,6 @@ pub fn init(
     // first time deploy, it will not know about the implementation
     let info = ContractInfo {
         governance: msg.governance,
-        implementations: vec![],
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -41,9 +40,6 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::UpdateImplementation { implementation } => {
-            try_update_implementation(deps, info, env, implementation)
-        }
         HandleMsg::Auction(auction_handle) => match auction_handle {
             AuctionHandleMsg::UpdateAuction { auction } => {
                 try_update_auction(deps, info, env, auction)
@@ -53,52 +49,6 @@ pub fn handle(
     }
 }
 
-pub fn try_update_implementation(
-    deps: DepsMut,
-    info: MessageInfo,
-    _env: Env,
-    implementation: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
-    let mut contract_info = CONTRACT_INFO.load(deps.storage)?;
-
-    // Unauthorized
-    if contract_info.governance.ne(&info.sender) {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let is_implemented = contract_info
-        .implementations
-        .iter()
-        .any(|a| a.eq(&implementation));
-
-    // update implementation
-    if !is_implemented {
-        contract_info.implementations.push(implementation);
-        CONTRACT_INFO.save(deps.storage, &contract_info)?;
-    }
-
-    Ok(HandleResponse {
-        messages: vec![],
-        attributes: vec![
-            attr("action", "update_info"),
-            attr("is_implemented", is_implemented),
-        ],
-        data: to_binary(&contract_info).ok(),
-    })
-}
-
-fn check_permission(deps: Deps, sender: HumanAddr) -> Result<(), ContractError> {
-    let contract_info = CONTRACT_INFO.load(deps.storage)?;
-
-    // if there is implementation
-    let is_implemented = contract_info.implementations.iter().any(|a| a.eq(&sender));
-    if is_implemented {
-        return Ok(());
-    }
-    // Unauthorized
-    Err(ContractError::Unauthorized {})
-}
-
 pub fn try_update_auction(
     deps: DepsMut,
     info: MessageInfo,
@@ -106,7 +56,11 @@ pub fn try_update_auction(
     mut auction: Auction,
 ) -> Result<HandleResponse, ContractError> {
     // must check the sender is implementation contract
-    check_permission(deps.as_ref(), info.sender)?;
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+
+    if contract_info.governance.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
 
     // if no id then create new one as insert
     let id = auction.id.unwrap_or(increment_auctions(deps.storage)?);
@@ -128,8 +82,10 @@ pub fn try_remove_auction(
     _env: Env,
     id: u64,
 ) -> Result<HandleResponse, ContractError> {
-    // must check the sender is implementation contract
-    check_permission(deps.as_ref(), info.sender)?;
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    if contract_info.governance.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
 
     auctions().remove(deps.storage, &id.to_be_bytes())?;
 

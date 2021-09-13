@@ -9,7 +9,6 @@ use cosmwasm_std::{coin, coins, from_binary, Env, HumanAddr, Order, OwnedDeps, U
 use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions};
 
 const CREATOR: &str = "owner";
-const IMPLEMENTATION: &str = "market";
 const DENOM: &str = "orai";
 
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
@@ -31,10 +30,6 @@ fn sort_auction() {
 
     // beneficiary can release it
     let info = mock_info(CREATOR, &vec![coin(50000000, DENOM)]);
-    let msg = HandleMsg::UpdateImplementation {
-        implementation: HumanAddr::from(IMPLEMENTATION),
-    };
-    let _res = handle(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
     let contract_addr = deps
         .api
         .canonical_address(&HumanAddr::from("contract_addr"))
@@ -43,7 +38,7 @@ fn sort_auction() {
         .api
         .canonical_address(&HumanAddr::from("asker"))
         .unwrap();
-    let market = mock_info(IMPLEMENTATION, &vec![]);
+
     for i in 1..50 {
         let auction = Auction {
             id: None,
@@ -62,7 +57,7 @@ fn sort_auction() {
             bidder: None,
         };
         let msg = HandleMsg::Auction(AuctionHandleMsg::UpdateAuction { auction });
-        let _res = handle(deps.as_mut(), contract_env.clone(), market.clone(), msg).unwrap();
+        let _res = handle(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
     }
 
     // Auction should be listed

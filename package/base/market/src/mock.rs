@@ -51,11 +51,10 @@ impl<S: StorageImpl, C: CustomQuery + DeserializeOwned> MockQuerier<'_, S, C> {
 }
 
 pub fn mock_dependencies_wasm<'a, S: StorageImpl>(
-    contract_name: &str,
+    contract_addr: HumanAddr,
     contract_balance: &[Coin],
     storage: &'a S,
 ) -> OwnedDeps<MockStorage, MockApi, MockQuerier<'a, S>> {
-    let contract_addr = HumanAddr::from(contract_name);
     let mut deps = OwnedDeps {
         storage: MockStorage::default(),
         api: MockApi::default(),
@@ -76,10 +75,9 @@ pub fn mock_dependencies_wasm<'a, S: StorageImpl>(
 }
 
 pub fn mock_dependencies(
-    contract_name: &str,
+    contract_addr: HumanAddr,
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, StdMockQuerier> {
-    let contract_addr = HumanAddr::from(contract_name);
     let mut deps = OwnedDeps {
         storage: MockStorage::default(),
         api: MockApi::default(),
@@ -89,7 +87,7 @@ pub fn mock_dependencies(
     deps
 }
 
-pub fn mock_env(contract_name: &str) -> Env {
+pub fn mock_env(contract_addr: &str) -> Env {
     Env {
         block: BlockInfo {
             height: 12_345,
@@ -98,7 +96,7 @@ pub fn mock_env(contract_name: &str) -> Env {
             chain_id: "oraichain-2021".to_string(),
         },
         contract: ContractInfo {
-            address: HumanAddr::from(contract_name),
+            address: HumanAddr::from(contract_addr),
         },
     }
 }

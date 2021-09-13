@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, to_vec, Binary, CanonicalAddr, ContractResult, Deps, Empty, HumanAddr, QueryRequest,
-    StdError, StdResult, SystemResult, WasmQuery,
+    to_vec, Binary, CanonicalAddr, ContractResult, Deps, Empty, HumanAddr, QueryRequest, StdError,
+    StdResult, SystemResult, WasmQuery,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -34,9 +34,12 @@ impl AdminList {
 /// Storage Item, tupple in json format is like: ["royalties","royalties_addr"]
 pub type StorageItem = (String, HumanAddr);
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+
+// support few implementation, only add, not remove, so that old implement can work well with old storage
 pub struct Registry {
+    // storages should be map with name to help other implementations work well with mapped name storage
     pub storages: Vec<StorageItem>,
-    pub implementation: Option<HumanAddr>,
+    pub implementations: Vec<HumanAddr>,
 }
 
 impl Registry {
@@ -62,16 +65,17 @@ impl Registry {
     }
 }
 
-pub fn query_proxy<T: Serialize>(deps: Deps, addr: HumanAddr, msg: T) -> StdResult<Binary> {
+pub fn query_proxy(deps: Deps, addr: HumanAddr, msg: Binary) -> StdResult<Binary> {
     let request: QueryRequest<Empty> = WasmQuery::Smart {
         contract_addr: addr,
-        msg: to_binary(&msg)?,
+        msg,
     }
     .into();
 
     let raw = to_vec(&request).map_err(|serialize_err| {
         StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
     })?;
+
     match deps.querier.raw_query(&raw) {
         SystemResult::Err(system_err) => Err(StdError::generic_err(format!(
             "Querier system error: {}",
@@ -152,7 +156,7 @@ mod tests {
                 ("royalties".into(), royalties),
                 ("auctions".into(), auctions),
             ],
-            implementation: Some(implementation),
+            implementations: vec![implementation],
         };
         registry.add_storage("offerings", offerings);
         let found = registry.get_storage("offerings").unwrap();
@@ -173,7 +177,7 @@ mod tests {
                 ("auctions".into(), auctions),
                 ("offerings".into(), offerings),
             ],
-            implementation: Some(implementation),
+            implementations: vec![implementation],
         };
         registry.remove_storage("offerings");
         let found = registry.get_storage("offerings");

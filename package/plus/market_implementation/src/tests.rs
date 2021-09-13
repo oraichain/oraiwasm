@@ -1,4 +1,4 @@
-use crate::contract::{handle, init, query};
+use crate::contract::{handle, init, query, AUCTION_STORAGE};
 use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::ContractInfo;
@@ -16,45 +16,86 @@ use std::ops::{Add, Mul};
 
 use cw721::Cw721ReceiveMsg;
 
-const CREATOR: &str = "marketplace";
+const CREATOR: &str = "owner";
+const MARKET_ADDR: &str = "market_addr";
+const HUB_ADDR: &str = "hub_addr";
+const AUCTION_ADDR: &str = "auction_addr";
 const CONTRACT_NAME: &str = "Auction Marketplace";
 const DENOM: &str = "orai";
 
 struct Storage {
     // using RefCell to both support borrow and borrow_mut for & and &mut
+    hub_storage: RefCell<OwnedDeps<MockStorage, MockApi, StdMockQuerier>>,
     auction_storage: RefCell<OwnedDeps<MockStorage, MockApi, StdMockQuerier>>,
 }
 impl Storage {
     fn new() -> Storage {
-        let contract_env = mock_env("auction");
         let info = mock_info(CREATOR, &[]);
-        let mut auction_storage = mock_dependencies("auction_storage", &[]);
+        let mut hub_storage = mock_dependencies(HumanAddr::from(HUB_ADDR), &[]);
+        let _res = market_hub::contract::init(
+            hub_storage.as_mut(),
+            mock_env(HUB_ADDR),
+            info.clone(),
+            market_hub::msg::InitMsg {
+                admins: vec![HumanAddr::from(CREATOR)],
+                mutable: true,
+                storages: vec![(AUCTION_STORAGE.to_string(), HumanAddr::from(AUCTION_ADDR))],
+                implementations: vec![HumanAddr::from(MARKET_ADDR)],
+            },
+        )
+        .unwrap();
+
+        let mut auction_storage = mock_dependencies(HumanAddr::from(AUCTION_ADDR), &[]);
         let _res = market_auction_storage::contract::init(
             auction_storage.as_mut(),
-            contract_env.clone(),
+            mock_env(AUCTION_ADDR),
             info.clone(),
             market_auction_storage::msg::InitMsg {
-                governance: HumanAddr::from(CREATOR),
+                governance: HumanAddr::from(HUB_ADDR),
             },
         )
         .unwrap();
-        // update implementation for storage
-        market_auction_storage::contract::handle(
-            auction_storage.as_mut(),
-            contract_env.clone(),
-            info.clone(),
-            market_auction_storage::msg::HandleMsg::UpdateImplementation {
-                implementation: HumanAddr::from(CREATOR),
-            },
-        )
-        .unwrap();
+
+        // init storage
         Storage {
-            // init storage
+            hub_storage: RefCell::new(hub_storage),
             auction_storage: RefCell::new(auction_storage),
         }
     }
 
-    fn handle_wasm(
+    fn handle_wasm(&self, res: &mut Vec<HandleResponse>, ret: HandleResponse) {
+        for msg in &ret.messages {
+            // only clone required properties
+            if let CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr, msg, ..
+            }) = msg
+            {
+                let result = match contract_addr.as_str() {
+                    HUB_ADDR => market_hub::contract::handle(
+                        self.hub_storage.borrow_mut().as_mut(),
+                        mock_env(MARKET_ADDR),
+                        mock_info(MARKET_ADDR, &[]),
+                        from_slice(msg).unwrap(),
+                    )
+                    .ok(),
+                    AUCTION_ADDR => market_auction_storage::contract::handle(
+                        self.auction_storage.borrow_mut().as_mut(),
+                        mock_env(HUB_ADDR),
+                        mock_info(HUB_ADDR, &[]),
+                        from_slice(msg).unwrap(),
+                    )
+                    .ok(),
+                    _ => continue,
+                };
+                if let Some(result) = result {
+                    self.handle_wasm(res, result);
+                }
+            }
+        }
+        res.push(ret);
+    }
+
+    fn handle(
         &self,
         deps: DepsMut,
         env: Env,
@@ -63,48 +104,31 @@ impl Storage {
     ) -> Result<Vec<HandleResponse>, ContractError> {
         let first_res = handle(deps, env, info, msg.clone())?;
         let mut res: Vec<HandleResponse> = vec![];
-
-        for msg in &first_res.messages {
-            // only clone required properties
-            if let CosmosMsg::Wasm(WasmMsg::Execute {
-                contract_addr, msg, ..
-            }) = msg
-            {
-                if contract_addr.as_str().eq("auction_storage") {
-                    let handle_msg: market_auction_storage::msg::HandleMsg =
-                        from_slice(msg).unwrap();
-
-                    let result = market_auction_storage::contract::handle(
-                        self.auction_storage.borrow_mut().as_mut(),
-                        mock_env("auction_storage"),
-                        mock_info(CREATOR, &[]),
-                        handle_msg,
-                    )
-                    .unwrap_or_default();
-                    res.push(result)
-                }
-            }
-        }
-
-        res.push(first_res);
+        self.handle_wasm(&mut res, first_res);
         Ok(res)
     }
 }
 
+// for query, should use 2 time only, to prevent DDOS, with handler, it is ok for gas consumption
 impl StorageImpl for Storage {
     fn query_wasm(&self, request: &WasmQuery) -> QuerierResult {
         match request {
             WasmQuery::Smart { contract_addr, msg } => {
-                let mut result = Binary::default();
-                if contract_addr.as_str().eq("auction_storage") {
-                    let query_msg: market_auction_storage::msg::QueryMsg = from_slice(msg).unwrap();
-                    result = market_auction_storage::contract::query(
-                        self.auction_storage.borrow().as_ref(),
-                        mock_env("auction_storage"),
-                        query_msg,
+                let result: Binary = match contract_addr.as_str() {
+                    HUB_ADDR => market_hub::contract::query(
+                        self.hub_storage.borrow().as_ref(),
+                        mock_env(HUB_ADDR),
+                        from_slice(msg).unwrap(),
                     )
-                    .unwrap_or_default();
-                }
+                    .unwrap_or_default(),
+                    AUCTION_ADDR => market_auction_storage::contract::query(
+                        self.auction_storage.borrow().as_ref(),
+                        mock_env(AUCTION_ADDR),
+                        from_slice(msg).unwrap(),
+                    )
+                    .unwrap_or_default(),
+                    _ => Binary::default(),
+                };
 
                 SystemResult::Ok(ContractResult::Ok(result))
             }
@@ -122,8 +146,9 @@ fn setup_contract<'a>(
     OwnedDeps<MockStorage, MockApi, MockQuerier<'a, Storage>>,
     Env,
 ) {
-    let contract_env = mock_env("market");
-    let mut deps = mock_dependencies_wasm("market", &coins(100000, DENOM), storage);
+    let contract_env = mock_env(MARKET_ADDR);
+    let mut deps =
+        mock_dependencies_wasm(HumanAddr::from(MARKET_ADDR), &coins(100000, DENOM), storage);
 
     let msg = InitMsg {
         name: String::from(CONTRACT_NAME),
@@ -132,21 +157,11 @@ fn setup_contract<'a>(
         auction_blocks: 1,
         step_price: 10,
         // creator can update storage contract
-        governance: HumanAddr::from(CREATOR),
+        governance: HumanAddr::from(HUB_ADDR),
     };
     let info = mock_info(CREATOR, &[]);
     let res = init(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
     assert_eq!(0, res.messages.len());
-
-    handle(
-        deps.as_mut(),
-        contract_env.clone(),
-        info.clone(),
-        HandleMsg::UpdateStorages {
-            storages: vec![("auctions".to_string(), HumanAddr::from("auction_storage"))],
-        },
-    )
-    .unwrap();
 
     (deps, contract_env)
 }
@@ -157,7 +172,7 @@ fn sell_auction_happy_path() {
     let (mut deps, contract_env) = setup_contract(&storage);
 
     // beneficiary can release it
-    let info = mock_info("anyone", &vec![coin(5, DENOM)]);
+    let info = mock_info(MARKET_ADDR, &vec![coin(5, DENOM)]);
 
     let sell_msg = AskNftMsg {
         price: Uint128(0),
@@ -177,7 +192,7 @@ fn sell_auction_happy_path() {
     });
 
     let _ret = storage
-        .handle_wasm(
+        .handle(
             deps.as_mut(),
             contract_env.clone(),
             info.clone(),
@@ -223,7 +238,7 @@ fn update_info_test() {
     // random account cannot update info, only creator
     let info_unauthorized = mock_info("anyone", &vec![coin(5, DENOM)]);
 
-    let mut response = storage.handle_wasm(
+    let mut response = storage.handle(
         deps.as_mut(),
         contract_env.clone(),
         info_unauthorized.clone(),
@@ -234,7 +249,7 @@ fn update_info_test() {
 
     // now we can update the info using creator
     let info = mock_info(CREATOR, &[]);
-    response = storage.handle_wasm(
+    response = storage.handle(
         deps.as_mut(),
         contract_env.clone(),
         info,
@@ -245,10 +260,7 @@ fn update_info_test() {
     let query_info = QueryMsg::GetContractInfo {};
     let res_info: ContractInfo =
         from_binary(&query(deps.as_ref(), contract_env.clone(), query_info).unwrap()).unwrap();
-    assert_eq!(
-        res_info.auction_storage,
-        Some(HumanAddr("auction_storage".to_string()))
-    );
+    assert_eq!(res_info.governance.as_str(), HUB_ADDR);
 }
 
 #[test]
@@ -276,7 +288,7 @@ fn cancel_auction_happy_path() {
         msg: to_binary(&sell_msg).ok(),
     });
     let _res = storage
-        .handle_wasm(deps.as_mut(), contract_env.clone(), info, msg)
+        .handle(deps.as_mut(), contract_env.clone(), info, msg)
         .unwrap();
     let contract_info: ContractInfo = from_binary(
         &query(
@@ -304,7 +316,7 @@ fn cancel_auction_happy_path() {
     );
     let bid_msg = HandleMsg::BidNft { auction_id: 1 };
     let _res = storage
-        .handle_wasm(
+        .handle(
             deps.as_mut(),
             contract_env.clone(),
             bid_info.clone(),
@@ -315,7 +327,7 @@ fn cancel_auction_happy_path() {
     let cancel_auction_msg = HandleMsg::EmergencyCancel { auction_id: 1 };
     let creator_info = mock_info(CREATOR, &[]);
     let _res = storage
-        .handle_wasm(
+        .handle(
             deps.as_mut(),
             contract_env.clone(),
             creator_info,
@@ -368,7 +380,7 @@ fn cancel_auction_unhappy_path() {
         msg: to_binary(&sell_msg).ok(),
     });
     let _res = storage
-        .handle_wasm(deps.as_mut(), contract_env.clone(), info, msg)
+        .handle(deps.as_mut(), contract_env.clone(), info, msg)
         .unwrap();
 
     let contract_info: ContractInfo = from_binary(
@@ -397,12 +409,12 @@ fn cancel_auction_unhappy_path() {
     );
     let bid_msg = HandleMsg::BidNft { auction_id: 1 };
     let _res = storage
-        .handle_wasm(deps.as_mut(), contract_env.clone(), bid_info, bid_msg)
+        .handle(deps.as_mut(), contract_env.clone(), bid_info, bid_msg)
         .unwrap();
 
     let hacker_info = mock_info("hacker", &coins(2, DENOM));
     let cancel_bid_msg = HandleMsg::EmergencyCancel { auction_id: 1 };
-    let result = storage.handle_wasm(
+    let result = storage.handle(
         deps.as_mut(),
         contract_env.clone(),
         hacker_info,
@@ -442,7 +454,7 @@ fn cancel_bid_happy_path() {
         msg: to_binary(&sell_msg).ok(),
     });
     let _res = storage
-        .handle_wasm(deps.as_mut(), contract_env.clone(), info, msg)
+        .handle(deps.as_mut(), contract_env.clone(), info, msg)
         .unwrap();
 
     let contract_info: ContractInfo = from_binary(
@@ -471,7 +483,7 @@ fn cancel_bid_happy_path() {
     );
     let bid_msg = HandleMsg::BidNft { auction_id: 1 };
     let _res = storage
-        .handle_wasm(
+        .handle(
             deps.as_mut(),
             contract_env.clone(),
             bid_info.clone(),
@@ -481,7 +493,7 @@ fn cancel_bid_happy_path() {
 
     let cancel_bid_msg = HandleMsg::CancelBid { auction_id: 1 };
     let _res = storage
-        .handle_wasm(
+        .handle(
             deps.as_mut(),
             contract_env.clone(),
             bid_info,
@@ -534,7 +546,7 @@ fn cancel_bid_unhappy_path() {
         msg: to_binary(&sell_msg).ok(),
     });
     let _res = storage
-        .handle_wasm(deps.as_mut(), contract_env.clone(), info, msg)
+        .handle(deps.as_mut(), contract_env.clone(), info, msg)
         .unwrap();
 
     let contract_info: ContractInfo = from_binary(
@@ -563,13 +575,13 @@ fn cancel_bid_unhappy_path() {
     );
     let bid_msg = HandleMsg::BidNft { auction_id: 1 };
     let _res = storage
-        .handle_wasm(deps.as_mut(), contract_env.clone(), bid_info, bid_msg)
+        .handle(deps.as_mut(), contract_env.clone(), bid_info, bid_msg)
         .unwrap();
 
     let hacker_info = mock_info("hacker", &coins(2, DENOM));
     let cancel_bid_msg = HandleMsg::CancelBid { auction_id: 1 };
     match storage
-        .handle_wasm(
+        .handle(
             deps.as_mut(),
             contract_env.clone(),
             hacker_info,
@@ -622,7 +634,7 @@ fn claim_winner_happy_path() {
         msg: to_binary(&sell_msg).ok(),
     });
     let _res = storage
-        .handle_wasm(deps.as_mut(), contract_env.clone(), info, msg)
+        .handle(deps.as_mut(), contract_env.clone(), info, msg)
         .unwrap();
 
     // bid auction
@@ -644,12 +656,12 @@ fn claim_winner_happy_path() {
     let mut bid_contract_env = contract_env.clone();
     bid_contract_env.block.height = contract_env.block.height + 20; // > 15 at block start
     let _res = storage
-        .handle_wasm(deps.as_mut(), bid_contract_env, bid_info.clone(), bid_msg)
+        .handle(deps.as_mut(), bid_contract_env, bid_info.clone(), bid_msg)
         .unwrap();
 
     let cancel_bid_msg = HandleMsg::CancelBid { auction_id: 1 };
     let _res = storage
-        .handle_wasm(
+        .handle(
             deps.as_mut(),
             contract_env.clone(),
             bid_info,
@@ -663,7 +675,7 @@ fn claim_winner_happy_path() {
     let mut claim_contract_env = contract_env.clone();
     claim_contract_env.block.height = contract_env.block.height + 120; // > 100 at block end
     let res = storage
-        .handle_wasm(deps.as_mut(), claim_contract_env, claim_info, claim_msg)
+        .handle(deps.as_mut(), claim_contract_env, claim_info, claim_msg)
         .unwrap();
     let attributes = &res.last().unwrap().attributes;
     let attr = attributes

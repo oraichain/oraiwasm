@@ -3,13 +3,14 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::HumanAddr;
 
-use market::StorageItem;
+use market::{StorageHandleMsg, StorageItem, StorageQueryMsg};
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InitMsg {
     pub admins: Vec<HumanAddr>,
     pub mutable: bool,
     pub storages: Vec<StorageItem>,
+    pub implementations: Vec<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -33,6 +34,7 @@ pub enum HandleMsg {
     UpdateAdmins {
         admins: Vec<HumanAddr>,
     },
+    Storage(StorageHandleMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -48,6 +50,7 @@ pub enum QueryMsg {
     },
 
     Registry {},
+    Storage(StorageQueryMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

@@ -1,6 +1,7 @@
 use cosmwasm_std::{Coin, HumanAddr, Uint128};
 use cw721::Cw721ReceiveMsg;
-use market_auction::{AuctionHandleMsg, AuctionQueryMsg, StorageItem};
+use market::{StorageHandleMsg, StorageQueryMsg};
+use market_auction::{AuctionHandleMsg, AuctionQueryMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -16,9 +17,6 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    UpdateStorages {
-        storages: Vec<StorageItem>,
-    },
     // this require bidder to pay fee for asker
     CancelBid {
         auction_id: u64,
@@ -75,14 +73,16 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum StorageQueryMsg {
+pub enum ProxyQueryMsg {
     // GetOfferings returns a list of all offerings
     Auction(AuctionQueryMsg),
+    Storage(StorageQueryMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum StorageHandleMsg {
+pub enum ProxyHandleMsg {
     // GetOfferings returns a list of all offerings
     Auction(AuctionHandleMsg),
+    Storage(StorageHandleMsg),
 }

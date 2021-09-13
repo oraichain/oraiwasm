@@ -13,8 +13,7 @@ pub struct InitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     Auction(AuctionHandleMsg),
-    // this allow implementation contract to update the storage
-    UpdateImplementation { implementation: HumanAddr },
+    // other implementation
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
