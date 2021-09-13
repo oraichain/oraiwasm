@@ -119,7 +119,7 @@ fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
         });
         let contract_env = mock_env("market");
         let mut deps = mock_dependencies_wasm("market", &coins(100000, DENOM), query_wasm);
-        deps.api.canonical_length = 54;
+
         let msg = InitMsg {
             name: String::from(CONTRACT_NAME),
             denom: DENOM.into(),
