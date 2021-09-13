@@ -8,6 +8,7 @@ use cosmwasm_std::{
 };
 use serde::de::DeserializeOwned;
 
+const CANONICAL_LENGTH: usize = 54;
 pub type WasmHandler = Box<dyn Fn(&WasmQuery) -> QuerierResult>;
 
 pub struct MockQuerier<C: DeserializeOwned = Empty> {
@@ -54,7 +55,7 @@ pub fn mock_dependencies_wasm(
     wasm_handler: WasmHandler,
 ) -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let contract_addr = HumanAddr::from(contract_name);
-    OwnedDeps {
+    let mut deps = OwnedDeps {
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier: MockQuerier {
@@ -68,7 +69,9 @@ pub fn mock_dependencies_wasm(
                 })
             }),
         },
-    }
+    };
+    deps.api.canonical_length = CANONICAL_LENGTH;
+    deps
 }
 
 pub fn mock_dependencies(
@@ -76,11 +79,13 @@ pub fn mock_dependencies(
     contract_balance: &[Coin],
 ) -> OwnedDeps<MockStorage, MockApi, StdMockQuerier> {
     let contract_addr = HumanAddr::from(contract_name);
-    OwnedDeps {
+    let mut deps = OwnedDeps {
         storage: MockStorage::default(),
         api: MockApi::default(),
         querier: StdMockQuerier::new(&[(&contract_addr, contract_balance)]),
-    }
+    };
+    deps.api.canonical_length = CANONICAL_LENGTH;
+    deps
 }
 
 pub fn mock_env(contract_name: &str) -> Env {

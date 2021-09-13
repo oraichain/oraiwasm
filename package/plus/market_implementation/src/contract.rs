@@ -414,6 +414,7 @@ pub fn try_receive_nft(
     let end = msg.end.unwrap_or(start + auction_blocks);
     // check if same token Id form same original contract is already on sale
     let contract_addr = deps.api.canonical_address(&info.sender)?;
+
     // verify start and end block, must start in the future
     if start.lt(&env.block.height) || end.lt(&start) {
         return Err(ContractError::InvalidBlockNumberArgument { start, end });

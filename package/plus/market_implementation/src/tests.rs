@@ -3,8 +3,9 @@ use crate::mock::{mock_dependencies, mock_dependencies_wasm, mock_env, MockQueri
 use crate::msg::*;
 use cosmwasm_std::testing::{mock_info, MockApi, MockQuerier as StdMockQuerier, MockStorage};
 use cosmwasm_std::{
-    coin, coins, from_binary, from_slice, to_binary, Binary, ContractResult, Env, HumanAddr, Order,
-    OwnedDeps, QuerierResult, SystemError, SystemResult, Uint128, WasmQuery,
+    coin, coins, from_binary, from_slice, to_binary, Binary, ContractResult, CosmosMsg, Env,
+    HandleResponse, HumanAddr, Order, OwnedDeps, QuerierResult, SystemError, SystemResult, Uint128,
+    WasmMsg, WasmQuery,
 };
 use market::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
 use std::mem::transmute;
@@ -23,12 +24,69 @@ static mut _DATA: *const Storage = 0 as *const Storage;
 impl Storage {
     unsafe fn get<'a>() -> &'a mut Storage {
         if _DATA.is_null() {
+            let contract_env = mock_env("auction");
+            let info = mock_info(CREATOR, &[]);
+            let mut auction_storage = mock_dependencies("auction_storage", &[]);
+            auction_storage.api.canonical_length = 54;
+            let _res = market_auction_storage::contract::init(
+                auction_storage.as_mut(),
+                contract_env.clone(),
+                info.clone(),
+                market_auction_storage::msg::InitMsg {
+                    governance: HumanAddr::from(CREATOR),
+                },
+            )
+            .unwrap();
+            // update implementation for storage
+            market_auction_storage::contract::handle(
+                auction_storage.as_mut(),
+                contract_env.clone(),
+                info.clone(),
+                market_auction_storage::msg::HandleMsg::UpdateImplementation {
+                    implementation: HumanAddr::from(CREATOR),
+                },
+            )
+            .unwrap();
             _DATA = transmute(Box::new(Storage {
-                auction_storage: mock_dependencies("auction_storage", &[]),
+                // init storage
+                auction_storage,
             }));
         }
         return transmute(_DATA);
     }
+}
+
+// handle_contract_response currently support execute only, with new message info from send fund param
+fn handle_contract_response(messages: Vec<CosmosMsg>) -> Vec<HandleResponse> {
+    let mut res: Vec<HandleResponse> = vec![];
+    unsafe {
+        let Storage {
+            auction_storage, ..
+        } = Storage::get();
+
+        for msg in messages {
+            // only clone required properties
+            if let CosmosMsg::Wasm(WasmMsg::Execute {
+                contract_addr, msg, ..
+            }) = &msg
+            {
+                if contract_addr.as_str().eq("auction_storage") {
+                    let handle_msg: market_auction_storage::msg::HandleMsg =
+                        from_slice(msg).unwrap();
+
+                    let result = market_auction_storage::contract::handle(
+                        auction_storage.as_mut(),
+                        mock_env("auction_storage"),
+                        mock_info(CREATOR, &[]),
+                        handle_msg,
+                    )
+                    .unwrap_or_default();
+                    res.push(result)
+                }
+            }
+        }
+    }
+    res
 }
 
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
@@ -78,7 +136,7 @@ fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
         handle(
             deps.as_mut(),
             contract_env.clone(),
-            info,
+            info.clone(),
             HandleMsg::UpdateStorages {
                 storages: vec![("auctions".to_string(), HumanAddr::from("auction_storage"))],
             },
@@ -119,14 +177,15 @@ fn sell_auction_happy_path() {
             msg: to_binary(&sell_msg).ok(),
         });
 
-        let _res = handle(
+        let HandleResponse { messages, .. } = handle(
             deps.as_mut(),
             contract_env.clone(),
             info.clone(),
             msg.clone(),
         )
         .unwrap();
-
+        // we need to post process handle message by calling handle if there is wasm execute
+        let _res = handle_contract_response(messages);
         let result: AuctionsResponse = from_binary(
             &market_auction_storage::contract::query(
                 auction_storage.as_ref(),

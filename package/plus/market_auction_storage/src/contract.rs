@@ -291,34 +291,17 @@ pub fn query_auction_by_contract_tokenid(
     token_id: String,
 ) -> StdResult<QueryAuctionsResult> {
     let contract_raw = deps.api.canonical_address(&contract)?;
-    let auction = auctions().idx.contract_token_id.item(
-        deps.storage,
-        get_contract_token_id(&contract_raw, &token_id).into(),
-    )?;
-    if let Some(auction_obj) = auction {
-        let auction = auction_obj.1;
-        let auction_result = QueryAuctionsResult {
-            id: u64::from_be_bytes(auction_obj.0.try_into().unwrap()),
-            token_id: auction.token_id,
-            price: auction.price,
-            orig_price: auction.orig_price,
-            contract_addr: deps.api.human_address(&auction.contract_addr)?,
-            asker: deps.api.human_address(&auction.asker)?,
-            bidder: auction
-                .bidder
-                .map(|can_addr| deps.api.human_address(&can_addr).unwrap_or_default()),
-            cancel_fee: auction.cancel_fee,
-            start: auction.start,
-            end: auction.end,
-            start_timestamp: auction.start_timestamp,
-            end_timestamp: auction.end_timestamp,
-            buyout_price: auction.buyout_price,
-            step_price: auction.step_price,
-        };
-        Ok(auction_result)
-    } else {
-        Err(StdError::generic_err("Auction not found"))
-    }
+    auctions()
+        .idx
+        .contract_token_id
+        .item(
+            deps.storage,
+            get_contract_token_id(&contract_raw, &token_id).into(),
+        )
+        .transpose()
+        .map_or(Err(StdError::generic_err("Auction not found")), |obj| {
+            parse_auction(deps.api, obj)
+        })
 }
 
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
@@ -326,17 +309,19 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
 }
 
 fn parse_auction(api: &dyn Api, item: StdResult<KV<Auction>>) -> StdResult<QueryAuctionsResult> {
+    // if ok then parse else return default error
     item.and_then(|(k, auction)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array
         let id: u64 = u64::from_be_bytes(k.try_into().unwrap());
+
         Ok(QueryAuctionsResult {
             id,
             token_id: auction.token_id,
             price: auction.price,
             orig_price: auction.orig_price,
-            contract_addr: api.human_address(&auction.contract_addr)?,
-            asker: api.human_address(&auction.asker)?,
+            contract_addr: HumanAddr::from("ok"), // api.human_address(&auction.contract_addr)?,
+            asker: HumanAddr::from("ok"),         //api.human_address(&auction.asker)?,
             start: auction.start,
             end: auction.end,
             start_timestamp: auction.start_timestamp,
