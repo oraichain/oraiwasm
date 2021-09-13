@@ -1,5 +1,4 @@
 use crate::contract::*;
-use crate::mock::{mock_dependencies, mock_dependencies_wasm, mock_env, MockQuerier};
 use crate::msg::*;
 use cosmwasm_std::testing::{mock_info, MockApi, MockQuerier as StdMockQuerier, MockStorage};
 use cosmwasm_std::{
@@ -7,6 +6,7 @@ use cosmwasm_std::{
     HandleResponse, HumanAddr, Order, OwnedDeps, QuerierResult, SystemError, SystemResult, Uint128,
     WasmMsg, WasmQuery,
 };
+use market::mock::{mock_dependencies, mock_dependencies_wasm, mock_env, MockQuerier};
 use market::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
 use std::mem::transmute;
 
