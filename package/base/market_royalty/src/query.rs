@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::{CanonicalAddr, HumanAddr, Uint128};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -27,12 +27,19 @@ pub enum OfferingQueryMsg {
     GetOffering {
         offering_id: u64,
     },
+    GetOfferingState {
+        offering_id: u64,
+    },
     GetPayoutsByContractTokenId {
         contract: HumanAddr,
         token_id: String,
     },
     GetOfferingByContractTokenId {
         contract: HumanAddr,
+        token_id: String,
+    },
+    GetRoyalty {
+        contract_addr: HumanAddr,
         token_id: String,
     },
     GetContractInfo {},

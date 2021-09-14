@@ -184,6 +184,7 @@ fn test_royalties() {
     let mut royalty_creator = Uint128::from(0u128);
     let mut royatly_marketplace = Uint128::from(0u128);
     let contract_info = CONTRACT_INFO.load(&deps.storage).unwrap();
+    println!("offering: {:?}", offering);
     for message in result.messages {
         if let CosmosMsg::Bank(msg) = message {
             match msg {

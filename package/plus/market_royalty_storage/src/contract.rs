@@ -8,8 +8,8 @@ use market_royalty::OfferingHandleMsg;
 use market_royalty::{OfferingQueryMsg, OfferingsResponse, PayoutMsg, QueryOfferingsResult};
 
 use cosmwasm_std::{
-    attr, to_binary, Api, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
-    Order, StdError, StdResult, Storage,
+    attr, to_binary, Api, Binary, CanonicalAddr, Deps, DepsMut, Env, HandleResponse, InitResponse,
+    MessageInfo, Order, StdError, StdResult, Storage,
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw_storage_plus::Bound;
@@ -51,6 +51,52 @@ pub fn handle(
             }
             OfferingHandleMsg::RemoveOffering { id } => try_withdraw_offering(deps, info, env, id),
         },
+    }
+}
+
+pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::Offering(auction_query) => match auction_query {
+            OfferingQueryMsg::GetOfferings {
+                limit,
+                offset,
+                order,
+            } => to_binary(&query_offerings(deps, limit, offset, order)?),
+            OfferingQueryMsg::GetOfferingsBySeller {
+                seller,
+                limit,
+                offset,
+                order,
+            } => to_binary(&query_offerings_by_seller(
+                deps, seller, limit, offset, order,
+            )?),
+            OfferingQueryMsg::GetOfferingsByContract {
+                contract,
+                limit,
+                offset,
+                order,
+            } => to_binary(&query_offerings_by_contract(
+                deps, contract, limit, offset, order,
+            )?),
+            OfferingQueryMsg::GetOffering { offering_id } => {
+                to_binary(&query_offering(deps, offering_id)?)
+            }
+            OfferingQueryMsg::GetOfferingState { offering_id } => {
+                to_binary(&query_offering_state(deps, offering_id)?)
+            }
+            OfferingQueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
+                &query_offering_by_contract_tokenid(deps, contract, token_id)?,
+            ),
+            OfferingQueryMsg::GetPayoutsByContractTokenId { contract, token_id } => to_binary(
+                &query_payouts_by_contract_tokenid(deps, contract, token_id)?,
+            ),
+            OfferingQueryMsg::GetRoyalty {
+                contract_addr,
+                token_id,
+            } => to_binary(&query_royalty(deps, contract_addr, token_id)?),
+            OfferingQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        },
+        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
     }
 }
 
@@ -105,45 +151,6 @@ pub fn try_withdraw_offering(
         attributes: vec![attr("action", "remove_auction")],
         data: None,
     });
-}
-
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    match msg {
-        QueryMsg::Offering(auction_query) => match auction_query {
-            OfferingQueryMsg::GetOfferings {
-                limit,
-                offset,
-                order,
-            } => to_binary(&query_offerings(deps, limit, offset, order)?),
-            OfferingQueryMsg::GetOfferingsBySeller {
-                seller,
-                limit,
-                offset,
-                order,
-            } => to_binary(&query_offerings_by_seller(
-                deps, seller, limit, offset, order,
-            )?),
-            OfferingQueryMsg::GetOfferingsByContract {
-                contract,
-                limit,
-                offset,
-                order,
-            } => to_binary(&query_offerings_by_contract(
-                deps, contract, limit, offset, order,
-            )?),
-            OfferingQueryMsg::GetOffering { offering_id } => {
-                to_binary(&query_offering(deps, offering_id)?)
-            }
-            OfferingQueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
-                &query_offering_by_contract_tokenid(deps, contract, token_id)?,
-            ),
-            OfferingQueryMsg::GetPayoutsByContractTokenId { contract, token_id } => to_binary(
-                &query_payouts_by_contract_tokenid(deps, contract, token_id)?,
-            ),
-            OfferingQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
-        },
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
-    }
 }
 
 // ============================== Query Handlers ==============================
@@ -263,6 +270,11 @@ pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<QueryOfferingsR
     })
 }
 
+pub fn query_offering_state(deps: Deps, offering_id: u64) -> StdResult<Offering> {
+    let offering = offerings().load(deps.storage, &offering_id.to_be_bytes())?;
+    Ok(offering)
+}
+
 pub fn query_offering_by_contract_tokenid(
     deps: Deps,
     contract: HumanAddr,
@@ -316,6 +328,17 @@ pub fn query_payouts_by_contract_tokenid(
 
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
+}
+
+pub fn query_royalty(
+    deps: Deps,
+    contract_id: HumanAddr,
+    token_id: String,
+) -> StdResult<(CanonicalAddr, u64)> {
+    let contract_id = deps.api.canonical_address(&contract_id)?;
+    let royalties = royalties_read(deps.storage, &contract_id).load(token_id.as_bytes())?;
+    println!("royalty in query royalty: {:?}", royalties);
+    Ok(royalties)
 }
 
 fn parse_offering<'a>(

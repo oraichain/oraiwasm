@@ -1,5 +1,7 @@
+pub mod auction;
 pub mod contract;
 pub mod msg;
+pub mod offering;
 pub mod state;
 
 mod error;

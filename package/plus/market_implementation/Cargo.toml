@@ -36,6 +36,7 @@ cw-storage-plus = { version = "0.5.0", features = ["iterator"] }
 cosmwasm-storage = { version = "0.13.2", features = ["iterator"] }
 cw721 = { path = "../../base/cw721" }
 market_auction = { path = "../../base/market_auction" }
+market_royalty = { path = "../../base/market_royalty" }
 market = { path = "../../base/market" }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
@@ -45,3 +46,4 @@ thiserror = { version = "1.0.21" }
 cosmwasm-schema = { version = "0.13.2" }
 market_hub = { path = "../market_hub" }
 market_auction_storage = { path = "../market_auction_storage" }
+market_royalty_storage = { path = "../market_royalty_storage" }

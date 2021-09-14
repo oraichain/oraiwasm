@@ -1,7 +1,8 @@
-use cosmwasm_std::{Coin, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
 use cw721::Cw721ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_auction::{AuctionHandleMsg, AuctionQueryMsg};
+use market_royalty::{OfferingHandleMsg, OfferingQueryMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -12,6 +13,7 @@ pub struct InitMsg {
     pub auction_blocks: u64,
     pub step_price: u64,
     pub governance: HumanAddr,
+    pub max_royalty: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -38,6 +40,17 @@ pub enum HandleMsg {
     EmergencyCancel {
         auction_id: u64,
     },
+    WithdrawNft {
+        offering_id: u64,
+    },
+    BuyNft {
+        offering_id: u64,
+    },
+    /// Mint a new NFT, can only be called by the contract minter
+    MintNft {
+        contract: HumanAddr,
+        msg: Binary,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -51,6 +64,13 @@ pub struct AskNftMsg {
     pub end_timestamp: Option<Uint128>,
     pub buyout_price: Option<Uint128>,
     pub step_price: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct SellNft {
+    pub off_price: Uint128,
+    pub royalty: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -69,6 +89,7 @@ pub enum QueryMsg {
     // Auction info must be queried from auction contract
     GetContractInfo {},
     Auction(AuctionQueryMsg),
+    Offering(OfferingQueryMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -76,6 +97,7 @@ pub enum QueryMsg {
 pub enum ProxyQueryMsg {
     // GetOfferings returns a list of all offerings
     Auction(AuctionQueryMsg),
+    Offering(OfferingQueryMsg),
     Storage(StorageQueryMsg),
 }
 
@@ -84,5 +106,6 @@ pub enum ProxyQueryMsg {
 pub enum ProxyHandleMsg {
     // GetOfferings returns a list of all offerings
     Auction(AuctionHandleMsg),
+    Offering(OfferingHandleMsg),
     Storage(StorageHandleMsg),
 }
