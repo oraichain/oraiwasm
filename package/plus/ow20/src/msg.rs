@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Coin, HumanAddr, StdError, StdResult, Uint128};
+use cosmwasm_std::{Binary, HumanAddr, StdError, StdResult, Uint128};
 use cw20::{Cw20CoinHuman, Expiration, MinterResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
