@@ -619,7 +619,7 @@ pub fn get_auction_handle_msg(
     msg: AuctionHandleMsg,
 ) -> StdResult<CosmosMsg> {
     let auction_msg = to_binary(&ProxyHandleMsg::Auction(msg))?;
-    let proxy_msg = ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorage {
+    let proxy_msg = ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
         name: name.to_string(),
         msg: auction_msg,
     });
