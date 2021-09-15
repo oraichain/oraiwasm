@@ -234,6 +234,15 @@ fn sell_auction_happy_path() {
         )
         .unwrap();
 
+    // error because already on auction
+    let _ret_error = storage.handle(
+        deps.as_mut(),
+        contract_env.clone(),
+        info.clone(),
+        msg.clone(),
+    );
+    assert_eq!(_ret_error.is_err(), true);
+
     let result: AuctionsResponse = from_binary(
         &query(
             deps.as_ref(),

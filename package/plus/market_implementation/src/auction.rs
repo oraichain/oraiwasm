@@ -9,7 +9,7 @@ use cosmwasm_std::{
 };
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{query_proxy, StorageHandleMsg};
-use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg};
+use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, QueryAuctionsResult};
 use std::ops::{Add, Mul, Sub};
 
 pub const MAX_FEE_PERMILLE: u64 = 100;
@@ -227,7 +227,7 @@ pub fn handle_ask_auction(
     } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if auction exists
-    let auction: Option<Auction> = deps
+    let auction: Option<QueryAuctionsResult> = deps
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
