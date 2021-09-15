@@ -63,17 +63,23 @@ pub fn try_update_auction(
     }
 
     // if no id then create new one as insert
-    let id = auction.id.unwrap_or(increment_auctions(deps.storage)?);
-    auction.id = Some(id);
+    let id = match auction.id {
+        None => {
+            let id = increment_auctions(deps.storage)?;
+            auction.id = Some(id);
+            id
+        }
+        Some(id) => id,
+    };
 
     // check if token_id is currently sold by the requesting address
     auctions().save(deps.storage, &id.to_be_bytes(), &auction)?;
 
-    return Ok(HandleResponse {
+    Ok(HandleResponse {
         messages: vec![],
         attributes: vec![attr("action", "update_auction")],
         data: None,
-    });
+    })
 }
 
 pub fn try_remove_auction(
@@ -89,11 +95,11 @@ pub fn try_remove_auction(
 
     auctions().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(HandleResponse {
+    Ok(HandleResponse {
         messages: vec![],
         attributes: vec![attr("action", "remove_auction")],
         data: None,
-    });
+    })
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -147,7 +153,7 @@ pub fn query_auctions(deps: Deps, options: &PagingOptions) -> StdResult<Auctions
     let res: StdResult<Vec<Auction>> = auctions()
         .range(deps.storage, min, max, order_enum)
         .take(limit)
-        .map(|item| item.and_then(|(_k, auction)| Ok(auction)))
+        .map(|item| item.map(|(_k, auction)| auction))
         .collect();
     Ok(AuctionsResponse { items: res? })
 }
@@ -164,7 +170,7 @@ pub fn query_auctions_by_asker(
         .asker
         .items(deps.storage, &asker_raw, min, max, order_enum)
         .take(limit)
-        .map(|item| item.and_then(|(_k, auction)| Ok(auction)))
+        .map(|item| item.map(|(_k, auction)| auction))
         .collect();
 
     Ok(AuctionsResponse { items: res? })
@@ -186,7 +192,7 @@ pub fn query_auctions_by_bidder(
         .bidder
         .items(deps.storage, &bidder_raw, min, max, order_enum)
         .take(limit)
-        .map(|item| item.and_then(|(_k, auction)| Ok(auction)))
+        .map(|item| item.map(|(_k, auction)| auction))
         .collect();
 
     Ok(AuctionsResponse { items: res? })
@@ -204,7 +210,7 @@ pub fn query_auctions_by_contract(
         .contract
         .items(deps.storage, &contract_raw, min, max, order_enum)
         .take(limit)
-        .map(|item| item.and_then(|(_k, auction)| Ok(auction)))
+        .map(|item| item.map(|(_k, auction)| auction))
         .collect();
 
     Ok(AuctionsResponse { items: res? })
@@ -233,7 +239,7 @@ pub fn query_auction_by_contract_tokenid(
         )
         .transpose()
         .map_or(Err(StdError::generic_err("Auction not found")), |item| {
-            item.and_then(|(_k, auction)| Ok(auction))
+            item.map(|(_k, auction)| auction)
         })
 }
 

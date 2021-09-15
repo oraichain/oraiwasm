@@ -56,7 +56,7 @@ fn test_datasource<S: Storage, A: Api, Q: Querier>(
 
     // if the data source output matches the data source
     if output_lower == expected_output_lower {
-        return Ok(output_lower);
+        Ok(output_lower)
     } else {
         return Err(cosmwasm_std::StdError::generic_err(format!(
             "data source result does not pass the test case with result: '{}' while your expected output is: '{}'",

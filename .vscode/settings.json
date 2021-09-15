@@ -1,3 +1,4 @@
 {
-    "rust-analyzer.runnables.overrideCargo": "cargo -q"
+    "rust-analyzer.runnables.overrideCargo": "cargo -q",
+    "rust-analyzer.checkOnSave.command": "clippy"
 }

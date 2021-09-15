@@ -38,7 +38,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 
 fn query_data<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    input: String,
+    _input: String,
 ) -> StdResult<String> {
     // create specialquery with default empty string
     let req = SpecialQuery::Fetch {

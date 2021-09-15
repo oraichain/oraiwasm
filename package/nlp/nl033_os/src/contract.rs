@@ -99,7 +99,7 @@ fn query_aggregation<S: Storage, A: Api, Q: Querier>(
     _deps: &Extern<S, A, Q>,
     results: Vec<String>,
 ) -> StdResult<String> {
-    if results.len() <= 0 {
+    if results.is_empty() {
         return Ok(String::new());
     }
     let mut final_result = String::from("");
