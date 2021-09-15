@@ -4,8 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{CanonicalAddr, HumanAddr, StdResult, Storage};
 use cosmwasm_storage::{Bucket, ReadonlyBucket};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, U128Key, UniqueIndex};
-use sha2::{Digest, Sha256};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
@@ -29,7 +28,7 @@ pub fn increment_offerings(storage: &mut dyn Storage) -> StdResult<u64> {
 pub struct OfferingIndexes<'a> {
     pub seller: MultiIndex<'a, Offering>,
     pub contract: MultiIndex<'a, Offering>,
-    pub contract_token_id: UniqueIndex<'a, U128Key, Offering>,
+    pub contract_token_id: UniqueIndex<'a, PkOwned, Offering>,
 }
 
 impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
@@ -40,13 +39,11 @@ impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
     }
 }
 
-pub fn get_contract_token_id(contract: Vec<u8>, token_id: &str) -> u128 {
-    let mut hasher = Sha256::new();
-    hasher.update(contract);
-    hasher.update(token_id.as_bytes());
-    let mut dst = [0; 16];
-    dst.copy_from_slice(&hasher.finalize()[0..16]);
-    u128::from_be_bytes(dst)
+// contract nft + token id => unique id
+pub fn get_contract_token_id(contract: &CanonicalAddr, token_id: &str) -> PkOwned {
+    let mut vec = contract.as_slice().to_vec();
+    vec.extend(token_id.as_bytes());
+    PkOwned(vec)
 }
 
 // this IndexedMap instance has a lifetime
@@ -59,7 +56,7 @@ pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>
             "offerings__contract",
         ),
         contract_token_id: UniqueIndex::new(
-            |o| U128Key::new(get_contract_token_id(o.contract_addr.to_vec(), &o.token_id)),
+            |o| get_contract_token_id(&o.contract_addr, &o.token_id),
             "request__id",
         ),
     };

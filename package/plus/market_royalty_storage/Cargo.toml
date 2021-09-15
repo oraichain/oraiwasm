@@ -38,7 +38,6 @@ cw721 = { path = "../../base/cw721" }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }
-sha2 = "0.9.5"
 market_royalty = { path = "../../base/market_royalty" }
 
 [dev-dependencies]

@@ -288,7 +288,7 @@ pub fn query_offering_by_contract_tokenid(
     let contract_raw = deps.api.canonical_address(&contract)?;
     let offering = offerings().idx.contract_token_id.item(
         deps.storage,
-        get_contract_token_id(contract_raw.to_vec(), &token_id).into(),
+        get_contract_token_id(&contract_raw, &token_id),
     )?;
     if let Some(offering_obj) = offering {
         let offering_result = offering_obj.1;

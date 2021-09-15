@@ -6,6 +6,7 @@ use cosmwasm_std::testing::{
 };
 use cosmwasm_std::Api;
 use cosmwasm_std::{coin, coins, from_binary, Env, HumanAddr, Order, OwnedDeps, Uint128};
+use market_auction::QueryAuctionsResult;
 use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions};
 
 const CREATOR: &str = "owner";
@@ -77,4 +78,17 @@ fn sort_auction() {
     let value: AuctionsResponse = from_binary(&res).unwrap();
     let ids: Vec<u64> = value.items.iter().map(|f| f.id).collect();
     println!("value: {:?}", ids);
+
+    // Auction should be listed
+    let res = query(
+        deps.as_ref(),
+        contract_env.clone(),
+        QueryMsg::Auction(AuctionQueryMsg::GetAuctionByContractTokenId {
+            contract: HumanAddr::from("contract_addr"),
+            token_id: "2".to_string(),
+        }),
+    )
+    .unwrap();
+    let value: QueryAuctionsResult = from_binary(&res).unwrap();
+    println!("value: {:?}", value);
 }

@@ -236,7 +236,7 @@ pub fn query_auction_by_contract_tokenid(
         .contract_token_id
         .item(
             deps.storage,
-            get_contract_token_id(&contract_raw, &token_id).into(),
+            get_contract_token_id(&contract_raw, &token_id),
         )
         .transpose()
     {

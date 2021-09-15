@@ -2,9 +2,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{CanonicalAddr, HumanAddr, StdResult, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, U128Key, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
 use market_auction::Auction;
-use sha2::{Digest, Sha256};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
@@ -30,7 +29,7 @@ pub struct AuctionIndexes<'a> {
     pub asker: MultiIndex<'a, Auction>,
     pub bidder: MultiIndex<'a, Auction>,
     pub contract: MultiIndex<'a, Auction>,
-    pub contract_token_id: UniqueIndex<'a, U128Key, Auction>,
+    pub contract_token_id: UniqueIndex<'a, PkOwned, Auction>,
 }
 
 impl<'a> IndexList<Auction> for AuctionIndexes<'a> {
@@ -46,13 +45,10 @@ impl<'a> IndexList<Auction> for AuctionIndexes<'a> {
 }
 
 // contract nft + token id => unique id
-pub fn get_contract_token_id(contract: &CanonicalAddr, token_id: &str) -> u128 {
-    let mut hasher = Sha256::new();
-    hasher.update(contract.to_vec());
-    hasher.update(token_id.as_bytes());
-    let mut dst = [0; 16];
-    dst.copy_from_slice(&hasher.finalize()[0..16]);
-    u128::from_be_bytes(dst)
+pub fn get_contract_token_id(contract: &CanonicalAddr, token_id: &str) -> PkOwned {
+    let mut vec = contract.as_slice().to_vec();
+    vec.extend(token_id.as_bytes());
+    PkOwned(vec)
 }
 
 // this IndexedMap instance has a lifetime
@@ -76,7 +72,7 @@ pub fn auctions<'a>() -> IndexedMap<'a, &'a [u8], Auction, AuctionIndexes<'a>> {
             "auctions__contract",
         ),
         contract_token_id: UniqueIndex::new(
-            |o| U128Key::new(get_contract_token_id(&o.contract_addr, &o.token_id)),
+            |o| get_contract_token_id(&o.contract_addr, &o.token_id),
             "request__id",
         ),
     };
