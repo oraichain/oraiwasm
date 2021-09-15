@@ -22,6 +22,9 @@ pub enum HandleMsg {
     UpdateImplementation {
         implementation: HumanAddr,
     },
+    RemoveImplementation {
+        implementation: HumanAddr,
+    },
 
     UpdateStorages {
         storages: Vec<StorageItem>,

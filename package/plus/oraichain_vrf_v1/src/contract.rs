@@ -125,7 +125,7 @@ pub fn try_withdraw_fees(env: Env, fees: Uint128) -> Result<HandleResponse, Hand
     let res = HandleResponse {
         messages: vec![withdraw_msg],
         attributes: vec![
-            attr("function_type", "withdraw_fees"),
+            attr("action", "withdraw_fees"),
             attr("to_address", env.contract.address),
             attr("amount", fees),
         ],
@@ -153,10 +153,7 @@ pub fn try_invoke(
     }
     let res = HandleResponse {
         messages: vec![],
-        attributes: vec![
-            attr("function_type", "invoke_add"),
-            attr("user_input", user_input),
-        ],
+        attributes: vec![attr("action", "invoke_add"), attr("user_input", user_input)],
         data: None,
     };
 
@@ -252,7 +249,7 @@ pub fn try_add(
         clear_bounty(deps.storage, round);
     }
     response.attributes = vec![
-        attr("function_type", "add"),
+        attr("action", "add"),
         attr("round", round.to_string()),
         attr("randomness", msg.to_string()),
     ];

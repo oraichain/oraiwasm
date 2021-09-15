@@ -337,7 +337,7 @@ fn try_create_airequest(
     let validator_fees_stringtify = String::from_utf8(to_vec(&ai_request.validator_fees)?).unwrap();
 
     let mut attrs = vec![
-        attr("function_type", "create_ai_request"),
+        attr("action", "create_ai_request"),
         attr("request_id", request_id),
         attr("input", ai_request.input),
         attr("provider_fees", provider_fees_stringtify),

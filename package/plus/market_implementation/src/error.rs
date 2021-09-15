@@ -60,6 +60,15 @@ pub enum ContractError {
 
     #[error("Expected bidder: {bidder}, got: {sender}")]
     InvalidBidder { bidder: String, sender: String },
+
+    #[error("There is an error while collecting the offering")]
+    InvalidGetOffering {},
+
+    #[error("Token Id from the original contract has never been sold. It has no royalty yet")]
+    TokenNeverBeenSold {},
+
+    #[error("Token already been sold")]
+    TokenOnSale {},
 }
 
 impl Into<String> for ContractError {

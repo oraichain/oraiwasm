@@ -176,10 +176,7 @@ pub fn init_share(
     members_storage(deps.storage).set(&member.address.as_bytes(), &msg);
 
     let mut response = HandleResponse::default();
-    response.attributes = vec![
-        attr("function_type", "init_share"),
-        attr("member", info.sender),
-    ];
+    response.attributes = vec![attr("action", "init_share"), attr("member", info.sender)];
     response.data = Some(msg);
     Ok(response)
 }
@@ -257,7 +254,7 @@ pub fn update_share_sig(
 
     response.data = Some(msg);
     response.attributes = vec![
-        attr("function_type", "update_share_sig"),
+        attr("action", "update_share_sig"),
         attr("sender", info.sender),
         attr("round", share_sig.round),
         attr("signature", share_sig.sig),
@@ -316,7 +313,7 @@ pub fn aggregate_sig(
     let response = HandleResponse {
         messages: vec![],
         attributes: vec![
-            attr("function_type", "aggregate_sig"),
+            attr("action", "aggregate_sig"),
             attr("share_data", to_binary(&share_data)?),
             attr("aggregate_sig", to_binary(&share_data.aggregate_sig)?),
             attr("round", round),
@@ -390,7 +387,7 @@ pub fn request_random(
     let response = HandleResponse {
         messages: vec![],
         attributes: vec![
-            attr("function_type", "request_random"),
+            attr("action", "request_random"),
             attr("input", input),
             attr("round", round),
         ],

@@ -49,11 +49,14 @@ pub fn handle(
         HandleMsg::UpdateImplementation { implementation } => {
             handle_update_implementation(deps, env, info, implementation)
         }
+        HandleMsg::RemoveImplementation { implementation } => {
+            handle_remove_implementation(deps, env, info, implementation)
+        }
         HandleMsg::UpdateStorages { storages } => handle_update_storages(deps, env, info, storages),
         HandleMsg::Freeze {} => handle_freeze(deps, env, info),
         HandleMsg::UpdateAdmins { admins } => handle_update_admins(deps, env, info, admins),
         HandleMsg::Storage(storage_msg) => match storage_msg {
-            StorageHandleMsg::UpdateStorage { name, msg } => {
+            StorageHandleMsg::UpdateStorageData { name, msg } => {
                 handle_update_storage_data(deps, env, info, name, msg)
             }
         },
@@ -70,27 +73,44 @@ pub fn handle_update_implementation(
     if !can_execute(deps.as_ref(), &info.sender)? {
         Err(ContractError::Unauthorized {})
     } else {
-        let mut messages: Vec<CosmosMsg> = vec![];
         registry(deps.storage).update(|mut data| -> StdResult<_> {
             data.implementations.push(implementation.clone());
-            // update current storages for the market contract
-            messages.push(
-                WasmMsg::Execute {
-                    contract_addr: implementation.clone(),
-                    msg: to_binary(&HandleMsg::UpdateStorages {
-                        storages: data.storages.clone(),
-                    })?,
-                    send: vec![],
-                }
-                .into(),
-            );
             Ok(data)
         })?;
 
         // then call initialize with storage as params
         let mut res = HandleResponse::default();
-        res.messages = messages;
         res.attributes = vec![attr("action", "update_implementation")];
+        Ok(res)
+    }
+}
+
+/// update implementation, and call initilize with storages from the hub
+pub fn handle_remove_implementation(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    implementation: HumanAddr,
+) -> Result<HandleResponse, ContractError> {
+    if !can_execute(deps.as_ref(), &info.sender)? {
+        Err(ContractError::Unauthorized {})
+    } else {
+        registry(deps.storage).update(|mut data| -> StdResult<_> {
+            let index_of = data
+                .implementations
+                .iter()
+                .position(|element| element == &implementation)
+                .map_or(
+                    Err(StdError::generic_err("Implementation not found")),
+                    |index_of| Ok(index_of),
+                )?;
+            data.implementations.remove(index_of);
+            Ok(data)
+        })?;
+
+        // then call initialize with storage as params
+        let mut res = HandleResponse::default();
+        res.attributes = vec![attr("action", "remove_implementation")];
         Ok(res)
     }
 }

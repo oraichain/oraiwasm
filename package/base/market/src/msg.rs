@@ -5,5 +5,5 @@ use serde::{Deserialize, Serialize};
 #[serde(rename_all = "snake_case")]
 pub enum StorageHandleMsg {
     // GetOfferings returns a list of all offerings
-    UpdateStorage { name: String, msg: Binary },
+    UpdateStorageData { name: String, msg: Binary },
 }
