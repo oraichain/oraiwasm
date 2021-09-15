@@ -303,7 +303,6 @@ pub fn handle_sell_nft(
             attr("seller", rcv_msg.sender),
             attr("price", offering.price.to_string()),
             attr("token_id", offering.token_id),
-            // attr("offering_id", offering_result.id),
         ],
         data: None,
     })

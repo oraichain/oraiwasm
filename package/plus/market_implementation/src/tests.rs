@@ -962,7 +962,7 @@ fn test_royalties() {
 }
 
 #[test]
-fn withdraw_offering_happy_path() {
+fn withdraw_offering() {
     let storage = Storage::new();
     let (mut deps, contract_env) = setup_contract(&storage);
 
@@ -1003,9 +1003,21 @@ fn withdraw_offering_happy_path() {
 
     // withdraw offering
     let withdraw_info = mock_info("seller", &coins(2, DENOM));
+    let withdraw_info_unauthorized = mock_info("sellerr", &coins(2, DENOM));
     let withdraw_msg = HandleMsg::WithdrawNft {
         offering_id: res.offerings[0].id.clone(),
     };
+
+    // unhappy path
+    let _res_unhappy = storage.handle(
+        deps.as_mut(),
+        contract_env.clone(),
+        withdraw_info_unauthorized,
+        withdraw_msg.clone(),
+    );
+    assert_eq!(_res_unhappy.is_err(), true);
+
+    // happy path
     let _res = storage
         .handle(
             deps.as_mut(),
@@ -1148,4 +1160,49 @@ fn creator_update_royalty_happy_path() {
     let owner_royalty = offering_result.royalty_owner;
     assert_eq!(royalty, 20);
     assert_eq!(owner_royalty, None);
+}
+
+#[test]
+fn test_royalties_unhappy() {
+    let storage = Storage::new();
+    let (mut deps, contract_env) = setup_contract(&storage);
+
+    // beneficiary can release it
+    let info = mock_info("offering", &coins(2, DENOM));
+
+    let sell_msg = SellNft {
+        off_price: Uint128(50),
+        royalty: Some(10),
+    };
+
+    println!("msg :{}", to_binary(&sell_msg).unwrap());
+
+    let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+        sender: HumanAddr::from("seller"),
+        token_id: String::from("SellableNFT"),
+        msg: to_binary(&sell_msg).ok(),
+    });
+    let _res = storage
+        .handle(
+            deps.as_mut(),
+            contract_env.clone(),
+            info.clone(),
+            msg.clone(),
+        )
+        .unwrap();
+
+    // already on sale case
+    let _res_already_sale = storage.handle(deps.as_mut(), contract_env.clone(), info.clone(), msg);
+    assert_eq!(_res_already_sale.is_err(), true);
+
+    // insufficient funds
+    let buy_msg = HandleMsg::BuyNft { offering_id: 1 };
+    let info_buy = mock_info("buyer", &coins(49, DENOM));
+    let _res_insufficient_funds = storage.handle(
+        deps.as_mut(),
+        contract_env.clone(),
+        info_buy,
+        buy_msg.clone(),
+    );
+    assert_eq!(_res_insufficient_funds.is_err(), true);
 }

@@ -67,7 +67,7 @@ pub fn try_update_auction(
     }
 
     // if no id then create new one as insert
-    if let None = auction.id {
+    if auction.id.is_none() {
         auction.id = Some(increment_auctions(deps.storage)?);
     };
 
@@ -76,7 +76,10 @@ pub fn try_update_auction(
 
     return Ok(HandleResponse {
         messages: vec![],
-        attributes: vec![attr("action", "update_auction")],
+        attributes: vec![
+            attr("action", "update_auction"),
+            attr("auction_id", auction.id.unwrap()),
+        ],
         data: None,
     });
 }
@@ -96,7 +99,7 @@ pub fn try_remove_auction(
 
     return Ok(HandleResponse {
         messages: vec![],
-        attributes: vec![attr("action", "remove_auction")],
+        attributes: vec![attr("action", "remove_auction"), attr("auction_id", id)],
         data: None,
     });
 }

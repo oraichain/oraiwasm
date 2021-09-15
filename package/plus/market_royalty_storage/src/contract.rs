@@ -114,7 +114,7 @@ pub fn try_update_offering(
         return Err(ContractError::Unauthorized {});
     };
     // if no id then create new one as insert
-    if let None = offering.id {
+    if offering.id.is_none() {
         offering.id = Some(increment_offerings(deps.storage)?);
     };
 
@@ -129,7 +129,10 @@ pub fn try_update_offering(
 
     return Ok(HandleResponse {
         messages: vec![],
-        attributes: vec![attr("action", "update_offering")],
+        attributes: vec![
+            attr("action", "update_offering"),
+            attr("offering_id", offering.id.unwrap()),
+        ],
         data: None,
     });
 }
@@ -150,7 +153,7 @@ pub fn try_withdraw_offering(
 
     return Ok(HandleResponse {
         messages: vec![],
-        attributes: vec![attr("action", "remove_offering")],
+        attributes: vec![attr("action", "remove_offering"), attr("offering_id", id)],
         data: None,
     });
 }
