@@ -146,11 +146,17 @@ pub fn handle_update_storage_data(
     msg: Binary,
 ) -> Result<HandleResponse, ContractError> {
     let registry_obj = registry_read(deps.storage).load()?;
+    let admin_list = admin_list_read(deps.storage).load()?;
+    let sender_canonical = deps.api.canonical_address(&info.sender)?;
 
     let can_update = registry_obj
         .implementations
         .iter()
-        .any(|f| f.eq(&info.sender));
+        .any(|f| f.eq(&info.sender))
+        || admin_list.admins.iter().any(|f| f.eq(&sender_canonical));
+
+    // can_update = admin_list.admins.iter().any(|f| f.eq(&sender_canonical));
+
     if !can_update {
         return Err(ContractError::Unauthorized {});
     }
