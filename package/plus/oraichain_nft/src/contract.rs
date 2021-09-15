@@ -120,7 +120,7 @@ pub fn handle_mint(
     Ok(HandleResponse {
         messages: vec![],
         attributes: vec![
-            attr("action", "mint"),
+            attr("action", "mint_nft"),
             attr("minter", info.sender),
             attr("token_id", msg.token_id),
         ],

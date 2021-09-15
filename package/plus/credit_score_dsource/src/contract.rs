@@ -1,1 +1,0 @@
-provider::create_contract!();
