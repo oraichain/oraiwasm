@@ -75,6 +75,6 @@ fn sort_auction() {
     )
     .unwrap();
     let value: AuctionsResponse = from_binary(&res).unwrap();
-    let ids: Vec<u64> = value.items.iter().map(|f| f.id.unwrap()).collect();
+    let ids: Vec<u64> = value.items.iter().map(|f| f.id).collect();
     println!("value: {:?}", ids);
 }

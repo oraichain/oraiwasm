@@ -48,8 +48,9 @@ fn sort_offering() {
     let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
     let mut offerings: Vec<Offering> = vec![];
 
-    for i in 1..3 {
+    for i in 1u64..3u64 {
         let offering = Offering {
+            id: Some(i),
             contract_addr: deps
                 .as_ref()
                 .api
@@ -117,8 +118,9 @@ fn withdraw_offering() {
     let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
     let mut offerings: Vec<Offering> = vec![];
 
-    for i in 1..3 {
+    for i in 1u64..3u64 {
         let offering = Offering {
+            id: Some(i),
             contract_addr: deps
                 .as_ref()
                 .api

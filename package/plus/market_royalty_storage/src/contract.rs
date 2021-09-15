@@ -104,7 +104,7 @@ pub fn try_update_offering(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
-    offering: Offering,
+    mut offering: Offering,
     royalty: u64,
 ) -> Result<HandleResponse, ContractError> {
     // must check the sender is implementation contract
@@ -113,8 +113,10 @@ pub fn try_update_offering(
     if contract_info.governance.ne(&info.sender) {
         return Err(ContractError::Unauthorized {});
     };
-
-    let offering_id = increment_offerings(deps.storage)?;
+    // if no id then create new one as insert
+    if let None = offering.id {
+        offering.id = Some(increment_offerings(deps.storage)?);
+    };
 
     if offering.royalty.is_none() {
         royalties(deps.storage, &offering.contract_addr).save(
@@ -123,11 +125,11 @@ pub fn try_update_offering(
         )?;
     }
 
-    offerings().save(deps.storage, &offering_id.to_be_bytes(), &offering)?;
+    offerings().save(deps.storage, &offering.id.unwrap().to_be_bytes(), &offering)?;
 
     return Ok(HandleResponse {
         messages: vec![],
-        attributes: vec![attr("action", "update_auction")],
+        attributes: vec![attr("action", "update_offering")],
         data: None,
     });
 }
@@ -148,7 +150,7 @@ pub fn try_withdraw_offering(
 
     return Ok(HandleResponse {
         messages: vec![],
-        attributes: vec![attr("action", "remove_auction")],
+        attributes: vec![attr("action", "remove_offering")],
         data: None,
     });
 }
@@ -337,7 +339,6 @@ pub fn query_royalty(
 ) -> StdResult<(CanonicalAddr, u64)> {
     let contract_id = deps.api.canonical_address(&contract_id)?;
     let royalties = royalties_read(deps.storage, &contract_id).load(token_id.as_bytes())?;
-    println!("royalty in query royalty: {:?}", royalties);
     Ok(royalties)
 }
 

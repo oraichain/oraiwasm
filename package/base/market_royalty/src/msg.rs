@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Offering {
+    pub id: Option<u64>,
     pub token_id: String,
     pub contract_addr: CanonicalAddr,
     pub seller: CanonicalAddr,

@@ -276,6 +276,7 @@ pub fn handle_sell_nft(
         royalty = None;
     }
     let offering = Offering {
+        id: None,
         token_id: rcv_msg.token_id,
         contract_addr: deps.api.canonical_address(&info.sender)?,
         seller: deps.api.canonical_address(&rcv_msg.sender)?,
@@ -310,10 +311,6 @@ pub fn handle_sell_nft(
 
 pub fn query_offering(deps: Deps, msg: OfferingQueryMsg) -> StdResult<Binary> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
-    println!(
-        "storage address: {:?}",
-        get_storage_addr(deps, contract_info.governance.clone(), OFFERING_STORAGE)?
-    );
     query_proxy(
         deps,
         get_storage_addr(deps, contract_info.governance, OFFERING_STORAGE)?,

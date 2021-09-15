@@ -2,6 +2,8 @@ use cosmwasm_std::{CanonicalAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::QueryAuctionsResult;
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct PagingOptions {
     pub offset: Option<u64>,
@@ -11,7 +13,7 @@ pub struct PagingOptions {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AuctionsResponse {
-    pub items: Vec<Auction>,
+    pub items: Vec<QueryAuctionsResult>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
