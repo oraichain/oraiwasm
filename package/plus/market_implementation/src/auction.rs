@@ -36,9 +36,7 @@ pub fn try_bid_nft(
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id }),
-            // governance.clone(),
-            // &get_auction_query_msg(AUCTION_STORAGE, AuctionQueryMsg::GetAuction { auction_id })?,
+            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id }),
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
@@ -130,9 +128,7 @@ pub fn try_claim_winner(
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id }),
-            // governance.clone(),
-            // &get_auction_query_msg(AUCTION_STORAGE, AuctionQueryMsg::GetAuction { auction_id })?,
+            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id }),
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
@@ -321,9 +317,7 @@ pub fn try_cancel_bid(
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id }),
-            // governance.clone(),
-            // &get_auction_query_msg(AUCTION_STORAGE, AuctionQueryMsg::GetAuction { auction_id })?,
+            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id }),
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
@@ -414,9 +408,7 @@ pub fn try_emergency_cancel_auction(
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id }),
-            // governance.clone(),
-            // &get_auction_query_msg(AUCTION_STORAGE, AuctionQueryMsg::GetAuction { auction_id })?,
+            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id }),
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 

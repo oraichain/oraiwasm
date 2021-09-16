@@ -83,10 +83,7 @@ fn sort_auction() {
     let res = query(
         deps.as_ref(),
         contract_env.clone(),
-        QueryMsg::Auction(AuctionQueryMsg::GetAuctionByContractTokenId {
-            contract: HumanAddr::from("contract_addr"),
-            token_id: "2".to_string(),
-        }),
+        QueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id: 1 }),
     )
     .unwrap();
     let value: QueryAuctionsResult = from_binary(&res).unwrap();

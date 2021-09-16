@@ -22,6 +22,9 @@ pub enum AuctionQueryMsg {
         contract: HumanAddr,
         options: PagingOptions,
     },
+    GetAuctionRaw {
+        auction_id: u64,
+    },
     GetAuction {
         auction_id: u64,
     },

@@ -123,6 +123,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             AuctionQueryMsg::GetAuction { auction_id } => {
                 to_binary(&query_auction(deps, auction_id)?)
             }
+            AuctionQueryMsg::GetAuctionRaw { auction_id } => {
+                to_binary(&query_auction_raw(deps, auction_id)?)
+            }
             AuctionQueryMsg::GetAuctionByContractTokenId { contract, token_id } => to_binary(
                 &query_auction_by_contract_tokenid(deps, contract, token_id)?,
             ),
@@ -221,8 +224,14 @@ pub fn query_auctions_by_contract(
     Ok(AuctionsResponse { items: res? })
 }
 
-pub fn query_auction(deps: Deps, auction_id: u64) -> StdResult<Auction> {
+pub fn query_auction_raw(deps: Deps, auction_id: u64) -> StdResult<Auction> {
     auctions().load(deps.storage, &auction_id.to_be_bytes())
+}
+
+pub fn query_auction(deps: Deps, auction_id: u64) -> StdResult<QueryAuctionsResult> {
+    let auction = auctions().load(deps.storage, &auction_id.to_be_bytes())?;
+    let kv_item: KV<Auction> = (auction_id.to_be_bytes().to_vec(), auction);
+    return parse_auction(deps.api, Ok(kv_item));
 }
 
 pub fn query_auction_by_contract_tokenid(
