@@ -11,7 +11,10 @@ use crate::msg::TokenId;
 pub enum Cw1155QueryMsg {
     /// Returns the current balance of the given address, 0 if unset.
     /// Return type: BalanceResponse.
-    Balance { owner: String, token_id: TokenId },
+    Balance {
+        owner: String,
+        token_id: TokenId,
+    },
     /// Returns the current balance of the given address for a batch of tokens, 0 if unset.
     /// Return type: BatchBalanceResponse.
     BatchBalance {
@@ -29,12 +32,20 @@ pub enum Cw1155QueryMsg {
     },
     /// Query approved status `owner` granted to `operator`.
     /// Return type: IsApprovedForAllResponse
-    IsApprovedForAll { owner: String, operator: String },
+    IsApprovedForAll {
+        owner: String,
+        operator: String,
+    },
 
     /// With MetaData Extension.
     /// Query metadata of token
     /// Return type: TokenInfoResponse.
-    TokenInfo { token_id: TokenId },
+    TokenInfo {
+        token_id: TokenId,
+    },
+    CreatorOf {
+        token_id: TokenId,
+    },
 
     /// With Enumerable extension.
     /// Returns all tokens owned by the given address, [] if unset.

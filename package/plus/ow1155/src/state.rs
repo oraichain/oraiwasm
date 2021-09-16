@@ -7,6 +7,8 @@ use cw_storage_plus::{Item, Map};
 pub const MINTER: Item<HumanAddr> = Item::new("minter");
 /// Store the balance map, `(owner, token_id) -> balance`
 pub const BALANCES: Map<(&[u8], &[u8]), Uint128> = Map::new("balances");
+/// Store the creator map, `token_id -> creator`
+pub const CREATORS: Map<&[u8], HumanAddr> = Map::new("creators");
 /// Store the approval status, `(owner, spender) -> expiration`
 pub const APPROVES: Map<(&[u8], &[u8]), Expiration> = Map::new("approves");
 /// Store the tokens metadata url, also supports enumerating tokens,
