@@ -29,7 +29,7 @@ pub enum HandleMsg {
     ClaimWinner {
         auction_id: u64,
     },
-    /// Ask an NFT for a minimum price, must pay fee for auction maketplace
+    // Ask an NFT for a minimum price, must pay fee for auction maketplace
     ReceiveNft(Cw721ReceiveMsg),
 
     // withdraw funds from auction marketplace to the owner wallet
