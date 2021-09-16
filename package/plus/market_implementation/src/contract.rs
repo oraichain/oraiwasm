@@ -43,7 +43,7 @@ pub fn init(
         creator: info.sender.to_string(),
         denom: msg.denom,
         fee: sanitize_fee(msg.fee, MAX_FEE_PERMILLE, "fee")?,
-        auction_blocks: msg.auction_blocks,
+        auction_duration: msg.auction_duration,
         step_price: msg.step_price,
         governance: msg.governance,
         max_royalty: sanitize_royalty(msg.max_royalty, MAX_ROYALTY_PERCENT, "max_royalty")?,
@@ -136,8 +136,8 @@ pub fn try_update_info(
         if let Some(fee) = msg.fee {
             contract_info.fee = sanitize_fee(fee, MAX_FEE_PERMILLE, "fee")?;
         }
-        if let Some(auction_blocks) = msg.auction_blocks {
-            contract_info.auction_blocks = auction_blocks
+        if let Some(auction_duration) = msg.auction_duration {
+            contract_info.auction_duration = auction_duration
         }
         if let Some(step_price) = msg.step_price {
             contract_info.step_price = step_price

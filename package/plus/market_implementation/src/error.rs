@@ -55,8 +55,11 @@ pub enum ContractError {
     #[error("Auction is not finished yet")]
     AuctionNotFinished {},
 
-    #[error("The start {start} and end {end} are invalid")]
-    InvalidBlockNumberArgument { start: u64, end: u64 },
+    #[error("The start {start_timestamp} and end {end_timestamp} are invalid")]
+    InvalidBlockNumberArgument {
+        start_timestamp: Uint128,
+        end_timestamp: Uint128,
+    },
 
     #[error("Expected bidder: {bidder}, got: {sender}")]
     InvalidBidder { bidder: String, sender: String },

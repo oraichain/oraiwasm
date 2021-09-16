@@ -10,7 +10,7 @@ pub struct InitMsg {
     pub name: String,
     pub fee: u64,
     pub denom: String,
-    pub auction_blocks: u64,
+    pub auction_duration: Uint128,
     pub step_price: u64,
     pub governance: HumanAddr,
     pub max_royalty: u64,
@@ -79,7 +79,7 @@ pub struct UpdateContractMsg {
     pub creator: Option<String>,
     pub fee: Option<u64>,
     pub denom: Option<String>,
-    pub auction_blocks: Option<u64>,
+    pub auction_duration: Option<Uint128>,
     pub step_price: Option<u64>,
 }
 

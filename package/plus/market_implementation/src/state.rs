@@ -1,4 +1,4 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::{HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +13,7 @@ pub struct ContractInfo {
     /// the accepted denom
     pub denom: String,
     /// this defines the number of blocks until the end of auction
-    pub auction_blocks: u64,
+    pub auction_duration: Uint128,
     pub step_price: u64,
     pub governance: HumanAddr,
     pub max_royalty: u64,
