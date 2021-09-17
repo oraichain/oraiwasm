@@ -3,7 +3,7 @@ use cosmwasm_std::HumanAddr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::Offering;
+use crate::{Offering, Payout};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
@@ -32,10 +32,6 @@ pub enum OfferingQueryMsg {
     GetOfferingState {
         offering_id: u64,
     },
-    GetPayoutsByContractTokenId {
-        contract: HumanAddr,
-        token_id: String,
-    },
     GetOfferingByContractTokenId {
         contract: HumanAddr,
         token_id: String,
@@ -43,11 +39,18 @@ pub enum OfferingQueryMsg {
     GetRoyalty {
         contract_addr: HumanAddr,
         token_id: String,
+        owner: HumanAddr,
     },
     GetContractInfo {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct OfferingQueryResponse {
+    pub offering: Offering,
+    pub royalty: Option<Payout>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OfferingsResponse {
-    pub offerings: Vec<Offering>,
+    pub offerings: Vec<OfferingQueryResponse>,
 }

@@ -11,16 +11,19 @@ pub struct Offering {
     pub seller: HumanAddr,
     pub per_price: Uint128,
     pub amount: Uint128,
-    // percentage for seller(previous-owner) of the NFT
-    pub per_royalty: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OfferingHandleMsg {
     // this allow implementation contract to update the storage
-    UpdateOffering { offering: Offering, royalty: u64 },
-    RemoveOffering { id: u64 },
+    UpdateOffering {
+        offering: Offering,
+        royalty: Option<u64>,
+    },
+    RemoveOffering {
+        id: u64,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -30,4 +33,13 @@ pub struct InfoMsg {
     pub fee: Option<u64>,
     pub denom: Option<String>,
     pub max_royalty: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+/// payout royalty for creator and owner, can be zero
+pub struct Payout {
+    pub contract: HumanAddr,
+    pub owner: HumanAddr,
+    pub amount: Uint128,
+    pub per_royalty: u64,
 }
