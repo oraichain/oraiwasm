@@ -4,6 +4,7 @@ use crate::state::{
     get_contract_token_id, increment_offerings, offerings, royalties, royalties_read, ContractInfo,
     CONTRACT_INFO,
 };
+use cw1155::Cw1155QueryMsg;
 use market_1155::{
     OfferingHandleMsg, OfferingQueryMsg, OfferingQueryResponse, OfferingsResponse, Payout,
 };
@@ -159,6 +160,8 @@ pub fn try_update_royalty(
         &payout,
     )?;
 
+    println!("in here after updating royalty with payout: {:?}", payout);
+
     return Ok(HandleResponse {
         messages: vec![],
         attributes: vec![
@@ -222,13 +225,19 @@ fn _get_range_params(
     (limit, min, max, order_enum)
 }
 
-pub fn parse_query<'a>(
-    storage: &dyn Storage,
-    offerings: &[Offering],
-) -> Vec<OfferingQueryResponse> {
+pub fn parse_query(deps: Deps, offerings: &[Offering]) -> Vec<OfferingQueryResponse> {
     let mut offerings_response: Vec<OfferingQueryResponse> = vec![];
     for off in offerings.to_owned() {
-        let royalty = query_royalty(storage, &off.contract_addr, &off.token_id, &off.seller);
+        let creator = query_creator_of(deps, &off.contract_addr, &off.token_id);
+        let mut royalty = None;
+        if creator.is_ok() {
+            royalty = query_royalty(
+                deps.storage,
+                &off.contract_addr,
+                &off.token_id,
+                &creator.unwrap(),
+            );
+        }
         let response = OfferingQueryResponse {
             offering: off.clone(),
             royalty,
@@ -251,7 +260,7 @@ pub fn query_offerings(
         .take(limit)
         .map(|kv_item| parse_offering(kv_item))
         .collect();
-    let offerings_response = parse_query(deps.storage, &offerings_result?);
+    let offerings_response = parse_query(deps, &offerings_result?);
     Ok(OfferingsResponse {
         offerings: offerings_response,
     })
@@ -282,7 +291,7 @@ pub fn query_offerings_by_seller(
         .map(|kv_item| parse_offering(kv_item))
         .collect();
 
-    let offerings_response = parse_query(deps.storage, &offerings_result?);
+    let offerings_response = parse_query(deps, &offerings_result?);
     Ok(OfferingsResponse {
         offerings: offerings_response,
     })
@@ -304,7 +313,7 @@ pub fn query_offerings_by_contract(
         .map(|kv_item| parse_offering(kv_item))
         .collect();
 
-    let offerings_response = parse_query(deps.storage, &offerings_result?);
+    let offerings_response = parse_query(deps, &offerings_result?);
     Ok(OfferingsResponse {
         offerings: offerings_response,
     })
@@ -312,7 +321,16 @@ pub fn query_offerings_by_contract(
 
 pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<OfferingQueryResponse> {
     let off = offerings().load(deps.storage, &offering_id.to_be_bytes())?;
-    let royalty = query_royalty(deps.storage, &off.contract_addr, &off.token_id, &off.seller);
+    let creator = query_creator_of(deps, &off.contract_addr, &off.token_id);
+    let mut royalty = None;
+    if creator.is_ok() {
+        royalty = query_royalty(
+            deps.storage,
+            &off.contract_addr,
+            &off.token_id,
+            &creator.unwrap(),
+        );
+    }
     Ok(OfferingQueryResponse {
         offering: off,
         royalty,
@@ -335,7 +353,16 @@ pub fn query_offering_by_contract_tokenid(
         .item(deps.storage, get_contract_token_id(&contract, &token_id))?;
     if let Some(offering_obj) = offering {
         let off = offering_obj.1;
-        let royalty = query_royalty(deps.storage, &off.contract_addr, &off.token_id, &off.seller);
+        let creator = query_creator_of(deps, &off.contract_addr, &off.token_id);
+        let mut royalty = None;
+        if creator.is_ok() {
+            royalty = query_royalty(
+                deps.storage,
+                &off.contract_addr,
+                &off.token_id,
+                &creator.unwrap(),
+            );
+        }
 
         Ok(OfferingQueryResponse {
             offering: off,
@@ -348,6 +375,20 @@ pub fn query_offering_by_contract_tokenid(
 
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
+}
+
+pub fn query_creator_of(
+    deps: Deps,
+    contract_addr: &HumanAddr,
+    token_id: &str,
+) -> StdResult<HumanAddr> {
+    let creator_result: HumanAddr = deps.querier.query_wasm_smart(
+        &contract_addr,
+        &Cw1155QueryMsg::CreatorOf {
+            token_id: token_id.to_string(),
+        },
+    )?;
+    Ok(creator_result)
 }
 
 pub fn query_royalty(

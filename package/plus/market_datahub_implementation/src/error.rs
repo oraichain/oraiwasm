@@ -16,6 +16,9 @@ pub enum ContractError {
     #[error("Insufficient funds")]
     InsufficientFunds {},
 
+    #[error("Cannot find creator of the given token")]
+    CannotFindCreator {},
+
     #[error("Invalid zero amount")]
     InvalidZeroAmount {},
 

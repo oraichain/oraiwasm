@@ -45,3 +45,4 @@ thiserror = { version = "1.0.21" }
 cosmwasm-schema = { version = "0.13.2" }
 market_hub = { path = "../market_hub" }
 market_1155_storage = { path = "../market_1155_storage" }
+ow1155 = { path = "../ow1155" }

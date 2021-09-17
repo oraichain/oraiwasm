@@ -13,6 +13,7 @@ use market_1155::OfferingHandleMsg;
 use market_1155::OfferingQueryMsg;
 use market_1155::OfferingQueryResponse;
 use market_1155::OfferingsResponse;
+use market_1155::Payout;
 
 const CREATOR: &str = "marketplace";
 const DENOM: &str = "MGK";
@@ -134,6 +135,33 @@ fn sort_offering() {
 
     let res_second = query_offering_ids(deps.as_ref()).unwrap();
     println!("value list ids: {:?}", res_second);
+
+    // add royalty
+    let royalty_msg = HandleMsg::Offering(OfferingHandleMsg::UpdateRoyalty(Payout {
+        contract: HumanAddr::from("xxx"),
+        token_id: "1".to_string(),
+        owner: HumanAddr::from("seller"),
+        amount: Uint128::from(10u64),
+        per_royalty: 10,
+    }));
+
+    handle(deps.as_mut(), mock_env(), info.clone(), royalty_msg).unwrap();
+
+    // query royalty
+    let res: Option<Payout> = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::Offering(OfferingQueryMsg::GetRoyalty {
+                contract_addr: HumanAddr::from("xxx"),
+                token_id: "1".to_string(),
+                owner: HumanAddr::from("seller"),
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    println!("royalty: {:?}", res);
 }
 
 #[test]
@@ -178,4 +206,36 @@ fn withdraw_offering() {
     let value: OfferingsResponse = from_binary(&res).unwrap();
     println!("value: {:?}", value);
     assert_eq!(value.offerings.len(), 1);
+}
+
+#[test]
+fn test_royalty() {
+    let mut deps = setup_contract();
+
+    // beneficiary can release it
+    let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
+
+    let offering = Payout {
+        contract: HumanAddr::from("xxx"),
+        token_id: "1".to_string(),
+        owner: HumanAddr::from("seller"),
+        per_royalty: 1u64,
+        amount: Uint128::from(1u64),
+    };
+
+    let msg = HandleMsg::Offering(OfferingHandleMsg::UpdateRoyalty(offering));
+    let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Offering(OfferingQueryMsg::GetRoyalty {
+            contract_addr: HumanAddr::from("xxx"),
+            token_id: "1".to_string(),
+            owner: HumanAddr::from("seller"),
+        }),
+    )
+    .unwrap();
+    let value: Option<Payout> = from_binary(&res).unwrap();
+    println!("value: {:?}", value);
 }

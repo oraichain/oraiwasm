@@ -101,12 +101,15 @@ pub fn try_buy(
 
             // pay for owner
             // collect the creator of the token
-            let creator_of: HumanAddr = deps.querier.query_wasm_smart(
-                info.sender.clone(),
-                &Cw1155QueryMsg::CreatorOf {
-                    token_id: off.token_id.clone(),
-                },
-            )?;
+            let creator_of: HumanAddr = deps
+                .querier
+                .query_wasm_smart(
+                    off.contract_addr.clone(),
+                    &Cw1155QueryMsg::CreatorOf {
+                        token_id: off.token_id.clone(),
+                    },
+                )
+                .map_err(|_| ContractError::CannotFindCreator {})?;
 
             let royalty: Option<Payout> = deps.querier.query_wasm_smart(
                 get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
@@ -195,12 +198,15 @@ pub fn try_update_royalty(
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     // collect the creator of the token
-    let creator_of: HumanAddr = deps.querier.query_wasm_smart(
-        info.sender.clone(),
-        &Cw1155QueryMsg::CreatorOf {
-            token_id: payout.token_id.clone(),
-        },
-    )?;
+    let creator_of: HumanAddr = deps
+        .querier
+        .query_wasm_smart(
+            &payout.contract,
+            &Cw1155QueryMsg::CreatorOf {
+                token_id: payout.token_id.clone(),
+            },
+        )
+        .map_err(|_| ContractError::CannotFindCreator {})?;
     let mut cosmos_msgs = vec![];
     if creator_of.eq(&info.sender) {
         let royalty: Option<Payout> = deps.querier.query_wasm_smart(
@@ -332,14 +338,40 @@ pub fn handle_sell_nft(
     };
 
     let mut cosmos_msgs = vec![];
-    // push save message to auction_storage
+    // push save message to datahub storage
     cosmos_msgs.push(get_offering_handle_msg(
-        governance,
+        governance.clone(),
         OFFERING_STORAGE,
         OfferingHandleMsg::UpdateOffering {
             offering: offering.clone(),
         },
     )?);
+
+    // update royalty if has
+    if let Some(royalty) = msg.royalty {
+        // get creator for storing royalty
+        // collect the creator of the token
+        let creator_of: HumanAddr = deps
+            .querier
+            .query_wasm_smart(
+                &info.sender,
+                &Cw1155QueryMsg::CreatorOf {
+                    token_id: offering.token_id.clone(),
+                },
+            )
+            .map_err(|_| ContractError::CannotFindCreator {})?;
+        cosmos_msgs.push(get_offering_handle_msg(
+            governance,
+            OFFERING_STORAGE,
+            OfferingHandleMsg::UpdateRoyalty(Payout {
+                contract: info.sender.clone(),
+                token_id: offering.token_id.clone(),
+                owner: creator_of,
+                amount: rcv_msg.amount,
+                per_royalty: royalty,
+            }),
+        )?);
+    }
 
     Ok(HandleResponse {
         messages: cosmos_msgs,
