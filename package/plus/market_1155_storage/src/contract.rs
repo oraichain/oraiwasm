@@ -47,9 +47,10 @@ pub fn handle(
 ) -> Result<HandleResponse, ContractError> {
     match msg {
         HandleMsg::Offering(offering_handle) => match offering_handle {
-            OfferingHandleMsg::UpdateOffering { offering, royalty } => {
-                try_update_offering(deps, info, env, offering, royalty)
+            OfferingHandleMsg::UpdateOffering { offering } => {
+                try_update_offering(deps, info, env, offering)
             }
+            OfferingHandleMsg::UpdateRoyalty(payout) => try_update_royalty(deps, info, env, payout),
             OfferingHandleMsg::RemoveOffering { id } => try_withdraw_offering(deps, info, env, id),
         },
     }
@@ -116,7 +117,6 @@ pub fn try_update_offering(
     info: MessageInfo,
     _env: Env,
     mut offering: Offering,
-    per_royalty: Option<u64>,
 ) -> Result<HandleResponse, ContractError> {
     // must check the sender is implementation contract
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
@@ -129,19 +129,6 @@ pub fn try_update_offering(
         offering.id = Some(increment_offerings(deps.storage)?);
     };
 
-    if let Some(per_royalty) = per_royalty {
-        let payout = Payout {
-            contract: offering.contract_addr.clone(),
-            owner: offering.seller.clone(),
-            amount: offering.amount,
-            per_royalty,
-        };
-        royalties(deps.storage, &offering.contract_addr).save(
-            get_key_royalty(&per_royalty.to_be_bytes(), offering.seller.as_bytes()).as_slice(),
-            &payout,
-        )?;
-    }
-
     offerings().save(deps.storage, &offering.id.unwrap().to_be_bytes(), &offering)?;
 
     return Ok(HandleResponse {
@@ -149,6 +136,38 @@ pub fn try_update_offering(
         attributes: vec![
             attr("action", "update_offering"),
             attr("offering_id", offering.id.unwrap()),
+        ],
+        data: None,
+    });
+}
+
+pub fn try_update_royalty(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    payout: Payout,
+) -> Result<HandleResponse, ContractError> {
+    // must check the sender is implementation contract
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+
+    if contract_info.governance.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    };
+
+    royalties(deps.storage, &payout.contract).save(
+        get_key_royalty(&payout.token_id.as_bytes(), payout.owner.as_bytes()).as_slice(),
+        &payout,
+    )?;
+
+    return Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("action", "update_royalty"),
+            attr("token_id", payout.token_id),
+            attr("contract_addr", payout.contract),
+            attr("owner", payout.owner),
+            attr("amount", payout.amount),
+            attr("per_royalty", payout.per_royalty),
         ],
         data: None,
     });

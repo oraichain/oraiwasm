@@ -62,10 +62,7 @@ fn sort_offering() {
     }
 
     for off in offerings {
-        let msg = HandleMsg::Offering(OfferingHandleMsg::UpdateOffering {
-            offering: off,
-            royalty: Some(1),
-        });
+        let msg = HandleMsg::Offering(OfferingHandleMsg::UpdateOffering { offering: off });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
@@ -160,10 +157,7 @@ fn withdraw_offering() {
     }
 
     for off in offerings {
-        let msg = HandleMsg::Offering(OfferingHandleMsg::UpdateOffering {
-            offering: off,
-            royalty: Some(1),
-        });
+        let msg = HandleMsg::Offering(OfferingHandleMsg::UpdateOffering { offering: off });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
