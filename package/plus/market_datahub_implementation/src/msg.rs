@@ -17,7 +17,7 @@ pub struct InitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     // Ask an NFT for a minimum price, must pay fee for auction maketplace
-    ReceiveNft(Cw1155ReceiveMsg),
+    Receive(Cw1155ReceiveMsg),
 
     // withdraw funds from auction marketplace to the owner wallet
     WithdrawFunds {

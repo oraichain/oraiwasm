@@ -279,7 +279,7 @@ fn test_royalties() {
 
     // beneficiary can release it
     let info_sell = mock_info(OW_1155_ADDR, &vec![coin(50, DENOM)]);
-    let msg = HandleMsg::ReceiveNft(Cw1155ReceiveMsg {
+    let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
         operator: "creator".to_string(),
         token_id: String::from("SellableNFT"),
         from: None,
@@ -328,7 +328,7 @@ fn test_royalties() {
         .unwrap();
 
     let info_sell = mock_info(OW_1155_ADDR, &vec![coin(50, DENOM)]);
-    let msg = HandleMsg::ReceiveNft(Cw1155ReceiveMsg {
+    let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
         operator: "seller".to_string(),
         token_id: String::from("SellableNFT"),
         from: None,
@@ -445,7 +445,7 @@ fn withdraw_offering() {
 
     println!("msg :{}", to_binary(&sell_msg).unwrap());
 
-    let msg = HandleMsg::ReceiveNft(Cw1155ReceiveMsg {
+    let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
         operator: "seller".to_string(),
         token_id: String::from("SellableNFT"),
         from: None,
@@ -534,7 +534,7 @@ fn withdraw_offering() {
 
 //     println!("msg :{}", to_binary(&sell_msg).unwrap());
 
-//     let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+//     let msg = HandleMsg::Receive(Cw721ReceiveMsg {
 //         sender: HumanAddr::from("seller"),
 //         token_id: String::from("SellableNFT"),
 //         msg: to_binary(&sell_msg).ok(),
@@ -571,7 +571,7 @@ fn withdraw_offering() {
 //         .unwrap();
 
 //     // sell again
-//     let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+//     let msg = HandleMsg::Receive(Cw721ReceiveMsg {
 //         sender: HumanAddr::from("buyer"),
 //         token_id: String::from("SellableNFT"),
 //         msg: to_binary(&SellNft {
@@ -608,7 +608,7 @@ fn withdraw_offering() {
 //         .unwrap();
 
 //     // finally, creator sells again to reset royalty
-//     let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+//     let msg = HandleMsg::Receive(Cw721ReceiveMsg {
 //         sender: HumanAddr::from("seller"),
 //         token_id: String::from("SellableNFT"),
 //         msg: to_binary(&SellNft {
@@ -652,7 +652,7 @@ fn test_royalties_unhappy() {
 
     println!("msg :{}", to_binary(&sell_msg).unwrap());
 
-    let msg = HandleMsg::ReceiveNft(Cw1155ReceiveMsg {
+    let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
         operator: "seller".to_string(),
         token_id: String::from("SellableNFT"),
         from: None,

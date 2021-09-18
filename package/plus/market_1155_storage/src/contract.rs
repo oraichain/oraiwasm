@@ -382,8 +382,10 @@ pub fn query_creator_of(
     contract_addr: &HumanAddr,
     token_id: &str,
 ) -> StdResult<HumanAddr> {
+    println!("contract address query creator: {:?}", contract_addr);
+    println!("token id: {:?}", token_id);
     let creator_result: HumanAddr = deps.querier.query_wasm_smart(
-        &contract_addr,
+        contract_addr,
         &Cw1155QueryMsg::CreatorOf {
             token_id: token_id.to_string(),
         },

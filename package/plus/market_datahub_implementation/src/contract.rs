@@ -51,7 +51,7 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::ReceiveNft(msg) => try_receive_nft(deps, info, env, msg),
+        HandleMsg::Receive(msg) => try_receive_nft(deps, info, env, msg),
         HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
         // royalty
