@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
-    Order, StdError, StdResult, Uint128, KV,
+    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
+    MessageInfo, Order, StdError, StdResult, Uint128, KV,
 };
 use cw_storage_plus::Bound;
 
@@ -12,7 +12,7 @@ use cw1155::{
 
 use crate::error::{ContractError, DivideByZeroError, OverflowError, OverflowOperation};
 use crate::msg::InstantiateMsg;
-use crate::state::{APPROVES, BALANCES, CREATORS, MINTER, TOKENS};
+use crate::state::{APPROVES, BALANCES, CREATORS, MINTER, OWNER, TOKENS};
 
 const DEFAULT_LIMIT: u32 = 10;
 const MAX_LIMIT: u32 = 30;
@@ -20,11 +20,12 @@ const MAX_LIMIT: u32 = 30;
 pub fn init(
     deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<InitResponse> {
     let minter = HumanAddr(msg.minter);
     MINTER.save(deps.storage, &minter)?;
+    OWNER.save(deps.storage, &info.sender)?;
     Ok(InitResponse::default())
 }
 
@@ -69,6 +70,7 @@ pub fn handle(
             value,
         } => execute_burn(env, from, token_id, value),
         Cw1155ExecuteMsg::BatchBurn { from, batch } => execute_batch_burn(env, from, batch),
+        Cw1155ExecuteMsg::ChangeMinter(minter) => change_minter(env, minter),
         Cw1155ExecuteMsg::ApproveAll { operator, expires } => {
             execute_approve_all(env, operator, expires)
         }
@@ -99,6 +101,24 @@ pub fn checked_div(this: Uint128, other: Uint128) -> StdResult<Uint128> {
         .checked_div(other.0)
         .map(Uint128)
         .ok_or_else(|| StdError::generic_err(DivideByZeroError::new(this).to_string()))
+}
+
+fn change_minter(env: ExecuteEnv, minter: String) -> Result<HandleResponse, ContractError> {
+    let owner = OWNER.load(env.deps.storage)?;
+    if !owner.eq(&env.info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+    let minter = HumanAddr(minter);
+    MINTER.save(env.deps.storage, &minter)?;
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("action", "change_minter"),
+            attr("minter", minter),
+            attr("owner", env.info.sender),
+        ],
+        data: None,
+    })
 }
 
 /// When from is None: mint new coins
@@ -491,6 +511,7 @@ pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
             to_binary(&TokenInfoResponse { url })
         }
         Cw1155QueryMsg::CreatorOf { token_id } => to_binary(&query_creator_of(deps, token_id)?),
+        Cw1155QueryMsg::Minter {} => to_binary(&query_minter(deps)?),
         Cw1155QueryMsg::Tokens {
             owner,
             start_after,
@@ -536,6 +557,11 @@ fn query_all_approvals(
 fn query_creator_of(deps: Deps, token_id: TokenId) -> StdResult<HumanAddr> {
     let creator_of = CREATORS.load(deps.storage, token_id.as_bytes())?;
     Ok(creator_of)
+}
+
+fn query_minter(deps: Deps) -> StdResult<HumanAddr> {
+    let minter = MINTER.load(deps.storage)?;
+    Ok(minter)
 }
 
 fn query_tokens(

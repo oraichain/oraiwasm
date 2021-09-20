@@ -14,3 +14,4 @@ pub const APPROVES: Map<(&[u8], &[u8]), Expiration> = Map::new("approves");
 /// Store the tokens metadata url, also supports enumerating tokens,
 /// An entry for token_id must exist as long as there's tokens in circulation.
 pub const TOKENS: Map<&[u8], String> = Map::new("tokens");
+pub const OWNER: Item<HumanAddr> = Item::new("owner");

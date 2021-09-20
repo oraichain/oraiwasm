@@ -367,7 +367,7 @@ fn cancel_auction_happy_path() {
         )
         .unwrap();
 
-    let cancel_auction_msg = HandleMsg::EmergencyCancel { auction_id: 1 };
+    let cancel_auction_msg = HandleMsg::EmergencyCancelAuction { auction_id: 1 };
     let creator_info = mock_info(CREATOR, &[]);
     let _res = storage
         .handle(
@@ -456,7 +456,7 @@ fn cancel_auction_unhappy_path() {
         .unwrap();
 
     let hacker_info = mock_info("hacker", &coins(2, DENOM));
-    let cancel_bid_msg = HandleMsg::EmergencyCancel { auction_id: 1 };
+    let cancel_bid_msg = HandleMsg::EmergencyCancelAuction { auction_id: 1 };
     let result = storage.handle(
         deps.as_mut(),
         contract_env.clone(),
@@ -1017,14 +1017,88 @@ fn withdraw_offering() {
         offering_id: res.offerings[0].id.clone(),
     };
 
-    // unhappy path
-    let _res_unhappy = storage.handle(
-        deps.as_mut(),
-        contract_env.clone(),
-        withdraw_info_unauthorized,
-        withdraw_msg.clone(),
-    );
-    assert_eq!(_res_unhappy.is_err(), true);
+    assert!(matches!(
+        storage.handle(
+            deps.as_mut(),
+            contract_env.clone(),
+            withdraw_info_unauthorized,
+            withdraw_msg.clone()
+        ),
+        Err(ContractError::Unauthorized {})
+    ));
+
+    // happy path
+    let _res = storage
+        .handle(
+            deps.as_mut(),
+            contract_env.clone(),
+            withdraw_info,
+            withdraw_msg,
+        )
+        .unwrap();
+
+    // Offering should be removed
+    let res2: OfferingsResponse = from_binary(
+        &query(
+            deps.as_ref(),
+            contract_env.clone(),
+            QueryMsg::Offering(OfferingQueryMsg::GetOfferings {
+                offset: None,
+                limit: None,
+                order: None,
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(0, res2.offerings.len());
+}
+
+#[test]
+fn admin_withdraw_offering() {
+    let storage = Storage::new();
+    let (mut deps, contract_env) = setup_contract(&storage);
+
+    // beneficiary can release it
+    let info = mock_info("offering", &coins(2, DENOM));
+
+    let sell_msg = SellNft {
+        off_price: Uint128(50),
+        royalty: Some(10),
+    };
+
+    println!("msg :{}", to_binary(&sell_msg).unwrap());
+
+    let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+        sender: HumanAddr::from("seller"),
+        token_id: String::from("SellableNFT"),
+        msg: to_binary(&sell_msg).ok(),
+    });
+    let _res = storage
+        .handle(deps.as_mut(), contract_env.clone(), info, msg)
+        .unwrap();
+
+    // Offering should be listed
+    let res: OfferingsResponse = from_binary(
+        &query(
+            deps.as_ref(),
+            contract_env.clone(),
+            QueryMsg::Offering(OfferingQueryMsg::GetOfferings {
+                offset: None,
+                limit: None,
+                order: None,
+            }),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(1, res.offerings.len());
+
+    // withdraw offering
+    let withdraw_info = mock_info(CREATOR, &coins(2, DENOM));
+    let withdraw_msg = HandleMsg::WithdrawNft {
+        offering_id: res.offerings[0].id.clone(),
+    };
 
     // happy path
     let _res = storage

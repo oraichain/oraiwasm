@@ -1,5 +1,5 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{attr, to_binary, Binary, HandleResponse, HumanAddr, StdError};
+use cosmwasm_std::{attr, from_binary, to_binary, Binary, HandleResponse, HumanAddr, StdError};
 
 use cw1155::{
     ApprovedForAllResponse, BalanceResponse, BatchBalanceResponse, Cw1155BatchReceiveMsg,
@@ -714,4 +714,42 @@ fn mint_overflow() {
         // only match type
         Err(ContractError::Std(StdError::GenericErr { .. }))
     ));
+}
+
+#[test]
+fn change_minter() {
+    let mut deps = mock_dependencies(&[]);
+    let minter = String::from("minter");
+
+    let env = mock_env();
+    let msg = InstantiateMsg {
+        minter: minter.clone(),
+    };
+    let res = init(deps.as_mut(), env.clone(), mock_info("operator", &[]), msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    // unauthorized tx to change minter
+    assert!(matches!(
+        handle(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(HumanAddr(minter.clone()), &[]),
+            Cw1155ExecuteMsg::ChangeMinter("hello there".to_string()),
+        ),
+        // only match type
+        Err(ContractError::Unauthorized {})
+    ));
+
+    // valid handler to change minter
+    handle(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(HumanAddr("operator".to_string()), &[]),
+        Cw1155ExecuteMsg::ChangeMinter("hello there".to_string()),
+    )
+    .unwrap();
+
+    let query_msg = query(deps.as_ref(), mock_env(), Cw1155QueryMsg::Minter {}).unwrap();
+    let minter_result: HumanAddr = from_binary(&query_msg).unwrap();
+    assert_eq!(minter_result, HumanAddr("hello there".to_string()));
 }

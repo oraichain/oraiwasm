@@ -37,7 +37,7 @@ pub enum HandleMsg {
         funds: Coin,
     },
     UpdateInfo(UpdateContractMsg),
-    EmergencyCancel {
+    EmergencyCancelAuction {
         auction_id: u64,
     },
     WithdrawNft {

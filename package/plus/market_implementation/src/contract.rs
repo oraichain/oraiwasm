@@ -64,7 +64,7 @@ pub fn handle(
         HandleMsg::BidNft { auction_id } => try_bid_nft(deps, info, env, auction_id),
         HandleMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
         // HandleMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
-        HandleMsg::EmergencyCancel { auction_id } => {
+        HandleMsg::EmergencyCancelAuction { auction_id } => {
             try_emergency_cancel_auction(deps, info, env, auction_id)
         }
         HandleMsg::ReceiveNft(msg) => try_receive_nft(deps, info, env, msg),

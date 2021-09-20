@@ -190,11 +190,17 @@ pub fn try_withdraw(
     info: MessageInfo,
     offering_id: u64,
 ) -> Result<HandleResponse, ContractError> {
-    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+    let ContractInfo {
+        creator,
+        governance,
+        ..
+    } = CONTRACT_INFO.load(deps.storage)?;
     // check if token_id is currently sold by the requesting address
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
     let off: Offering = get_offering(deps.as_ref(), governance.clone(), offering_id)?;
-    if off.seller == deps.api.canonical_address(&info.sender)? {
+    if info.sender.eq(&HumanAddr(creator))
+        || off.seller == deps.api.canonical_address(&info.sender)?
+    {
         // check if token_id is currently sold by the requesting address
         // transfer token back to original owner
         let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
