@@ -1,0 +1,1 @@
+# AI Provider royalty storage contract
