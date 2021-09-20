@@ -2,8 +2,8 @@ use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryCountsResponse, QueryMsg};
 use crate::state::{config, config_read, State, MAPPED_COUNT};
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
-    Order, StdResult,
+    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
+    MessageInfo, Order, StdResult,
 };
 use cw_storage_plus::Bound;
 
@@ -31,7 +31,7 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::ChangeOwner { owner } => change_owner(deps, info, owner),
+        HandleMsg::ChangeOwner(owner) => change_owner(deps, info, owner),
         HandleMsg::Ping {} => add_ping(deps, info),
         HandleMsg::ResetPing {} => reset_ping(deps, info),
     }
@@ -42,7 +42,7 @@ pub fn change_owner(
     info: MessageInfo,
     owner: HumanAddr,
 ) -> Result<HandleResponse, ContractError> {
-    let mut state = config(deps.storage).load()?;
+    let mut state = query_state(deps.as_ref())?;
     if info.sender != state.owner {
         return Err(ContractError::Unauthorized {});
     }
@@ -51,13 +51,19 @@ pub fn change_owner(
     state.owner = owner;
     config(deps.storage).save(&state)?;
 
-    Ok(HandleResponse::default())
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "change_owner"), attr("caller", info.sender)],
+        ..HandleResponse::default()
+    })
 }
 
 pub fn add_ping(deps: DepsMut, info: MessageInfo) -> Result<HandleResponse, ContractError> {
-    let count = query_count(deps.as_ref(), &info.sender)? + 1;
+    let count = query_count(deps.as_ref(), &info.sender) + 1;
     MAPPED_COUNT.save(deps.storage, info.sender.as_bytes(), &count)?;
-    Ok(HandleResponse::default())
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "add_ping"), attr("executor", info.sender)],
+        ..HandleResponse::default()
+    })
 }
 
 pub fn reset_ping(deps: DepsMut, info: MessageInfo) -> Result<HandleResponse, ContractError> {
@@ -72,12 +78,15 @@ pub fn reset_ping(deps: DepsMut, info: MessageInfo) -> Result<HandleResponse, Co
     for res in list_counts {
         MAPPED_COUNT.save(deps.storage, res.executor.as_bytes(), &0u64)?;
     }
-    Ok(HandleResponse::default())
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "reset_ping"), attr("caller", info.sender)],
+        ..HandleResponse::default()
+    })
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetPing(executor) => to_binary(&query_count(deps, &executor)?),
+        QueryMsg::GetPing(executor) => to_binary(&query_count(deps, &executor)),
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
         QueryMsg::GetPings {
             offset,
@@ -87,10 +96,16 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_count(deps: Deps, executor: &HumanAddr) -> StdResult<u64> {
+fn query_count(deps: Deps, executor: &HumanAddr) -> u64 {
     // same StdErr can use ?
-    let count = MAPPED_COUNT.load(deps.storage, executor.as_bytes())?;
-    Ok(count)
+    let count = MAPPED_COUNT
+        .load(deps.storage, executor.as_bytes())
+        .map_err(|_| {
+            let empty_count: u64 = 0;
+            empty_count
+        })
+        .unwrap_or_default();
+    count
 }
 
 fn query_state(deps: Deps) -> StdResult<State> {
