@@ -1,13 +1,11 @@
-use std::ops::Mul;
-
 use crate::contract::*;
 use crate::error::ContractError;
 use crate::msg::*;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
-use cosmwasm_std::{coin, coins, from_binary, HumanAddr, OwnedDeps, StdError, Uint128};
-use cosmwasm_storage::Bucket;
+use cosmwasm_std::{coin, coins, from_binary, HumanAddr, OwnedDeps, StdError};
+use market_ai_royalty::*;
 
 const CREATOR: &str = "marketplace";
 const DENOM: &str = "MGK";

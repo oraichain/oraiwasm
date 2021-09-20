@@ -1,11 +1,13 @@
 use crate::error::ContractError;
-use crate::msg::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, HandleMsg, InitMsg, QueryMsg, RoyaltyMsg};
 use crate::state::{royalties, royalties_read, ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
     StdResult,
 };
+use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, RoyaltyMsg};
+
+use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
