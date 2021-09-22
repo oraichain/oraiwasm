@@ -1,6 +1,8 @@
+use std::ops::Sub;
+
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryCountsResponse, QueryMsg};
-use crate::state::{config, config_read, State, MAPPED_COUNT};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, QueryRoundsResponse};
+use crate::state::{config, config_read, RoundInfo, State, MAPPED_COUNT};
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
     MessageInfo, Order, StdResult,
@@ -9,6 +11,7 @@ use cw_storage_plus::Bound;
 
 const DEFAULT_LIMIT: u8 = 10;
 const MAX_LIMIT: u8 = 30;
+const DEFAULT_ROUND_JUMP: u64 = 300;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -26,14 +29,13 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, _: InitMsg) -> StdResul
 // And declare a custom Error variant for the ones where you will want to make use of it
 pub fn handle(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
         HandleMsg::ChangeOwner(owner) => change_owner(deps, info, owner),
-        HandleMsg::Ping {} => add_ping(deps, info),
-        HandleMsg::ResetPing {} => reset_ping(deps, info),
+        HandleMsg::Ping {} => add_ping(deps, info, env),
     }
 }
 
@@ -57,71 +59,66 @@ pub fn change_owner(
     })
 }
 
-pub fn add_ping(deps: DepsMut, info: MessageInfo) -> Result<HandleResponse, ContractError> {
-    let count = query_count(deps.as_ref(), &info.sender) + 1;
-    MAPPED_COUNT.save(deps.storage, info.sender.as_bytes(), &count)?;
+pub fn add_ping(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+) -> Result<HandleResponse, ContractError> {
+    let mut round_info = query_round(deps.as_ref(), &env, &info.sender)?;
+    // if add ping too soon & it's not the initial case (case where no one has the first round info) => error
+    if env.block.height.sub(round_info.height) < DEFAULT_ROUND_JUMP && round_info.height.ne(&0u64) {
+        return Err(ContractError::PingTooEarly {});
+    }
+
+    // if time updating ping is valid => update round of round & block
+    round_info.round = round_info.round + 1;
+    round_info.height = env.block.height;
+    MAPPED_COUNT.save(deps.storage, info.sender.as_bytes(), &round_info)?;
     Ok(HandleResponse {
         attributes: vec![attr("action", "add_ping"), attr("executor", info.sender)],
         ..HandleResponse::default()
     })
 }
 
-pub fn reset_ping(deps: DepsMut, info: MessageInfo) -> Result<HandleResponse, ContractError> {
-    // if not owner of contract => cannot reset ping
-    let owner = query_state(deps.as_ref())?.owner;
-    if !owner.eq(&info.sender) {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    // only need to query one time since the list is 23, MAX_LIMIT 30
-    let list_counts = query_counts(deps.as_ref(), Some(MAX_LIMIT), Some(0u64), None)?;
-    for res in list_counts {
-        MAPPED_COUNT.save(deps.storage, res.executor.as_bytes(), &0u64)?;
-    }
-    Ok(HandleResponse {
-        attributes: vec![attr("action", "reset_ping"), attr("caller", info.sender)],
-        ..HandleResponse::default()
-    })
-}
-
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetPing(executor) => to_binary(&query_count(deps, &executor)),
+        QueryMsg::GetRound(executor) => to_binary(&query_round(deps, &env, &executor)?),
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
-        QueryMsg::GetPings {
+        QueryMsg::GetRounds {
             offset,
             limit,
             order,
-        } => to_binary(&query_counts(deps, limit, offset, order)?),
+        } => to_binary(&query_rounds(deps, limit, offset, order)?),
     }
 }
 
-fn query_count(deps: Deps, executor: &HumanAddr) -> u64 {
+fn query_round(deps: Deps, env: &Env, executor: &HumanAddr) -> StdResult<RoundInfo> {
     // same StdErr can use ?
-    let count = MAPPED_COUNT
-        .load(deps.storage, executor.as_bytes())
-        .map_err(|_| {
-            let empty_count: u64 = 0;
-            empty_count
-        })
-        .unwrap_or_default();
-    count
+    let round_opt = MAPPED_COUNT.may_load(deps.storage, &executor.as_bytes())?;
+    if let Some(round) = round_opt {
+        return Ok(round);
+    }
+    // if no round exist then return default round info (first round)
+    Ok(RoundInfo {
+        round: 0,
+        height: 0,
+    })
 }
 
 fn query_state(deps: Deps) -> StdResult<State> {
     config_read(deps.storage).load()
 }
 
-fn query_counts(
+fn query_rounds(
     deps: Deps,
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> StdResult<Vec<QueryCountsResponse>> {
+) -> StdResult<Vec<QueryRoundsResponse>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min: Option<Bound> = None;
     let max: Option<Bound> = None;
-    let mut order_enum = Order::Ascending;
+    let mut order_enum = Order::Descending;
     if let Some(num) = order {
         if num == 1 {
             order_enum = Order::Ascending;
@@ -138,14 +135,14 @@ fn query_counts(
         min = offset_value;
     };
 
-    let counts: StdResult<Vec<QueryCountsResponse>> = MAPPED_COUNT
+    let counts: StdResult<Vec<QueryRoundsResponse>> = MAPPED_COUNT
         .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| {
             kv_item.and_then(|(k, v)| {
-                Ok(QueryCountsResponse {
+                Ok(QueryRoundsResponse {
                     executor: HumanAddr::from(String::from_utf8(k)?),
-                    count: v,
+                    round_info: v,
                 })
             })
         })
