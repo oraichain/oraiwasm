@@ -1,11 +1,14 @@
 use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
 use cw721::Cw721ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
+use market_ai_royalty::AiRoyaltyQueryMsg;
 use market_auction::{AuctionHandleMsg, AuctionQueryMsg};
 use market_royalty::{OfferingHandleMsg, OfferingQueryMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+
 pub struct InitMsg {
     pub name: String,
     pub fee: u64,
@@ -90,6 +93,7 @@ pub enum QueryMsg {
     GetContractInfo {},
     Auction(AuctionQueryMsg),
     Offering(OfferingQueryMsg),
+    AiRoyalty(AiRoyaltyQueryMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -98,14 +102,19 @@ pub enum ProxyQueryMsg {
     // GetOfferings returns a list of all offerings
     Auction(AuctionQueryMsg),
     Offering(OfferingQueryMsg),
+    AiRoyalty(AiRoyaltyQueryMsg),
     Storage(StorageQueryMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ProxyHandleMsg {
+pub enum ProxyHandleMsg<T>
+where
+    T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
+{
     // GetOfferings returns a list of all offerings
     Auction(AuctionHandleMsg),
     Offering(OfferingHandleMsg),
+    Msg(T),
     Storage(StorageHandleMsg),
 }

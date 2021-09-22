@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{HumanAddr, Storage};
 use cosmwasm_storage::{Bucket, ReadonlyBucket};
-use cw_storage_plus::Item;
+use cw_storage_plus::{Item, Map};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
@@ -28,3 +28,5 @@ pub fn royalties_read<'a>(
 ) -> ReadonlyBucket<'a, Payout> {
     ReadonlyBucket::multilevel(storage, &[PREFIX_ROYALTIES, contract.as_bytes()])
 }
+
+pub const PREFERENCES: Map<&[u8], u64> = Map::new("preferences");

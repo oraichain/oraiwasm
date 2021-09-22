@@ -1,25 +1,30 @@
+use std::fmt;
+
 use crate::auction::{
     handle_ask_auction, query_auction, try_bid_nft, try_cancel_bid, try_claim_winner,
     try_emergency_cancel_auction, MAX_FEE_PERMILLE,
 };
 
 use crate::offering::{
-    handle_sell_nft, query_offering, sanitize_royalty, try_buy, try_handle_mint, try_withdraw,
-    MAX_ROYALTY_PERCENT,
+    handle_sell_nft, query_ai_royalty, query_offering, sanitize_royalty, try_buy, try_handle_mint,
+    try_withdraw, MAX_ROYALTY_PERCENT,
 };
 
 use crate::error::ContractError;
 use crate::msg::{
-    AskNftMsg, HandleMsg, InitMsg, ProxyQueryMsg, QueryMsg, SellNft, UpdateContractMsg,
+    AskNftMsg, HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellNft,
+    UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
     attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, InitResponse, MessageInfo, StdResult,
+    HandleResponse, InitResponse, MessageInfo, StdResult, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, StdError};
 use cw721::Cw721ReceiveMsg;
-use market::StorageQueryMsg;
+use market::{StorageHandleMsg, StorageQueryMsg};
+use schemars::JsonSchema;
+use serde::Serialize;
 
 fn sanitize_fee(fee: u64, limit: u64, name: &str) -> Result<u64, ContractError> {
     if fee > limit {
@@ -85,6 +90,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
         QueryMsg::Auction(auction_msg) => query_auction(deps, auction_msg),
         QueryMsg::Offering(offering_msg) => query_offering(deps, offering_msg),
+        QueryMsg::AiRoyalty(ai_royalty_msg) => query_ai_royalty(deps, ai_royalty_msg),
     }
 }
 
@@ -186,4 +192,23 @@ pub fn get_storage_addr(deps: Deps, contract: HumanAddr, name: &str) -> StdResul
             name: name.to_string(),
         }),
     )
+}
+
+pub fn get_handle_msg<T>(addr: HumanAddr, name: &str, msg: T) -> StdResult<CosmosMsg>
+where
+    T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
+{
+    let offering_msg = to_binary(&ProxyHandleMsg::Msg(msg))?;
+    let proxy_msg: ProxyHandleMsg<T> =
+        ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
+            name: name.to_string(),
+            msg: offering_msg,
+        });
+
+    Ok(WasmMsg::Execute {
+        contract_addr: addr,
+        msg: to_binary(&proxy_msg)?,
+        send: vec![],
+    }
+    .into())
 }
