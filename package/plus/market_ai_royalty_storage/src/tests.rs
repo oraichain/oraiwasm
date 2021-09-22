@@ -28,10 +28,11 @@ fn update_ai_royalty() {
 
     // beneficiary can release it
     let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
+    let provider_info = mock_info("provider1", &vec![coin(50, DENOM)]);
     let mut royalties: Vec<RoyaltyMsg> = vec![];
 
     let pref_msg = HandleMsg::UpdatePreference(1);
-    handle(deps.as_mut(), mock_env(), info.clone(), pref_msg).unwrap();
+    handle(deps.as_mut(), mock_env(), provider_info.clone(), pref_msg).unwrap();
 
     for i in 1u64..3u64 {
         let royalty = RoyaltyMsg {

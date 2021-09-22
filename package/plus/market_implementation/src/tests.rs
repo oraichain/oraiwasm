@@ -9,6 +9,7 @@ use cosmwasm_std::{
     SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
 };
 use market::mock::StorageImpl;
+use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg, RoyaltyMsg};
 use market_auction::mock::{mock_dependencies, mock_dependencies_wasm, mock_env, MockQuerier};
 use market_auction::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
 use market_royalty::{OfferingQueryMsg, OfferingsResponse, QueryOfferingsResult};
@@ -22,16 +23,19 @@ const MARKET_ADDR: &str = "market_addr";
 const HUB_ADDR: &str = "hub_addr";
 const AUCTION_ADDR: &str = "auction_addr";
 const OFFERING_ADDR: &str = "offering_addr";
+const AI_ROYALTY_ADDR: &str = "ai_royalty_addr";
 const CONTRACT_NAME: &str = "Auction Marketplace";
 const DENOM: &str = "orai";
 pub const AUCTION_STORAGE: &str = "auction";
 pub const OFFERING_STORAGE: &str = "offering";
+pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 
 struct Storage {
     // using RefCell to both support borrow and borrow_mut for & and &mut
     hub_storage: RefCell<OwnedDeps<MockStorage, MockApi, StdMockQuerier>>,
     auction_storage: RefCell<OwnedDeps<MockStorage, MockApi, StdMockQuerier>>,
     offering_storage: RefCell<OwnedDeps<MockStorage, MockApi, StdMockQuerier>>,
+    ai_royalty_storage: RefCell<OwnedDeps<MockStorage, MockApi, StdMockQuerier>>,
 }
 impl Storage {
     fn new() -> Storage {
@@ -47,6 +51,10 @@ impl Storage {
                 storages: vec![
                     (AUCTION_STORAGE.to_string(), HumanAddr::from(AUCTION_ADDR)),
                     (OFFERING_STORAGE.to_string(), HumanAddr::from(OFFERING_ADDR)),
+                    (
+                        AI_ROYALTY_STORAGE.to_string(),
+                        HumanAddr::from(AI_ROYALTY_ADDR),
+                    ),
                 ],
                 implementations: vec![HumanAddr::from(MARKET_ADDR)],
             },
@@ -67,7 +75,18 @@ impl Storage {
         let mut offering_storage = mock_dependencies(HumanAddr::from(OFFERING_ADDR), &[]);
         let _res = market_royalty_storage::contract::init(
             offering_storage.as_mut(),
-            mock_env(AUCTION_ADDR),
+            mock_env(OFFERING_ADDR),
+            info.clone(),
+            market_royalty_storage::msg::InitMsg {
+                governance: HumanAddr::from(HUB_ADDR),
+            },
+        )
+        .unwrap();
+
+        let mut ai_royalty_storage = mock_dependencies(HumanAddr::from(AI_ROYALTY_ADDR), &[]);
+        let _res = market_royalty_storage::contract::init(
+            ai_royalty_storage.as_mut(),
+            mock_env(AI_ROYALTY_ADDR),
             info.clone(),
             market_royalty_storage::msg::InitMsg {
                 governance: HumanAddr::from(HUB_ADDR),
@@ -80,6 +99,7 @@ impl Storage {
             hub_storage: RefCell::new(hub_storage),
             auction_storage: RefCell::new(auction_storage),
             offering_storage: RefCell::new(offering_storage),
+            ai_royalty_storage: RefCell::new(ai_royalty_storage),
         }
     }
 
@@ -107,6 +127,13 @@ impl Storage {
                     .ok(),
                     OFFERING_ADDR => market_royalty_storage::contract::handle(
                         self.offering_storage.borrow_mut().as_mut(),
+                        mock_env(HUB_ADDR),
+                        mock_info(HUB_ADDR, &[]),
+                        from_slice(msg).unwrap(),
+                    )
+                    .ok(),
+                    AI_ROYALTY_ADDR => market_ai_royalty_storage::contract::handle(
+                        self.ai_royalty_storage.borrow_mut().as_mut(),
                         mock_env(HUB_ADDR),
                         mock_info(HUB_ADDR, &[]),
                         from_slice(msg).unwrap(),
@@ -157,6 +184,12 @@ impl StorageImpl for Storage {
                     OFFERING_ADDR => market_royalty_storage::contract::query(
                         self.offering_storage.borrow().as_ref(),
                         mock_env(OFFERING_ADDR),
+                        from_slice(msg).unwrap(),
+                    )
+                    .unwrap_or_default(),
+                    AI_ROYALTY_ADDR => market_ai_royalty_storage::contract::query(
+                        self.ai_royalty_storage.borrow().as_ref(),
+                        mock_env(AI_ROYALTY_ADDR),
                         from_slice(msg).unwrap(),
                     )
                     .unwrap_or_default(),
@@ -785,6 +818,30 @@ fn test_royalties() {
     let storage = Storage::new();
     let (mut deps, contract_env) = setup_contract(&storage);
 
+    // try mint nft to get royalty for provider
+    let provider_info = mock_info("provider", &vec![coin(50, DENOM)]);
+    let mint_msg = HandleMsg::MintNft {
+        contract: HumanAddr::from("nft_contract"),
+        msg: to_binary(&MintMsg {
+            royalty_msg: RoyaltyMsg {
+                contract_addr: HumanAddr::from("offering"),
+                token_id: String::from("SellableNFT"),
+                provider: HumanAddr::from("provider"),
+            },
+            msg: to_binary("something").unwrap(),
+        })
+        .unwrap(),
+    };
+
+    storage
+        .handle(
+            deps.as_mut(),
+            contract_env.clone(),
+            provider_info.clone(),
+            mint_msg,
+        )
+        .unwrap();
+
     // beneficiary can release it
     let info_sell = mock_info("offering", &vec![coin(50, DENOM)]);
 
@@ -879,11 +936,6 @@ fn test_royalties() {
     )
     .unwrap();
     let offering: QueryOfferingsResult = from_binary(&offering_bin).unwrap();
-    println!("offering owner: {}", offering.seller);
-    println!(
-        "offering creator: {}",
-        offering.royalty_creator.clone().unwrap().creator
-    );
     // other buyer again
     let buy_msg = HandleMsg::BuyNft { offering_id: 3 };
     let info_buy = mock_info("buyer2", &coins(9000000, DENOM));
@@ -929,6 +981,24 @@ fn test_royalties() {
 
                         // check royalty sent to seller
                         if to_address.eq(&offering.clone().seller) {
+                            total_payment = total_payment + amount;
+                        }
+
+                        // check royalty sent to provider
+                        if to_address.eq(&provider_info.sender) {
+                            // query royalty provider
+                            let provider_query_msg =
+                                QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
+                                    contract_addr: HumanAddr::from("offering"),
+                                    token_id: String::from("SellableNFT"),
+                                });
+                            let result: (HumanAddr, u64) = from_binary(
+                                &query(deps.as_ref(), contract_env.clone(), provider_query_msg)
+                                    .unwrap(),
+                            )
+                            .unwrap();
+
+                            assert_eq!(offering.price.mul(Decimal::percent(result.1)), amount);
                             total_payment = total_payment + amount;
                         }
 

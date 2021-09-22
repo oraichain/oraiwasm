@@ -10,6 +10,7 @@ use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, RoyaltyMsg};
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 
 pub const MAX_ROYALTY_PERCENT: u64 = 50;
+pub const DEFAULT_ROYALTY_PERCENT: u64 = 10;
 
 pub fn sanitize_royalty(royalty: u64, limit: u64, name: &str) -> Result<u64, ContractError> {
     if royalty > limit {
@@ -98,8 +99,7 @@ pub fn try_update_royalty(
     // collect royalty preference, default is 0 if does not specify
     let preference_royalty = PREFERENCES
         .load(deps.storage, royalty.provider.as_bytes())
-        .map_err(|_op| 0u64)
-        .unwrap_or_default();
+        .unwrap_or(DEFAULT_ROYALTY_PERCENT);
 
     royalties(deps.storage, &royalty.contract_addr).save(
         royalty.token_id.as_bytes(),
@@ -138,9 +138,9 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
 
 pub fn query_royalty(
     deps: Deps,
-    contract_id: HumanAddr,
+    contract_addr: HumanAddr,
     token_id: String,
 ) -> StdResult<(HumanAddr, u64)> {
-    let royalties = royalties_read(deps.storage, &contract_id).load(token_id.as_bytes())?;
+    let royalties = royalties_read(deps.storage, &contract_addr).load(token_id.as_bytes())?;
     Ok(royalties)
 }

@@ -55,7 +55,7 @@ pub fn try_handle_mint(
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "mint_nft"),
-            attr("invoker", info.sender),
+            attr("caller", info.sender),
             attr("mint_msg", msg),
         ],
         data: None,
@@ -145,7 +145,7 @@ pub fn try_buy(
                     cosmos_msgs.push(
                         BankMsg::Send {
                             from_address: env.contract.address.clone(),
-                            to_address: deps.api.human_address(&provider_addr)?,
+                            to_address: provider_addr,
                             amount: coins(provider_amount.u128(), &contract_info.denom),
                         }
                         .into(),
