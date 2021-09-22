@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::state::{royalties, royalties_read, ContractInfo, CONTRACT_INFO};
+use crate::state::{royalties, royalties_read, ContractInfo, CONTRACT_INFO, PREFERENCES};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
@@ -8,6 +8,17 @@ use cosmwasm_std::{
 use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, RoyaltyMsg};
 
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+
+pub const MAX_ROYALTY_PERCENT: u64 = 50;
+
+pub fn sanitize_royalty(royalty: u64, limit: u64, name: &str) -> Result<u64, ContractError> {
+    if royalty > limit {
+        return Err(ContractError::InvalidArgument {
+            arg: name.to_string(),
+        });
+    }
+    Ok(royalty)
+}
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -28,25 +39,22 @@ pub fn init(
 // And declare a custom Error variant for the ones where you will want to make use of it
 pub fn handle(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::Offering(offering_handle) => match offering_handle {
-            AiRoyaltyHandleMsg::UpdateRoyalty(royalty) => {
-                try_update_royalty(deps, info, env, royalty)
-            }
-            AiRoyaltyHandleMsg::RemoveRoyalty(royalty) => {
-                try_remove_royalty(deps, info, env, royalty)
-            }
+        HandleMsg::Msg(royalty_handle) => match royalty_handle {
+            AiRoyaltyHandleMsg::UpdateRoyalty(royalty) => try_update_royalty(deps, info, royalty),
+            AiRoyaltyHandleMsg::RemoveRoyalty(royalty) => try_remove_royalty(deps, info, royalty),
         },
+        HandleMsg::UpdatePreference(pref) => try_update_preference(deps, info, pref),
     }
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Offering(auction_query) => match auction_query {
+        QueryMsg::AiRoyalty(auction_query) => match auction_query {
             AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr,
                 token_id,
@@ -57,22 +65,45 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
+pub fn try_update_preference(
+    deps: DepsMut,
+    info: MessageInfo,
+    pref: u64,
+) -> Result<HandleResponse, ContractError> {
+    let pref_royalty = sanitize_royalty(pref, MAX_ROYALTY_PERCENT, "ai_royalty_preference")?;
+    PREFERENCES.save(deps.storage, info.sender.as_bytes(), &pref_royalty)?;
+    return Ok(HandleResponse {
+        attributes: vec![
+            attr("action", "update_preference"),
+            attr("caller", info.sender),
+            attr("preference", pref_royalty),
+        ],
+        ..HandleResponse::default()
+    });
+}
+
 pub fn try_update_royalty(
     deps: DepsMut,
     info: MessageInfo,
-    _env: Env,
     royalty: RoyaltyMsg,
 ) -> Result<HandleResponse, ContractError> {
     // must check the sender is implementation contract
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
-    if contract_info.governance.ne(&info.sender) {
+    // QUESTION: should we let ai provider edit royalty for a token id?
+    if contract_info.governance.ne(&info.sender) && royalty.provider.ne(&info.sender) {
         return Err(ContractError::Unauthorized {});
     };
 
+    // collect royalty preference, default is 0 if does not specify
+    let preference_royalty = PREFERENCES
+        .load(deps.storage, royalty.provider.as_bytes())
+        .map_err(|_op| 0u64)
+        .unwrap_or_default();
+
     royalties(deps.storage, &royalty.contract_addr).save(
         royalty.token_id.as_bytes(),
-        &(royalty.provider, royalty.royalty),
+        &(royalty.provider, preference_royalty),
     )?;
 
     return Ok(HandleResponse {
@@ -84,7 +115,6 @@ pub fn try_update_royalty(
 pub fn try_remove_royalty(
     deps: DepsMut,
     info: MessageInfo,
-    _env: Env,
     royalty: RoyaltyMsg,
 ) -> Result<HandleResponse, ContractError> {
     // must check the sender is implementation contract

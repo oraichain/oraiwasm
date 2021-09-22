@@ -30,12 +30,14 @@ fn update_ai_royalty() {
     let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
     let mut royalties: Vec<RoyaltyMsg> = vec![];
 
+    let pref_msg = HandleMsg::UpdatePreference(1);
+    handle(deps.as_mut(), mock_env(), info.clone(), pref_msg).unwrap();
+
     for i in 1u64..3u64 {
         let royalty = RoyaltyMsg {
             contract_addr: HumanAddr::from("xxx"),
             provider: HumanAddr::from(format!("provider{}", i)),
             token_id: i.to_string(),
-            royalty: i,
         };
         royalties.push(royalty);
     }
@@ -47,7 +49,7 @@ fn update_ai_royalty() {
             deps.as_mut(),
             mock_env(),
             invalid_info.clone(),
-            HandleMsg::Offering(AiRoyaltyHandleMsg::UpdateRoyalty(
+            HandleMsg::Msg(AiRoyaltyHandleMsg::UpdateRoyalty(
                 royalties.iter().last().unwrap().to_owned()
             ))
         ),
@@ -55,7 +57,7 @@ fn update_ai_royalty() {
     ));
 
     for royalty in royalties {
-        let msg = HandleMsg::Offering(AiRoyaltyHandleMsg::UpdateRoyalty(royalty));
+        let msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdateRoyalty(royalty));
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
@@ -64,7 +66,7 @@ fn update_ai_royalty() {
         let res = query(
             deps.as_ref(),
             mock_env(),
-            QueryMsg::Offering(AiRoyaltyQueryMsg::GetRoyalty {
+            QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr: HumanAddr::from("xxx"),
                 token_id: i.to_string(),
             }),
@@ -88,7 +90,6 @@ fn remove_ai_royalty() {
             contract_addr: HumanAddr::from("xxx"),
             provider: HumanAddr::from(format!("provider{}", i)),
             token_id: i.to_string(),
-            royalty: i,
         };
         royalties.push(royalty);
     }
@@ -100,7 +101,7 @@ fn remove_ai_royalty() {
             deps.as_mut(),
             mock_env(),
             invalid_info.clone(),
-            HandleMsg::Offering(AiRoyaltyHandleMsg::RemoveRoyalty(
+            HandleMsg::Msg(AiRoyaltyHandleMsg::RemoveRoyalty(
                 royalties.iter().last().unwrap().to_owned()
             ))
         ),
@@ -108,7 +109,7 @@ fn remove_ai_royalty() {
     ));
 
     for royalty in royalties {
-        let msg = HandleMsg::Offering(AiRoyaltyHandleMsg::RemoveRoyalty(royalty));
+        let msg = HandleMsg::Msg(AiRoyaltyHandleMsg::RemoveRoyalty(royalty));
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
@@ -117,7 +118,7 @@ fn remove_ai_royalty() {
         let res = query(
             deps.as_ref(),
             mock_env(),
-            QueryMsg::Offering(AiRoyaltyQueryMsg::GetRoyalty {
+            QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr: HumanAddr::from("xxx"),
                 token_id: i.to_string(),
             }),

@@ -1,4 +1,4 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::{Binary, HumanAddr};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,13 @@ pub struct RoyaltyMsg {
     pub contract_addr: HumanAddr,
     pub token_id: String,
     pub provider: HumanAddr,
-    pub royalty: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct MintMsg {
+    pub royalty_msg: RoyaltyMsg,
+    pub msg: Binary,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

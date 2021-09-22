@@ -11,14 +11,14 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    Offering(AiRoyaltyHandleMsg),
+    Msg(AiRoyaltyHandleMsg),
+    UpdatePreference(u64),
     // other implementation
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    // GetOfferings returns a list of all offerings
-    Offering(AiRoyaltyQueryMsg),
+    AiRoyalty(AiRoyaltyQueryMsg),
     GetContractInfo {},
 }

@@ -1,18 +1,20 @@
-use crate::contract::get_storage_addr;
+use crate::contract::{get_handle_msg, get_storage_addr};
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg, SellNft};
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, coins, to_binary, BankMsg, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
+    attr, coins, from_binary, to_binary, BankMsg, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, StdError};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{query_proxy, StorageHandleMsg};
+use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, MintMsg};
 use market_royalty::{Offering, OfferingHandleMsg, OfferingQueryMsg, QueryOfferingsResult};
 use std::ops::{Mul, Sub};
 
 pub const OFFERING_STORAGE: &str = "offering";
+pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 pub const MAX_ROYALTY_PERCENT: u64 = 50;
 
 pub fn sanitize_royalty(royalty: u64, limit: u64, name: &str) -> Result<u64, ContractError> {
@@ -25,20 +27,32 @@ pub fn sanitize_royalty(royalty: u64, limit: u64, name: &str) -> Result<u64, Con
 }
 
 pub fn try_handle_mint(
-    _deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     contract: HumanAddr,
     msg: Binary,
 ) -> Result<HandleResponse, ContractError> {
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+    let msg_handle_mint: MintMsg = from_binary(&msg)?;
+
     let mint_msg = WasmMsg::Execute {
         contract_addr: contract.clone(),
-        msg: msg.clone(),
+        msg: msg_handle_mint.msg.clone(),
         send: vec![],
     }
     .into();
 
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+    // update ai royalty provider
+    cosmos_msgs.push(get_handle_msg(
+        governance,
+        AI_ROYALTY_STORAGE,
+        AiRoyaltyHandleMsg::UpdateRoyalty(msg_handle_mint.royalty_msg),
+    )?);
+    cosmos_msgs.push(mint_msg);
+
     let response = HandleResponse {
-        messages: vec![mint_msg],
+        messages: cosmos_msgs,
         attributes: vec![
             attr("action", "mint_nft"),
             attr("invoker", info.sender),
@@ -102,9 +116,7 @@ pub fn try_buy(
                     contract_addr: deps.api.human_address(&off.contract_addr.clone())?,
                     token_id: off.token_id.clone(),
                 }),
-            )
-            // royalties_read(deps.storage, &off.contract_addr).load(off.token_id.as_bytes())
-            {
+            ) {
                 let creator_amount = off.price.mul(Decimal::percent(creator_royalty));
                 if creator_amount.gt(&Uint128::from(0u128)) {
                     seller_amount = seller_amount.sub(creator_amount)?;
@@ -113,6 +125,28 @@ pub fn try_buy(
                             from_address: env.contract.address.clone(),
                             to_address: deps.api.human_address(&creator_addr)?,
                             amount: coins(creator_amount.u128(), &contract_info.denom),
+                        }
+                        .into(),
+                    );
+                }
+            }
+
+            // pay for ai provider
+            if let Ok((provider_addr, provider_royalty)) = deps.querier.query_wasm_smart(
+                get_storage_addr(deps.as_ref(), governance.clone(), AI_ROYALTY_STORAGE)?,
+                &ProxyQueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
+                    contract_addr: deps.api.human_address(&off.contract_addr.clone())?,
+                    token_id: off.token_id.clone(),
+                }),
+            ) {
+                let provider_amount = off.price.mul(Decimal::percent(provider_royalty));
+                if provider_amount.gt(&Uint128::from(0u128)) {
+                    seller_amount = seller_amount.sub(provider_amount)?;
+                    cosmos_msgs.push(
+                        BankMsg::Send {
+                            from_address: env.contract.address.clone(),
+                            to_address: deps.api.human_address(&provider_addr)?,
+                            amount: coins(provider_amount.u128(), &contract_info.denom),
                         }
                         .into(),
                     );
@@ -323,6 +357,15 @@ pub fn query_offering(deps: Deps, msg: OfferingQueryMsg) -> StdResult<Binary> {
     )
 }
 
+pub fn query_ai_royalty(deps: Deps, msg: AiRoyaltyQueryMsg) -> StdResult<Binary> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    query_proxy(
+        deps,
+        get_storage_addr(deps, contract_info.governance, AI_ROYALTY_STORAGE)?,
+        to_binary(&ProxyQueryMsg::AiRoyalty(msg))?,
+    )
+}
+
 fn get_offering(
     deps: Deps,
     governance: HumanAddr,
@@ -342,11 +385,13 @@ pub fn get_offering_handle_msg(
     name: &str,
     msg: OfferingHandleMsg,
 ) -> StdResult<CosmosMsg> {
-    let auction_msg = to_binary(&ProxyHandleMsg::Offering(msg))?;
-    let proxy_msg = ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
-        name: name.to_string(),
-        msg: auction_msg,
-    });
+    let msg_offering: ProxyHandleMsg<OfferingHandleMsg> = ProxyHandleMsg::Offering(msg);
+    let auction_msg = to_binary(&msg_offering)?;
+    let proxy_msg: ProxyHandleMsg<StorageHandleMsg> =
+        ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
+            name: name.to_string(),
+            msg: auction_msg,
+        });
 
     Ok(WasmMsg::Execute {
         contract_addr: addr,

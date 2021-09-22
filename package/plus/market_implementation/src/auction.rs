@@ -510,11 +510,13 @@ pub fn get_auction_handle_msg(
     name: &str,
     msg: AuctionHandleMsg,
 ) -> StdResult<CosmosMsg> {
-    let auction_msg = to_binary(&ProxyHandleMsg::Auction(msg))?;
-    let proxy_msg = ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
-        name: name.to_string(),
-        msg: auction_msg,
-    });
+    let msg_auction: ProxyHandleMsg<AuctionHandleMsg> = ProxyHandleMsg::Auction(msg);
+    let auction_msg = to_binary(&msg_auction)?;
+    let proxy_msg: ProxyHandleMsg<StorageHandleMsg> =
+        ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
+            name: name.to_string(),
+            msg: auction_msg,
+        });
 
     Ok(WasmMsg::Execute {
         contract_addr: addr,
