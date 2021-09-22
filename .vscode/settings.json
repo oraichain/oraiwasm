@@ -1,3 +1,3 @@
 {
-    "rust-analyzer.runnables.overrideCargo": "cargo -q"
+    "rust-analyzer.runnables.overrideCargo": "env RUST_TEST_THREADS=1 cargo -q"
 }
