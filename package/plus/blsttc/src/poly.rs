@@ -899,6 +899,7 @@ pub(crate) fn coeff_pos(i: usize, j: usize) -> Option<usize> {
 mod tests {
     use std::collections::BTreeMap;
     use std::convert::TryInto;
+    use std::ops::AddAssign;
 
     use crate::{PublicKeySet, PublicKeyShare, SecretKeyShare};
 
@@ -906,9 +907,11 @@ mod tests {
     use super::{coeff_pos, BivarCommitment, BivarPoly, Commitment, IntoFr, Poly};
     use super::{Fr, G1Affine, G1};
     use super::{PK_SIZE, SK_SIZE};
-    use ff::Field;
+    use cw_storage_plus::Endian;
+    use ff::{Field, PrimeField};
     use group::{CurveAffine, CurveProjective};
     use hex_fmt::HexFmt;
+    use pairing::bls12_381::FrRepr;
     use zeroize::Zeroize;
 
     #[test]
@@ -971,44 +974,52 @@ mod tests {
         // // the bi_polys must be created from a seed that is secret and known so that it can re-run
         // // then we only need a handful number of shares before finalized
         // let mut rng = rand::thread_rng();
-        // let dealer_num = 3; // wait for 3 dealers before commit
-        // let faulty_num = 2;
+        let dealer_num = 3; // wait for 3 dealers before commit
+        let faulty_num = 2;
         // for i in 0..dealer_num {
         //     let bi_poly = BivarPoly::random(faulty_num, &mut rng);
         //     // length is fixed by the degree and Fr size
         //     let bi_poly_bytes = bi_poly.to_bytes();
         //     println!("bytes: {}", base64::encode(bi_poly_bytes));
         // }
-        let bi_poly_bytes_list = [
-            "QM4NuuJbtqJ4z5HLAQrftkKgGoqcIMa3aFvn8lne+R5eSxsavcwPruLWaCrHa9d7NaGHsRvp+hw5stWU+RsrxENZ6+ofKviEVuTBbXHULFbChv73KqXn33XZmmtz1VtMSv+yvFth0UX2DHHdCNCagj6Ntlmh2eiwG0SLzR5a1MhPFmBh9AWCaChvuV2fP6hD8lwr6B7ClBzx4ycEePcNVxzC+ni+eteBQvH5HjAFXkAtkwFjWz7lz0NQJaXhOeHW",
-            "FLs116XIx62v7NfDICovsByzLmvfhIfwQyK6MZwYQ7tNcJ4Y3fC4pcOdV0mSwf5eiWoRpRwLkdp5BolFbmhvAxD5QJjhVz9yrLNUJ339EVmAoCxPwC0odpQO3yERCSkybMt1EpjTTNlzARv69Pfa26jNeZx/93iAWMN33ePzm1cadR7qkxlY/tEnTX7o20jI+GIPO+HEdiCFBIPjOlDIXXMVSGOnH6/HoQMKewe6XiiaA+FZjZLTDYtXl7o2W4S7",
-            "BsE0GgKJKs7xLTCoLGtiRMjZwfZ3Fbe6cA+bLgkrhSkUuepET9LAYOuOb/vMo7LqzGSx2VMT4HlD+Tyy0ejTuBB+rB3qTsHcBs88ysjBmauxRXe4GJKPUqWKuDObg/MKFdniRgzW/PwTXVmloDOgLcy1oJ3iRdz953PZKPURnOsD9/YnoZx4dDkeKduUZl/izmBaYea4GKQeR2T1FmWR1xe/uOGR8t6wYG7QBKuO+1R5DStPx6jjMAVwEFIDAUc3",   
-        ];
+        // let bi_poly_bytes_list = [
+        //     "QM4NuuJbtqJ4z5HLAQrftkKgGoqcIMa3aFvn8lne+R5eSxsavcwPruLWaCrHa9d7NaGHsRvp+hw5stWU+RsrxENZ6+ofKviEVuTBbXHULFbChv73KqXn33XZmmtz1VtMSv+yvFth0UX2DHHdCNCagj6Ntlmh2eiwG0SLzR5a1MhPFmBh9AWCaChvuV2fP6hD8lwr6B7ClBzx4ycEePcNVxzC+ni+eteBQvH5HjAFXkAtkwFjWz7lz0NQJaXhOeHW",
+        //     "FLs116XIx62v7NfDICovsByzLmvfhIfwQyK6MZwYQ7tNcJ4Y3fC4pcOdV0mSwf5eiWoRpRwLkdp5BolFbmhvAxD5QJjhVz9yrLNUJ339EVmAoCxPwC0odpQO3yERCSkybMt1EpjTTNlzARv69Pfa26jNeZx/93iAWMN33ePzm1cadR7qkxlY/tEnTX7o20jI+GIPO+HEdiCFBIPjOlDIXXMVSGOnH6/HoQMKewe6XiiaA+FZjZLTDYtXl7o2W4S7",
+        //     "BsE0GgKJKs7xLTCoLGtiRMjZwfZ3Fbe6cA+bLgkrhSkUuepET9LAYOuOb/vMo7LqzGSx2VMT4HlD+Tyy0ejTuBB+rB3qTsHcBs88ysjBmauxRXe4GJKPUqWKuDObg/MKFdniRgzW/PwTXVmloDOgLcy1oJ3iRdz953PZKPURnOsD9/YnoZx4dDkeKduUZl/izmBaYea4GKQeR2T1FmWR1xe/uOGR8t6wYG7QBKuO+1R5DStPx6jjMAVwEFIDAUc3",
+        // ];
 
         // For distributed key generation, a number of dealers, only one of who needs to be honest,
         // generates random bivariate polynomials and publicly commits to them. In practice, the
         // dealers can e.g. be any `faulty_num + 1` nodes.
-        let bi_polys: Vec<BivarPoly> = bi_poly_bytes_list
-            .iter()
-            .map(|str| {
-                BivarPoly::from_bytes(base64::decode(str).unwrap()).expect("invalid bipoly bytes")
-            })
+        // let bi_polys: Vec<BivarPoly> = bi_poly_bytes_list
+        //     .iter()
+        //     .map(|str| {
+        //         BivarPoly::from_bytes(base64::decode(str).unwrap()).expect("invalid bipoly bytes")
+        //     })
+        //     .collect();
+
+        let mut rng = rand::thread_rng();
+        let bi_polys: Vec<BivarPoly> = (0..dealer_num)
+            .map(|_| BivarPoly::random(faulty_num, &mut rng))
             .collect();
 
         // share public bi
-        let pub_bi_commits: Vec<_> = bi_polys.iter().map(BivarPoly::commitment).collect();
-
+        let mut pub_commits: Vec<Commitment> = vec![]; // bi_polys.iter().map(BivarPoly::commitment).collect();
+        let mut sec_commits_list: Vec<Vec<Fr>> = vec![vec![]; bi_polys.len()];
         let mut sec_keys = vec![Fr::zero(); node_num];
 
         // Each dealer sends row `m` to node `m`, where the index starts at `1`. Don't send row `0`
         // to anyone! The nodes verify their rows, and send _value_ `s` on to node `s`. They again
         // verify the values they received, and collect them.
-        for (bi_poly, bi_commit) in bi_polys.iter().zip(&pub_bi_commits) {
+        for (i, bi_poly) in bi_polys.iter().enumerate() {
+            let bi_commit = bi_poly.commitment();
             for m in 1..=node_num {
                 // Node `m` receives its row and verifies it.
                 let row_poly = bi_poly.row(m);
+
                 let row_commit = bi_commit.row(m);
                 assert_eq!(row_poly.commitment(), row_commit);
+
                 // Node `s` receives the `s`-th value and verifies it.
                 for s in 1..=node_num {
                     let val = row_poly.evaluate(s);
@@ -1024,6 +1035,8 @@ mod tests {
                 let wrong_poly = row_poly.clone() + x_pow_2 * five;
                 assert_ne!(wrong_poly.commitment(), row_commit);
 
+                let sec_commit = bi_poly.evaluate(m, 0);
+
                 // If `2 * faulty_num + 1` nodes confirm that they received a valid row, then at
                 // least `faulty_num + 1` honest ones did, and sent the correct values on to node
                 // `s`. So every node received at least `faulty_num + 1` correct entries of their
@@ -1036,13 +1049,27 @@ mod tests {
                     .map(|&i| (i, bi_poly.evaluate(m, i)))
                     .collect();
                 let my_row = Poly::interpolate(received);
-                assert_eq!(bi_poly.evaluate(m, 0), my_row.evaluate(0));
+                assert_eq!(sec_commit, my_row.evaluate(0));
                 assert_eq!(row_poly, my_row);
 
                 // The node sums up all values number `0` it received from the different dealer. No
                 // dealer and no other node knows the sum in the end.
-                sec_keys[m - 1].add_assign(&my_row.evaluate(0));
+                let sec_commit_str = sec_commit.into_repr();
+                let mut flatten: Vec<u8> = vec![];
+                for num in sec_commit_str.0 {
+                    flatten.extend(num.to_be_bytes());
+                }
+                let fr: [u64; 4] = [
+                    u64::from_be_bytes(flatten[0..8].try_into().unwrap()),
+                    u64::from_be_bytes(flatten[8..16].try_into().unwrap()),
+                    u64::from_be_bytes(flatten[16..24].try_into().unwrap()),
+                    u64::from_be_bytes(flatten[24..32].try_into().unwrap()),
+                ];
+                println!("{}", base64::encode(flatten));
+                // then use public key of m item to encrypt
+                sec_commits_list[i].push(Fr::from_repr(FrRepr(fr)).unwrap());
             }
+            pub_commits.push(bi_commit.row(0));
         }
 
         // Each node now adds up all the first values of the rows it received from the different
@@ -1050,20 +1077,17 @@ mod tests {
         // The whole first column never gets added up in practice, because nobody has all the
         // information. We do it anyway here; entry `0` is the secret key that is not known to
         // anyone, neither a dealer, nor a node:
-        let mut sec_key_set = Poly::zero();
-        for bi_poly in &bi_polys {
-            sec_key_set += bi_poly.row(0);
-        }
-        for m in 1..=node_num {
-            assert_eq!(sec_key_set.evaluate(m), sec_keys[m - 1]);
+        for sec_commits in sec_commits_list {
+            for (m, commit) in sec_commits.iter().enumerate() {
+                sec_keys[m].add_assign(commit);
+            }
         }
 
         // The sum of the first rows of the public commitments is the commitment to the secret key
         let mut sum_commit = Poly::zero().commitment();
-        for bi_commit in &pub_bi_commits {
-            sum_commit += bi_commit.row(0);
+        for commit in &pub_commits {
+            sum_commit.add_assign(commit);
         }
-        assert_eq!(sum_commit, sec_key_set.commitment());
 
         // in smart contract, the sec_keys will be sum up by decrypt with its private key, the sender will use public key to encrypt
         // and store in smart contract
@@ -1071,15 +1095,12 @@ mod tests {
         let mpkset = PublicKeySet::from(sum_commit);
         // sec_keys[0] is for node 0
         let mut sigs = BTreeMap::new();
+        // threshold + 1
         for i in 0..sec_keys.len() {
             let mut sec_key = sec_keys[i];
             let sk = SecretKeyShare::from_mut(&mut sec_key);
             let sig = sk.sign(msg);
-            let v1 = sk.public_key_share().verify(&sig, msg);
-            // let pk = PublicKeyShare::from_bytes(pub_bi_commits[i].to_bytes().try_into().unwrap())
-            //     .unwrap();
-            // let v2 = pk.verify(&sig, msg);
-            println!("verified {} {:?} ", v1, sk.public_key_share().to_bytes());
+            assert!(sk.public_key_share().verify(&sig, msg));
             sigs.insert(i, sig);
         }
 
