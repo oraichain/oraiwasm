@@ -4,7 +4,7 @@ use cosmwasm_std::{
     QuerierResult, QueryRequest, SystemError, SystemResult, WasmQuery,
 };
 
-const CANONICAL_LENGTH: usize = 54;
+const CANONICAL_LENGTH: usize = 32;
 
 type WasmHandler = fn(&WasmQuery) -> QuerierResult;
 

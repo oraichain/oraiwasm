@@ -1,0 +1,15 @@
+language: rust
+rust:
+  - 1.42.0
+cache:
+  cargo: true
+  timeout: 1200
+addons:
+  apt:
+    packages:
+      - unzip
+before_install:
+  - rustup component add --toolchain=${TRAVIS_RUST_VERSION} rustfmt clippy
+  - cargo deadlinks --version || cargo install cargo-deadlinks
+  - cargo audit --version || cargo install cargo-audit
+script: ./ci.sh

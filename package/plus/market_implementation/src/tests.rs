@@ -4,9 +4,9 @@ use crate::msg::*;
 use crate::state::ContractInfo;
 use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
-    coin, coins, from_binary, from_slice, to_binary, Binary, ContractResult, CosmosMsg, Decimal,
-    Env, HandleResponse, HumanAddr, MessageInfo, Order, OwnedDeps, QuerierResult, StdResult,
-    SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
+    coin, coins, from_binary, from_slice, to_binary, Api, Binary, ContractResult, CosmosMsg,
+    Decimal, Env, HandleResponse, HumanAddr, MessageInfo, Order, OwnedDeps, QuerierResult,
+    StdResult, SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
 };
 
 use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg, RoyaltyMsg};
@@ -301,6 +301,22 @@ fn sell_auction_happy_path() {
         )
         .unwrap();
         println!("{:?}", result);
+    }
+}
+
+#[test]
+fn test() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        let ret = manager
+            .deps
+            .api
+            .canonical_address(&HumanAddr(
+                "orai16e6cpk6ycddk6208fpaya7tmmardhvr77l5dtr".to_string(),
+            ))
+            .unwrap();
+        println!("{:?}", ret.len());
+        //
     }
 }
 
