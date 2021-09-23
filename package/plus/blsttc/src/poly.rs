@@ -898,8 +898,9 @@ pub(crate) fn coeff_pos(i: usize, j: usize) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+    use std::convert::TryInto;
 
-    use crate::{PublicKeySet, SecretKeyShare};
+    use crate::{PublicKeySet, PublicKeyShare, SecretKeyShare};
 
     use super::fr_to_be_bytes;
     use super::{coeff_pos, BivarCommitment, BivarPoly, Commitment, IntoFr, Poly};
@@ -965,16 +966,33 @@ mod tests {
 
     #[test]
     fn distributed_key_generation() {
-        let mut rng = rand::thread_rng();
-        let dealer_num = 3;
         let node_num = 5;
-        let faulty_num = 2;
+
+        // // the bi_polys must be created from a seed that is secret and known so that it can re-run
+        // // then we only need a handful number of shares before finalized
+        // let mut rng = rand::thread_rng();
+        // let dealer_num = 3; // wait for 3 dealers before commit
+        // let faulty_num = 2;
+        // for i in 0..dealer_num {
+        //     let bi_poly = BivarPoly::random(faulty_num, &mut rng);
+        //     // length is fixed by the degree and Fr size
+        //     let bi_poly_bytes = bi_poly.to_bytes();
+        //     println!("bytes: {}", base64::encode(bi_poly_bytes));
+        // }
+        let bi_poly_bytes_list = [
+            "QM4NuuJbtqJ4z5HLAQrftkKgGoqcIMa3aFvn8lne+R5eSxsavcwPruLWaCrHa9d7NaGHsRvp+hw5stWU+RsrxENZ6+ofKviEVuTBbXHULFbChv73KqXn33XZmmtz1VtMSv+yvFth0UX2DHHdCNCagj6Ntlmh2eiwG0SLzR5a1MhPFmBh9AWCaChvuV2fP6hD8lwr6B7ClBzx4ycEePcNVxzC+ni+eteBQvH5HjAFXkAtkwFjWz7lz0NQJaXhOeHW",
+            "FLs116XIx62v7NfDICovsByzLmvfhIfwQyK6MZwYQ7tNcJ4Y3fC4pcOdV0mSwf5eiWoRpRwLkdp5BolFbmhvAxD5QJjhVz9yrLNUJ339EVmAoCxPwC0odpQO3yERCSkybMt1EpjTTNlzARv69Pfa26jNeZx/93iAWMN33ePzm1cadR7qkxlY/tEnTX7o20jI+GIPO+HEdiCFBIPjOlDIXXMVSGOnH6/HoQMKewe6XiiaA+FZjZLTDYtXl7o2W4S7",
+            "BsE0GgKJKs7xLTCoLGtiRMjZwfZ3Fbe6cA+bLgkrhSkUuepET9LAYOuOb/vMo7LqzGSx2VMT4HlD+Tyy0ejTuBB+rB3qTsHcBs88ysjBmauxRXe4GJKPUqWKuDObg/MKFdniRgzW/PwTXVmloDOgLcy1oJ3iRdz953PZKPURnOsD9/YnoZx4dDkeKduUZl/izmBaYea4GKQeR2T1FmWR1xe/uOGR8t6wYG7QBKuO+1R5DStPx6jjMAVwEFIDAUc3",   
+        ];
 
         // For distributed key generation, a number of dealers, only one of who needs to be honest,
         // generates random bivariate polynomials and publicly commits to them. In practice, the
         // dealers can e.g. be any `faulty_num + 1` nodes.
-        let bi_polys: Vec<BivarPoly> = (0..dealer_num)
-            .map(|_| BivarPoly::random(faulty_num, &mut rng))
+        let bi_polys: Vec<BivarPoly> = bi_poly_bytes_list
+            .iter()
+            .map(|str| {
+                BivarPoly::from_bytes(base64::decode(str).unwrap()).expect("invalid bipoly bytes")
+            })
             .collect();
 
         // share public bi
@@ -1057,6 +1075,11 @@ mod tests {
             let mut sec_key = sec_keys[i];
             let sk = SecretKeyShare::from_mut(&mut sec_key);
             let sig = sk.sign(msg);
+            let v1 = sk.public_key_share().verify(&sig, msg);
+            // let pk = PublicKeyShare::from_bytes(pub_bi_commits[i].to_bytes().try_into().unwrap())
+            //     .unwrap();
+            // let v2 = pk.verify(&sig, msg);
+            println!("verified {} {:?} ", v1, sk.public_key_share().to_bytes());
             sigs.insert(i, sig);
         }
 
