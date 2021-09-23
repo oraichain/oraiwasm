@@ -9,7 +9,7 @@ use cosmwasm_std::{
     SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
 };
 
-use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg, RoyaltyMsg};
+use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg, Royalty, RoyaltyMsg};
 use market_auction::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_auction::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
 use market_royalty::{OfferingQueryMsg, OfferingsResponse, QueryOfferingsResult};
@@ -835,11 +835,14 @@ fn test_royalties() {
                                         token_id: String::from("SellableNFT"),
                                         royalty_owner: provider_info.sender.clone(),
                                     });
-                                let result: (String, HumanAddr, u64) =
+                                let result: Royalty =
                                     from_binary(&manager.query(provider_query_msg).unwrap())
                                         .unwrap();
 
-                                assert_eq!(offering.price.mul(Decimal::percent(result.2)), amount);
+                                assert_eq!(
+                                    offering.price.mul(Decimal::percent(result.royalty)),
+                                    amount
+                                );
                                 total_payment = total_payment + amount;
                             }
 
@@ -852,11 +855,14 @@ fn test_royalties() {
                                         token_id: String::from("SellableNFT"),
                                         royalty_owner: HumanAddr::from("provider"),
                                     });
-                                let result: (String, HumanAddr, u64) =
+                                let result: Royalty =
                                     from_binary(&manager.query(provider_query_msg).unwrap())
                                         .unwrap();
 
-                                assert_eq!(offering.price.mul(Decimal::percent(result.2)), amount);
+                                assert_eq!(
+                                    offering.price.mul(Decimal::percent(result.royalty)),
+                                    amount
+                                );
                                 total_payment = total_payment + amount;
                             }
 

@@ -74,7 +74,7 @@ fn update_ai_royalty() {
             }),
         )
         .unwrap();
-        let value: (HumanAddr, u64) = from_binary(&res).unwrap();
+        let value: Royalty = from_binary(&res).unwrap();
         println!("value: {:?}", value);
     }
 }
@@ -105,17 +105,46 @@ fn query_royalties() {
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
-    // royalties should be shown
-    let query_royalties = QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalties {
+    // query royalties using map
+    let mut query_royalties = QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
         contract_addr: HumanAddr::from("xxx"),
+        token_id: "1".to_string(),
+        royalty_owner: HumanAddr::from(format!("provider{}", 2)),
+    });
+    let result: Royalty =
+        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+    println!("result using normal get royalty: {:?}", result);
+
+    // query royalties using token id
+    query_royalties = QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
         token_id: "1".to_string(),
         offset: None,
         limit: None,
         order: Some(1),
     });
-    let result: Vec<(String, HumanAddr, u64)> =
+    let result: Vec<Royalty> =
         from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
-    println!("result: {:?}", result);
+    println!("result using token id: {:?}", result);
+
+    // query royalties using owner
+    query_royalties = QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyaltiesOwner {
+        owner: HumanAddr::from(format!("provider{}", 1)),
+        offset: None,
+        limit: None,
+        order: Some(1),
+    });
+    let result: Vec<Royalty> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+    println!("result using owner: {:?}", result);
+
+    query_royalties = QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalties {
+        offset: None,
+        limit: None,
+        order: Some(1),
+    });
+    let result: Vec<Royalty> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+    println!("result using map: {:?}", result);
 }
 
 #[test]

@@ -13,9 +13,25 @@ pub enum AiRoyaltyQueryMsg {
         royalty_owner: HumanAddr,
     },
     GetRoyalties {
-        contract_addr: HumanAddr,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
+    GetRoyaltiesTokenId {
         token_id: String,
-        offset: Option<u8>,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
+    GetRoyaltiesOwner {
+        owner: HumanAddr,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
+    GetRoyaltiesContract {
+        contract_addr: HumanAddr,
+        offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
     },

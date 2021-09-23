@@ -3,13 +3,13 @@ use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg, SellNft};
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, BankMsg, Binary, CanonicalAddr, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
+    attr, coins, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, StdError};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{query_proxy, StorageHandleMsg};
-use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, MintMsg, RoyaltyMsg};
+use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, MintMsg, Royalty, RoyaltyMsg};
 use market_royalty::{Offering, OfferingHandleMsg, OfferingQueryMsg, QueryOfferingsResult};
 use std::ops::{Mul, Sub};
 
@@ -123,26 +123,23 @@ pub fn try_buy(
             }
 
             // pay for creator, ai provider and others
-            let royalties: StdResult<Vec<(String, HumanAddr, u64)>> =
-                deps.querier.query_wasm_smart(
-                    get_storage_addr(deps.as_ref(), governance.clone(), AI_ROYALTY_STORAGE)?,
-                    &ProxyQueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalties {
-                        contract_addr: deps.api.human_address(&off.contract_addr.clone())?,
-                        token_id: off.token_id.clone(),
-                        offset: None,
-                        limit: None,
-                        order: Some(1),
-                    }),
-                );
+            let royalties: StdResult<Vec<Royalty>> = deps.querier.query_wasm_smart(
+                get_storage_addr(deps.as_ref(), governance.clone(), AI_ROYALTY_STORAGE)?,
+                &ProxyQueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalties {
+                    offset: None,
+                    limit: None,
+                    order: Some(1),
+                }),
+            );
             if royalties.is_ok() {
                 for royalty in royalties.unwrap() {
-                    let provider_amount = off.price.mul(Decimal::percent(royalty.2));
+                    let provider_amount = off.price.mul(Decimal::percent(royalty.royalty));
                     if provider_amount.gt(&Uint128::from(0u128)) {
                         seller_amount = seller_amount.sub(provider_amount)?;
                         cosmos_msgs.push(
                             BankMsg::Send {
                                 from_address: env.contract.address.clone(),
-                                to_address: royalty.1,
+                                to_address: royalty.royalty_owner,
                                 amount: coins(provider_amount.u128(), &contract_info.denom),
                             }
                             .into(),
