@@ -1,6 +1,6 @@
-use cosmwasm_std::{HumanAddr, Storage};
+use cosmwasm_std::{HumanAddr, StdResult, Storage};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
-use cw_storage_plus::Map;
+use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -11,6 +11,13 @@ pub struct State {
     pub owner: HumanAddr,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct RoundInfo {
+    pub round: u64,
+    pub height: u64,
+}
+
 pub fn config(storage: &mut dyn Storage) -> Singleton<State> {
     singleton(storage, CONFIG_KEY)
 }
@@ -19,4 +26,4 @@ pub fn config_read(storage: &dyn Storage) -> ReadonlySingleton<State> {
     singleton_read(storage, CONFIG_KEY)
 }
 
-pub const MAPPED_COUNT: Map<&[u8], u64> = Map::new("mapped_count");
+pub const MAPPED_COUNT: Map<&[u8], RoundInfo> = Map::new("mapped_count");
