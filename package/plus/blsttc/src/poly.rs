@@ -974,7 +974,7 @@ mod tests {
         // // the bi_polys must be created from a seed that is secret and known so that it can re-run
         // // then we only need a handful number of shares before finalized
         // let mut rng = rand::thread_rng();
-        let dealer_num = 3; // wait for 3 dealers before commit
+        let dealer_num = 3; // wait for 3 dealers before commit(1<= <=5, default threshold+1)
         let faulty_num = 2;
         // for i in 0..dealer_num {
         //     let bi_poly = BivarPoly::random(faulty_num, &mut rng);
