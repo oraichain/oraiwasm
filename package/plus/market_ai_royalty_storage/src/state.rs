@@ -14,7 +14,7 @@ pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("marketplace_info");
 const PREFIX_ROYALTIES: &[u8] = b"royalties";
 
 /// payout royalty for ai providers
-pub type Payout = (HumanAddr, u64);
+pub type Payout = (String, HumanAddr, u64);
 /// returns a bucket with creator royalty by this contract (query it by spender)
 pub fn royalties<'a>(storage: &'a mut dyn Storage, contract: &HumanAddr) -> Bucket<'a, Payout> {
     Bucket::multilevel(storage, &[PREFIX_ROYALTIES, contract.as_bytes()])

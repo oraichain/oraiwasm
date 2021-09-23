@@ -30,16 +30,8 @@ pub enum OfferingQueryMsg {
     GetOfferingState {
         offering_id: u64,
     },
-    GetPayoutsByContractTokenId {
-        contract: HumanAddr,
-        token_id: String,
-    },
     GetOfferingByContractTokenId {
         contract: HumanAddr,
-        token_id: String,
-    },
-    GetRoyalty {
-        contract_addr: HumanAddr,
         token_id: String,
     },
     GetContractInfo {},
@@ -52,14 +44,7 @@ pub struct QueryOfferingsResult {
     pub price: Uint128,
     pub contract_addr: HumanAddr,
     pub seller: HumanAddr,
-    pub royalty_creator: Option<PayoutMsg>,
     pub royalty_owner: Option<u64>,
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct PayoutMsg {
-    pub creator: HumanAddr,
-    pub royalty: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

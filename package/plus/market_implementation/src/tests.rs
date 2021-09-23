@@ -91,11 +91,11 @@ impl DepsManager {
         .unwrap();
 
         let mut offering = mock_dependencies(HumanAddr::from(OFFERING_ADDR), &[], Self::query_wasm);
-        let _res = market_royalty_storage::contract::init(
+        let _res = market_offering_storage::contract::init(
             offering.as_mut(),
             mock_env(OFFERING_ADDR),
             info.clone(),
-            market_royalty_storage::msg::InitMsg {
+            market_offering_storage::msg::InitMsg {
                 governance: HumanAddr::from(HUB_ADDR),
             },
         )
@@ -103,11 +103,11 @@ impl DepsManager {
 
         let mut ai_royalty =
             mock_dependencies(HumanAddr::from(AI_ROYALTY_ADDR), &[], Self::query_wasm);
-        let _res = market_royalty_storage::contract::init(
+        let _res = market_offering_storage::contract::init(
             ai_royalty.as_mut(),
             mock_env(AI_ROYALTY_ADDR),
             info.clone(),
-            market_royalty_storage::msg::InitMsg {
+            market_offering_storage::msg::InitMsg {
                 governance: HumanAddr::from(HUB_ADDR),
             },
         )
@@ -164,7 +164,7 @@ impl DepsManager {
                         from_slice(msg).unwrap(),
                     )
                     .ok(),
-                    OFFERING_ADDR => market_royalty_storage::contract::handle(
+                    OFFERING_ADDR => market_offering_storage::contract::handle(
                         self.offering.as_mut(),
                         mock_env(HUB_ADDR),
                         mock_info(HUB_ADDR, &[]),
@@ -238,7 +238,7 @@ impl DepsManager {
                             from_slice(msg).unwrap(),
                         )
                         .unwrap_or_default(),
-                        OFFERING_ADDR => market_royalty_storage::contract::query(
+                        OFFERING_ADDR => market_offering_storage::contract::query(
                             manager.offering.as_ref(),
                             mock_env(OFFERING_ADDR),
                             from_slice(msg).unwrap(),
@@ -707,14 +707,14 @@ fn test_royalties() {
         let manager = DepsManager::get_new();
 
         // try mint nft to get royalty for provider
-        let provider_info = mock_info("provider", &vec![coin(50, DENOM)]);
+        let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = HandleMsg::MintNft {
             contract: HumanAddr::from("nft_contract"),
             msg: to_binary(&MintMsg {
                 royalty_msg: RoyaltyMsg {
                     contract_addr: HumanAddr::from("offering"),
                     token_id: String::from("SellableNFT"),
-                    provider: HumanAddr::from("provider"),
+                    royalty_owner: HumanAddr::from("provider"),
                 },
                 msg: to_binary("something").unwrap(),
             })
@@ -805,7 +805,6 @@ fn test_royalties() {
         let info_buy = mock_info("buyer2", &coins(9000000, DENOM));
         let results = manager.handle(info_buy, buy_msg).unwrap();
         let mut total_payment = Uint128::from(0u128);
-        let mut royalty_creator = Uint128::from(0u128);
         let mut royatly_marketplace = Uint128::from(0u128);
         let contract_info: ContractInfo =
             from_binary(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
@@ -822,41 +821,42 @@ fn test_royalties() {
                             println!("to address: {}", to_address);
                             println!("amount: {:?}", amount);
                             let amount = amount[0].amount;
-                            // check royalty sent to creator
-                            if to_address.eq(&offering
-                                .clone()
-                                .royalty_creator
-                                .clone()
-                                .unwrap()
-                                .creator)
-                            {
-                                royalty_creator = amount;
-                                assert_eq!(
-                                    offering.price.mul(Decimal::percent(
-                                        offering.clone().royalty_creator.unwrap().royalty
-                                    )),
-                                    amount
-                                );
-                            }
-
                             // check royalty sent to seller
                             if to_address.eq(&offering.clone().seller) {
                                 total_payment = total_payment + amount;
                             }
 
-                            // check royalty sent to provider
+                            // check royalty sent to creator
                             if to_address.eq(&provider_info.sender) {
                                 // query royalty provider
                                 let provider_query_msg =
                                     QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
                                         contract_addr: HumanAddr::from("offering"),
                                         token_id: String::from("SellableNFT"),
+                                        royalty_owner: provider_info.sender.clone(),
                                     });
-                                let result: (HumanAddr, u64) =
+                                let result: (String, HumanAddr, u64) =
                                     from_binary(&manager.query(provider_query_msg).unwrap())
                                         .unwrap();
 
-                                assert_eq!(offering.price.mul(Decimal::percent(result.1)), amount);
+                                assert_eq!(offering.price.mul(Decimal::percent(result.2)), amount);
+                                total_payment = total_payment + amount;
+                            }
+
+                            // check royalty sent to provider
+                            if to_address.eq(&HumanAddr::from("provider")) {
+                                // query royalty provider
+                                let provider_query_msg =
+                                    QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
+                                        contract_addr: HumanAddr::from("offering"),
+                                        token_id: String::from("SellableNFT"),
+                                        royalty_owner: HumanAddr::from("provider"),
+                                    });
+                                let result: (String, HumanAddr, u64) =
+                                    from_binary(&manager.query(provider_query_msg).unwrap())
+                                        .unwrap();
+
+                                assert_eq!(offering.price.mul(Decimal::percent(result.2)), amount);
                                 total_payment = total_payment + amount;
                             }
 
@@ -874,25 +874,9 @@ fn test_royalties() {
             }
         }
         assert_eq!(
-            total_payment + royalty_creator + royatly_marketplace,
+            total_payment + royatly_marketplace,
             Uint128::from(9000000u128)
         );
-
-        // Offering should be listed
-        let res = String::from_utf8(
-            manager
-                .query(QueryMsg::Offering(
-                    OfferingQueryMsg::GetPayoutsByContractTokenId {
-                        contract: "nft_contract".into(),
-                        token_id: "SellableNFT".into(),
-                    },
-                ))
-                .unwrap()
-                .to_vec(),
-        )
-        .unwrap();
-
-        println!("res: {}", res);
     }
 }
 
@@ -1017,103 +1001,6 @@ fn admin_withdraw_offering() {
         )
         .unwrap();
         assert_eq!(0, res2.offerings.len());
-    }
-}
-
-#[test]
-fn creator_update_royalty_happy_path() {
-    unsafe {
-        let manager = DepsManager::get_new();
-
-        // beneficiary can release it
-        let info = mock_info("offering", &coins(2, DENOM));
-
-        let sell_msg = SellNft {
-            off_price: Uint128(50),
-            royalty: Some(10),
-        };
-
-        println!("msg :{}", to_binary(&sell_msg).unwrap());
-
-        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-            sender: HumanAddr::from("seller"),
-            token_id: String::from("SellableNFT"),
-            msg: to_binary(&sell_msg).ok(),
-        });
-        let _res = manager.handle(info.clone(), msg).unwrap();
-
-        // Offering should be listed
-        let res: OfferingsResponse = from_binary(
-            &manager
-                .query(QueryMsg::Offering(OfferingQueryMsg::GetOfferings {
-                    offset: None,
-                    limit: None,
-                    order: None,
-                }))
-                .unwrap(),
-        )
-        .unwrap();
-        assert_eq!(1, res.offerings.len());
-
-        let mut buy_msg = HandleMsg::BuyNft { offering_id: 1 };
-        let info_buy = mock_info("buyer", &coins(50, DENOM));
-        manager.handle(info_buy, buy_msg.clone()).unwrap();
-
-        // sell again
-        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-            sender: HumanAddr::from("buyer"),
-            token_id: String::from("SellableNFT"),
-            msg: to_binary(&SellNft {
-                off_price: Uint128(70),
-                royalty: Some(10),
-            })
-            .ok(),
-        });
-        manager.handle(info.clone(), msg).unwrap();
-
-        let result: OfferingsResponse = from_binary(
-            &manager
-                .query(QueryMsg::Offering(OfferingQueryMsg::GetOfferings {
-                    offset: None,
-                    limit: None,
-                    order: None,
-                }))
-                .unwrap(),
-        )
-        .unwrap();
-        println!("token belongs to buyer now {:?}", result);
-
-        // beneficiary can release it
-        let info_buy_2 = mock_info("seller", &coins(999, DENOM));
-        // now the creator buys again
-        buy_msg = HandleMsg::BuyNft { offering_id: 2 };
-        manager.handle(info_buy_2, buy_msg).unwrap();
-
-        // finally, creator sells again to reset royalty
-        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-            sender: HumanAddr::from("seller"),
-            token_id: String::from("SellableNFT"),
-            msg: to_binary(&SellNft {
-                off_price: Uint128(70),
-                royalty: Some(20),
-            })
-            .ok(),
-        });
-        manager.handle(info.clone(), msg).unwrap();
-
-        let offering_result: QueryOfferingsResult = from_binary(
-            &manager
-                .query(QueryMsg::Offering(OfferingQueryMsg::GetOffering {
-                    offering_id: 3,
-                }))
-                .unwrap(),
-        )
-        .unwrap();
-        println!("token belongs to creator now {:?}", offering_result);
-        let royalty = offering_result.royalty_creator.unwrap().royalty;
-        let owner_royalty = offering_result.royalty_owner;
-        assert_eq!(royalty, 20);
-        assert_eq!(owner_royalty, None);
     }
 }
 

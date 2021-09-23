@@ -62,21 +62,3 @@ pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>
     };
     IndexedMap::new("offerings", indexes)
 }
-
-const PREFIX_ROYALTIES: &[u8] = b"royalties";
-
-/// payout royalty for creator, can be zero
-pub type Payout = (CanonicalAddr, u64);
-/// returns a bucket with creator royalty by this contract (query it by spender)
-pub fn royalties<'a>(storage: &'a mut dyn Storage, contract: &CanonicalAddr) -> Bucket<'a, Payout> {
-    Bucket::multilevel(storage, &[PREFIX_ROYALTIES, contract.as_slice()])
-}
-
-/// returns a bucket with creator royalty authorized by this contract (query it by spender)
-/// (read-only version for queries)
-pub fn royalties_read<'a>(
-    storage: &'a dyn Storage,
-    contract: &CanonicalAddr,
-) -> ReadonlyBucket<'a, Payout> {
-    ReadonlyBucket::multilevel(storage, &[PREFIX_ROYALTIES, contract.as_slice()])
-}

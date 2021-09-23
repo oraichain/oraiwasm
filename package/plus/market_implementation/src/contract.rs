@@ -194,7 +194,7 @@ pub fn get_storage_addr(deps: Deps, contract: HumanAddr, name: &str) -> StdResul
     )
 }
 
-pub fn get_handle_msg<T>(addr: HumanAddr, name: &str, msg: T) -> StdResult<CosmosMsg>
+pub fn get_handle_msg<T>(addr: &str, name: &str, msg: T) -> StdResult<CosmosMsg>
 where
     T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
 {
@@ -206,7 +206,7 @@ where
         });
 
     Ok(WasmMsg::Execute {
-        contract_addr: addr,
+        contract_addr: HumanAddr::from(addr),
         msg: to_binary(&proxy_msg)?,
         send: vec![],
     }
