@@ -18,7 +18,7 @@ pub struct Offering {
 #[serde(rename_all = "snake_case")]
 pub enum OfferingHandleMsg {
     // this allow implementation contract to update the storage
-    UpdateOffering { offering: Offering, royalty: u64 },
+    UpdateOffering { offering: Offering },
     RemoveOffering { id: u64 },
 }
 

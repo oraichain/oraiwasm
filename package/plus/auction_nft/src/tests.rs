@@ -183,7 +183,7 @@ fn sell_auction_happy_path() {
         .unwrap(),
     )
     .unwrap();
-    println!("{:?}", result);
+    println!("query auction result {:?}", result);
     let result_second: AuctionsResponse = from_binary(
         &query(
             deps.as_ref(),

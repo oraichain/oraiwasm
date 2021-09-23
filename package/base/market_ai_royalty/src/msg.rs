@@ -8,7 +8,15 @@ use serde::{Deserialize, Serialize};
 pub struct RoyaltyMsg {
     pub contract_addr: HumanAddr,
     pub token_id: String,
-    pub provider: HumanAddr,
+    pub royalty_owner: HumanAddr,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct Royalty {
+    pub contract_addr: HumanAddr,
+    pub token_id: String,
+    pub royalty_owner: HumanAddr,
+    pub royalty: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -37,7 +37,7 @@ fn update_ai_royalty() {
     for i in 1u64..3u64 {
         let royalty = RoyaltyMsg {
             contract_addr: HumanAddr::from("xxx"),
-            provider: HumanAddr::from(format!("provider{}", i)),
+            royalty_owner: HumanAddr::from(format!("provider{}", i)),
             token_id: i.to_string(),
         };
         royalties.push(royalty);
@@ -70,12 +70,81 @@ fn update_ai_royalty() {
             QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr: HumanAddr::from("xxx"),
                 token_id: i.to_string(),
+                royalty_owner: HumanAddr::from(format!("provider{}", i)),
             }),
         )
         .unwrap();
-        let value: (HumanAddr, u64) = from_binary(&res).unwrap();
+        let value: Royalty = from_binary(&res).unwrap();
         println!("value: {:?}", value);
     }
+}
+
+#[test]
+fn query_royalties() {
+    let mut deps = setup_contract();
+
+    // beneficiary can release it
+    let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
+    let provider_info = mock_info("provider1", &vec![coin(50, DENOM)]);
+    let mut royalties: Vec<RoyaltyMsg> = vec![];
+
+    let pref_msg = HandleMsg::UpdatePreference(1);
+    handle(deps.as_mut(), mock_env(), provider_info.clone(), pref_msg).unwrap();
+
+    for i in 1u64..3u64 {
+        let royalty = RoyaltyMsg {
+            contract_addr: HumanAddr::from("xxx"),
+            royalty_owner: HumanAddr::from(format!("provider{}", i)),
+            token_id: "1".to_string(),
+        };
+        royalties.push(royalty);
+    }
+
+    for royalty in royalties {
+        let msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdateRoyalty(royalty));
+        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    }
+
+    // query royalties using map
+    let mut query_royalties = QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
+        contract_addr: HumanAddr::from("xxx"),
+        token_id: "1".to_string(),
+        royalty_owner: HumanAddr::from(format!("provider{}", 2)),
+    });
+    let result: Royalty =
+        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+    println!("result using normal get royalty: {:?}", result);
+
+    // query royalties using token id
+    query_royalties = QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
+        token_id: "1".to_string(),
+        offset: None,
+        limit: None,
+        order: Some(1),
+    });
+    let result: Vec<Royalty> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+    println!("result using token id: {:?}", result);
+
+    // query royalties using owner
+    query_royalties = QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyaltiesOwner {
+        owner: HumanAddr::from(format!("provider{}", 1)),
+        offset: None,
+        limit: None,
+        order: Some(1),
+    });
+    let result: Vec<Royalty> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+    println!("result using owner: {:?}", result);
+
+    query_royalties = QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalties {
+        offset: None,
+        limit: None,
+        order: Some(1),
+    });
+    let result: Vec<Royalty> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+    println!("result using map: {:?}", result);
 }
 
 #[test]
@@ -89,7 +158,7 @@ fn remove_ai_royalty() {
     for i in 1u64..3u64 {
         let royalty = RoyaltyMsg {
             contract_addr: HumanAddr::from("xxx"),
-            provider: HumanAddr::from(format!("provider{}", i)),
+            royalty_owner: HumanAddr::from(format!("provider{}", i)),
             token_id: i.to_string(),
         };
         royalties.push(royalty);
@@ -122,6 +191,7 @@ fn remove_ai_royalty() {
             QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr: HumanAddr::from("xxx"),
                 token_id: i.to_string(),
+                royalty_owner: HumanAddr::from(format!("provider{}", i)),
             }),
         );
         let _err: Result<u64, StdError> = Err(cosmwasm_std::StdError::NotFound {

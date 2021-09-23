@@ -1,7 +1,7 @@
 use crate::contract::get_storage_addr;
 use crate::error::ContractError;
 use crate::msg::{AskNftMsg, ProxyHandleMsg, ProxyQueryMsg};
-use crate::offering::OFFERING_STORAGE;
+// use crate::offering::OFFERING_STORAGE;
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
@@ -11,7 +11,7 @@ use cosmwasm_std::{
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{query_proxy, StorageHandleMsg};
 use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, QueryAuctionsResult};
-use market_royalty::OfferingQueryMsg;
+// use market_royalty::OfferingQueryMsg;
 use std::ops::{Add, Mul, Sub};
 
 pub const MAX_FEE_PERMILLE: u64 = 100;
@@ -171,26 +171,26 @@ pub fn try_claim_winner(
         let mut fund_amount = off.price;
 
         // send royalty to creator
-        if let Ok((creator_addr, creator_royalty)) = deps.querier.query_wasm_smart(
-            get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
-            &ProxyQueryMsg::Offering(OfferingQueryMsg::GetRoyalty {
-                contract_addr: deps.api.human_address(&off.contract_addr.clone())?,
-                token_id: off.token_id.clone(),
-            }),
-        ) {
-            let creator_amount = off.price.mul(Decimal::percent(creator_royalty));
-            if creator_amount.gt(&Uint128::from(0u128)) {
-                fund_amount = fund_amount.sub(creator_amount)?;
-                cosmos_msgs.push(
-                    BankMsg::Send {
-                        from_address: env.contract.address.clone(),
-                        to_address: deps.api.human_address(&creator_addr)?,
-                        amount: coins(creator_amount.u128(), &denom),
-                    }
-                    .into(),
-                );
-            }
-        }
+        // if let Ok((creator_addr, creator_royalty)) = deps.querier.query_wasm_smart(
+        //     get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
+        //     &ProxyQueryMsg::Offering(OfferingQueryMsg::GetRoyalty {
+        //         contract_addr: deps.api.human_address(&off.contract_addr.clone())?,
+        //         token_id: off.token_id.clone(),
+        //     }),
+        // ) {
+        //     let creator_amount = off.price.mul(Decimal::percent(creator_royalty));
+        //     if creator_amount.gt(&Uint128::from(0u128)) {
+        //         fund_amount = fund_amount.sub(creator_amount)?;
+        //         cosmos_msgs.push(
+        //             BankMsg::Send {
+        //                 from_address: env.contract.address.clone(),
+        //                 to_address: deps.api.human_address(&creator_addr)?,
+        //                 amount: coins(creator_amount.u128(), &denom),
+        //             }
+        //             .into(),
+        //         );
+        //     }
+        // }
 
         // send fund the asker
         fund_amount = fund_amount.mul(Decimal::permille(1000 - fee));

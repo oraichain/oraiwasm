@@ -47,5 +47,5 @@ thiserror = { version = "1.0.21" }
 cosmwasm-schema = { version = "0.13.2" }
 market_hub = { path = "../market_hub" }
 market_auction_storage = { path = "../market_auction_storage" }
-market_royalty_storage = { path = "../market_royalty_storage" }
+market_offering_storage = { path = "../market_offering_storage" }
 market_ai_royalty_storage = { path = "../market_ai_royalty_storage" }
