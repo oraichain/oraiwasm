@@ -3,7 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use market_1155::{InfoMsg, Offering, OfferingHandleMsg, OfferingQueryMsg, OfferingsResponse};
+use market_1155::{InfoMsg, Offering, OfferingHandleMsg, OfferingQueryMsg};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -13,7 +13,6 @@ fn main() {
 
     export_schema(&schema_for!(Offering), &out_dir);
     export_schema(&schema_for!(OfferingQueryMsg), &out_dir);
-    export_schema(&schema_for!(OfferingsResponse), &out_dir);
     export_schema(&schema_for!(InfoMsg), &out_dir);
     export_schema(&schema_for!(OfferingHandleMsg), &out_dir);
 }

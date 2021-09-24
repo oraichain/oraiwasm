@@ -14,7 +14,6 @@ use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, QueryAuctionsRe
 // use market_royalty::OfferingQueryMsg;
 use std::ops::{Add, Mul, Sub};
 
-pub const MAX_FEE_PERMILLE: u64 = 100;
 pub const AUCTION_STORAGE: &str = "auction";
 // const MAX_ROYALTY_PERCENT: u64 = 50;
 // pub const OFFERING_STORAGE: &str = "offering";

@@ -2,12 +2,11 @@ use std::fmt;
 
 use crate::auction::{
     handle_ask_auction, query_auction, try_bid_nft, try_cancel_bid, try_claim_winner,
-    try_emergency_cancel_auction, MAX_FEE_PERMILLE,
+    try_emergency_cancel_auction,
 };
 
 use crate::offering::{
-    handle_sell_nft, query_ai_royalty, query_offering, sanitize_royalty, try_buy, try_handle_mint,
-    try_withdraw, MAX_ROYALTY_PERCENT,
+    handle_sell_nft, query_ai_royalty, query_offering, try_buy, try_handle_mint, try_withdraw,
 };
 
 use crate::error::ContractError;
@@ -17,14 +16,18 @@ use crate::msg::{
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
     HandleResponse, InitResponse, MessageInfo, StdResult, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, StdError};
 use cw721::Cw721ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
+use market_ai_royalty::sanitize_royalty;
 use schemars::JsonSchema;
 use serde::Serialize;
+
+pub const MAX_ROYALTY_PERCENT: u64 = 50;
+pub const MAX_FEE_PERMILLE: u64 = 100;
 
 fn sanitize_fee(fee: u64, limit: u64, name: &str) -> Result<u64, ContractError> {
     if fee > limit {
@@ -199,7 +202,7 @@ where
     T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
 {
     let offering_msg = to_binary(&ProxyHandleMsg::Msg(msg))?;
-    let proxy_msg: ProxyHandleMsg<T> =
+    let proxy_msg: ProxyHandleMsg<Empty> =
         ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
             name: name.to_string(),
             msg: offering_msg,

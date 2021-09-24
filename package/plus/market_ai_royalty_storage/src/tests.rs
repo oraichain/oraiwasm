@@ -67,7 +67,7 @@ fn update_ai_royalty() {
         let res = query(
             deps.as_ref(),
             mock_env(),
-            QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
+            QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr: HumanAddr::from("xxx"),
                 token_id: i.to_string(),
                 royalty_owner: HumanAddr::from(format!("provider{}", i)),
@@ -106,7 +106,7 @@ fn query_royalties() {
     }
 
     // query royalties using map
-    let mut query_royalties = QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
+    let mut query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalty {
         contract_addr: HumanAddr::from("xxx"),
         token_id: "1".to_string(),
         royalty_owner: HumanAddr::from(format!("provider{}", 2)),
@@ -116,7 +116,7 @@ fn query_royalties() {
     println!("result using normal get royalty: {:?}", result);
 
     // query royalties using token id
-    query_royalties = QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
+    query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
         token_id: "1".to_string(),
         offset: None,
         limit: None,
@@ -127,7 +127,7 @@ fn query_royalties() {
     println!("result using token id: {:?}", result);
 
     // query royalties using owner
-    query_royalties = QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyaltiesOwner {
+    query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyaltiesOwner {
         owner: HumanAddr::from(format!("provider{}", 1)),
         offset: None,
         limit: None,
@@ -137,7 +137,7 @@ fn query_royalties() {
         from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
     println!("result using owner: {:?}", result);
 
-    query_royalties = QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalties {
+    query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalties {
         offset: None,
         limit: None,
         order: Some(1),
@@ -188,7 +188,7 @@ fn remove_ai_royalty() {
         let res = query(
             deps.as_ref(),
             mock_env(),
-            QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
+            QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr: HumanAddr::from("xxx"),
                 token_id: i.to_string(),
                 royalty_owner: HumanAddr::from(format!("provider{}", i)),

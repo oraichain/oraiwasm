@@ -1,9 +1,8 @@
-use market_1155::{Offering, Payout};
+use market_1155::Offering;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{HumanAddr, StdResult, Storage};
-use cosmwasm_storage::{Bucket, ReadonlyBucket};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -65,20 +64,4 @@ pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>
         ),
     };
     IndexedMap::new("offerings", indexes)
-}
-
-const PREFIX_ROYALTIES: &[u8] = b"royalties";
-
-/// returns a bucket with creator royalty by this contract (query it by spender)
-pub fn royalties<'a>(storage: &'a mut dyn Storage, contract: &HumanAddr) -> Bucket<'a, Payout> {
-    Bucket::multilevel(storage, &[PREFIX_ROYALTIES, contract.as_bytes()])
-}
-
-/// returns a bucket with creator royalty authorized by this contract (query it by spender)
-/// (read-only version for queries)
-pub fn royalties_read<'a>(
-    storage: &'a dyn Storage,
-    contract: &HumanAddr,
-) -> ReadonlyBucket<'a, Payout> {
-    ReadonlyBucket::multilevel(storage, &[PREFIX_ROYALTIES, contract.as_bytes()])
 }

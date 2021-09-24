@@ -9,21 +9,35 @@ use cosmwasm_std::{
 use cosmwasm_std::{HumanAddr, StdError};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{query_proxy, StorageHandleMsg};
-use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, MintMsg, Royalty, RoyaltyMsg};
+use market_ai_royalty::{
+    sanitize_royalty, AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, MintMsg, Royalty, RoyaltyMsg,
+};
 use market_royalty::{Offering, OfferingHandleMsg, OfferingQueryMsg, QueryOfferingsResult};
 use std::ops::{Mul, Sub};
 
 pub const OFFERING_STORAGE: &str = "offering";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
-pub const MAX_ROYALTY_PERCENT: u64 = 50;
 
-pub fn sanitize_royalty(royalty: u64, limit: u64, name: &str) -> Result<u64, ContractError> {
-    if royalty > limit {
-        return Err(ContractError::InvalidArgument {
-            arg: name.to_string(),
-        });
-    }
-    Ok(royalty)
+pub fn add_msg_royalty(sender: &str, governance: &str, msg: MintMsg) -> StdResult<Vec<CosmosMsg>> {
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+    // update ai royalty provider
+    cosmos_msgs.push(get_handle_msg(
+        governance,
+        AI_ROYALTY_STORAGE,
+        AiRoyaltyHandleMsg::UpdateRoyalty(msg.royalty_msg.clone()),
+    )?);
+
+    // update creator as the caller of the mint tx
+    cosmos_msgs.push(get_handle_msg(
+        governance,
+        AI_ROYALTY_STORAGE,
+        AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+            contract_addr: msg.royalty_msg.contract_addr,
+            token_id: msg.royalty_msg.token_id,
+            royalty_owner: HumanAddr(sender.to_string()),
+        }),
+    )?);
+    Ok(cosmos_msgs)
 }
 
 pub fn try_handle_mint(
@@ -42,25 +56,8 @@ pub fn try_handle_mint(
     }
     .into();
 
-    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
-
-    // update ai royalty provider
-    cosmos_msgs.push(get_handle_msg(
-        governance.as_str(),
-        AI_ROYALTY_STORAGE,
-        AiRoyaltyHandleMsg::UpdateRoyalty(msg_handle_mint.royalty_msg.clone()),
-    )?);
-
-    // update creator as the caller of the mint tx
-    cosmos_msgs.push(get_handle_msg(
-        governance.as_str(),
-        AI_ROYALTY_STORAGE,
-        AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
-            contract_addr: msg_handle_mint.royalty_msg.contract_addr,
-            token_id: msg_handle_mint.royalty_msg.token_id,
-            royalty_owner: info.sender.clone(),
-        }),
-    )?);
+    let mut cosmos_msgs: Vec<CosmosMsg> =
+        add_msg_royalty(info.sender.as_str(), governance.as_str(), msg_handle_mint)?;
 
     cosmos_msgs.push(mint_msg);
 
@@ -86,7 +83,7 @@ pub fn try_buy(
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
-    let off: Offering = get_offering(deps.as_ref(), governance.clone(), offering_id)?;
+    let off: Offering = get_offering(deps.as_ref(), offering_id)?;
     let seller_addr = deps.api.human_address(&off.seller)?;
 
     let mut cosmos_msgs = vec![];
@@ -123,14 +120,8 @@ pub fn try_buy(
             }
 
             // pay for creator, ai provider and others
-            let royalties: StdResult<Vec<Royalty>> = deps.querier.query_wasm_smart(
-                get_storage_addr(deps.as_ref(), governance.clone(), AI_ROYALTY_STORAGE)?,
-                &ProxyQueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalties {
-                    offset: None,
-                    limit: None,
-                    order: Some(1),
-                }),
-            );
+            let royalties: Result<Vec<Royalty>, ContractError> =
+                get_royalties(deps.as_ref(), &off.token_id);
             if royalties.is_ok() {
                 for royalty in royalties.unwrap() {
                     let provider_amount = off.price.mul(Decimal::percent(royalty.royalty));
@@ -226,7 +217,7 @@ pub fn try_withdraw(
     } = CONTRACT_INFO.load(deps.storage)?;
     // check if token_id is currently sold by the requesting address
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
-    let off: Offering = get_offering(deps.as_ref(), governance.clone(), offering_id)?;
+    let off: Offering = get_offering(deps.as_ref(), offering_id)?;
     if info.sender.eq(&HumanAddr(creator))
         || off.seller == deps.api.canonical_address(&info.sender)?
     {
@@ -278,14 +269,14 @@ pub fn handle_sell_nft(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
     // check if same token Id form same original contract is already on sale
-    let offering_result: Result<QueryOfferingsResult, StdError> = deps.querier.query_wasm_smart(
-        get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
-        &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingByContractTokenId {
+    let offering_result: Result<QueryOfferingsResult, StdError> = from_binary(&query_offering(
+        deps.as_ref(),
+        OfferingQueryMsg::GetOfferingByContractTokenId {
             contract: info.sender.clone(),
             token_id: rcv_msg.token_id.clone(),
-        }),
-    );
-    if !offering_result.is_err() {
+        },
+    )?);
+    if offering_result.is_ok() {
         return Err(ContractError::TokenOnSale {});
     }
     let royalty = Some(sanitize_royalty(
@@ -340,22 +331,33 @@ pub fn query_ai_royalty(deps: Deps, msg: AiRoyaltyQueryMsg) -> StdResult<Binary>
     query_proxy(
         deps,
         get_storage_addr(deps, contract_info.governance, AI_ROYALTY_STORAGE)?,
-        to_binary(&ProxyQueryMsg::AiRoyalty(msg))?,
+        to_binary(&ProxyQueryMsg::Msg(msg))?,
     )
 }
 
-fn get_offering(
-    deps: Deps,
-    governance: HumanAddr,
-    offering_id: u64,
-) -> Result<Offering, ContractError> {
-    Ok(deps
-        .querier
-        .query_wasm_smart(
-            get_storage_addr(deps, governance, OFFERING_STORAGE)?,
-            &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingState { offering_id }),
-        )
-        .map_err(|_op| ContractError::TokenNeverBeenSold {})?)
+fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError> {
+    let offering: Offering = from_binary(&query_offering(
+        deps,
+        OfferingQueryMsg::GetOfferingState { offering_id },
+    )?)
+    .map_err(|_| ContractError::InvalidGetOffering {})?;
+    Ok(offering)
+}
+
+fn get_royalties(deps: Deps, token_id: &str) -> Result<Vec<Royalty>, ContractError> {
+    let royalties: Vec<Royalty> = from_binary(&query_ai_royalty(
+        deps,
+        AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
+            token_id: token_id.to_string(),
+            offset: None,
+            limit: None,
+            order: Some(1),
+        },
+    )?)
+    .map_err(|_| ContractError::InvalidGetRoyaltiesTokenId {
+        token_id: token_id.to_string(),
+    })?;
+    Ok(royalties)
 }
 
 pub fn get_offering_handle_msg(

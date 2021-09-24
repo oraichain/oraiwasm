@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, Coin, Empty, HumanAddr, Uint128};
 use cw721::Cw721ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::AiRoyaltyQueryMsg;
@@ -102,13 +102,13 @@ pub enum ProxyQueryMsg {
     // GetOfferings returns a list of all offerings
     Auction(AuctionQueryMsg),
     Offering(OfferingQueryMsg),
-    AiRoyalty(AiRoyaltyQueryMsg),
+    Msg(AiRoyaltyQueryMsg),
     Storage(StorageQueryMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ProxyHandleMsg<T>
+pub enum ProxyHandleMsg<T = Empty>
 where
     T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
 {

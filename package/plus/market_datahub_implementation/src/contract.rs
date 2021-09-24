@@ -1,18 +1,27 @@
+use std::fmt;
+
 use crate::offering::{
-    handle_sell_nft, query_offering, sanitize_royalty, try_buy, try_handle_mint,
-    try_update_royalty, try_withdraw, MAX_FEE_PERMILLE,
+    handle_sell_nft, query_ai_royalty, query_offering, try_buy, try_handle_mint, try_withdraw,
 };
 
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, ProxyQueryMsg, QueryMsg, SellNft, UpdateContractMsg};
+use crate::msg::{
+    HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellNft, UpdateContractMsg,
+};
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, InitResponse, MessageInfo, StdResult,
+    attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
+    HandleResponse, InitResponse, MessageInfo, StdResult, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, StdError};
 use cw1155::Cw1155ReceiveMsg;
-use market::StorageQueryMsg;
+use market::{StorageHandleMsg, StorageQueryMsg};
+use market_ai_royalty::sanitize_royalty;
+use schemars::JsonSchema;
+use serde::Serialize;
+
+pub const MAX_ROYALTY_PERCENT: u64 = 50;
+pub const MAX_FEE_PERMILLE: u64 = 100;
 
 fn sanitize_fee(fee: u64, name: &str) -> Result<u64, ContractError> {
     if fee > MAX_FEE_PERMILLE {
@@ -37,7 +46,7 @@ pub fn init(
         denom: msg.denom,
         fee: sanitize_fee(msg.fee, "fee")?,
         governance: msg.governance,
-        max_royalty: sanitize_royalty(msg.max_royalty, "max_royalty")?,
+        max_royalty: sanitize_royalty(msg.max_royalty, MAX_ROYALTY_PERCENT, "max_royalty")?,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -58,7 +67,6 @@ pub fn handle(
         HandleMsg::MintNft { contract, msg } => try_handle_mint(deps, info, contract, msg),
         HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, env, offering_id),
         HandleMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
-        HandleMsg::UpdateRoyalty(payout_msg) => try_update_royalty(deps, info, env, payout_msg),
     }
 }
 
@@ -68,6 +76,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
         QueryMsg::Offering(offering_msg) => query_offering(deps, offering_msg),
+        QueryMsg::AiRoyalty(ai_royalty_msg) => query_ai_royalty(deps, ai_royalty_msg),
     }
 }
 
@@ -151,8 +160,26 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
 pub fn get_storage_addr(deps: Deps, contract: HumanAddr, name: &str) -> StdResult<HumanAddr> {
     deps.querier.query_wasm_smart(
         contract,
-        &ProxyQueryMsg::Storage(StorageQueryMsg::QueryStorageAddr {
+        &ProxyQueryMsg::<Empty>::Storage(StorageQueryMsg::QueryStorageAddr {
             name: name.to_string(),
         }),
     )
+}
+
+pub fn get_handle_msg<T>(addr: &str, name: &str, msg: T) -> StdResult<CosmosMsg>
+where
+    T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
+{
+    let offering_msg = to_binary(&ProxyHandleMsg::Msg(msg))?;
+    let proxy_msg: ProxyHandleMsg = ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
+        name: name.to_string(),
+        msg: offering_msg,
+    });
+
+    Ok(WasmMsg::Execute {
+        contract_addr: HumanAddr::from(addr),
+        msg: to_binary(&proxy_msg)?,
+        send: vec![],
+    }
+    .into())
 }
