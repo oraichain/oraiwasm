@@ -1,6 +1,4 @@
 use std::collections::BTreeMap;
-use std::convert::TryInto;
-use std::ops::AddAssign;
 
 use blsdkg::poly::{Commitment, Poly};
 use cosmwasm_std::{
@@ -354,8 +352,9 @@ pub fn update_share_sig(
             let pk = PublicKeyShare::from_bytes(member.shared_row.unwrap().pk_share.to_array()?)
                 .unwrap();
             // > 64 bytes must try_into
-            let sig =
-                SignatureShare::from_bytes(share_sig.sig.to_vec().try_into().unwrap()).unwrap();
+            let mut sig_bytes: [u8; SIG_SIZE] = [0; SIG_SIZE];
+            sig_bytes.copy_from_slice(share_sig.sig.as_slice());
+            let sig = SignatureShare::from_bytes(sig_bytes).unwrap();
             let msg = hash_on_curve(share_data.input.as_slice(), share_data.round).1;
 
             // if the signature is invalid
@@ -416,19 +415,17 @@ pub fn aggregate_sig<M: AsRef<[u8]>>(
 ) {
     let mut sum_commit = Poly::zero().commitment();
     for dealer in dealers {
-        sum_commit.add_assign(
-            Commitment::from_bytes(dealer.shared_dealer.unwrap().commits[0].to_vec()).unwrap(),
-        );
+        sum_commit +=
+            Commitment::from_bytes(dealer.shared_dealer.unwrap().commits[0].to_vec()).unwrap();
     }
     let mpkset = PublicKeySet::from(sum_commit);
     let sig_shares: BTreeMap<_, _> = share_data
         .sigs
         .iter()
         .map(|s| {
-            (
-                s.index,
-                SignatureShare::from_bytes(s.sig.to_vec().try_into().unwrap()).unwrap(),
-            )
+            let mut sig_bytes: [u8; SIG_SIZE] = [0; SIG_SIZE];
+            sig_bytes.copy_from_slice(s.sig.as_slice());
+            (s.index, SignatureShare::from_bytes(sig_bytes).unwrap())
         })
         .collect();
     let combined_sig = mpkset.combine_signatures(&sig_shares).unwrap();
