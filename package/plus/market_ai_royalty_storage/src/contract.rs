@@ -6,7 +6,9 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{HumanAddr, Order};
 use cw_storage_plus::Bound;
-use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
+use market_ai_royalty::{
+    sanitize_royalty, AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg,
+};
 
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 
@@ -15,15 +17,6 @@ pub const DEFAULT_ROYALTY_PERCENT: u64 = 10;
 // settings for pagination
 const MAX_LIMIT: u8 = 50;
 const DEFAULT_LIMIT: u8 = 20;
-
-pub fn sanitize_royalty(royalty: u64, limit: u64, name: &str) -> Result<u64, ContractError> {
-    if royalty > limit {
-        return Err(ContractError::InvalidArgument {
-            arg: name.to_string(),
-        });
-    }
-    Ok(royalty)
-}
 
 pub fn get_key_royalty<'a>(contract: &'a [u8], token_id: &'a [u8], creator: &'a [u8]) -> Vec<u8> {
     let mut merge_vec = contract.to_vec();
@@ -68,7 +61,7 @@ pub fn handle(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::AiRoyalty(auction_query) => match auction_query {
+        QueryMsg::Msg(auction_query) => match auction_query {
             AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr,
                 token_id,
@@ -262,8 +255,6 @@ pub fn query_royalties(
         .take(limit)
         .map(|kv_item| parse_royalty(kv_item))
         .collect();
-    println!("royalties: {:?}", royalties);
-
     Ok(royalties?)
 }
 

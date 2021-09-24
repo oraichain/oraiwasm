@@ -43,9 +43,6 @@ pub enum Cw1155QueryMsg {
     TokenInfo {
         token_id: TokenId,
     },
-    CreatorOf {
-        token_id: TokenId,
-    },
     Minter {},
 
     /// With Enumerable extension.

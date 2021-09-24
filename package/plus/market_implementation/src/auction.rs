@@ -2,6 +2,7 @@ use crate::contract::get_storage_addr;
 use crate::error::ContractError;
 use crate::msg::{AskNftMsg, ProxyHandleMsg, ProxyQueryMsg};
 // use crate::offering::OFFERING_STORAGE;
+use crate::offering::get_royalties;
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
@@ -10,11 +11,11 @@ use cosmwasm_std::{
 };
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{query_proxy, StorageHandleMsg};
+use market_ai_royalty::Royalty;
 use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, QueryAuctionsResult};
 // use market_royalty::OfferingQueryMsg;
 use std::ops::{Add, Mul, Sub};
 
-pub const MAX_FEE_PERMILLE: u64 = 100;
 pub const AUCTION_STORAGE: &str = "auction";
 // const MAX_ROYALTY_PERCENT: u64 = 50;
 // pub const OFFERING_STORAGE: &str = "offering";
@@ -170,27 +171,25 @@ pub fn try_claim_winner(
 
         let mut fund_amount = off.price;
 
-        // send royalty to creator
-        // if let Ok((creator_addr, creator_royalty)) = deps.querier.query_wasm_smart(
-        //     get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
-        //     &ProxyQueryMsg::Offering(OfferingQueryMsg::GetRoyalty {
-        //         contract_addr: deps.api.human_address(&off.contract_addr.clone())?,
-        //         token_id: off.token_id.clone(),
-        //     }),
-        // ) {
-        //     let creator_amount = off.price.mul(Decimal::percent(creator_royalty));
-        //     if creator_amount.gt(&Uint128::from(0u128)) {
-        //         fund_amount = fund_amount.sub(creator_amount)?;
-        //         cosmos_msgs.push(
-        //             BankMsg::Send {
-        //                 from_address: env.contract.address.clone(),
-        //                 to_address: deps.api.human_address(&creator_addr)?,
-        //                 amount: coins(creator_amount.u128(), &denom),
-        //             }
-        //             .into(),
-        //         );
-        //     }
-        // }
+        // pay for creator, ai provider and others
+        let royalties: Result<Vec<Royalty>, ContractError> =
+            get_royalties(deps.as_ref(), &off.token_id);
+        if royalties.is_ok() {
+            for royalty in royalties.unwrap() {
+                let provider_amount = off.price.mul(Decimal::percent(royalty.royalty));
+                if provider_amount.gt(&Uint128::from(0u128)) {
+                    fund_amount = fund_amount.sub(provider_amount)?;
+                    cosmos_msgs.push(
+                        BankMsg::Send {
+                            from_address: env.contract.address.clone(),
+                            to_address: royalty.royalty_owner,
+                            amount: coins(provider_amount.u128(), &denom),
+                        }
+                        .into(),
+                    );
+                }
+            }
+        }
 
         // send fund the asker
         fund_amount = fund_amount.mul(Decimal::permille(1000 - fee));

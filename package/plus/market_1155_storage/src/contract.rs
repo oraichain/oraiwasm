@@ -1,21 +1,16 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::state::{
-    get_contract_token_id, increment_offerings, offerings, royalties, royalties_read, ContractInfo,
-    CONTRACT_INFO,
+    get_contract_token_id, increment_offerings, offerings, ContractInfo, CONTRACT_INFO,
 };
-use cw1155::Cw1155QueryMsg;
-use market_1155::{
-    OfferingHandleMsg, OfferingQueryMsg, OfferingQueryResponse, OfferingsResponse, Payout,
-};
+use market_1155::{Offering, OfferingHandleMsg, OfferingQueryMsg};
 
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order,
-    StdError, StdResult, Storage,
+    StdError, StdResult,
 };
 use cosmwasm_std::{HumanAddr, KV};
 use cw_storage_plus::Bound;
-use market_1155::Offering;
 use std::convert::TryInto;
 use std::usize;
 
@@ -47,11 +42,10 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::Offering(offering_handle) => match offering_handle {
+        HandleMsg::Msg(offering_handle) => match offering_handle {
             OfferingHandleMsg::UpdateOffering { offering } => {
                 try_update_offering(deps, info, env, offering)
             }
-            OfferingHandleMsg::UpdateRoyalty(payout) => try_update_royalty(deps, info, env, payout),
             OfferingHandleMsg::RemoveOffering { id } => try_withdraw_offering(deps, info, env, id),
         },
     }
@@ -59,7 +53,7 @@ pub fn handle(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Offering(auction_query) => match auction_query {
+        QueryMsg::Msg(auction_query) => match auction_query {
             OfferingQueryMsg::GetOfferings {
                 limit,
                 offset,
@@ -90,16 +84,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             OfferingQueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
                 &query_offering_by_contract_tokenid(deps, contract, token_id)?,
             ),
-            OfferingQueryMsg::GetRoyalty {
-                contract_addr,
-                token_id,
-                owner,
-            } => to_binary(&query_royalty(
-                deps.storage,
-                &contract_addr,
-                &token_id,
-                &owner,
-            )),
             OfferingQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
         },
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
@@ -137,40 +121,6 @@ pub fn try_update_offering(
         attributes: vec![
             attr("action", "update_offering"),
             attr("offering_id", offering.id.unwrap()),
-        ],
-        data: None,
-    });
-}
-
-pub fn try_update_royalty(
-    deps: DepsMut,
-    info: MessageInfo,
-    _env: Env,
-    payout: Payout,
-) -> Result<HandleResponse, ContractError> {
-    // must check the sender is implementation contract
-    let contract_info = CONTRACT_INFO.load(deps.storage)?;
-
-    if contract_info.governance.ne(&info.sender) {
-        return Err(ContractError::Unauthorized {});
-    };
-
-    royalties(deps.storage, &payout.contract).save(
-        get_key_royalty(&payout.token_id.as_bytes(), payout.owner.as_bytes()).as_slice(),
-        &payout,
-    )?;
-
-    println!("in here after updating royalty with payout: {:?}", payout);
-
-    return Ok(HandleResponse {
-        messages: vec![],
-        attributes: vec![
-            attr("action", "update_royalty"),
-            attr("token_id", payout.token_id),
-            attr("contract_addr", payout.contract),
-            attr("owner", payout.owner),
-            attr("amount", payout.amount),
-            attr("per_royalty", payout.per_royalty),
         ],
         data: None,
     });
@@ -225,34 +175,12 @@ fn _get_range_params(
     (limit, min, max, order_enum)
 }
 
-pub fn parse_query(deps: Deps, offerings: &[Offering]) -> Vec<OfferingQueryResponse> {
-    let mut offerings_response: Vec<OfferingQueryResponse> = vec![];
-    for off in offerings.to_owned() {
-        let creator = query_creator_of(deps, &off.contract_addr, &off.token_id);
-        let mut royalty = None;
-        if creator.is_ok() {
-            royalty = query_royalty(
-                deps.storage,
-                &off.contract_addr,
-                &off.token_id,
-                &creator.unwrap(),
-            );
-        }
-        let response = OfferingQueryResponse {
-            offering: off.clone(),
-            royalty,
-        };
-        offerings_response.push(response);
-    }
-    return offerings_response;
-}
-
 pub fn query_offerings(
     deps: Deps,
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> StdResult<OfferingsResponse> {
+) -> StdResult<Vec<Offering>> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
 
     let offerings_result: StdResult<Vec<Offering>> = offerings()
@@ -260,10 +188,7 @@ pub fn query_offerings(
         .take(limit)
         .map(|kv_item| parse_offering(kv_item))
         .collect();
-    let offerings_response = parse_query(deps, &offerings_result?);
-    Ok(OfferingsResponse {
-        offerings: offerings_response,
-    })
+    Ok(offerings_result?)
 }
 
 pub fn query_offering_ids(deps: Deps) -> StdResult<Vec<u64>> {
@@ -281,7 +206,7 @@ pub fn query_offerings_by_seller(
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> StdResult<OfferingsResponse> {
+) -> StdResult<Vec<Offering>> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
     let offerings_result: StdResult<Vec<Offering>> = offerings()
         .idx
@@ -291,10 +216,7 @@ pub fn query_offerings_by_seller(
         .map(|kv_item| parse_offering(kv_item))
         .collect();
 
-    let offerings_response = parse_query(deps, &offerings_result?);
-    Ok(OfferingsResponse {
-        offerings: offerings_response,
-    })
+    Ok(offerings_result?)
 }
 
 pub fn query_offerings_by_contract(
@@ -303,7 +225,7 @@ pub fn query_offerings_by_contract(
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> StdResult<OfferingsResponse> {
+) -> StdResult<Vec<Offering>> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
     let offerings_result: StdResult<Vec<Offering>> = offerings()
         .idx
@@ -313,28 +235,12 @@ pub fn query_offerings_by_contract(
         .map(|kv_item| parse_offering(kv_item))
         .collect();
 
-    let offerings_response = parse_query(deps, &offerings_result?);
-    Ok(OfferingsResponse {
-        offerings: offerings_response,
-    })
+    Ok(offerings_result?)
 }
 
-pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<OfferingQueryResponse> {
+pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<Offering> {
     let off = offerings().load(deps.storage, &offering_id.to_be_bytes())?;
-    let creator = query_creator_of(deps, &off.contract_addr, &off.token_id);
-    let mut royalty = None;
-    if creator.is_ok() {
-        royalty = query_royalty(
-            deps.storage,
-            &off.contract_addr,
-            &off.token_id,
-            &creator.unwrap(),
-        );
-    }
-    Ok(OfferingQueryResponse {
-        offering: off,
-        royalty,
-    })
+    Ok(off)
 }
 
 pub fn query_offering_state(deps: Deps, offering_id: u64) -> StdResult<Offering> {
@@ -346,28 +252,14 @@ pub fn query_offering_by_contract_tokenid(
     deps: Deps,
     contract: HumanAddr,
     token_id: String,
-) -> StdResult<OfferingQueryResponse> {
+) -> StdResult<Offering> {
     let offering = offerings()
         .idx
         .contract_token_id
         .item(deps.storage, get_contract_token_id(&contract, &token_id))?;
     if let Some(offering_obj) = offering {
         let off = offering_obj.1;
-        let creator = query_creator_of(deps, &off.contract_addr, &off.token_id);
-        let mut royalty = None;
-        if creator.is_ok() {
-            royalty = query_royalty(
-                deps.storage,
-                &off.contract_addr,
-                &off.token_id,
-                &creator.unwrap(),
-            );
-        }
-
-        Ok(OfferingQueryResponse {
-            offering: off,
-            royalty,
-        })
+        Ok(off)
     } else {
         Err(StdError::generic_err("Offering not found"))
     }
@@ -375,35 +267,6 @@ pub fn query_offering_by_contract_tokenid(
 
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
-}
-
-pub fn query_creator_of(
-    deps: Deps,
-    contract_addr: &HumanAddr,
-    token_id: &str,
-) -> StdResult<HumanAddr> {
-    println!("contract address query creator: {:?}", contract_addr);
-    println!("token id: {:?}", token_id);
-    let creator_result: HumanAddr = deps.querier.query_wasm_smart(
-        contract_addr,
-        &Cw1155QueryMsg::CreatorOf {
-            token_id: token_id.to_string(),
-        },
-    )?;
-    Ok(creator_result)
-}
-
-pub fn query_royalty(
-    storage: &dyn Storage,
-    contract_addr: &HumanAddr,
-    token_id: &str,
-    owner: &HumanAddr,
-) -> Option<Payout> {
-    let royalty = royalties_read(storage, &contract_addr)
-        .load(get_key_royalty(token_id.as_bytes(), owner.as_bytes()).as_slice())
-        .map(|royalty| Some(royalty))
-        .unwrap_or(None);
-    royalty
 }
 
 fn parse_offering<'a>(item: StdResult<KV<Offering>>) -> StdResult<Offering> {

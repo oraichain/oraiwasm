@@ -18,7 +18,6 @@ pub struct Offering {
 pub enum OfferingHandleMsg {
     // this allow implementation contract to update the storage
     UpdateOffering { offering: Offering },
-    UpdateRoyalty(Payout),
     RemoveOffering { id: u64 },
 }
 
@@ -29,14 +28,4 @@ pub struct InfoMsg {
     pub fee: Option<u64>,
     pub denom: Option<String>,
     pub max_royalty: Option<u64>,
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-/// payout royalty for creator and owner, can be zero
-pub struct Payout {
-    pub contract: HumanAddr,
-    pub token_id: String,
-    pub owner: HumanAddr,
-    pub amount: Uint128,
-    pub per_royalty: u64,
 }

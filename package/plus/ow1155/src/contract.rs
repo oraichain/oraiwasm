@@ -12,7 +12,7 @@ use cw1155::{
 
 use crate::error::{ContractError, DivideByZeroError, OverflowError, OverflowOperation};
 use crate::msg::InstantiateMsg;
-use crate::state::{APPROVES, BALANCES, CREATORS, MINTER, OWNER, TOKENS};
+use crate::state::{APPROVES, BALANCES, MINTER, OWNER, TOKENS};
 
 const DEFAULT_LIMIT: u32 = 10;
 const MAX_LIMIT: u32 = 30;
@@ -151,10 +151,6 @@ fn execute_transfer_inner<'a>(
                 checked_add(balance.unwrap_or_default(), amount)
             },
         )?;
-        // if mint coins then store creator
-        if from.is_none() {
-            CREATORS.save(deps.storage, token_id.as_bytes(), to_addr)?;
-        }
     }
 
     Ok(TransferEvent {
@@ -510,7 +506,6 @@ pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
             let url = TOKENS.load(deps.storage, token_id.as_bytes())?;
             to_binary(&TokenInfoResponse { url })
         }
-        Cw1155QueryMsg::CreatorOf { token_id } => to_binary(&query_creator_of(deps, token_id)?),
         Cw1155QueryMsg::Minter {} => to_binary(&query_minter(deps)?),
         Cw1155QueryMsg::Tokens {
             owner,
@@ -552,11 +547,6 @@ fn query_all_approvals(
         .map(parse_approval)
         .collect::<StdResult<_>>()?;
     Ok(ApprovedForAllResponse { operators })
-}
-
-fn query_creator_of(deps: Deps, token_id: TokenId) -> StdResult<HumanAddr> {
-    let creator_of = CREATORS.load(deps.storage, token_id.as_bytes())?;
-    Ok(creator_of)
 }
 
 fn query_minter(deps: Deps) -> StdResult<HumanAddr> {
