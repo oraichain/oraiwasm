@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use blsttc::{
+use blsdkg::{
     Ciphertext, DecryptionShare, PublicKey, PublicKeySet, PublicKeyShare, SecretKeySet,
     SecretKeyShare,
 };

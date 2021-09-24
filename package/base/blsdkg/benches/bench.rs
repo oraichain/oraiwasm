@@ -1,5 +1,5 @@
-use blsttc::poly::Poly;
-use blsttc::Fr;
+use blsdkg::poly::Poly;
+use blsdkg::Fr;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use ff::Field;
 
@@ -108,7 +108,7 @@ mod poly_benches {
 
 mod public_key_set_benches {
     use super::*;
-    use blsttc::SecretKeySet;
+    use blsdkg::SecretKeySet;
     use rand::SeedableRng;
     use rand_xorshift::XorShiftRng;
     use std::collections::BTreeMap;

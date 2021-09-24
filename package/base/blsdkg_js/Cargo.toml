@@ -1,0 +1,28 @@
+[package]
+name = "blsdkg_js"
+version = "0.0.1"
+authors = ["Ian Coleman"]
+edition = "2018"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2.63"
+wasm-bindgen-test = "0.3.28"
+blsdkg = { path = "../blsdkg" }
+rand = { version = "0.7.3", features = ["wasm-bindgen"] }
+js-sys = "0.3.55"
+base64 = { version = "0.13.0" }
+
+[build]
+rustflags = ["-I/usr/include"]
+
+[profile.release]
+codegen-units = 1 # better optimizations
+# Tell `rustc` to optimize for speed.
+opt-level = 3
+
+# # patch blst to be single_thread
+# [patch.crates-io]
+# blst = { git = "https://github.com/iancoleman/blst", branch = "single_thread" }

@@ -17,10 +17,11 @@ pub(crate) fn derivation_index_into_fr(v: &[u8]) -> Fr {
     index_and_rounds_into_fr(v, 0)
 }
 
-fn index_and_rounds_into_fr(v: &[u8], rounds: u8) -> Fr {
+/// Signs the given message.
+pub fn hash_on_curve<M: AsRef<[u8]>>(msg: M, round: u64) -> (Fr, [u8; 32]) {
     let mut sha3 = Sha3::v256();
-    sha3.update(v);
-    sha3.update(&[rounds]);
+    sha3.update(msg.as_ref());
+    sha3.update(&round.to_be_bytes());
     let mut h = [0u8; 32];
     sha3.finalize(&mut h);
     // If the hash bytes is larger than Fr::MAX, ie h > 0x73eda753... the
@@ -34,10 +35,14 @@ fn index_and_rounds_into_fr(v: &[u8], rounds: u8) -> Fr {
             // it's extremely unlikely to find hash(vr) == 0 or 1
             // so we could probably go without this check
             if fr == Fr::zero() || fr == Fr::one() {
-                return index_and_rounds_into_fr(&h, rounds + 1);
+                return hash_on_curve(&h, round + 1);
             }
-            fr
+            (fr, h)
         }
-        Err(_) => index_and_rounds_into_fr(&h, rounds + 1),
+        Err(_) => hash_on_curve(&h, round + 1),
     }
+}
+
+fn index_and_rounds_into_fr(v: &[u8], round: u64) -> Fr {
+    hash_on_curve(v, round).0
 }
