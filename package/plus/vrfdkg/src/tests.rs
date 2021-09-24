@@ -1,23 +1,54 @@
 use crate::{
     contract::{handle, init, query},
     msg::{
-        HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, SharedDealerMsg, SharedRowMsg,
-        SharedStatus,
+        DistributedShareData, HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, SharedDealerMsg,
+        SharedRowMsg, SharedStatus, UpdateShareSigMsg,
     },
     state::Config,
 };
 
 use blsdkg::{
     ff::Field,
+    hash_on_curve,
     poly::{Commitment, Poly},
-    G1Affine, IntoFr, SecretKeyShare,
+    SecretKeyShare, SIG_SIZE,
 };
 use cosmwasm_std::{
     from_binary,
     testing::{mock_dependencies, mock_env, mock_info},
-    Binary, DepsMut, HandleResponse, InitResponse,
+    Binary, DepsMut, InitResponse,
 };
 use pairing::bls12_381::Fr;
+
+fn get_sk_key(member: &Member, dealers: &Vec<Member>) -> SecretKeyShare {
+    let mut sec_key = Fr::zero();
+    for dealer in dealers {
+        let SharedDealerMsg { rows, commits } = dealer.shared_dealer.as_ref().unwrap();
+        // Node `m` receives its row and verifies it.
+        // it must be encrypted with public key
+        let row_poly = Poly::from_bytes(rows[member.index].to_vec()).unwrap();
+        println!(
+            "share row: {}",
+            base64::encode(row_poly.commitment().to_bytes())
+        );
+
+        // send row_poly with encryption to node m
+        // also send commit for each node to verify row_poly share
+        let row_commit = Commitment::from_bytes(commits[member.index + 1].to_vec()).unwrap();
+        // verify share
+        assert_eq!(row_poly.commitment(), row_commit);
+
+        // then update share row encrypted with public key, for testing we store plain share
+        // this will be done in wasm bindgen
+        let sec_commit = row_poly.evaluate(0);
+        // combine all sec_commit from all dealers
+
+        sec_key.add_assign(&sec_commit);
+    }
+
+    // now can share secret pubkey for contract to verify
+    SecretKeyShare::from_mut(&mut sec_key)
+}
 
 // expr is variable, indent is function name
 macro_rules! init_dealer {
@@ -49,34 +80,8 @@ macro_rules! init_row {
         // to anyone! The nodes verify their rows, and send _value_ `s` on to node `s`. They again
         // verify the values they received, and collect them.
         for member in &$members {
-            let mut sec_key = Fr::zero();
-            for dealer in &$dealers {
-                let SharedDealerMsg { rows, commits } = dealer.shared_dealer.as_ref().unwrap();
-                // Node `m` receives its row and verifies it.
-                // it must be encrypted with public key
-                let row_poly = Poly::from_bytes(rows[member.index].to_vec()).unwrap();
-                println!(
-                    "share row: {}",
-                    base64::encode(row_poly.commitment().to_bytes())
-                );
-
-                // send row_poly with encryption to node m
-                // also send commit for each node to verify row_poly share
-                let row_commit =
-                    Commitment::from_bytes(commits[member.index + 1].to_vec()).unwrap();
-                // verify share
-                assert_eq!(row_poly.commitment(), row_commit);
-
-                // then update share row encrypted with public key, for testing we store plain share
-                // this will be done in wasm bindgen
-                let sec_commit = row_poly.evaluate(0);
-                // combine all sec_commit from all dealers
-
-                sec_key.add_assign(&sec_commit);
-            }
-
             // now can share secret pubkey for contract to verify
-            let sk = SecretKeyShare::from_mut(&mut sec_key);
+            let sk = get_sk_key(member, &$dealers);
             let pk = sk.public_key_share();
 
             let info = mock_info(member.address.clone(), &vec![]);
@@ -180,16 +185,6 @@ fn proper_initialization() {
     deps.api.canonical_length = 54;
     let res = initialization(deps.as_mut());
     assert_eq!(res.messages.len(), 0);
-
-    // let info = mock_info("sender", &vec![]);
-
-    // let msg = HandleMsg::RequestRandom {
-    //     input: Binary::from_base64("aGVsbG8=").unwrap(),
-    // };
-    // handle(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-    // let ret = query(deps.as_ref(), mock_env(), QueryMsg::LatestRound {}).unwrap();
-    // println!("Latest round{}", String::from_utf8(ret.to_vec()).unwrap())
 }
 
 #[test]
@@ -208,7 +203,7 @@ fn share_dealer() {
 }
 
 #[test]
-fn share_row() {
+fn request_round() {
     let mut deps = mock_dependencies(&[]);
     deps.api.canonical_length = 54;
     let _res = initialization(deps.as_mut());
@@ -237,9 +232,44 @@ fn share_row() {
 
     init_row!(deps, members, dealers);
 
+    println!("dealers {:?}", dealers);
+
     let ret: Config =
         from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::ContractInfo {}).unwrap()).unwrap();
 
     // next phase is wait for row
-    assert_eq!(ret.status, SharedStatus::WaitForRow);
+    assert_eq!(ret.status, SharedStatus::WaitForRequest);
+
+    let input = Binary::from_base64("aGVsbG8=").unwrap();
+    // anyone request commit
+    let info = mock_info("anyone", &vec![]);
+    let msg = HandleMsg::RequestRandom {
+        input: input.clone(),
+    };
+    let _res = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+    let round = 1;
+    // threshold is 2, so need 3,4,5 as honest member to contribute sig
+    let contributors: Vec<&Member> = [3, 4, 5].iter().map(|i| &members[*i]).collect();
+    for contributor in contributors {
+        // now can share secret pubkey for contract to verify
+        let sk = get_sk_key(contributor, &dealers);
+        let msg_hash = hash_on_curve(input.as_slice(), round).1;
+        let mut sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
+        sig_bytes.copy_from_slice(&sk.sign(&msg_hash).to_bytes());
+        let sig = Binary::from(sig_bytes);
+        let info = mock_info(contributor.address.clone(), &vec![]);
+
+        let msg = HandleMsg::UpdateShareSig {
+            share_sig: UpdateShareSigMsg { sig, round },
+        };
+        handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+    }
+
+    // now should query randomness successfully
+    let msg = QueryMsg::LatestRound {};
+    let latest_round: DistributedShareData =
+        from_binary(&query(deps.as_ref(), mock_env(), msg).unwrap()).unwrap();
+
+    // can re-verify from response
+    println!("Latest round {:?}", latest_round);
 }
