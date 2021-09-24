@@ -291,11 +291,13 @@ pub fn share_row(
     // save member
     members_storage(deps.storage).set(&member.address.as_bytes(), &to_binary(&member)?);
 
+    // increase shared_row
     config_data.shared_row += 1;
     if config_data.shared_row >= config_data.total {
         config_data.status = SharedStatus::WaitForRequest;
-        config(deps.storage).save(&config_data)?;
     }
+    // save config
+    config(deps.storage).save(&config_data)?;
 
     // check if total shared_dealder is greater than dealer
     let mut response = HandleResponse::default();
@@ -328,7 +330,7 @@ pub fn update_share_sig(
     let mut share_data = query_get(deps.as_ref(), share_sig.round)?;
 
     // if too late, unauthorized to add more signature
-    if share_data.sigs.len() >= threshold as usize {
+    if share_data.sigs.len() > threshold as usize {
         return Err(ContractError::Unauthorized(format!(
             "{} can not sign more because all neccessary signatures are collected",
             info.sender

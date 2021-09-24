@@ -27,10 +27,10 @@ fn get_sk_key(member: &Member, dealers: &Vec<Member>) -> SecretKeyShare {
         // Node `m` receives its row and verifies it.
         // it must be encrypted with public key
         let row_poly = Poly::from_bytes(rows[member.index].to_vec()).unwrap();
-        println!(
-            "share row: {}",
-            base64::encode(row_poly.commitment().to_bytes())
-        );
+        // println!(
+        //     "share row: {}",
+        //     base64::encode(row_poly.commitment().to_bytes())
+        // );
 
         // send row_poly with encryption to node m
         // also send commit for each node to verify row_poly share
@@ -68,8 +68,8 @@ macro_rules! init_dealer {
                 },
             };
 
-            let res = handle($deps.as_mut(), mock_env(), info, msg).unwrap();
-            println!("ret: {:?}", res);
+            let _res = handle($deps.as_mut(), mock_env(), info, msg).unwrap();
+            // println!("ret: {:?}", res);
         }
     };
 }
@@ -232,8 +232,6 @@ fn request_round() {
 
     init_row!(deps, members, dealers);
 
-    println!("dealers {:?}", dealers);
-
     let ret: Config =
         from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::ContractInfo {}).unwrap()).unwrap();
 
@@ -249,7 +247,7 @@ fn request_round() {
     let _res = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
     let round = 1;
     // threshold is 2, so need 3,4,5 as honest member to contribute sig
-    let contributors: Vec<&Member> = [3, 4, 5].iter().map(|i| &members[*i]).collect();
+    let contributors: Vec<&Member> = [2, 3, 4].iter().map(|i| &members[*i]).collect();
     for contributor in contributors {
         // now can share secret pubkey for contract to verify
         let sk = get_sk_key(contributor, &dealers);
@@ -271,5 +269,8 @@ fn request_round() {
         from_binary(&query(deps.as_ref(), mock_env(), msg).unwrap()).unwrap();
 
     // can re-verify from response
-    println!("Latest round {:?}", latest_round);
+    println!(
+        "Latest round with randomess: {}",
+        latest_round.randomness.unwrap().to_base64()
+    );
 }
