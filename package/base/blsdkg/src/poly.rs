@@ -25,6 +25,7 @@ use std::{cmp, iter, ops};
 
 use ff::Field;
 use group::{CurveAffine, CurveProjective};
+use pairing::bls12_381::Fr;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
@@ -34,7 +35,7 @@ use crate::convert::{fr_from_be_bytes, fr_to_be_bytes, g1_from_be_bytes};
 use crate::errors::{Error, FromBytesResult, Result};
 use crate::into_fr::IntoFr;
 use crate::secret::clear_fr;
-use crate::{Fr, G1Affine, G1, PK_SIZE, SK_SIZE};
+use crate::{G1Affine, G1, PK_SIZE, SK_SIZE};
 
 /// A univariate polynomial in the prime field.
 #[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]

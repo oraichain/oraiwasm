@@ -131,6 +131,8 @@ pub enum QueryMsg {
         offset: Option<u8>,
         order: Option<u8>,
     },
+    // suppose to return all
+    GetDealers {},
     LatestRound {},
     EarliestHandling {},
 }

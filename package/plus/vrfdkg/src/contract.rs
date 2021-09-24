@@ -223,14 +223,9 @@ pub fn share_dealer(
     // save member
     members_storage(deps.storage).set(&member.address.as_bytes(), &to_binary(&member)?);
 
-    let members: Vec<Member> = members_storage_read(deps.storage)
-        .range(None, None, Order::Ascending)
-        .map(|(_key, value)| from_binary(&value.into()).unwrap())
-        .collect();
-
     // small size is ok (usize can be 16,32,64)
-    let shared_total = members.iter().filter(|m| m.shared_dealer.is_some()).count() as u16;
-    if shared_total >= config_data.dealer {
+    let dealers = query_dealers(deps.as_ref())?;
+    if (dealers.len() as u16) >= config_data.dealer {
         config_data.status = SharedStatus::WaitForRow;
         config(deps.storage).save(&config_data)?;
     }
@@ -484,6 +479,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             offset,
             order,
         } => to_binary(&query_members(deps, limit, offset, order)?)?,
+        QueryMsg::GetDealers {} => to_binary(&query_dealers(deps)?)?,
         QueryMsg::LatestRound {} => to_binary(&query_latest(deps)?)?,
         QueryMsg::EarliestHandling {} => to_binary(&query_earliest(deps)?)?,
     };
@@ -531,6 +527,18 @@ fn query_members(
         .take(limit)
         .map(|(_key, value)| from_binary(&value.into()).unwrap())
         .collect();
+    Ok(members)
+}
+
+fn query_dealers(deps: Deps) -> Result<Vec<Member>, ContractError> {
+    let mut members: Vec<Member> = members_storage_read(deps.storage)
+        .range(None, None, Order::Ascending)
+        .map(|(_key, value)| from_binary(&value.into()).unwrap())
+        .collect();
+
+    // into_iter() will move old vector into new vector without cloning
+    members.retain(|m| m.shared_dealer.is_some());
+
     Ok(members)
 }
 
