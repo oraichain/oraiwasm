@@ -51,8 +51,8 @@ pub use convert::{
     fr_from_be_bytes, fr_to_be_bytes, g1_from_be_bytes, g1_to_be_bytes, g2_from_be_bytes,
     g2_to_be_bytes,
 };
+pub use util::hash_on_curve;
 use util::{derivation_index_into_fr, sha3_256};
-pub use util::{derive_randomness, hash_on_curve};
 
 use blst::{
     min_pk::{PublicKey as BlstPublicKey, SecretKey as BlstSecretKey, Signature as BlstSignature},
@@ -2031,10 +2031,6 @@ mod tests {
             );
 
             assert!(sk.public_key_share().verify(&sig, msg));
-            // faulty node is 2
-            if sigs.len() > 2 {
-                break;
-            }
             sigs.insert(i, sig);
         }
 

@@ -12,7 +12,6 @@ use crate::msg::SharedStatus;
 const CONFIG_KEY: &[u8] = b"config";
 const MEMBERS_KEY: &[u8] = b"members";
 const BEACONS_KEY: &[u8] = b"beacons";
-// const BEACONS_HANDLE_KEY: &[u8] = b"beacons_handle";
 const OWNER_KEY: &[u8] = b"owner";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -48,14 +47,6 @@ pub fn beacons_storage(storage: &mut dyn Storage) -> PrefixedStorage {
 pub fn beacons_storage_read(storage: &dyn Storage) -> ReadonlyPrefixedStorage {
     prefixed_read(storage, BEACONS_KEY)
 }
-
-// pub fn beacons_handle_storage(storage: &mut dyn Storage) -> PrefixedStorage {
-//     prefixed(storage, BEACONS_HANDLE_KEY)
-// }
-
-// pub fn beacons_handle_storage_read(storage: &dyn Storage) -> ReadonlyPrefixedStorage {
-//     prefixed_read(storage, BEACONS_HANDLE_KEY)
-// }
 
 pub fn members_storage(storage: &mut dyn Storage) -> PrefixedStorage {
     prefixed(storage, MEMBERS_KEY)
