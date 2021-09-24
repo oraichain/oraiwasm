@@ -27,7 +27,8 @@ panic = 'abort'
 rpath = false
 
 [build]
-rustflags = ["-I/usr/include"]
+rustflags = ["-I/usr/include", "CC='clang -m32'"]
+
 
 [dependencies]
 cosmwasm-std = { version = "0.13.2" }

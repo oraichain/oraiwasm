@@ -443,9 +443,6 @@ pub fn aggregate_sig<M: AsRef<[u8]>>(
         let randomness = derive_randomness(&combined_sig.to_bytes());
         share_data.randomness = Some(Binary::from(randomness));
     }
-
-    // remove round from the handle queue
-    // beacons_handle_storage(deps.storage).remove(&round.to_be_bytes());
 }
 
 pub fn request_random(
