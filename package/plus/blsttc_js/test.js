@@ -7,8 +7,8 @@ const sk = Buffer.from(
 );
 const sig =
   'ptNS57WXJoCz8HFyG6EyA73WRkOOlKnf/aB7lJ74K3XH8ZENQI+/3lJqFOLNH8DEBExk0I9WzUWO0hrTB8nakkLDrR92+Wz5Sxl5dFEusujuHOU9cpHWyu3GmflBKKkC';
-const ret = blsttcJs.sign_msg(sk, msg);
-console.log(ret === sig);
+const ret = Buffer.from(blsttcJs.sign(sk, msg));
+console.log(ret.toString('base64') === sig);
 
 const bibars = blsttcJs.generate_bivars(2, 5);
 console.log(bibars.get_sum_commit());

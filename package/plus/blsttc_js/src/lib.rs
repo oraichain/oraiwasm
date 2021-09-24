@@ -1,20 +1,10 @@
-use blsttc::{
-    ff::Field,
-    fr_from_be_bytes,
-    poly::{BivarPoly, Commitment, Poly},
-    Ciphertext, DecryptionShare, Fr, PublicKey, PublicKeySet, SecretKey, SecretKeySet,
-    SecretKeyShare, Signature, SignatureShare,
-};
+use blsttc::{fr_from_be_bytes, poly::BivarPoly, SecretKeyShare, SK_SIZE};
 use js_sys::Uint8Array;
 use std::str;
 use wasm_bindgen::prelude::*;
 
-const SK_SIZE: usize = 32;
-const PK_SIZE: usize = 48;
-const SIG_SIZE: usize = 96;
-
 #[wasm_bindgen]
-pub fn sign_msg(sk: Uint8Array, msg: &str) -> Option<String> {
+pub fn sign(sk: Uint8Array, msg: &str) -> Option<Uint8Array> {
     let mut sk_bytes: [u8; SK_SIZE] = [0; SK_SIZE];
     sk.copy_to(&mut sk_bytes);
     // create secret key vec from input parameters
@@ -24,27 +14,34 @@ pub fn sign_msg(sk: Uint8Array, msg: &str) -> Option<String> {
     };
     let sk = SecretKeyShare::from_mut(&mut sec_key);
     let sig = sk.sign(msg);
-    Some(base64::encode(&sig.to_bytes()))
+    Some(buffer_from_bytes(&sig.to_bytes()))
 }
 
 #[wasm_bindgen]
 pub struct Share {
-    sum_commit: String,
-    commits: Vec<String>,
-    rows: Vec<String>,
+    sum_commit: Uint8Array,
+    commits: Vec<Uint8Array>,
+    rows: Vec<Uint8Array>,
 }
 
 #[wasm_bindgen]
 impl Share {
-    pub fn get_commit(&self, i: usize) -> Option<String> {
-        self.commits.get(i).map(|v| v.to_owned())
-    }
-    pub fn get_sum_commit(&self) -> String {
+    pub fn get_sum_commit(&self) -> Uint8Array {
         self.sum_commit.clone()
     }
-    pub fn get_row(&self, i: usize) -> Option<String> {
-        self.rows.get(i).map(|v| v.to_owned())
+
+    pub fn get_commit(&self, i: usize) -> Uint8Array {
+        self.commits[i].clone()
     }
+    pub fn get_row(&self, i: usize) -> Uint8Array {
+        self.rows[i].clone()
+    }
+}
+
+fn buffer_from_bytes(bytes: &[u8]) -> Uint8Array {
+    let buffer = Uint8Array::new_with_length(bytes.len() as u32);
+    buffer.copy_from(bytes);
+    buffer
 }
 
 // fills BIVAR_ROW_BYTES and BIVAR_COMMITMENT_BYTES
@@ -53,18 +50,18 @@ impl Share {
 // Values are concatenated into the BYTES vectors.
 #[wasm_bindgen]
 pub fn generate_bivars(threshold: usize, total_nodes: usize) -> Share {
-    let mut commits: Vec<String> = vec![];
-    let mut rows: Vec<String> = vec![];
+    let mut commits: Vec<Uint8Array> = vec![];
+    let mut rows: Vec<Uint8Array> = vec![];
 
     let mut rng = rand::thread_rng();
     let bi_poly = BivarPoly::random(threshold, &mut rng);
 
     let bi_commit = bi_poly.commitment();
 
-    let sum_commit = base64::encode(&bi_commit.row(0).to_bytes());
+    let sum_commit = buffer_from_bytes(&bi_commit.row(0).to_bytes());
     for i in 1..=total_nodes {
-        rows.push(base64::encode(&bi_poly.row(i).to_bytes()));
-        commits.push(base64::encode(&bi_commit.row(i).to_bytes()));
+        rows.push(buffer_from_bytes(&bi_poly.row(i).to_bytes()));
+        commits.push(buffer_from_bytes(&bi_commit.row(i).to_bytes()));
     }
 
     // create new instance
@@ -83,6 +80,6 @@ mod tests {
     #[wasm_bindgen_test]
     fn test_bivars() {
         let share = generate_bivars(2, 5);
-        println!("commit: {:?}", share.get_commit(0));
+        println!("commit: {}", base64::encode(share.get_commit(0).to_vec()));
     }
 }
