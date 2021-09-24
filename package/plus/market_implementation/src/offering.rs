@@ -344,7 +344,7 @@ fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError>
     Ok(offering)
 }
 
-fn get_royalties(deps: Deps, token_id: &str) -> Result<Vec<Royalty>, ContractError> {
+pub fn get_royalties(deps: Deps, token_id: &str) -> Result<Vec<Royalty>, ContractError> {
     let royalties: Vec<Royalty> = from_binary(&query_ai_royalty(
         deps,
         AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
