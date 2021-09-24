@@ -26,11 +26,12 @@ fn get_sk_key(member: &Member, dealers: &Vec<Member>) -> SecretKeyShare {
         let SharedDealerMsg { rows, commits } = dealer.shared_dealer.as_ref().unwrap();
         // Node `m` receives its row and verifies it.
         // it must be encrypted with public key
-        let row_poly = Poly::from_bytes(rows[member.index].to_vec()).unwrap();
+        let row_poly = Poly::from_bytes(rows[member.index as usize].to_vec()).unwrap();
 
         // send row_poly with encryption to node m
         // also send commit for each node to verify row_poly share
-        let row_commit = Commitment::from_bytes(commits[member.index + 1].to_vec()).unwrap();
+        let row_commit =
+            Commitment::from_bytes(commits[(member.index + 1) as usize].to_vec()).unwrap();
         // verify share
         assert_eq!(row_poly.commitment(), row_commit);
 
