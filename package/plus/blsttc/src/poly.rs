@@ -898,20 +898,18 @@ pub(crate) fn coeff_pos(i: usize, j: usize) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
-    use std::convert::TryInto;
     use std::ops::AddAssign;
 
-    use crate::{PublicKeySet, PublicKeyShare, SecretKeyShare};
+    use crate::convert::fr_from_be_bytes;
+    use crate::{PublicKeySet, SecretKeyShare};
 
     use super::fr_to_be_bytes;
     use super::{coeff_pos, BivarCommitment, BivarPoly, Commitment, IntoFr, Poly};
     use super::{Fr, G1Affine, G1};
     use super::{PK_SIZE, SK_SIZE};
-    use cw_storage_plus::Endian;
-    use ff::{Field, PrimeField};
+    use ff::Field;
     use group::{CurveAffine, CurveProjective};
     use hex_fmt::HexFmt;
-    use pairing::bls12_381::FrRepr;
     use zeroize::Zeroize;
 
     #[test]
@@ -1004,8 +1002,8 @@ mod tests {
             .collect();
 
         // share public bi
-        let mut pub_commits: Vec<Commitment> = vec![]; // bi_polys.iter().map(BivarPoly::commitment).collect();
-        let mut sec_commits_list: Vec<Vec<Fr>> = vec![vec![]; bi_polys.len()];
+        // let mut pub_commits: Vec<Commitment> = vec![]; // bi_polys.iter().map(BivarPoly::commitment).collect();
+        let mut sum_commit = Poly::zero().commitment();
         let mut sec_keys = vec![Fr::zero(); node_num];
 
         // Each dealer sends row `m` to node `m`, where the index starts at `1`. Don't send row `0`
@@ -1013,18 +1011,30 @@ mod tests {
         // verify the values they received, and collect them.
         for (i, bi_poly) in bi_polys.iter().enumerate() {
             let bi_commit = bi_poly.commitment();
+            println!(
+                "share commit: {}",
+                base64::encode(bi_commit.row(0).to_bytes())
+            );
             for m in 1..=node_num {
                 // Node `m` receives its row and verifies it.
                 let row_poly = bi_poly.row(m);
+                println!(
+                    "share row: {}",
+                    base64::encode(row_poly.commitment().to_bytes())
+                );
 
+                // send row_poly with encryption to node m
+                // also send commit for each node to verify row_poly share
                 let row_commit = bi_commit.row(m);
                 assert_eq!(row_poly.commitment(), row_commit);
 
                 // Node `s` receives the `s`-th value and verifies it.
                 for s in 1..=node_num {
                     let val = row_poly.evaluate(s);
+                    // send val as encryption to node s
                     let val_g1 = G1Affine::one().mul(val);
                     assert_eq!(bi_commit.evaluate(m, s), val_g1);
+                    // send val to smart contract as commit to node m, with encryption from m pubkey
                     // The node can't verify this directly, but it should have the correct value:
                     assert_eq!(bi_poly.evaluate(m, s), val);
                 }
@@ -1044,6 +1054,7 @@ mod tests {
                 // reconstruct the full row and in particular value `0` (which no other node knows,
                 // only the dealer). E.g. let's say nodes `1`, `2` and `4` are honest. Then node
                 // `m` received three correct entries from that row:
+                // it should be received_share from all other nodes to node m
                 let received: BTreeMap<_, _> = [1, 2, 4]
                     .iter()
                     .map(|&i| (i, bi_poly.evaluate(m, i)))
@@ -1054,22 +1065,15 @@ mod tests {
 
                 // The node sums up all values number `0` it received from the different dealer. No
                 // dealer and no other node knows the sum in the end.
-                let sec_commit_str = sec_commit.into_repr();
-                let mut flatten: Vec<u8> = vec![];
-                for num in sec_commit_str.0 {
-                    flatten.extend(num.to_be_bytes());
-                }
-                let fr: [u64; 4] = [
-                    u64::from_be_bytes(flatten[0..8].try_into().unwrap()),
-                    u64::from_be_bytes(flatten[8..16].try_into().unwrap()),
-                    u64::from_be_bytes(flatten[16..24].try_into().unwrap()),
-                    u64::from_be_bytes(flatten[24..32].try_into().unwrap()),
-                ];
-                println!("{}", base64::encode(flatten));
-                // then use public key of m item to encrypt
-                sec_commits_list[i].push(Fr::from_repr(FrRepr(fr)).unwrap());
+                let fr_bytes = fr_to_be_bytes(sec_commit);
+                println!("{}", base64::encode(fr_bytes));
+                // then use private key of m to dencrypt, then return the contract
+                // sec_commits_list[i].push(fr_from_be_bytes(fr_bytes).unwrap());
+                sec_keys[m - 1].add_assign(&sec_commit);
             }
-            pub_commits.push(bi_commit.row(0));
+            // pub commit of dealer
+            // pub_commits.push(bi_commit.row(0));
+            sum_commit.add_assign(bi_commit.row(0));
         }
 
         // Each node now adds up all the first values of the rows it received from the different
@@ -1077,17 +1081,17 @@ mod tests {
         // The whole first column never gets added up in practice, because nobody has all the
         // information. We do it anyway here; entry `0` is the secret key that is not known to
         // anyone, neither a dealer, nor a node:
-        for sec_commits in sec_commits_list {
-            for (m, commit) in sec_commits.iter().enumerate() {
-                sec_keys[m].add_assign(commit);
-            }
-        }
+        // for sec_commits in sec_commits_list {
+        //     for (m, commit) in sec_commits.iter().enumerate() {
+        //         sec_keys[m].add_assign(commit);
+        //     }
+        // }
 
-        // The sum of the first rows of the public commitments is the commitment to the secret key
-        let mut sum_commit = Poly::zero().commitment();
-        for commit in &pub_commits {
-            sum_commit.add_assign(commit);
-        }
+        // // The sum of the first rows of the public commitments is the commitment to the secret key
+        // let mut sum_commit = Poly::zero().commitment();
+        // for commit in &pub_commits {
+        //     sum_commit.add_assign(commit);
+        // }
 
         // in smart contract, the sec_keys will be sum up by decrypt with its private key, the sender will use public key to encrypt
         // and store in smart contract
@@ -1100,13 +1104,18 @@ mod tests {
             let mut sec_key = sec_keys[i];
             let sk = SecretKeyShare::from_mut(&mut sec_key);
             let sig = sk.sign(msg);
+            println!(
+                "sk: {}, sig: {}",
+                base64::encode(sk.to_bytes()),
+                base64::encode(sig.to_bytes())
+            );
             assert!(sk.public_key_share().verify(&sig, msg));
             sigs.insert(i, sig);
         }
 
         let combined = mpkset.combine_signatures(&sigs).unwrap();
         let verifed = mpkset.public_key().verify(&combined, msg);
-        println!("is verifed: {}", verifed);
+        assert!(verifed);
     }
 
     #[test]

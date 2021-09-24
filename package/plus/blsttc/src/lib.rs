@@ -46,14 +46,14 @@ use crate::errors::{Error, FromBytesError, FromBytesResult, Result};
 use crate::poly::{Commitment, Poly};
 use crate::secret::clear_fr;
 
-pub mod contract;
+// pub mod contract;
 
-#[cfg(target_arch = "wasm32")]
-cosmwasm_std::create_entry_points!(contract);
+// #[cfg(target_arch = "wasm32")]
+// cosmwasm_std::create_entry_points!(contract);
 
 pub use crate::into_fr::IntoFr;
 
-use convert::{
+pub use convert::{
     fr_from_be_bytes, fr_to_be_bytes, g1_from_be_bytes, g1_to_be_bytes, g2_from_be_bytes,
     g2_to_be_bytes,
 };

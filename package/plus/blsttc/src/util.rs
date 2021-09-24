@@ -1,4 +1,7 @@
-use crate::convert::fr_from_be_bytes;
+use crate::{
+    convert::fr_from_be_bytes,
+    poly::{BivarPoly, Commitment, Poly},
+};
 use ff::Field;
 use pairing::bls12_381::Fr;
 use tiny_keccak::{Hasher, Sha3};
@@ -41,3 +44,16 @@ fn index_and_rounds_into_fr(v: &[u8], rounds: u8) -> Fr {
         Err(_) => index_and_rounds_into_fr(&h, rounds + 1),
     }
 }
+
+// pub fn generate_contribution(node_num: u32, threshold: usize) -> (Commitment, Vec<Fr>) {
+//     let mut rng = rand::thread_rng();
+//     let poly = Poly::random(threshold, &mut rng);
+
+//     let mut sec_commits: Vec<_> = vec![];
+
+//     for m in 1..=node_num {
+//         let sec_commit = poly.evaluate(m);
+//         sec_commits.push(sec_commit);
+//     }
+//     (poly.commitment(), sec_commits)
+// }
