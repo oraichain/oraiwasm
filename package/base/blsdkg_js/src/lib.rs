@@ -1,4 +1,4 @@
-use blsttc::{
+use blsdkg::{
     fr_from_be_bytes,
     poly::{BivarPoly, Commitment, Poly},
     SecretKeyShare, SK_SIZE,
@@ -7,6 +7,14 @@ use blsttc::{
 use js_sys::Uint8Array;
 use std::str;
 use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+pub fn hash_on_curve(input: &str, round: u64) -> Uint8Array {
+    let msg = blsdkg::hash_on_curve(input.as_bytes(), round).1;
+    let buffer = Uint8Array::new_with_length(msg.len() as u32);
+    buffer.copy_from(&msg);
+    buffer
+}
 
 #[wasm_bindgen]
 pub fn sign(sk: Uint8Array, msg: &str) -> Option<Uint8Array> {

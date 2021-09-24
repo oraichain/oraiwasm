@@ -1,5 +1,5 @@
 use bincode::{deserialize, serialize};
-use blsttc::{PublicKey, SecretKey, Signature};
+use blsdkg::{PublicKey, SecretKey, Signature};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]

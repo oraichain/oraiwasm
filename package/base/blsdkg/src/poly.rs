@@ -900,7 +900,6 @@ mod tests {
     use std::collections::BTreeMap;
     use std::ops::AddAssign;
 
-    use crate::convert::fr_from_be_bytes;
     use crate::{PublicKeySet, SecretKeyShare};
 
     use super::fr_to_be_bytes;
@@ -974,27 +973,6 @@ mod tests {
         // let mut rng = rand::thread_rng();
         let dealer_num = 3; // wait for 3 dealers before commit(1<= <=5, default threshold+1)
         let faulty_num = 2;
-        // for i in 0..dealer_num {
-        //     let bi_poly = BivarPoly::random(faulty_num, &mut rng);
-        //     // length is fixed by the degree and Fr size
-        //     let bi_poly_bytes = bi_poly.to_bytes();
-        //     println!("bytes: {}", base64::encode(bi_poly_bytes));
-        // }
-        // let bi_poly_bytes_list = [
-        //     "QM4NuuJbtqJ4z5HLAQrftkKgGoqcIMa3aFvn8lne+R5eSxsavcwPruLWaCrHa9d7NaGHsRvp+hw5stWU+RsrxENZ6+ofKviEVuTBbXHULFbChv73KqXn33XZmmtz1VtMSv+yvFth0UX2DHHdCNCagj6Ntlmh2eiwG0SLzR5a1MhPFmBh9AWCaChvuV2fP6hD8lwr6B7ClBzx4ycEePcNVxzC+ni+eteBQvH5HjAFXkAtkwFjWz7lz0NQJaXhOeHW",
-        //     "FLs116XIx62v7NfDICovsByzLmvfhIfwQyK6MZwYQ7tNcJ4Y3fC4pcOdV0mSwf5eiWoRpRwLkdp5BolFbmhvAxD5QJjhVz9yrLNUJ339EVmAoCxPwC0odpQO3yERCSkybMt1EpjTTNlzARv69Pfa26jNeZx/93iAWMN33ePzm1cadR7qkxlY/tEnTX7o20jI+GIPO+HEdiCFBIPjOlDIXXMVSGOnH6/HoQMKewe6XiiaA+FZjZLTDYtXl7o2W4S7",
-        //     "BsE0GgKJKs7xLTCoLGtiRMjZwfZ3Fbe6cA+bLgkrhSkUuepET9LAYOuOb/vMo7LqzGSx2VMT4HlD+Tyy0ejTuBB+rB3qTsHcBs88ysjBmauxRXe4GJKPUqWKuDObg/MKFdniRgzW/PwTXVmloDOgLcy1oJ3iRdz953PZKPURnOsD9/YnoZx4dDkeKduUZl/izmBaYea4GKQeR2T1FmWR1xe/uOGR8t6wYG7QBKuO+1R5DStPx6jjMAVwEFIDAUc3",
-        // ];
-
-        // For distributed key generation, a number of dealers, only one of who needs to be honest,
-        // generates random bivariate polynomials and publicly commits to them. In practice, the
-        // dealers can e.g. be any `faulty_num + 1` nodes.
-        // let bi_polys: Vec<BivarPoly> = bi_poly_bytes_list
-        //     .iter()
-        //     .map(|str| {
-        //         BivarPoly::from_bytes(base64::decode(str).unwrap()).expect("invalid bipoly bytes")
-        //     })
-        //     .collect();
 
         let mut rng = rand::thread_rng();
         let bi_polys: Vec<BivarPoly> = (0..dealer_num)
@@ -1009,7 +987,7 @@ mod tests {
         // Each dealer sends row `m` to node `m`, where the index starts at `1`. Don't send row `0`
         // to anyone! The nodes verify their rows, and send _value_ `s` on to node `s`. They again
         // verify the values they received, and collect them.
-        for (i, bi_poly) in bi_polys.iter().enumerate() {
+        for bi_poly in bi_polys {
             let bi_commit = bi_poly.commitment();
             println!(
                 "share commit: {}",
@@ -1075,23 +1053,6 @@ mod tests {
             // pub_commits.push(bi_commit.row(0));
             sum_commit.add_assign(bi_commit.row(0));
         }
-
-        // Each node now adds up all the first values of the rows it received from the different
-        // dealers (excluding the dealers where fewer than `2 * faulty_num + 1` nodes confirmed).
-        // The whole first column never gets added up in practice, because nobody has all the
-        // information. We do it anyway here; entry `0` is the secret key that is not known to
-        // anyone, neither a dealer, nor a node:
-        // for sec_commits in sec_commits_list {
-        //     for (m, commit) in sec_commits.iter().enumerate() {
-        //         sec_keys[m].add_assign(commit);
-        //     }
-        // }
-
-        // // The sum of the first rows of the public commitments is the commitment to the secret key
-        // let mut sum_commit = Poly::zero().commitment();
-        // for commit in &pub_commits {
-        //     sum_commit.add_assign(commit);
-        // }
 
         // in smart contract, the sec_keys will be sum up by decrypt with its private key, the sender will use public key to encrypt
         // and store in smart contract

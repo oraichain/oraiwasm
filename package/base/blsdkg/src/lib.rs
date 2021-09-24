@@ -20,7 +20,6 @@ mod codec_impl;
 
 pub mod convert;
 mod errors;
-pub mod msg;
 pub mod poly;
 pub mod serde_impl;
 
@@ -46,17 +45,13 @@ use crate::errors::{Error, FromBytesError, FromBytesResult, Result};
 use crate::poly::{Commitment, Poly};
 use crate::secret::clear_fr;
 
-// pub mod contract;
-
-// #[cfg(target_arch = "wasm32")]
-// cosmwasm_std::create_entry_points!(contract);
-
 pub use crate::into_fr::IntoFr;
 
 pub use convert::{
     fr_from_be_bytes, fr_to_be_bytes, g1_from_be_bytes, g1_to_be_bytes, g2_from_be_bytes,
     g2_to_be_bytes,
 };
+pub use util::hash_on_curve;
 use util::{derivation_index_into_fr, sha3_256};
 
 use blst::{
@@ -711,7 +706,7 @@ impl PublicKeySet {
     /// # extern crate rand;
     /// #
     /// # use std::collections::BTreeMap;
-    /// # use blsttc::SecretKeySet;
+    /// # use blsdkg::SecretKeySet;
     /// #
     /// let sk_set = SecretKeySet::random(3, &mut rand::thread_rng());
     /// let sk_shares: Vec<_> = (0..6).map(|i| sk_set.secret_key_share(i)).collect();
@@ -978,6 +973,8 @@ impl fmt::Debug for DebugDots {
 
 #[cfg(test)]
 mod tests {
+    use crate::util::hash_on_curve;
+
     use super::*;
 
     use std::{collections::BTreeMap, ops::AddAssign};
@@ -2016,26 +2013,9 @@ mod tests {
                 .add_assign(Commitment::from_bytes(base64::decode(commits[0]).unwrap()).unwrap());
         }
 
-        // Each node now adds up all the first values of the rows it received from the different
-        // dealers (excluding the dealers where fewer than `2 * faulty_num + 1` nodes confirmed).
-        // The whole first column never gets added up in practice, because nobody has all the
-        // information. We do it anyway here; entry `0` is the secret key that is not known to
-        // anyone, neither a dealer, nor a node:
-        // for sec_commits in sec_commits_list {
-        //     for (m, commit) in sec_commits.iter().enumerate() {
-        //         sec_keys[m].add_assign(commit);
-        //     }
-        // }
-
-        // // The sum of the first rows of the public commitments is the commitment to the secret key
-        // let mut sum_commit = Poly::zero().commitment();
-        // for commit in &pub_commits {
-        //     sum_commit.add_assign(commit);
-        // }
-
         // in smart contract, the sec_keys will be sum up by decrypt with its private key, the sender will use public key to encrypt
         // and store in smart contract
-        let msg = "hello";
+        let msg = hash_on_curve("hello".as_bytes(), 0).1;
         let mpkset = PublicKeySet::from(sum_commit);
         // sec_keys[0] is for node 0
         let mut sigs = BTreeMap::new();
