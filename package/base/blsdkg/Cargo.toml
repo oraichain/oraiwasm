@@ -8,6 +8,8 @@ authors = [
     "Andrew Gross <andogro@gmail.com>",
     "Nick Sanders <nsan1129@gmail.com>",
     "Marc Brinkmann <git@marcbrinkmann.de>",
+    "Thanh tu <tu@orai.io>",
+    "Duc Pham <duc@orai.io>",
 ]
 categories = ["cryptography"]
 keywords = ["pairing", "threshold"]
@@ -16,23 +18,6 @@ readme = "README.md"
 repository = "https://github.com/maidsafe/blsdkg"
 description = "Pairing threshold cryptography"
 edition = "2018"
-
-[build]
-rustflags = ["-I/usr/include"]
-
-[lib]
-crate-type = ["cdylib", "rlib"]
-
-[profile.release]
-opt-level = 3
-debug = false
-rpath = false
-lto = true
-debug-assertions = false
-codegen-units = 1
-panic = 'abort'
-incremental = false
-overflow-checks = true
 
 [dependencies]
 byteorder = "1.3.4"
@@ -45,8 +30,6 @@ rand = "0.7.3"
 rand_chacha = "0.2.2"
 thiserror = "1.0.22"
 zeroize = "1.1.0"
-
-
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 blst = { version = "0.3.5", features = ["portable"] }
 tiny-keccak = { version = "2.0.1", features = ["sha3"] }
