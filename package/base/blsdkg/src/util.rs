@@ -17,6 +17,7 @@ pub(crate) fn derivation_index_into_fr(v: &[u8]) -> Fr {
     index_and_rounds_into_fr(v, 0)
 }
 
+/// derive_randomness : gen truly random from signature
 pub fn derive_randomness(signature: &[u8]) -> [u8; 32] {
     let mut sha3 = Sha3::v256();
     sha3.update(signature);
