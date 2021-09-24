@@ -78,7 +78,7 @@ fn store_members(deps: DepsMut, members: Vec<MemberMsg>, clear: bool) -> StdResu
     let mut members_store = members_storage(deps.storage);
     for (i, msg) in members.iter().enumerate() {
         let member = Member {
-            index: i,
+            index: i as u16,
             address: msg.address.clone(),
             deleted: false,
             pubkey: msg.pubkey.clone(),
@@ -427,7 +427,10 @@ pub fn aggregate_sig<M: AsRef<[u8]>>(
         .map(|s| {
             let mut sig_bytes: [u8; SIG_SIZE] = [0; SIG_SIZE];
             sig_bytes.copy_from_slice(s.sig.as_slice());
-            (s.index, SignatureShare::from_bytes(sig_bytes).unwrap())
+            (
+                s.index as usize,
+                SignatureShare::from_bytes(sig_bytes).unwrap(),
+            )
         })
         .collect();
     let combined_sig = mpkset.combine_signatures(&sig_shares).unwrap();

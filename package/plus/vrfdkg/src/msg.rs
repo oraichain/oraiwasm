@@ -18,7 +18,7 @@ pub struct SharedDealerMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ShareSig {
     pub sender: String,
-    pub index: usize,
+    pub index: u16,
     pub sig: Binary,
 }
 
@@ -37,7 +37,7 @@ pub struct Member {
     // dealer will do it
     pub shared_dealer: Option<SharedDealerMsg>,
     // index of member, by default it is sorted by their address
-    pub index: usize,
+    pub index: u16,
     pub deleted: bool,
 }
 
