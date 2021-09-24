@@ -11,7 +11,16 @@ const ret = Buffer.from(blsttcJs.sign(sk, msg));
 console.log(ret.toString('base64') === sig);
 
 const bibars = blsttcJs.generate_bivars(2, 5);
-console.log(bibars.get_sum_commit());
-for (let i = 0; i < 5; i++) {
-  console.log(bibars.get_commit(i), bibars.get_row(i));
-}
+
+const commits = bibars.get_commits();
+const rows = bibars.get_rows();
+
+console.log(
+  'commits',
+  commits.map((commit) => Buffer.from(commit).toString('base64'))
+);
+
+console.log(
+  'rows',
+  rows.map((row) => Buffer.from(row).toString('base64'))
+);

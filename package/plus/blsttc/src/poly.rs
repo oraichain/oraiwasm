@@ -1033,7 +1033,7 @@ mod tests {
                     let val = row_poly.evaluate(s);
                     // send val as encryption to node s
                     let val_g1 = G1Affine::one().mul(val);
-                    assert_eq!(bi_commit.evaluate(m, s), val_g1);
+                    assert_eq!(row_commit.evaluate(s), val_g1);
                     // send val to smart contract as commit to node m, with encryption from m pubkey
                     // The node can't verify this directly, but it should have the correct value:
                     assert_eq!(bi_poly.evaluate(m, s), val);
