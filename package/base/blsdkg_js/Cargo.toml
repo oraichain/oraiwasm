@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 wasm-bindgen = "0.2.63"
 wasm-bindgen-test = "0.3.28"
+serde = { version = "1.0.104", features = ["derive"] }
 blsdkg = { path = "../blsdkg" }
 rand = { version = "0.7.3", features = ["wasm-bindgen"] }
 js-sys = "0.3.55"
