@@ -1,5 +1,4 @@
 use blsdkg::{
-    fr_from_be_bytes,
     poly::{BivarPoly, Commitment, Poly},
     SecretKeyShare, SK_SIZE,
 };
@@ -21,11 +20,11 @@ pub fn sign(sk: Uint8Array, msg: &str) -> Option<Uint8Array> {
     let mut sk_bytes: [u8; SK_SIZE] = [0; SK_SIZE];
     sk.copy_to(&mut sk_bytes);
     // create secret key vec from input parameters
-    let mut sec_key = match fr_from_be_bytes(sk_bytes) {
+    let sk = match SecretKeyShare::from_bytes(sk_bytes) {
         Ok(s) => s,
         Err(_) => return None,
     };
-    let sk = SecretKeyShare::from_mut(&mut sec_key);
+
     let sig_bytes = sk.sign(msg).to_bytes();
 
     let buffer = Uint8Array::new_with_length(sig_bytes.len() as u32);
