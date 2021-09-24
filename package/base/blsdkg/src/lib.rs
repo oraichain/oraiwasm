@@ -2029,6 +2029,7 @@ mod tests {
                 base64::encode(sk.to_bytes()),
                 base64::encode(sig.to_bytes())
             );
+
             assert!(sk.public_key_share().verify(&sig, msg));
             sigs.insert(i, sig);
         }
