@@ -1,10 +1,10 @@
 use std::fmt;
 
-use cosmwasm_std::{Binary, Coin, Empty, HumanAddr, Uint128};
+use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
 use cw1155::Cw1155ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_1155::OfferingQueryMsg;
-use market_ai_royalty::AiRoyaltyQueryMsg;
+use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -36,7 +36,7 @@ pub enum HandleMsg {
     /// Mint a new NFT, can only be called by the contract minter
     MintNft {
         contract: HumanAddr,
-        msg: Binary,
+        msg: MintMsg,
     },
 }
 
