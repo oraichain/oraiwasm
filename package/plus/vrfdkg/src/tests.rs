@@ -1,13 +1,16 @@
 use crate::{
     contract::{handle, init, query},
-    msg::{HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, SharedDealerMsg, SharedStatus},
+    msg::{
+        HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, SharedDealerMsg, SharedRowMsg,
+        SharedStatus,
+    },
     state::Config,
 };
 
 use blsdkg::{
     ff::Field,
     poly::{Commitment, Poly},
-    G1Affine, IntoFr,
+    G1Affine, IntoFr, SecretKeyShare,
 };
 use cosmwasm_std::{
     from_binary,
@@ -36,6 +39,54 @@ macro_rules! init_dealer {
 
             let res = handle($deps.as_mut(), mock_env(), info, msg).unwrap();
             println!("ret: {:?}", res);
+        }
+    };
+}
+
+macro_rules! init_row {
+    ($deps:expr, $members:expr, $dealers:expr) => {
+        // Each dealer sends row `m` to node `m`, where the index starts at `1`. Don't send row `0`
+        // to anyone! The nodes verify their rows, and send _value_ `s` on to node `s`. They again
+        // verify the values they received, and collect them.
+        for member in &$members {
+            let mut sec_key = Fr::zero();
+            for dealer in &$dealers {
+                let SharedDealerMsg { rows, commits } = dealer.shared_dealer.as_ref().unwrap();
+                // Node `m` receives its row and verifies it.
+                // it must be encrypted with public key
+                let row_poly = Poly::from_bytes(rows[member.index].to_vec()).unwrap();
+                println!(
+                    "share row: {}",
+                    base64::encode(row_poly.commitment().to_bytes())
+                );
+
+                // send row_poly with encryption to node m
+                // also send commit for each node to verify row_poly share
+                let row_commit =
+                    Commitment::from_bytes(commits[member.index + 1].to_vec()).unwrap();
+                // verify share
+                assert_eq!(row_poly.commitment(), row_commit);
+
+                // then update share row encrypted with public key, for testing we store plain share
+                // this will be done in wasm bindgen
+                let sec_commit = row_poly.evaluate(0);
+                // combine all sec_commit from all dealers
+
+                sec_key.add_assign(&sec_commit);
+            }
+
+            // now can share secret pubkey for contract to verify
+            let sk = SecretKeyShare::from_mut(&mut sec_key);
+            let pk = sk.public_key_share();
+
+            let info = mock_info(member.address.clone(), &vec![]);
+
+            let msg = HandleMsg::ShareRow {
+                share: SharedRowMsg {
+                    pk_share: Binary::from(&pk.to_bytes()),
+                },
+            };
+            handle($deps.as_mut(), mock_env(), info, msg).unwrap();
         }
     };
 }
@@ -184,83 +235,11 @@ fn share_row() {
         .cloned()
         .collect();
 
-    // share public bi
-    // let mut pub_commits: Vec<Commitment> = vec![]; // bi_polys.iter().map(BivarPoly::commitment).collect();
-    let mut sum_commit = Poly::zero().commitment();
-    let mut sec_keys = vec![Fr::zero(); NUM_NODE];
+    init_row!(deps, members, dealers);
 
-    // Each dealer sends row `m` to node `m`, where the index starts at `1`. Don't send row `0`
-    // to anyone! The nodes verify their rows, and send _value_ `s` on to node `s`. They again
-    // verify the values they received, and collect them.
-    for dealer in &dealers {
-        let SharedDealerMsg { rows, commits } = dealer.shared_dealer.as_ref().unwrap();
-        // let bi_commit = bi_poly.commitment();
-        // println!(
-        //     "share commit: {}",
-        //     base64::encode(bi_commit.row(0).to_bytes())
-        // );
-        for member in &members {
-            // Node `m` receives its row and verifies it.
-
-            let row_poly = Poly::from_bytes(rows[member.index].to_vec()).unwrap();
-            println!(
-                "share row: {}",
-                base64::encode(row_poly.commitment().to_bytes())
-            );
-
-            // send row_poly with encryption to node m
-            // also send commit for each node to verify row_poly share
-            let row_commit = Commitment::from_bytes(commits[member.index + 1].to_vec()).unwrap();
-            assert_eq!(row_poly.commitment(), row_commit);
-
-            // // Node `s` receives the `s`-th value and verifies it.
-            // for s in 1..=node_num {
-            //     let val = row_poly.evaluate(s);
-            //     // send val as encryption to node s
-            //     let val_g1 = G1Affine::one().mul(val);
-            //     assert_eq!(row_commit.evaluate(s), val_g1);
-            //     // send val to smart contract as commit to node m, with encryption from m pubkey
-            //     // The node can't verify this directly, but it should have the correct value:
-            //     assert_eq!(row_poly.evaluate(s), val);
-            // }
-
-            // A cheating dealer who modified the polynomial would be detected.
-            let x_pow_2 = Poly::monomial(2);
-            let five = Poly::constant(5.into_fr());
-            let wrong_poly = row_poly.clone() + x_pow_2 * five;
-            assert_ne!(wrong_poly.commitment(), row_commit);
-
-            let sec_commit = row_poly.evaluate(0);
-
-            // If `2 * faulty_num + 1` nodes confirm that they received a valid row, then at
-            // least `faulty_num + 1` honest ones did, and sent the correct values on to node
-            // `s`. So every node received at least `faulty_num + 1` correct entries of their
-            // column/row (remember that the bivariate polynomial is symmetric). They can
-            // reconstruct the full row and in particular value `0` (which no other node knows,
-            // only the dealer). E.g. let's say nodes `1`, `2` and `4` are honest. Then node
-            // `m` received three correct entries from that row:
-            // it should be received_share from all other nodes to node m
-            // let received: BTreeMap<_, _> = [1, 2, 4]
-            //     .iter()
-            //     .map(|&i| (i, row_poly.evaluate(i)))
-            //     .collect();
-            // let my_row = Poly::interpolate(received);
-            // assert_eq!(sec_commit, my_row.evaluate(0));
-            // assert_eq!(row_poly, my_row);
-
-            // // The node sums up all values number `0` it received from the different dealer. No
-            // // dealer and no other node knows the sum in the end.
-            // let fr_bytes = fr_to_be_bytes(sec_commit);
-            // println!("{}", base64::encode(fr_bytes));
-            // // then use private key of m to dencrypt, then return the contract
-            // // sec_commits_list[i].push(fr_from_be_bytes(fr_bytes).unwrap());
-            // sec_keys[m - 1].add_assign(&sec_commit);
-        }
-        // pub commit of dealer
-        // pub_commits.push(bi_commit.row(0));
-        // sum_commit.add_assign(Commitment::from_bytes(base64::decode(commits[0]).unwrap()).unwrap());
-    }
+    let ret: Config =
+        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::ContractInfo {}).unwrap()).unwrap();
 
     // next phase is wait for row
-    // assert_eq!(ret.status, SharedStatus::WaitForRow);
+    assert_eq!(ret.status, SharedStatus::WaitForRow);
 }

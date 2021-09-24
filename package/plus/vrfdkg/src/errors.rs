@@ -11,6 +11,8 @@ pub enum ContractError {
     InvalidDealer {},
     #[error("Round must be greater than 0: {round}")]
     InvalidRound { round: u64 },
+    #[error("Signature is invalid")]
+    InvalidSignature {},
     #[error("No funds were sent with the expected token: {expected_denom}")]
     NoFundsSent { expected_denom: String },
     #[error("Less funds were sent with the expected token: {expected_denom}")]

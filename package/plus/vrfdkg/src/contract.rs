@@ -1,19 +1,35 @@
+use std::collections::BTreeMap;
+use std::convert::TryInto;
+use std::ops::AddAssign;
+
+use blsdkg::poly::{Commitment, Poly};
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    attr, coins, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
     HandleResponse, InitResponse, MessageInfo, Order, StdResult,
 };
 
-use blsdkg::{derive_randomness, hash_on_curve};
+use blsdkg::{
+    derive_randomness, hash_on_curve, PublicKeySet, PublicKeyShare, SignatureShare, SIG_SIZE,
+};
 
 use crate::errors::ContractError;
 use crate::msg::{
-    AggregateSig, DistributedShareData, HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, ShareSig,
-    SharedDealerMsg, SharedRowMsg, SharedStatus, SharedValueMsg, UpdateShareSigMsg,
+    DistributedShareData, HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, ShareSig,
+    SharedDealerMsg, SharedRowMsg, SharedStatus, UpdateShareSigMsg,
 };
 use crate::state::{
-    beacons_handle_storage, beacons_handle_storage_read, beacons_storage, beacons_storage_read,
-    clear_store, config, config_read, members_storage, members_storage_read, owner, owner_read,
-    Config, Owner,
+    // beacons_handle_storage, beacons_handle_storage_read,
+    beacons_storage,
+    beacons_storage_read,
+    clear_store,
+    config,
+    config_read,
+    members_storage,
+    members_storage_read,
+    owner,
+    owner_read,
+    Config,
+    Owner,
 };
 
 // settings for pagination
@@ -37,6 +53,8 @@ pub fn init(
         dealer,
         threshold: msg.threshold,
         fee: msg.fee,
+        shared_dealer: 0,
+        shared_row: 0,
         status: SharedStatus::WaitForDealer,
     })?;
 
@@ -66,7 +84,6 @@ fn store_members(deps: DepsMut, members: Vec<MemberMsg>, clear: bool) -> StdResu
             address: msg.address.clone(),
             deleted: false,
             pubkey: msg.pubkey.clone(),
-            shared_val: None,
             shared_row: None,
             shared_dealer: None,
         };
@@ -85,15 +102,9 @@ pub fn handle(
     match msg {
         HandleMsg::ShareDealer { share } => share_dealer(deps, info, share),
         HandleMsg::ShareRow { share } => share_row(deps, info, share),
-        HandleMsg::ShareValue { share } => share_value(deps, info, share),
         HandleMsg::UpdateShareSig { share_sig } => update_share_sig(deps, env, info, share_sig),
         HandleMsg::RequestRandom { input } => request_random(deps, info, input),
-        HandleMsg::AggregateSignature {
-            sig,
-            signed_sig,
-            round,
-        } => aggregate_sig(deps, info, sig, signed_sig, round),
-        HandleMsg::UpdateThresHold { threshold } => update_threshold(deps, info, threshold),
+        HandleMsg::UpdateThreshold { threshold } => update_threshold(deps, info, threshold),
         HandleMsg::UpdateFees { fee } => update_fees(deps, info, fee),
         HandleMsg::UpdateMembers { members } => update_members(deps, info, members),
         HandleMsg::RemoveMember { address } => remove_member(deps, info, address),
@@ -140,6 +151,8 @@ pub fn update_members(
 
     // reset everything
     config_data.total = total;
+    config_data.shared_dealer = 0;
+    config_data.shared_row = 0;
     config_data.status = SharedStatus::WaitForDealer;
     config(deps.storage).save(&config_data)?;
 
@@ -161,6 +174,8 @@ pub fn update_threshold(
     }
     let mut config_data = config_read(deps.storage).load()?;
     config_data.threshold = threshold;
+    config_data.shared_dealer = 0;
+    config_data.shared_row = 0;
     // reset everything, with dealer as size of vector
     config_data.status = SharedStatus::WaitForDealer;
     // init with a signature, pubkey and denom for bounty
@@ -186,6 +201,27 @@ pub fn update_fees(
     Ok(HandleResponse::default())
 }
 
+fn query_and_check(deps: Deps, address: &str) -> Result<Member, ContractError> {
+    match members_storage_read(deps.storage).get(address.as_bytes()) {
+        Some(value) => {
+            let member: Member = from_slice(value.as_slice())?;
+            if member.deleted {
+                return Err(ContractError::Unauthorized(format!(
+                    "{} is removed from the group",
+                    address
+                )));
+            }
+            Ok(member)
+        }
+        None => {
+            return Err(ContractError::Unauthorized(format!(
+                "{} is not the member",
+                address
+            )))
+        }
+    }
+}
+
 pub fn share_dealer(
     deps: DepsMut,
     info: MessageInfo,
@@ -199,16 +235,7 @@ pub fn share_dealer(
         )));
     }
 
-    let mut member = match query_member(deps.as_ref(), info.sender.as_str()) {
-        Ok(m) => m,
-        Err(_) => {
-            return Err(ContractError::Unauthorized(format!(
-                "{} is not the member",
-                info.sender
-            )))
-        }
-    };
-
+    let mut member = query_and_check(deps.as_ref(), info.sender.as_str())?;
     // when range of member with dealer is greater than dealer count, then finish state
 
     // update share, once and only, to make random verifiable, because other can read the shared onced submitted
@@ -219,16 +246,16 @@ pub fn share_dealer(
         )));
     }
 
+    // update shared dealer
     member.shared_dealer = Some(share);
     // save member
     members_storage(deps.storage).set(&member.address.as_bytes(), &to_binary(&member)?);
 
-    // small size is ok (usize can be 16,32,64)
-    let dealers = query_dealers(deps.as_ref())?;
-    if (dealers.len() as u16) >= config_data.dealer {
+    config_data.shared_dealer += 1;
+    if config_data.shared_dealer >= config_data.dealer {
         config_data.status = SharedStatus::WaitForRow;
-        config(deps.storage).save(&config_data)?;
     }
+    config(deps.storage).save(&config_data)?;
 
     // check if total shared_dealder is greater than dealer
     let mut response = HandleResponse::default();
@@ -241,16 +268,40 @@ pub fn share_row(
     info: MessageInfo,
     share: SharedRowMsg,
 ) -> Result<HandleResponse, ContractError> {
-    let mut response = HandleResponse::default();
-    Ok(response)
-}
+    let mut config_data = config_read(deps.storage).load()?;
+    if config_data.status != SharedStatus::WaitForRow {
+        return Err(ContractError::Unauthorized(format!(
+            "current status: {:?}",
+            config_data.status
+        )));
+    }
 
-pub fn share_value(
-    deps: DepsMut,
-    info: MessageInfo,
-    share: SharedValueMsg,
-) -> Result<HandleResponse, ContractError> {
+    let mut member = query_and_check(deps.as_ref(), info.sender.as_str())?;
+    // when range of member with dealer is greater than dealer count, then finish state
+
+    // update share, once and only, to make random verifiable, because other can read the shared onced submitted
+    if member.shared_row.is_some() {
+        return Err(ContractError::Unauthorized(format!(
+            "{} can not change the share once submitted",
+            info.sender
+        )));
+    }
+
+    // update shared row
+    member.shared_row = Some(share);
+
+    // save member
+    members_storage(deps.storage).set(&member.address.as_bytes(), &to_binary(&member)?);
+
+    config_data.shared_row += 1;
+    if config_data.shared_row >= config_data.total {
+        config_data.status = SharedStatus::WaitForRequest;
+        config(deps.storage).save(&config_data)?;
+    }
+
+    // check if total shared_dealder is greater than dealer
     let mut response = HandleResponse::default();
+    response.attributes = vec![attr("action", "share_row"), attr("member", info.sender)];
     Ok(response)
 }
 
@@ -277,6 +328,7 @@ pub fn update_share_sig(
     } = config_read(deps.storage).load()?;
 
     let mut share_data = query_get(deps.as_ref(), share_sig.round)?;
+
     // if too late, unauthorized to add more signature
     if share_data.sigs.len() >= threshold as usize {
         return Err(ContractError::Unauthorized(format!(
@@ -285,29 +337,50 @@ pub fn update_share_sig(
         )));
     }
 
-    let mut new_sigs = share_data.sigs.clone();
-    match new_sigs
-        .iter_mut()
+    match share_data
+        .sigs
+        .iter()
         .find(|sig| sig.sender.eq(&member.address))
     {
-        Some(s) => {
-            // update if found
-            s.sig = share_sig.sig.clone();
+        Some(_s) => {
+            // can not update the signature once commited
+            return Err(ContractError::Unauthorized(format!(
+                "{} can not update the signature once commited",
+                info.sender
+            )));
         }
         None => {
+            // check signature is correct?
+            let pk = PublicKeyShare::from_bytes(member.shared_row.unwrap().pk_share.to_array()?)
+                .unwrap();
+            // > 64 bytes must try_into
+            let sig =
+                SignatureShare::from_bytes(share_sig.sig.to_vec().try_into().unwrap()).unwrap();
+            let msg = hash_on_curve(share_data.input.as_slice(), share_data.round).1;
+
+            // if the signature is invalid
+            if !pk.verify(&sig, msg) {
+                return Err(ContractError::InvalidSignature {});
+            }
             // append at the end
-            new_sigs.push(ShareSig {
+            share_data.sigs.push(ShareSig {
                 sig: share_sig.sig.clone(),
+                index: member.index,
                 sender: member.address,
-            })
+            });
+            // stop with threshold +1
+            if share_data.sigs.len() as u16 > threshold {
+                let dealers = query_dealers(deps.as_ref())?;
+                // do aggregate
+                aggregate_sig(dealers, msg, &mut share_data);
+            }
         }
     }
-    // update new sigs
-    share_data.sigs = new_sigs;
+
     // update back data
     let msg = to_binary(&share_data)?;
     beacons_storage(deps.storage).set(&share_sig.round.to_be_bytes(), &msg);
-    beacons_handle_storage(deps.storage).set(&share_sig.round.to_be_bytes(), &msg);
+    // beacons_handle_storage(deps.storage).set(&share_sig.round.to_be_bytes(), &msg);
 
     let mut response = HandleResponse::default();
     // send fund to member, by fund / threshold, the late member will not get paid
@@ -336,68 +409,44 @@ pub fn update_share_sig(
     Ok(response)
 }
 
-pub fn aggregate_sig(
-    deps: DepsMut,
-    info: MessageInfo,
-    sig: Binary,
-    signed_sig: Binary,
-    round: u64,
-) -> Result<HandleResponse, ContractError> {
-    // check member
-    let member = match query_member(deps.as_ref(), info.sender.as_str()) {
-        Ok(m) => m,
-        Err(_) => {
-            return Err(ContractError::Unauthorized(format!(
-                "{} is not the member",
-                info.sender
-            )))
-        }
-    };
-
-    // check if the round has finished or not
-    let mut share_data = query_get(deps.as_ref(), round)?;
-    if !share_data.aggregate_sig.sender.eq("") {
-        return Err(ContractError::FinishedRound { round, sig });
+pub fn aggregate_sig<M: AsRef<[u8]>>(
+    dealers: Vec<Member>,
+    msg: M,
+    share_data: &mut DistributedShareData,
+) {
+    let mut sum_commit = Poly::zero().commitment();
+    for dealer in dealers {
+        sum_commit.add_assign(
+            Commitment::from_bytes(dealer.shared_dealer.unwrap().commits[0].to_vec()).unwrap(),
+        );
     }
-    let Config {
-        fee: _, threshold, ..
-    } = config_read(deps.storage).load()?;
+    let mpkset = PublicKeySet::from(sum_commit);
+    let sig_shares: BTreeMap<_, _> = share_data
+        .sigs
+        .iter()
+        .map(|s| {
+            (
+                s.index,
+                SignatureShare::from_bytes(s.sig.to_vec().try_into().unwrap()).unwrap(),
+            )
+        })
+        .collect();
+    let combined_sig = mpkset.combine_signatures(&sig_shares).unwrap();
+    let combined_pubkey = mpkset.public_key();
+    let mut combined_sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
+    combined_sig_bytes.copy_from_slice(&combined_sig.to_bytes());
+    share_data.combined_sig = Some(Binary::from(combined_sig_bytes));
+    share_data.combined_pubkey = Some(Binary::from(combined_pubkey.to_bytes()));
+    let verifed = combined_pubkey.verify(&combined_sig, msg);
 
-    // if too early => cannot add aggregated signature
-    if share_data.sigs.len() < threshold as usize {
-        return Err(ContractError::Unauthorized(format!(
-            "{} cannot add aggregated signature when the # of signatures is below the threshold",
-            info.sender
-        )));
+    if verifed {
+        // something wrong, just ignore this round
+        let randomness = derive_randomness(&combined_sig.to_bytes());
+        share_data.randomness = Some(Binary::from(randomness));
     }
 
-    let randomness = derive_randomness(&sig);
-
-    share_data.aggregate_sig = AggregateSig {
-        sender: info.sender.to_string(),
-        sig,
-        signed_sig,
-        pubkey: member.pubkey,
-        randomness: randomness.into(),
-    };
-    let msg = to_binary(&share_data)?;
-    beacons_storage(deps.storage).set(&round.to_be_bytes(), &msg);
     // remove round from the handle queue
-    beacons_handle_storage(deps.storage).remove(&round.to_be_bytes());
-
-    // return response events
-    let response = HandleResponse {
-        messages: vec![],
-        attributes: vec![
-            attr("action", "aggregate_sig"),
-            attr("share_data", to_binary(&share_data)?),
-            attr("aggregate_sig", to_binary(&share_data.aggregate_sig)?),
-            attr("round", round),
-            attr("sender", info.sender),
-        ],
-        data: None,
-    };
-    Ok(response)
+    // beacons_handle_storage(deps.storage).remove(&round.to_be_bytes());
 }
 
 pub fn request_random(
@@ -405,10 +454,25 @@ pub fn request_random(
     info: MessageInfo,
     input: Binary,
 ) -> Result<HandleResponse, ContractError> {
-    let Config { fee: fee_val, .. } = config_read(deps.storage).load()?;
+    let Config {
+        fee: fee_val,
+        status,
+        ..
+    } = config_read(deps.storage).load()?;
+
+    if status != SharedStatus::WaitForRequest {
+        return Err(ContractError::Unauthorized(format!(
+            "current status: {:?}",
+            status
+        )));
+    }
+
     // get next round and
     let round = match query_latest(deps.as_ref()) {
         Ok(v) => {
+            if v.combined_sig.is_none() {
+                return Err(ContractError::PendingRound { round: v.round });
+            }
             v.round + 1 // next round
         }
         Err(err) => {
@@ -443,18 +507,16 @@ pub fn request_random(
         round,
         sigs: vec![],
         input: input.clone(),
-        aggregate_sig: AggregateSig {
-            sender: "".to_string(),
-            sig: to_binary("")?,
-            signed_sig: to_binary("")?,
-            pubkey: to_binary("")?,
-            randomness: to_binary("")?,
-        },
+        // each compute will store the aggregated_pubkey for other to verify,
+        // because pubkey may change follow commits shared
+        combined_sig: None,
+        combined_pubkey: None,
+        randomness: None,
     })?;
 
     beacons_storage(deps.storage).set(&round.to_be_bytes(), &msg);
     // this is used to store current handling rounds
-    beacons_handle_storage(deps.storage).set(&round.to_be_bytes(), &msg);
+    // beacons_handle_storage(deps.storage).set(&round.to_be_bytes(), &msg);
 
     // return the round
     let response = HandleResponse {
@@ -481,17 +543,16 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         } => to_binary(&query_members(deps, limit, offset, order)?)?,
         QueryMsg::GetDealers {} => to_binary(&query_dealers(deps)?)?,
         QueryMsg::LatestRound {} => to_binary(&query_latest(deps)?)?,
-        QueryMsg::EarliestHandling {} => to_binary(&query_earliest(deps)?)?,
+        // QueryMsg::EarliestHandling {} => to_binary(&query_earliest(deps)?)?,
     };
     Ok(response)
 }
 
 fn query_member(deps: Deps, address: &str) -> Result<Member, ContractError> {
-    let beacons = members_storage_read(deps.storage);
-    let value = beacons
+    let value = members_storage_read(deps.storage)
         .get(&address.as_bytes())
         .ok_or(ContractError::NoMember {})?;
-    let member = from_binary(&value.into())?;
+    let member = from_slice(value.as_slice())?;
     Ok(member)
 }
 
@@ -525,7 +586,7 @@ fn query_members(
     let members = members_storage_read(deps.storage)
         .range(min, max, order_enum)
         .take(limit)
-        .map(|(_key, value)| from_binary(&value.into()).unwrap())
+        .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
         .collect();
     Ok(members)
 }
@@ -533,7 +594,7 @@ fn query_members(
 fn query_dealers(deps: Deps) -> Result<Vec<Member>, ContractError> {
     let mut members: Vec<Member> = members_storage_read(deps.storage)
         .range(None, None, Order::Ascending)
-        .map(|(_key, value)| from_binary(&value.into()).unwrap())
+        .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
         .collect();
 
     // into_iter() will move old vector into new vector without cloning
@@ -552,7 +613,7 @@ fn query_get(deps: Deps, round: u64) -> Result<DistributedShareData, ContractErr
     let value = beacons
         .get(&round.to_be_bytes())
         .ok_or(ContractError::NoBeacon {})?;
-    let share_data: DistributedShareData = from_binary(&value.into())?;
+    let share_data: DistributedShareData = from_slice(value.as_slice())?;
     Ok(share_data)
 }
 
@@ -560,14 +621,14 @@ fn query_latest(deps: Deps) -> Result<DistributedShareData, ContractError> {
     let store = beacons_storage_read(deps.storage);
     let mut iter = store.range(None, None, Order::Descending);
     let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
-    let share_data: DistributedShareData = from_binary(&value.into())?;
+    let share_data: DistributedShareData = from_slice(value.as_slice())?;
     Ok(share_data)
 }
 
-fn query_earliest(deps: Deps) -> Result<DistributedShareData, ContractError> {
-    let store = beacons_handle_storage_read(deps.storage);
-    let mut iter = store.range(None, None, Order::Ascending);
-    let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
-    let share_data: DistributedShareData = from_binary(&value.into())?;
-    Ok(share_data)
-}
+// fn query_earliest(deps: Deps) -> Result<DistributedShareData, ContractError> {
+//     let store = beacons_handle_storage_read(deps.storage);
+//     let mut iter = store.range(None, None, Order::Ascending);
+//     let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
+//     let share_data: DistributedShareData = from_binary(&value.into())?;
+//     Ok(share_data)
+// }

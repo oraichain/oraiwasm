@@ -2031,6 +2031,10 @@ mod tests {
             );
 
             assert!(sk.public_key_share().verify(&sig, msg));
+            // faulty node is 2
+            if sigs.len() > 2 {
+                break;
+            }
             sigs.insert(i, sig);
         }
 

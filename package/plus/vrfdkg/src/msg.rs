@@ -3,19 +3,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct SharedValueMsg {
-    // list of row commit, Each dealer sends row `m` to node `m`, then it verify and send to all other nodes
-    pub sks_share: Vec<Vec<Binary>>,
-    // is public share
-    pub pk_share: Option<Binary>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct SharedRowMsg {
-    // list of row commit, Each dealer sends row `m` to node `m`, then it verify and send to all other nodes
-    pub row_commits: Vec<Binary>,
     // is public share
-    pub vals: Vec<Binary>,
+    pub pk_share: Binary,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -28,16 +18,8 @@ pub struct SharedDealerMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ShareSig {
     pub sender: String,
+    pub index: usize,
     pub sig: Binary,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AggregateSig {
-    pub sender: String,
-    pub sig: Binary,
-    pub signed_sig: Binary,
-    pub pubkey: Binary,
-    pub randomness: Binary,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -50,16 +32,12 @@ pub struct MemberMsg {
 pub struct Member {
     pub address: String, // orai wallet for easy lookup
     pub pubkey: Binary,
-    // share messages for all others
-    pub shared_val: Option<SharedValueMsg>,
     // share row m to index m
     pub shared_row: Option<SharedRowMsg>,
     // dealer will do it
     pub shared_dealer: Option<SharedDealerMsg>,
-
     // index of member, by default it is sorted by their address
     pub index: usize,
-
     pub deleted: bool,
 }
 
@@ -82,38 +60,14 @@ pub struct UpdateShareSigMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    ShareDealer {
-        share: SharedDealerMsg,
-    },
-    ShareRow {
-        share: SharedRowMsg,
-    },
-    ShareValue {
-        share: SharedValueMsg,
-    },
-    RequestRandom {
-        input: Binary,
-    },
-    UpdateShareSig {
-        share_sig: UpdateShareSigMsg,
-    },
-    AggregateSignature {
-        sig: Binary,
-        signed_sig: Binary,
-        round: u64,
-    },
-    UpdateThresHold {
-        threshold: u16,
-    },
-    UpdateFees {
-        fee: Coin,
-    },
-    UpdateMembers {
-        members: Vec<MemberMsg>,
-    },
-    RemoveMember {
-        address: String,
-    },
+    ShareDealer { share: SharedDealerMsg },
+    ShareRow { share: SharedRowMsg },
+    RequestRandom { input: Binary },
+    UpdateShareSig { share_sig: UpdateShareSigMsg },
+    UpdateThreshold { threshold: u16 },
+    UpdateFees { fee: Coin },
+    UpdateMembers { members: Vec<MemberMsg> },
+    RemoveMember { address: String },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -134,7 +88,7 @@ pub enum QueryMsg {
     // suppose to return all
     GetDealers {},
     LatestRound {},
-    EarliestHandling {},
+    // EarliestHandling {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -143,7 +97,9 @@ pub struct DistributedShareData {
     pub sigs: Vec<ShareSig>,
     pub round: u64,
     pub input: Binary,
-    pub aggregate_sig: AggregateSig,
+    pub combined_sig: Option<Binary>,
+    pub combined_pubkey: Option<Binary>,
+    pub randomness: Option<Binary>,
 }
 
 #[repr(i32)]
@@ -151,6 +107,5 @@ pub struct DistributedShareData {
 pub enum SharedStatus {
     WaitForDealer = 1,
     WaitForRow,
-    WaitForValue,
-    Completed,
+    WaitForRequest,
 }
