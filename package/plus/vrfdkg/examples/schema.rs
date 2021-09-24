@@ -3,8 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use dkg::msg::{DistributedShareData, HandleMsg, InitMsg, QueryMsg};
-use dkg::state::Config;
+use vrfdkg::msg::{DistributedShareData, HandleMsg, InitMsg, QueryMsg};
+use vrfdkg::state::Config;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

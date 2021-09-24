@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Coin, Storage};
+use cosmwasm_std::{Coin, Order, Storage};
 use cosmwasm_storage::{
     prefixed, prefixed_read, singleton, singleton_read, PrefixedStorage, ReadonlyPrefixedStorage,
     ReadonlySingleton, Singleton,
@@ -18,8 +18,9 @@ const OWNER_KEY: &[u8] = b"owner";
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     /// The denom in which bounties are paid. This is typically the fee token of the chain.
-    pub threshold: u32,
-    pub dealer: u32,
+    pub total: u16,
+    pub threshold: u16,
+    pub dealer: u16,
     pub fee: Option<Coin>,
     pub status: SharedStatus,
 }
@@ -67,4 +68,14 @@ pub fn owner(storage: &mut dyn Storage) -> Singleton<Owner> {
 
 pub fn owner_read(storage: &dyn Storage) -> ReadonlySingleton<Owner> {
     singleton_read(storage, OWNER_KEY)
+}
+
+pub fn clear_store(mut store: PrefixedStorage) {
+    let old_keys: Vec<Vec<u8>> = store
+        .range(None, None, Order::Ascending)
+        .map(|item| item.0)
+        .collect();
+    for key in &old_keys {
+        store.remove(key);
+    }
 }

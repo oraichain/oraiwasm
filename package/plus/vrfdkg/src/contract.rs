@@ -3,6 +3,8 @@ use cosmwasm_std::{
     HandleResponse, InitResponse, MessageInfo, Order, StdResult,
 };
 
+use blsdkg::hash_on_curve;
+
 use crate::errors::ContractError;
 use crate::msg::{
     AggregateSig, DistributedShareData, HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, ShareSig,
@@ -10,7 +12,8 @@ use crate::msg::{
 };
 use crate::state::{
     beacons_handle_storage, beacons_handle_storage_read, beacons_storage, beacons_storage_read,
-    config, config_read, members_storage, members_storage_read, owner, owner_read, Config, Owner,
+    clear_store, config, config_read, members_storage, members_storage_read, owner, owner_read,
+    Config, Owner,
 };
 
 use sha2::{Digest, Sha256};
@@ -26,37 +29,45 @@ pub fn init(
     msg: InitMsg,
 ) -> Result<InitResponse, ContractError> {
     let dealer = msg.dealer.unwrap_or(msg.threshold + 1);
-    if dealer == 0 || dealer > (msg.members.len() as u32) {
+    let total = msg.members.len() as u16;
+    if dealer == 0 || dealer > total {
         return Err(ContractError::InvalidDealer {});
     }
     // init with a signature, pubkey and denom for bounty
     config(deps.storage).save(&Config {
+        total,
         dealer,
         threshold: msg.threshold,
         fee: msg.fee,
         status: SharedStatus::WaitForDealer,
     })?;
 
-    store_members(deps, msg.members)?;
-
     owner(deps.storage).save(&Owner {
         owner: info.sender.to_string(),
     })?;
 
+    store_members(deps, msg.members, false)?;
+
     Ok(InitResponse::default())
 }
 
-fn store_members(deps: DepsMut, members: Vec<MemberMsg>) -> StdResult<()> {
+fn store_members(deps: DepsMut, members: Vec<MemberMsg>, clear: bool) -> StdResult<()> {
     // store all members by their addresses
-    let mut members_store = members_storage(deps.storage);
+
+    if clear {
+        // ready to remove all old members before adding new
+        clear_store(members_storage(deps.storage));
+    }
+
     let mut members = members.clone();
     members.sort_by(|a, b| a.address.cmp(&b.address));
+    let mut members_store = members_storage(deps.storage);
     for (i, msg) in members.iter().enumerate() {
         let member = Member {
             index: i,
-            address: msg.address,
+            address: msg.address.clone(),
             deleted: false,
-            pubkey: msg.pubkey,
+            pubkey: msg.pubkey.clone(),
             shared_val: None,
             shared_row: None,
             shared_dealer: None,
@@ -75,6 +86,8 @@ pub fn handle(
 ) -> Result<HandleResponse, ContractError> {
     match msg {
         HandleMsg::ShareDealer { share } => share_dealer(deps, info, share),
+        HandleMsg::ShareRow { share } => share_row(deps, info, share),
+        HandleMsg::ShareValue { share } => share_value(deps, info, share),
         HandleMsg::UpdateShareSig { share_sig } => update_share_sig(deps, env, info, share_sig),
         HandleMsg::RequestRandom { input } => request_random(deps, info, input),
         HandleMsg::AggregateSignature {
@@ -122,16 +135,17 @@ pub fn update_members(
     }
 
     let mut config_data = config_read(deps.storage).load()?;
-    if config_data.dealer > (members.len() as u32) || config_data.threshold > (members.len() as u32)
-    {
+    let total = members.len() as u16;
+    if config_data.dealer > total || config_data.threshold > total {
         return Err(ContractError::InvalidDealer {});
     }
 
     // reset everything
+    config_data.total = total;
     config_data.status = SharedStatus::WaitForDealer;
     config(deps.storage).save(&config_data)?;
 
-    store_members(deps, members)?;
+    store_members(deps, members, true)?;
 
     Ok(HandleResponse::default())
 }
@@ -139,7 +153,7 @@ pub fn update_members(
 pub fn update_threshold(
     deps: DepsMut,
     info: MessageInfo,
-    threshold: u32,
+    threshold: u16,
 ) -> Result<HandleResponse, ContractError> {
     let owner = owner_read(deps.storage).load()?;
     if !owner.owner.eq(info.sender.as_str()) {
@@ -177,8 +191,16 @@ pub fn update_fees(
 pub fn share_dealer(
     deps: DepsMut,
     info: MessageInfo,
-    share: ShareMsg,
+    share: SharedDealerMsg,
 ) -> Result<HandleResponse, ContractError> {
+    let mut config_data = config_read(deps.storage).load()?;
+    if config_data.status != SharedStatus::WaitForDealer {
+        return Err(ContractError::Unauthorized(format!(
+            "current status: {:?}",
+            config_data.status
+        )));
+    }
+
     let mut member = match query_member(deps.as_ref(), info.sender.as_str()) {
         Ok(m) => m,
         Err(_) => {
@@ -189,21 +211,56 @@ pub fn share_dealer(
         }
     };
 
-    // update share, once and only, to make random verifiable
-    if member.share.is_some() {
+    // when range of member with dealer is greater than dealer count, then finish state
+
+    // update share, once and only, to make random verifiable, because other can read the shared onced submitted
+    if member.shared_dealer.is_some() {
         return Err(ContractError::Unauthorized(format!(
             "{} can not change the share once submitted",
             info.sender
         )));
     }
 
-    member.share = Some(share);
+    member.shared_dealer = Some(share);
     let msg = to_binary(&member)?;
+
+    let members: Vec<Member> = members_storage_read(deps.storage)
+        .range(None, None, Order::Ascending)
+        .map(|(_key, value)| from_binary(&value.into()).unwrap())
+        .collect();
+
+    // small size is ok (usize can be 16,32,64)
+    let shared_total = members.iter().filter(|m| m.shared_dealer.is_some()).count() as u16;
+    if shared_total >= config_data.dealer {
+        config_data.status = SharedStatus::WaitForRow;
+        config(deps.storage).save(&config_data)?;
+    }
+
     members_storage(deps.storage).set(&member.address.as_bytes(), &msg);
+
+    // check if total shared_dealder is greater than dealer
 
     let mut response = HandleResponse::default();
     response.attributes = vec![attr("action", "init_share"), attr("member", info.sender)];
     response.data = Some(msg);
+    Ok(response)
+}
+
+pub fn share_row(
+    deps: DepsMut,
+    info: MessageInfo,
+    share: SharedRowMsg,
+) -> Result<HandleResponse, ContractError> {
+    let mut response = HandleResponse::default();
+    Ok(response)
+}
+
+pub fn share_value(
+    deps: DepsMut,
+    info: MessageInfo,
+    share: SharedValueMsg,
+) -> Result<HandleResponse, ContractError> {
+    let mut response = HandleResponse::default();
     Ok(response)
 }
 
@@ -226,6 +283,7 @@ pub fn update_share_sig(
     let Config {
         fee: fee_val,
         threshold,
+        ..
     } = config_read(deps.storage).load()?;
 
     let mut share_data = query_get(deps.as_ref(), share_sig.round)?;
@@ -311,7 +369,9 @@ pub fn aggregate_sig(
     if !share_data.aggregate_sig.sender.eq("") {
         return Err(ContractError::FinishedRound { round, sig });
     }
-    let Config { fee: _, threshold } = config_read(deps.storage).load()?;
+    let Config {
+        fee: _, threshold, ..
+    } = config_read(deps.storage).load()?;
 
     // if too early => cannot add aggregated signature
     if share_data.sigs.len() < threshold as usize {
@@ -355,10 +415,7 @@ pub fn request_random(
     info: MessageInfo,
     input: Binary,
 ) -> Result<HandleResponse, ContractError> {
-    let Config {
-        fee: fee_val,
-        threshold: _,
-    } = config_read(deps.storage).load()?;
+    let Config { fee: fee_val, .. } = config_read(deps.storage).load()?;
     // get next round and
     let round = match query_latest(deps.as_ref()) {
         Ok(v) => {
@@ -539,7 +596,6 @@ mod tests {
                 .unwrap()
                 .into(),
                 address: "orai1rr8dmktw4zf9eqqwfpmr798qk6xkycgzqpgtk5".into(),
-                share: None,
             },
             MemberMsg {
                 pubkey: hex::decode(
@@ -548,7 +604,6 @@ mod tests {
                 .unwrap()
                 .into(),
                 address: "orai14v5m0leuxa7dseuekps3rkf7f3rcc84kzqys87".into(),
-                share: None,
             },
             MemberMsg {
                 pubkey: hex::decode(
@@ -557,12 +612,12 @@ mod tests {
                 .unwrap()
                 .into(),
                 address: "orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573".into(),
-                share: None,
             },
         ];
         let msg = InitMsg {
             members,
             threshold: 2,
+            dealer: Some(3),
             fee: None,
         };
 
@@ -571,79 +626,82 @@ mod tests {
         return res;
     }
 
-    fn share(
-        deps: DepsMut,
-        sender: &str,
-        sks: Vec<Binary>,
-        verifications: Vec<Binary>,
-    ) -> HandleResponse {
-        let info = mock_info(sender, &vec![]);
-        let msg = HandleMsg::InitShare {
-            share: ShareMsg { sks, verifications },
-        };
+    // fn share(
+    //     deps: DepsMut,
+    //     sender: &str,
+    //     sks: Vec<Binary>,
+    //     verifications: Vec<Binary>,
+    // ) -> HandleResponse {
+    //     let info = mock_info(sender, &vec![]);
+    //     let msg = HandleMsg::InitShare {
+    //         share: ShareMsg { sks, verifications },
+    //     };
 
-        let res = handle(deps, mock_env(), info, msg).unwrap();
+    //     let res = handle(deps, mock_env(), info, msg).unwrap();
 
-        return res;
-    }
+    //     return res;
+    // }
 
-    fn query_members(deps: Deps) -> String {
-        let ret = query(
-            deps,
-            mock_env(),
-            QueryMsg::GetMembers {
-                limit: None,
-                offset: None,
-                order: None,
-            },
-        )
-        .unwrap();
-        String::from_utf8(ret.to_vec()).unwrap()
-    }
+    // fn query_members(deps: Deps) -> String {
+    //     let ret = query(
+    //         deps,
+    //         mock_env(),
+    //         QueryMsg::GetMembers {
+    //             limit: None,
+    //             offset: None,
+    //             order: None,
+    //         },
+    //     )
+    //     .unwrap();
+    //     String::from_utf8(ret.to_vec()).unwrap()
+    // }
 
     #[test]
-    fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
-        deps.api.canonical_length = 54;
-        let res = initialization(deps.as_mut());
-        assert_eq!(res.messages.len(), 0);
+    fn encrypt() {}
 
-        share(deps.as_mut(), "orai1rr8dmktw4zf9eqqwfpmr798qk6xkycgzqpgtk5", vec![
-            hex::decode("0680958c46dabb85eb26ec3efe6c48e820f88a14267c7a3705b6e4bc39b0a90db9b71cc31191a2ac2790a5d6ccdca834f8e7139a6e809f4f3929300f22ff1e26").unwrap().into(),
-            hex::decode("7a27dd6f6168ae595cd1407b3a31826fb513911bb30f5cc1a72608ed9e1c22728866908b2adc67f76aae4879fcf8d4a5fcbb58180dff461798710054aff12b42").unwrap().into(),
-            hex::decode("0f6ea4691a57bc7029611adbd7a6c78aef26f7ed232180ece32a39c535bfd5b09d016a0b5a44c88caf668ab58aeaf06fae491e17d8b9c369d5e60c093c919fe8").unwrap().into(),
-        ], vec![
-            hex::decode("ab9e43f4b825a9221861c24116d1fa421d4214033062d07ebf3fac24aff0af1c3787f86a70d95b091aa69a22c45f166b").unwrap().into(),
-            hex::decode("863366d43a83b7ae285ff1f8492647832de0fa93a1b46edaa1752097b3c31a4684fe0860ef55a0eba468acd557e69731").unwrap().into(),
-        ]);
+    // #[test]
+    // fn proper_initialization() {
+    //     let mut deps = mock_dependencies(&[]);
+    //     deps.api.canonical_length = 54;
+    //     let res = initialization(deps.as_mut());
+    //     assert_eq!(res.messages.len(), 0);
 
-        share(deps.as_mut(), "orai14v5m0leuxa7dseuekps3rkf7f3rcc84kzqys87", vec![
-            hex::decode("49096ca6d18226aac6f9bd9736c4eee68249aae18cf1361121bf8e3b166c8ff8ed298834276aaccc11397aee50072e91dcbcfbc53a99a42a878aa794c3a1bd95").unwrap().into(),
-            hex::decode("83963bcc4ab651a126964c0c46adde5427d3bb51304b7ac673e10595e3a5f67800445bd63424bc6e8687ffa7af165c7a45077d8272851a9e448616324cc019b8").unwrap().into(),
-            hex::decode("1b63f976f6e9f1e9d25566708e640757a2f4aa8d8182a3fd0c333f8ad20dc1ab05c88b31fc084d79d17a821aa6e9e0cf1bcb78e3415b9c90d67fec01f3339b3c").unwrap().into(),
-        ], vec![
-            hex::decode("a2b1eec74463f824a52e3a7142b3da19eec4de5755a51faa02d3ad349dbff2f232c718bdfd4e8586e97959f95a1943bc").unwrap().into(),
-            hex::decode("8676e89fe5272772b9da7534812552045e69bdea4270badb91de5cb5687edc69e624d8164071a7699b9e2f833fa3fe32").unwrap().into(),
-        ]);
+    //     share(deps.as_mut(), "orai1rr8dmktw4zf9eqqwfpmr798qk6xkycgzqpgtk5", vec![
+    //         hex::decode("0680958c46dabb85eb26ec3efe6c48e820f88a14267c7a3705b6e4bc39b0a90db9b71cc31191a2ac2790a5d6ccdca834f8e7139a6e809f4f3929300f22ff1e26").unwrap().into(),
+    //         hex::decode("7a27dd6f6168ae595cd1407b3a31826fb513911bb30f5cc1a72608ed9e1c22728866908b2adc67f76aae4879fcf8d4a5fcbb58180dff461798710054aff12b42").unwrap().into(),
+    //         hex::decode("0f6ea4691a57bc7029611adbd7a6c78aef26f7ed232180ece32a39c535bfd5b09d016a0b5a44c88caf668ab58aeaf06fae491e17d8b9c369d5e60c093c919fe8").unwrap().into(),
+    //     ], vec![
+    //         hex::decode("ab9e43f4b825a9221861c24116d1fa421d4214033062d07ebf3fac24aff0af1c3787f86a70d95b091aa69a22c45f166b").unwrap().into(),
+    //         hex::decode("863366d43a83b7ae285ff1f8492647832de0fa93a1b46edaa1752097b3c31a4684fe0860ef55a0eba468acd557e69731").unwrap().into(),
+    //     ]);
 
-        share(deps.as_mut(), "orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573", vec![
-            hex::decode("5deab1b2670d70c9689bfeafc79a468c0c7ff8e49f06839466cb09b87a9fb4dc8c0747622036526acaafdbb7a20ea626f393bc0cc6d38edaa548c4142241d538").unwrap().into(),
-            hex::decode("0bfa739d82d9541e451d54a4d23cb4a750651c8481b673c5f1ce399efe31e251d620af85430d0f17db542bf76434e9c69ba84d6d30cd97366dbaa3f34ffe8ba1").unwrap().into(),
-            hex::decode("2469bb62b2c13f54c3473a0cabb905cc2f0ad6d69935674aa24e9ec0447ebcedc6789095b1a67c20e810e99f7e11fc663dab1d0e203b0c38fcd98fa860abc360").unwrap().into(),
-        ] , vec![
-            hex::decode("805657050bd668f01d0531a2a23d5eee101574309a82f3a5d40796512115a64b4e3d5d8c0238498bfbf0d676c107b616").unwrap().into(),
-            hex::decode("a7425010df6f6295be80935913ef95c531849b7320ecafc29f50689e9c1f4bb16b36031196b700ce711d322e3724546e").unwrap().into(),
-        ]);
+    //     share(deps.as_mut(), "orai14v5m0leuxa7dseuekps3rkf7f3rcc84kzqys87", vec![
+    //         hex::decode("49096ca6d18226aac6f9bd9736c4eee68249aae18cf1361121bf8e3b166c8ff8ed298834276aaccc11397aee50072e91dcbcfbc53a99a42a878aa794c3a1bd95").unwrap().into(),
+    //         hex::decode("83963bcc4ab651a126964c0c46adde5427d3bb51304b7ac673e10595e3a5f67800445bd63424bc6e8687ffa7af165c7a45077d8272851a9e448616324cc019b8").unwrap().into(),
+    //         hex::decode("1b63f976f6e9f1e9d25566708e640757a2f4aa8d8182a3fd0c333f8ad20dc1ab05c88b31fc084d79d17a821aa6e9e0cf1bcb78e3415b9c90d67fec01f3339b3c").unwrap().into(),
+    //     ], vec![
+    //         hex::decode("a2b1eec74463f824a52e3a7142b3da19eec4de5755a51faa02d3ad349dbff2f232c718bdfd4e8586e97959f95a1943bc").unwrap().into(),
+    //         hex::decode("8676e89fe5272772b9da7534812552045e69bdea4270badb91de5cb5687edc69e624d8164071a7699b9e2f833fa3fe32").unwrap().into(),
+    //     ]);
 
-        println!("{}\n", query_members(deps.as_ref(),));
-        let info = mock_info("sender", &vec![]);
+    //     share(deps.as_mut(), "orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573", vec![
+    //         hex::decode("5deab1b2670d70c9689bfeafc79a468c0c7ff8e49f06839466cb09b87a9fb4dc8c0747622036526acaafdbb7a20ea626f393bc0cc6d38edaa548c4142241d538").unwrap().into(),
+    //         hex::decode("0bfa739d82d9541e451d54a4d23cb4a750651c8481b673c5f1ce399efe31e251d620af85430d0f17db542bf76434e9c69ba84d6d30cd97366dbaa3f34ffe8ba1").unwrap().into(),
+    //         hex::decode("2469bb62b2c13f54c3473a0cabb905cc2f0ad6d69935674aa24e9ec0447ebcedc6789095b1a67c20e810e99f7e11fc663dab1d0e203b0c38fcd98fa860abc360").unwrap().into(),
+    //     ] , vec![
+    //         hex::decode("805657050bd668f01d0531a2a23d5eee101574309a82f3a5d40796512115a64b4e3d5d8c0238498bfbf0d676c107b616").unwrap().into(),
+    //         hex::decode("a7425010df6f6295be80935913ef95c531849b7320ecafc29f50689e9c1f4bb16b36031196b700ce711d322e3724546e").unwrap().into(),
+    //     ]);
 
-        let msg = HandleMsg::RequestRandom {
-            input: Binary::from_base64("aGVsbG8=").unwrap(),
-        };
-        handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+    //     println!("{}\n", query_members(deps.as_ref(),));
+    //     let info = mock_info("sender", &vec![]);
 
-        let ret = query(deps.as_ref(), mock_env(), QueryMsg::LatestRound {}).unwrap();
-        println!("Latest round{}", String::from_utf8(ret.to_vec()).unwrap())
-    }
+    //     let msg = HandleMsg::RequestRandom {
+    //         input: Binary::from_base64("aGVsbG8=").unwrap(),
+    //     };
+    //     handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+    //     let ret = query(deps.as_ref(), mock_env(), QueryMsg::LatestRound {}).unwrap();
+    //     println!("Latest round{}", String::from_utf8(ret.to_vec()).unwrap())
+    // }
 }

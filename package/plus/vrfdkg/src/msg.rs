@@ -68,8 +68,8 @@ pub struct InitMsg {
     // readable
     pub members: Vec<MemberMsg>,
     /// The denom in which bounties are paid. This is typically the fee token of the chain.
-    pub threshold: u32,
-    pub dealer: Option<u32>,
+    pub threshold: u16,
+    pub dealer: Option<u16>,
     pub fee: Option<Coin>,
 }
 
@@ -103,7 +103,7 @@ pub enum HandleMsg {
         round: u64,
     },
     UpdateThresHold {
-        threshold: u32,
+        threshold: u16,
     },
     UpdateFees {
         fee: Coin,
