@@ -285,15 +285,14 @@ fn test_royalties() {
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = HandleMsg::MintNft {
             contract: HumanAddr::from("nft_contract"),
-            msg: to_binary(&MintMsg {
+            msg: MintMsg {
                 royalty_msg: RoyaltyMsg {
                     contract_addr: HumanAddr::from("offering"),
                     token_id: String::from("SellableNFT"),
                     royalty_owner: HumanAddr::from("provider"),
                 },
                 msg: to_binary("something").unwrap(),
-            })
-            .unwrap(),
+            },
         };
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();

@@ -2,11 +2,11 @@ use crate::contract::{get_handle_msg, get_storage_addr};
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg, SellNft};
 use crate::state::{ContractInfo, CONTRACT_INFO};
+use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{HumanAddr, StdError};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{query_proxy, StorageHandleMsg};
 use market_ai_royalty::{
@@ -44,30 +44,24 @@ pub fn try_handle_mint(
     deps: DepsMut,
     info: MessageInfo,
     contract: HumanAddr,
-    msg: Binary,
+    msg: MintMsg,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
-    let msg_handle_mint: MintMsg = from_binary(&msg)?;
-
     let mint_msg = WasmMsg::Execute {
         contract_addr: contract.clone(),
-        msg: msg_handle_mint.msg.clone(),
+        msg: msg.msg.clone(),
         send: vec![],
     }
     .into();
 
     let mut cosmos_msgs: Vec<CosmosMsg> =
-        add_msg_royalty(info.sender.as_str(), governance.as_str(), msg_handle_mint)?;
+        add_msg_royalty(info.sender.as_str(), governance.as_str(), msg)?;
 
     cosmos_msgs.push(mint_msg);
 
     let response = HandleResponse {
         messages: cosmos_msgs,
-        attributes: vec![
-            attr("action", "mint_nft"),
-            attr("caller", info.sender),
-            attr("mint_msg", msg),
-        ],
+        attributes: vec![attr("action", "mint_nft"), attr("caller", info.sender)],
         data: None,
     };
 
@@ -269,13 +263,16 @@ pub fn handle_sell_nft(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
     // check if same token Id form same original contract is already on sale
-    let offering_result: Result<QueryOfferingsResult, StdError> = from_binary(&query_offering(
-        deps.as_ref(),
-        OfferingQueryMsg::GetOfferingByContractTokenId {
-            contract: info.sender.clone(),
-            token_id: rcv_msg.token_id.clone(),
-        },
-    )?);
+    let offering_result: Result<QueryOfferingsResult, ContractError> = deps
+        .querier
+        .query_wasm_smart(
+            get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
+            &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingByContractTokenId {
+                contract: info.sender.clone(),
+                token_id: rcv_msg.token_id.clone(),
+            }),
+        )
+        .map_err(|_| ContractError::InvalidGetOffering {});
     if offering_result.is_ok() {
         return Err(ContractError::TokenOnSale {});
     }
