@@ -3,7 +3,7 @@ use cosmwasm_std::{
     HandleResponse, InitResponse, MessageInfo, Order, StdResult,
 };
 
-use blsdkg::hash_on_curve;
+use blsdkg::{derive_randomness, hash_on_curve};
 
 use crate::errors::ContractError;
 use crate::msg::{
@@ -15,8 +15,6 @@ use crate::state::{
     clear_store, config, config_read, members_storage, members_storage_read, owner, owner_read,
     Config, Owner,
 };
-
-use sha2::{Digest, Sha256};
 
 // settings for pagination
 const MAX_LIMIT: u8 = 30;
@@ -222,7 +220,8 @@ pub fn share_dealer(
     }
 
     member.shared_dealer = Some(share);
-    let msg = to_binary(&member)?;
+    // save member
+    members_storage(deps.storage).set(&member.address.as_bytes(), &to_binary(&member)?);
 
     let members: Vec<Member> = members_storage_read(deps.storage)
         .range(None, None, Order::Ascending)
@@ -236,13 +235,9 @@ pub fn share_dealer(
         config(deps.storage).save(&config_data)?;
     }
 
-    members_storage(deps.storage).set(&member.address.as_bytes(), &msg);
-
     // check if total shared_dealder is greater than dealer
-
     let mut response = HandleResponse::default();
-    response.attributes = vec![attr("action", "init_share"), attr("member", info.sender)];
-    response.data = Some(msg);
+    response.attributes = vec![attr("action", "share_dealer"), attr("member", info.sender)];
     Ok(response)
 }
 
@@ -567,141 +562,4 @@ fn query_earliest(deps: Deps) -> Result<DistributedShareData, ContractError> {
     let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
     let share_data: DistributedShareData = from_binary(&value.into())?;
     Ok(share_data)
-}
-
-/// Derives a 32 byte randomness from the beacon's signature
-pub fn derive_randomness(signature: &[u8]) -> [u8; 32] {
-    let mut hasher = Sha256::new();
-    hasher.update(signature);
-    hasher.finalize().into()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::msg::MemberMsg;
-    use cosmwasm_std::{
-        testing::{mock_dependencies, mock_env, mock_info},
-        Api, HumanAddr,
-    };
-    use hex;
-
-    fn initialization(deps: DepsMut) -> InitResponse {
-        let info = mock_info("creator", &vec![]);
-        let members: Vec<MemberMsg> = vec![
-            MemberMsg {
-                pubkey: hex::decode(
-                    "036e46807afe5061c0d1951e1b2d3ea96ede079c7361615dd194e78fd5a0bed811",
-                )
-                .unwrap()
-                .into(),
-                address: "orai1rr8dmktw4zf9eqqwfpmr798qk6xkycgzqpgtk5".into(),
-            },
-            MemberMsg {
-                pubkey: hex::decode(
-                    "037b65d77415be9e6e6bfc18d005855c07340305e3e9f85d8d83c1846725b64eba",
-                )
-                .unwrap()
-                .into(),
-                address: "orai14v5m0leuxa7dseuekps3rkf7f3rcc84kzqys87".into(),
-            },
-            MemberMsg {
-                pubkey: hex::decode(
-                    "022a500ae761947a569c78d2815299f92a1289cbe31fb329e60085c837659d0b67",
-                )
-                .unwrap()
-                .into(),
-                address: "orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573".into(),
-            },
-        ];
-        let msg = InitMsg {
-            members,
-            threshold: 2,
-            dealer: Some(3),
-            fee: None,
-        };
-
-        let res = init(deps, mock_env(), info, msg).unwrap();
-
-        return res;
-    }
-
-    // fn share(
-    //     deps: DepsMut,
-    //     sender: &str,
-    //     sks: Vec<Binary>,
-    //     verifications: Vec<Binary>,
-    // ) -> HandleResponse {
-    //     let info = mock_info(sender, &vec![]);
-    //     let msg = HandleMsg::InitShare {
-    //         share: ShareMsg { sks, verifications },
-    //     };
-
-    //     let res = handle(deps, mock_env(), info, msg).unwrap();
-
-    //     return res;
-    // }
-
-    // fn query_members(deps: Deps) -> String {
-    //     let ret = query(
-    //         deps,
-    //         mock_env(),
-    //         QueryMsg::GetMembers {
-    //             limit: None,
-    //             offset: None,
-    //             order: None,
-    //         },
-    //     )
-    //     .unwrap();
-    //     String::from_utf8(ret.to_vec()).unwrap()
-    // }
-
-    #[test]
-    fn encrypt() {}
-
-    // #[test]
-    // fn proper_initialization() {
-    //     let mut deps = mock_dependencies(&[]);
-    //     deps.api.canonical_length = 54;
-    //     let res = initialization(deps.as_mut());
-    //     assert_eq!(res.messages.len(), 0);
-
-    //     share(deps.as_mut(), "orai1rr8dmktw4zf9eqqwfpmr798qk6xkycgzqpgtk5", vec![
-    //         hex::decode("0680958c46dabb85eb26ec3efe6c48e820f88a14267c7a3705b6e4bc39b0a90db9b71cc31191a2ac2790a5d6ccdca834f8e7139a6e809f4f3929300f22ff1e26").unwrap().into(),
-    //         hex::decode("7a27dd6f6168ae595cd1407b3a31826fb513911bb30f5cc1a72608ed9e1c22728866908b2adc67f76aae4879fcf8d4a5fcbb58180dff461798710054aff12b42").unwrap().into(),
-    //         hex::decode("0f6ea4691a57bc7029611adbd7a6c78aef26f7ed232180ece32a39c535bfd5b09d016a0b5a44c88caf668ab58aeaf06fae491e17d8b9c369d5e60c093c919fe8").unwrap().into(),
-    //     ], vec![
-    //         hex::decode("ab9e43f4b825a9221861c24116d1fa421d4214033062d07ebf3fac24aff0af1c3787f86a70d95b091aa69a22c45f166b").unwrap().into(),
-    //         hex::decode("863366d43a83b7ae285ff1f8492647832de0fa93a1b46edaa1752097b3c31a4684fe0860ef55a0eba468acd557e69731").unwrap().into(),
-    //     ]);
-
-    //     share(deps.as_mut(), "orai14v5m0leuxa7dseuekps3rkf7f3rcc84kzqys87", vec![
-    //         hex::decode("49096ca6d18226aac6f9bd9736c4eee68249aae18cf1361121bf8e3b166c8ff8ed298834276aaccc11397aee50072e91dcbcfbc53a99a42a878aa794c3a1bd95").unwrap().into(),
-    //         hex::decode("83963bcc4ab651a126964c0c46adde5427d3bb51304b7ac673e10595e3a5f67800445bd63424bc6e8687ffa7af165c7a45077d8272851a9e448616324cc019b8").unwrap().into(),
-    //         hex::decode("1b63f976f6e9f1e9d25566708e640757a2f4aa8d8182a3fd0c333f8ad20dc1ab05c88b31fc084d79d17a821aa6e9e0cf1bcb78e3415b9c90d67fec01f3339b3c").unwrap().into(),
-    //     ], vec![
-    //         hex::decode("a2b1eec74463f824a52e3a7142b3da19eec4de5755a51faa02d3ad349dbff2f232c718bdfd4e8586e97959f95a1943bc").unwrap().into(),
-    //         hex::decode("8676e89fe5272772b9da7534812552045e69bdea4270badb91de5cb5687edc69e624d8164071a7699b9e2f833fa3fe32").unwrap().into(),
-    //     ]);
-
-    //     share(deps.as_mut(), "orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573", vec![
-    //         hex::decode("5deab1b2670d70c9689bfeafc79a468c0c7ff8e49f06839466cb09b87a9fb4dc8c0747622036526acaafdbb7a20ea626f393bc0cc6d38edaa548c4142241d538").unwrap().into(),
-    //         hex::decode("0bfa739d82d9541e451d54a4d23cb4a750651c8481b673c5f1ce399efe31e251d620af85430d0f17db542bf76434e9c69ba84d6d30cd97366dbaa3f34ffe8ba1").unwrap().into(),
-    //         hex::decode("2469bb62b2c13f54c3473a0cabb905cc2f0ad6d69935674aa24e9ec0447ebcedc6789095b1a67c20e810e99f7e11fc663dab1d0e203b0c38fcd98fa860abc360").unwrap().into(),
-    //     ] , vec![
-    //         hex::decode("805657050bd668f01d0531a2a23d5eee101574309a82f3a5d40796512115a64b4e3d5d8c0238498bfbf0d676c107b616").unwrap().into(),
-    //         hex::decode("a7425010df6f6295be80935913ef95c531849b7320ecafc29f50689e9c1f4bb16b36031196b700ce711d322e3724546e").unwrap().into(),
-    //     ]);
-
-    //     println!("{}\n", query_members(deps.as_ref(),));
-    //     let info = mock_info("sender", &vec![]);
-
-    //     let msg = HandleMsg::RequestRandom {
-    //         input: Binary::from_base64("aGVsbG8=").unwrap(),
-    //     };
-    //     handle(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-    //     let ret = query(deps.as_ref(), mock_env(), QueryMsg::LatestRound {}).unwrap();
-    //     println!("Latest round{}", String::from_utf8(ret.to_vec()).unwrap())
-    // }
 }

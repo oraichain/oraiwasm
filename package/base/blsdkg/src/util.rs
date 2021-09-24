@@ -17,6 +17,14 @@ pub(crate) fn derivation_index_into_fr(v: &[u8]) -> Fr {
     index_and_rounds_into_fr(v, 0)
 }
 
+pub fn derive_randomness(signature: &[u8]) -> [u8; 32] {
+    let mut sha3 = Sha3::v256();
+    sha3.update(signature);
+    let mut h = [0u8; 32];
+    sha3.finalize(&mut h);
+    h
+}
+
 /// Signs the given message.
 pub fn hash_on_curve<M: AsRef<[u8]>>(msg: M, round: u64) -> (Fr, [u8; 32]) {
     let mut sha3 = Sha3::v256();
