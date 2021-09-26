@@ -418,8 +418,8 @@ pub fn update_share_sig(
         share_data.combined_pubkey = Some(Binary::from(combined_pubkey.to_bytes()));
         let verifed = combined_pubkey.verify_g2(&combined_sig, hash_on_curve);
 
+        // if not verifed, means something wrong, just ignore this round
         if verifed {
-            // something wrong, just ignore this round
             let randomness = derive_randomness(&combined_sig);
             share_data.randomness = Some(Binary::from(randomness));
         }
