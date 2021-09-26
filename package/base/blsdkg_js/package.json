@@ -1,5 +1,18 @@
 {
+  "name": "blsdkg",
+  "author": {
+    "name": "Thanh Tu",
+    "email": "tu@orai.io"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "version": "0.0.2",
+  "description": "distributed key generation in JS",
+  "main": "index.js",
   "dependencies": {
-    "env": "^0.0.2"
+    "futoin-hkdf": "^1.4.2",
+    "@oraichain/cosmosjs": "^0.0.70",
+    "yaml": "^1.10.2"
   }
 }
