@@ -1,5 +1,6 @@
 use blsdkg::{
     ff::Field,
+    hash_g2,
     poly::{BivarPoly, Commitment, Poly},
     SecretKeyShare, SK_SIZE,
 };
@@ -12,11 +13,6 @@ fn from_bytes(bytes: &[u8]) -> Uint8Array {
     let buffer = Uint8Array::new_with_length(bytes.len() as u32);
     buffer.copy_from(bytes);
     buffer
-}
-
-#[wasm_bindgen]
-pub fn hash_on_curve(input: Uint8Array, round: u64) -> Uint8Array {
-    from_bytes(&blsdkg::hash_on_curve(input.to_vec(), round).1)
 }
 
 #[wasm_bindgen]
@@ -43,9 +39,11 @@ impl KeyShare {
         from_bytes(&self.sk.public_key_share().to_bytes())
     }
 
-    pub fn sign(&self, input: Uint8Array, round: u64) -> Uint8Array {
-        let msg = hash_on_curve(input, round);
-        from_bytes(&self.sk.sign(msg.to_vec()).to_bytes())
+    // this method is use for sign_g2 like dran
+    pub fn sign_g2(&self, input: Uint8Array, round: u64) -> Uint8Array {
+        let mut msg = input.to_vec();
+        msg.extend(&round.to_be_bytes());
+        from_bytes(&self.sk.sign_g2(hash_g2(msg)).to_bytes())
     }
 }
 

@@ -52,7 +52,7 @@ pub struct InitMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct UpdateShareSigMsg {
+pub struct ShareSigMsg {
     pub sig: Binary,
     pub round: u64,
 }
@@ -63,7 +63,7 @@ pub enum HandleMsg {
     ShareDealer { share: SharedDealerMsg },
     ShareRow { share: SharedRowMsg },
     RequestRandom { input: Binary },
-    UpdateShareSig { share_sig: UpdateShareSigMsg },
+    ShareSig { share: ShareSigMsg },
     UpdateThreshold { threshold: u16 },
     UpdateFees { fee: Coin },
     UpdateMembers { members: Vec<MemberMsg> },

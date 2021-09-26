@@ -6,14 +6,12 @@ use cosmwasm_std::{
     HandleResponse, InitResponse, MessageInfo, Order, StdResult,
 };
 
-use blsdkg::{
-    derive_randomness, hash_on_curve, PublicKeySet, PublicKeyShare, SignatureShare, SIG_SIZE,
-};
+use blsdkg::{derive_randomness, hash_g2, PublicKeySet, PublicKeyShare, SignatureShare, SIG_SIZE};
 
 use crate::errors::ContractError;
 use crate::msg::{
-    DistributedShareData, HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, ShareSig,
-    SharedDealerMsg, SharedRowMsg, SharedStatus, UpdateShareSigMsg,
+    DistributedShareData, HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, ShareSig, ShareSigMsg,
+    SharedDealerMsg, SharedRowMsg, SharedStatus,
 };
 use crate::state::{
     beacons_storage, beacons_storage_read, clear_store, config, config_read, members_storage,
@@ -46,10 +44,12 @@ pub fn init(
         status: SharedStatus::WaitForDealer,
     })?;
 
+    // update owner
     owner(deps.storage).save(&Owner {
         owner: info.sender.to_string(),
     })?;
 
+    // store all members
     store_members(deps, msg.members, false)?;
 
     Ok(InitResponse::default())
@@ -64,7 +64,7 @@ pub fn handle(
     match msg {
         HandleMsg::ShareDealer { share } => share_dealer(deps, info, share),
         HandleMsg::ShareRow { share } => share_row(deps, info, share),
-        HandleMsg::UpdateShareSig { share_sig } => update_share_sig(deps, env, info, share_sig),
+        HandleMsg::ShareSig { share } => update_share_sig(deps, env, info, share),
         HandleMsg::RequestRandom { input } => request_random(deps, info, input),
         HandleMsg::UpdateThreshold { threshold } => update_threshold(deps, info, threshold),
         HandleMsg::UpdateFees { fee } => update_fees(deps, info, fee),
@@ -98,6 +98,7 @@ fn store_members(deps: DepsMut, members: Vec<MemberMsg>, clear: bool) -> StdResu
         clear_store(members_storage(deps.storage));
     }
 
+    // some hardcode for testing simulate
     let mut members = members.clone();
     members.sort_by(|a, b| a.address.cmp(&b.address));
     let mut members_store = members_storage(deps.storage);
@@ -318,7 +319,7 @@ pub fn update_share_sig(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    share_sig: UpdateShareSigMsg,
+    share: ShareSigMsg,
 ) -> Result<HandleResponse, ContractError> {
     let member = match query_member(deps.as_ref(), info.sender.as_str()) {
         Ok(m) => m,
@@ -336,7 +337,11 @@ pub fn update_share_sig(
         ..
     } = config_read(deps.storage).load()?;
 
-    let mut share_data = query_get(deps.as_ref(), share_sig.round)?;
+    let round_key = share.round.to_be_bytes();
+
+    let beacons = beacons_storage_read(deps.storage);
+    let value = beacons.get(&round_key).ok_or(ContractError::NoBeacon {})?;
+    let mut share_data: DistributedShareData = from_slice(value.as_slice())?;
 
     // if too late, unauthorized to add more signature
     if share_data.sigs.len() > threshold as usize {
@@ -346,51 +351,82 @@ pub fn update_share_sig(
         )));
     }
 
-    match share_data
+    if share_data
         .sigs
         .iter()
         .find(|sig| sig.sender.eq(&member.address))
+        .is_some()
     {
-        Some(_s) => {
-            // can not update the signature once commited
-            return Err(ContractError::Unauthorized(format!(
-                "{} can not update the signature once commited",
-                info.sender
-            )));
+        // can not update the signature once commited
+        return Err(ContractError::Unauthorized(format!(
+            "{} can not update the signature once commited",
+            info.sender
+        )));
+    }
+    // check signature is correct?
+    let pk = PublicKeyShare::from_bytes(member.shared_row.unwrap().pk_share.to_array()?)
+        .map_err(|_op| ContractError::InvalidPublicKeyShare {})?;
+
+    let mut sig_bytes: [u8; SIG_SIZE] = [0; SIG_SIZE];
+    sig_bytes.copy_from_slice(share.sig.as_slice());
+    let sig =
+        SignatureShare::from_bytes(sig_bytes).map_err(|_op| ContractError::InvalidSignature {})?;
+
+    let mut msg = share_data.input.to_vec();
+    msg.extend(&round_key);
+    let hash_on_curve = hash_g2(msg);
+
+    // if the signature is invalid
+    if !pk.verify_g2(&sig, hash_on_curve) {
+        return Err(ContractError::InvalidSignature {});
+    }
+
+    // append at the end
+    share_data.sigs.push(ShareSig {
+        sig: share.sig.clone(),
+        index: member.index,
+        sender: member.address,
+    });
+    // stop with threshold +1
+    if share_data.sigs.len() as u16 > threshold {
+        let dealers = query_dealers(deps.as_ref())?;
+        // do aggregate
+        let mut sum_commit = Poly::zero().commitment();
+        for dealer in dealers {
+            sum_commit +=
+                Commitment::from_bytes(dealer.shared_dealer.unwrap().commits[0].to_vec()).unwrap();
         }
-        None => {
-            // check signature is correct?
-            let pk = PublicKeyShare::from_bytes(member.shared_row.unwrap().pk_share.to_array()?)
-                .unwrap();
+        let mpkset = PublicKeySet::from(sum_commit);
+        // sig shares must be valid so that we can unwrap
+        let sig_shares: BTreeMap<_, _> = share_data
+            .sigs
+            .iter()
+            .map(|s| {
+                let mut sig_bytes: [u8; SIG_SIZE] = [0; SIG_SIZE];
+                sig_bytes.copy_from_slice(s.sig.as_slice());
+                (
+                    s.index as usize,
+                    SignatureShare::from_bytes(sig_bytes).unwrap(),
+                )
+            })
+            .collect();
+        let combined_sig = mpkset.combine_signatures(&sig_shares).unwrap();
+        let combined_pubkey = mpkset.public_key();
+        let mut combined_sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
+        combined_sig_bytes.copy_from_slice(&combined_sig.to_bytes());
+        share_data.combined_sig = Some(Binary::from(combined_sig_bytes));
+        share_data.combined_pubkey = Some(Binary::from(combined_pubkey.to_bytes()));
+        let verifed = combined_pubkey.verify_g2(&combined_sig, hash_on_curve);
 
-            let mut sig_bytes: [u8; SIG_SIZE] = [0; SIG_SIZE];
-            sig_bytes.copy_from_slice(share_sig.sig.as_slice());
-            let sig = SignatureShare::from_bytes(sig_bytes).unwrap();
-            let msg = hash_on_curve(share_data.input.as_slice(), share_data.round).1;
-
-            // if the signature is invalid
-            if !pk.verify(&sig, msg) {
-                return Err(ContractError::InvalidSignature {});
-            }
-
-            // append at the end
-            share_data.sigs.push(ShareSig {
-                sig: share_sig.sig.clone(),
-                index: member.index,
-                sender: member.address,
-            });
-            // stop with threshold +1
-            if share_data.sigs.len() as u16 > threshold {
-                let dealers = query_dealers(deps.as_ref())?;
-                // do aggregate
-                aggregate_sig(dealers, msg, &mut share_data);
-            }
+        if verifed {
+            // something wrong, just ignore this round
+            let randomness = derive_randomness(&combined_sig);
+            share_data.randomness = Some(Binary::from(randomness));
         }
     }
 
     // update back data
-    let msg = to_binary(&share_data)?;
-    beacons_storage(deps.storage).set(&share_sig.round.to_be_bytes(), &msg);
+    beacons_storage(deps.storage).set(&round_key, &to_binary(&share_data)?);
 
     let mut response = HandleResponse::default();
     // send fund to member, by fund / threshold, the late member will not get paid
@@ -410,50 +446,11 @@ pub fn update_share_sig(
     }
 
     response.attributes = vec![
-        attr("action", "update_share_sig"),
+        attr("action", "share_sig"),
         attr("sender", info.sender),
-        attr("round", share_sig.round),
-        attr("signature", share_sig.sig),
+        attr("round", share.round),
     ];
     Ok(response)
-}
-
-pub fn aggregate_sig<M: AsRef<[u8]>>(
-    dealers: Vec<Member>,
-    msg: M,
-    share_data: &mut DistributedShareData,
-) {
-    let mut sum_commit = Poly::zero().commitment();
-    for dealer in dealers {
-        sum_commit +=
-            Commitment::from_bytes(dealer.shared_dealer.unwrap().commits[0].to_vec()).unwrap();
-    }
-    let mpkset = PublicKeySet::from(sum_commit);
-    let sig_shares: BTreeMap<_, _> = share_data
-        .sigs
-        .iter()
-        .map(|s| {
-            let mut sig_bytes: [u8; SIG_SIZE] = [0; SIG_SIZE];
-            sig_bytes.copy_from_slice(s.sig.as_slice());
-            (
-                s.index as usize,
-                SignatureShare::from_bytes(sig_bytes).unwrap(),
-            )
-        })
-        .collect();
-    let combined_sig = mpkset.combine_signatures(&sig_shares).unwrap();
-    let combined_pubkey = mpkset.public_key();
-    let mut combined_sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
-    combined_sig_bytes.copy_from_slice(&combined_sig.to_bytes());
-    share_data.combined_sig = Some(Binary::from(combined_sig_bytes));
-    share_data.combined_pubkey = Some(Binary::from(combined_pubkey.to_bytes()));
-    let verifed = combined_pubkey.verify(&combined_sig, msg);
-
-    if verifed {
-        // something wrong, just ignore this round
-        let randomness = derive_randomness(&combined_sig.to_bytes());
-        share_data.randomness = Some(Binary::from(randomness));
-    }
 }
 
 pub fn request_random(

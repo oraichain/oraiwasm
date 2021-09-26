@@ -53,7 +53,7 @@ exports.queryWasm = async (cosmos, contract, input) => {
   const url = `/wasm/v1beta1/contract/${contract}/smart/${Buffer.from(
     JSON.stringify(input)
   ).toString('base64')}`;
-  // console.log(`${cosmos.url}${url}`);
+  console.log(`${cosmos.url}${url}`);
   const { data } = await cosmos.get(url);
   return data;
 };

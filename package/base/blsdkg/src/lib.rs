@@ -51,8 +51,8 @@ pub use convert::{
     fr_from_be_bytes, fr_to_be_bytes, g1_from_be_bytes, g1_to_be_bytes, g2_from_be_bytes,
     g2_to_be_bytes,
 };
+pub use util::derive_randomness;
 use util::{derivation_index_into_fr, sha3_256};
-pub use util::{derive_randomness, hash_on_curve};
 
 use blst::{
     min_pk::{PublicKey as BlstPublicKey, SecretKey as BlstSecretKey, Signature as BlstSignature},
@@ -973,7 +973,6 @@ impl fmt::Debug for DebugDots {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::hash_on_curve;
 
     use super::*;
 
@@ -2015,7 +2014,7 @@ mod tests {
 
         // in smart contract, the sec_keys will be sum up by decrypt with its private key, the sender will use public key to encrypt
         // and store in smart contract
-        let msg = hash_on_curve("hello".as_bytes(), 0).1;
+        let hash = hash_g2("hello".as_bytes());
         let mpkset = PublicKeySet::from(sum_commit);
         // sec_keys[0] is for node 0
         let mut sigs = BTreeMap::new();
@@ -2023,19 +2022,19 @@ mod tests {
         for i in 0..sec_keys.len() {
             let mut sec_key = sec_keys[i];
             let sk = SecretKeyShare::from_mut(&mut sec_key);
-            let sig = sk.sign(msg);
+            let sig = sk.sign_g2(hash);
             println!(
                 "sk: {}, sig: {}",
                 base64::encode(sk.to_bytes()),
                 base64::encode(sig.to_bytes())
             );
 
-            assert!(sk.public_key_share().verify(&sig, msg));
+            assert!(sk.public_key_share().verify_g2(&sig, hash));
             sigs.insert(i, sig);
         }
 
         let combined = mpkset.combine_signatures(&sigs).unwrap();
-        let verifed = mpkset.public_key().verify(&combined, msg);
+        let verifed = mpkset.public_key().verify_g2(&combined, hash);
         assert!(verifed);
     }
 }

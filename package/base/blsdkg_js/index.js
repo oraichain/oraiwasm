@@ -74,7 +74,7 @@ const getMember = async (address) => {
     }
   });
 
-  return member;
+  return member.deleted ? undefined : member;
 };
 
 const getDealers = async () => {
@@ -204,27 +204,31 @@ const processRequest = async (skShare) => {
   }
 
   // otherwise add the sig contribution from skShare
-  const sig = skShare.sign(
+  const sig = skShare.sign_g2(
     Buffer.from(roundInfo.input, 'base64'),
     BigInt(roundInfo.round)
   );
 
+  const shareSig = {
+    sig: Buffer.from(sig).toString('base64'),
+    round: roundInfo.round
+  };
+
+  console.log(address, shareSig);
+
   // share the signature, more gas because the verify operation
-  const response = await executeWasm(
-    cosmos,
-    childKey,
-    config.contract,
-    {
-      update_share_sig: {
-        share_sig: {
-          sig: Buffer.from(sig).toString('base64'),
-          round: roundInfo.round
-        }
-      }
-    },
-    { gas: 3000000 }
-  );
-  console.log(response);
+  // const response = await executeWasm(
+  //   cosmos,
+  //   childKey,
+  //   config.contract,
+  //   {
+  //     update_share_sig: {
+  //       share_sig: shareSig
+  //     }
+  //   },
+  //   { gas: 3000000 }
+  // );
+  // console.log(response);
 
   // let msg = HandleMsg::UpdateShareSig {
   //   share_sig: UpdateShareSigMsg { sig, round },

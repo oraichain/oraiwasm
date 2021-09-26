@@ -1,4 +1,4 @@
-use crate::convert::fr_from_be_bytes;
+use crate::{convert::fr_from_be_bytes, Signature};
 use ff::Field;
 use pairing::bls12_381::Fr;
 use tiny_keccak::{Hasher, Sha3};
@@ -18,16 +18,12 @@ pub(crate) fn derivation_index_into_fr(v: &[u8]) -> Fr {
 }
 
 /// derive_randomness : gen truly random from signature
-pub fn derive_randomness(signature: &[u8]) -> [u8; 32] {
-    let mut sha3 = Sha3::v256();
-    sha3.update(signature);
-    let mut h = [0u8; 32];
-    sha3.finalize(&mut h);
-    h
+pub fn derive_randomness(signature: &Signature) -> [u8; 32] {
+    sha3_256(&signature.to_bytes())
 }
 
 /// Signs the given message.
-pub fn hash_on_curve<M: AsRef<[u8]>>(msg: M, round: u64) -> (Fr, [u8; 32]) {
+fn hash_on_fr<M: AsRef<[u8]>>(msg: M, round: u64) -> Fr {
     let mut sha3 = Sha3::v256();
     sha3.update(msg.as_ref());
     sha3.update(&round.to_be_bytes());
@@ -44,14 +40,14 @@ pub fn hash_on_curve<M: AsRef<[u8]>>(msg: M, round: u64) -> (Fr, [u8; 32]) {
             // it's extremely unlikely to find hash(vr) == 0 or 1
             // so we could probably go without this check
             if fr == Fr::zero() || fr == Fr::one() {
-                return hash_on_curve(&h, round + 1);
+                return hash_on_fr(&h, round + 1);
             }
-            (fr, h)
+            fr
         }
-        Err(_) => hash_on_curve(&h, round + 1),
+        Err(_) => hash_on_fr(&h, round + 1),
     }
 }
 
 fn index_and_rounds_into_fr(v: &[u8], round: u64) -> Fr {
-    hash_on_curve(v, round).0
+    hash_on_fr(v, round)
 }
