@@ -13,7 +13,6 @@
 ```bash
 yarn oraicli wasm deploy package/plus/vrfdkg/artifacts/vrfdkg.wasm --input '{"members": [{ "address": "orai15kjxk4yr4del2tjvm8vrz7ghzm8nflazsjq6ar", "pubkey": "A2JyjvCWNpj83BR+UbXkBSbSp7nW71V4hg4YlhqxZRJA" },{ "address": "orai107myn6xlt90rh8gky7zms5d082gyv759sxvmah", "pubkey": "AmgbPq+M9/qELxUEceBWrZ+Hbn1FoVAH6zZpWW5UVlWU" },{ "address": "orai1duexpl5m3vc6sjk4hm3ctlg5f67rfa6zgrfq25", "pubkey": "AnlknVYRFr6C//taaG6BYeInbdHBfB6jh4cxvU9GPOUi" },{"address":"orai1f7lqjezdrfgl9j978ut5u404dlk0tymqmzpmeu","pubkey":"ApcsaOP6SjoEtBKHXx9/NPBoBdN/C/h9ymxR0gBZIsuj"},{"address":"orai1fyjznczdrk3l7smre6g57fgm84n6qm6dvtj2l2","pubkey":"Ajv3EyhURIixYumrmSX4vujzCJXBbZy+8PBRUpiT0F86"}],"threshold": 2, "dealer": 3}' --label 'vrfdkg' --gas 6000000 --env .env.development
 
-# testnet: orai14v79y2rw8zdl2f4gv8k34548596qhcudu2e23r
 ```
 
 ## simulate the contract

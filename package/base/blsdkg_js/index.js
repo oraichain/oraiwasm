@@ -209,30 +209,26 @@ const processRequest = async (skShare) => {
     BigInt(roundInfo.round)
   );
 
-  const shareSig = {
+  const share = {
     sig: Buffer.from(sig).toString('base64'),
     round: roundInfo.round
   };
 
-  console.log(address, shareSig);
+  // console.log(address, shareSig);
 
-  // share the signature, more gas because the verify operation
-  // const response = await executeWasm(
-  //   cosmos,
-  //   childKey,
-  //   config.contract,
-  //   {
-  //     update_share_sig: {
-  //       share_sig: shareSig
-  //     }
-  //   },
-  //   { gas: 3000000 }
-  // );
-  // console.log(response);
-
-  // let msg = HandleMsg::UpdateShareSig {
-  //   share_sig: UpdateShareSigMsg { sig, round },
-  // };
+  // share the signature, more gas because the verify operation, especially the last one
+  const response = await executeWasm(
+    cosmos,
+    childKey,
+    config.contract,
+    {
+      share_sig: {
+        share
+      }
+    },
+    { gas: 20000000 }
+  );
+  console.log(response);
 };
 
 run();
