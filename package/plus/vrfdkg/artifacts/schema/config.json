@@ -1,0 +1,82 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Config",
+  "type": "object",
+  "required": [
+    "dealer",
+    "shared_dealer",
+    "shared_row",
+    "status",
+    "threshold",
+    "total"
+  ],
+  "properties": {
+    "dealer": {
+      "type": "integer",
+      "format": "uint16",
+      "minimum": 0.0
+    },
+    "fee": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Coin"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "shared_dealer": {
+      "type": "integer",
+      "format": "uint16",
+      "minimum": 0.0
+    },
+    "shared_row": {
+      "type": "integer",
+      "format": "uint16",
+      "minimum": 0.0
+    },
+    "status": {
+      "$ref": "#/definitions/SharedStatus"
+    },
+    "threshold": {
+      "type": "integer",
+      "format": "uint16",
+      "minimum": 0.0
+    },
+    "total": {
+      "description": "The denom in which bounties are paid. This is typically the fee token of the chain.",
+      "type": "integer",
+      "format": "uint16",
+      "minimum": 0.0
+    }
+  },
+  "definitions": {
+    "Coin": {
+      "type": "object",
+      "required": [
+        "amount",
+        "denom"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "denom": {
+          "type": "string"
+        }
+      }
+    },
+    "SharedStatus": {
+      "type": "string",
+      "enum": [
+        "WaitForDealer",
+        "WaitForRow",
+        "WaitForRequest"
+      ]
+    },
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}

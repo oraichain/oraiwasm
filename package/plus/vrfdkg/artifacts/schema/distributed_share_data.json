@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DistributedShareData",
+  "type": "object",
+  "required": [
+    "input",
+    "round",
+    "sigs"
+  ],
+  "properties": {
+    "combined_pubkey": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Binary"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "combined_sig": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Binary"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "input": {
+      "$ref": "#/definitions/Binary"
+    },
+    "randomness": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Binary"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "round": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "sigs": {
+      "description": "The randomness if available. When the beacon does not exist, this is an empty value. like waiting",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ShareSig"
+      }
+    }
+  },
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "ShareSig": {
+      "type": "object",
+      "required": [
+        "index",
+        "sender",
+        "sig"
+      ],
+      "properties": {
+        "index": {
+          "type": "integer",
+          "format": "uint16",
+          "minimum": 0.0
+        },
+        "sender": {
+          "type": "string"
+        },
+        "sig": {
+          "$ref": "#/definitions/Binary"
+        }
+      }
+    }
+  }
+}

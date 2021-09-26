@@ -1,0 +1,251 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HandleMsg",
+  "anyOf": [
+    {
+      "type": "object",
+      "required": [
+        "share_dealer"
+      ],
+      "properties": {
+        "share_dealer": {
+          "type": "object",
+          "required": [
+            "share"
+          ],
+          "properties": {
+            "share": {
+              "$ref": "#/definitions/SharedDealerMsg"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "share_row"
+      ],
+      "properties": {
+        "share_row": {
+          "type": "object",
+          "required": [
+            "share"
+          ],
+          "properties": {
+            "share": {
+              "$ref": "#/definitions/SharedRowMsg"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "request_random"
+      ],
+      "properties": {
+        "request_random": {
+          "type": "object",
+          "required": [
+            "input"
+          ],
+          "properties": {
+            "input": {
+              "$ref": "#/definitions/Binary"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "share_sig"
+      ],
+      "properties": {
+        "share_sig": {
+          "type": "object",
+          "required": [
+            "share"
+          ],
+          "properties": {
+            "share": {
+              "$ref": "#/definitions/ShareSigMsg"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_threshold"
+      ],
+      "properties": {
+        "update_threshold": {
+          "type": "object",
+          "required": [
+            "threshold"
+          ],
+          "properties": {
+            "threshold": {
+              "type": "integer",
+              "format": "uint16",
+              "minimum": 0.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_fees"
+      ],
+      "properties": {
+        "update_fees": {
+          "type": "object",
+          "required": [
+            "fee"
+          ],
+          "properties": {
+            "fee": {
+              "$ref": "#/definitions/Coin"
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_members"
+      ],
+      "properties": {
+        "update_members": {
+          "type": "object",
+          "required": [
+            "members"
+          ],
+          "properties": {
+            "members": {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/MemberMsg"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "remove_member"
+      ],
+      "properties": {
+        "remove_member": {
+          "type": "object",
+          "required": [
+            "address"
+          ],
+          "properties": {
+            "address": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "Binary": {
+      "description": "Binary is a wrapper around Vec<u8> to add base64 de/serialization with serde. It also adds some helper methods to help encode inline.\n\nThis is only needed as serde-json-{core,wasm} has a horrible encoding for Vec<u8>",
+      "type": "string"
+    },
+    "Coin": {
+      "type": "object",
+      "required": [
+        "amount",
+        "denom"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint128"
+        },
+        "denom": {
+          "type": "string"
+        }
+      }
+    },
+    "MemberMsg": {
+      "type": "object",
+      "required": [
+        "address",
+        "pubkey"
+      ],
+      "properties": {
+        "address": {
+          "type": "string"
+        },
+        "pubkey": {
+          "$ref": "#/definitions/Binary"
+        }
+      }
+    },
+    "ShareSigMsg": {
+      "type": "object",
+      "required": [
+        "round",
+        "sig"
+      ],
+      "properties": {
+        "round": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "sig": {
+          "$ref": "#/definitions/Binary"
+        }
+      }
+    },
+    "SharedDealerMsg": {
+      "type": "object",
+      "required": [
+        "commits",
+        "rows"
+      ],
+      "properties": {
+        "commits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Binary"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Binary"
+          }
+        }
+      }
+    },
+    "SharedRowMsg": {
+      "type": "object",
+      "required": [
+        "pk_share"
+      ],
+      "properties": {
+        "pk_share": {
+          "$ref": "#/definitions/Binary"
+        }
+      }
+    },
+    "Uint128": {
+      "type": "string"
+    }
+  }
+}
