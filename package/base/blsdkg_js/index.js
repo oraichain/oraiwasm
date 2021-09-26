@@ -34,9 +34,23 @@ const run = async () => {
     case 'WaitForDealer':
       return processDealer(threshold, total);
     case 'WaitForRow':
-      return processRow(total);
     case 'WaitForRequest':
-      return processRequest();
+      const currentMember = await getMember(address);
+      if (!currentMember) {
+        return console.log('we are not in the group');
+      }
+      const skShare = await getSkShare(currentMember);
+      if (!skShare) {
+        return console.log('row share is invalid');
+      }
+      if (status === 'WaitForRow') {
+        if (currentMember.shared_row) {
+          return console.log('we are done row sharing');
+        }
+        return processRow(skShare);
+      }
+      // default process each request
+      return processRequest(skShare);
     default:
       return console.log('Unknown status', status);
   }
@@ -53,6 +67,16 @@ const getMembers = async (limit) => {
   return members;
 };
 
+const getMember = async (address) => {
+  const member = await queryWasm(cosmos, config.contract, {
+    get_member: {
+      address
+    }
+  });
+
+  return member;
+};
+
 const getDealers = async () => {
   const dealers = await queryWasm(cosmos, config.contract, {
     get_dealers: {}
@@ -62,6 +86,7 @@ const getDealers = async () => {
 };
 
 const processDealer = async (threshold, total) => {
+  console.log('process dealer share');
   const bibars = blsdkgJs.generate_bivars(threshold, total);
 
   const commits = bibars.get_commits().map(Buffer.from);
@@ -113,10 +138,108 @@ const processDealer = async (threshold, total) => {
   console.log(response);
 };
 
-const processRow = async (total) => {
+const getSkShare = async (currentMember) => {
   const dealers = await getDealers();
-  // get all rows and commits share from dealers for this member
-  console.log(dealers);
+
+  const commits = [];
+  const rows = [];
+  for (const dealer of dealers) {
+    const encryptedRow = Buffer.from(
+      dealer.shared_dealer.rows[currentMember.index],
+      'base64'
+    );
+    const dealerPubkey = Buffer.from(dealer.pubkey, 'base64');
+    const commit = Buffer.from(
+      dealer.shared_dealer.commits[currentMember.index + 1],
+      'base64'
+    );
+    const row = decrypt(
+      childKey.privateKey,
+      dealerPubkey,
+      commit,
+      encryptedRow
+    );
+    commits.push(commit);
+    rows.push(row);
+  }
+
+  const skShare = blsdkgJs.get_sk_share(rows, commits);
+
+  return skShare;
+};
+
+const processRow = async (skShare) => {
+  console.log('process row share');
+  // we update public key share for smart contract to verify and keeps this skShare to sign message for each round
+  const pkShare = Buffer.from(skShare.get_pk()).toString('base64');
+  // finaly share the dealer
+  const response = await executeWasm(cosmos, childKey, config.contract, {
+    share_row: {
+      share: {
+        pk_share: pkShare
+      }
+    }
+  });
+
+  console.log(response);
+};
+
+const processRequest = async (skShare) => {
+  console.log('process request');
+
+  // get latest round
+  const roundInfo = await queryWasm(cosmos, config.contract, {
+    latest_round: {}
+  });
+
+  if (!roundInfo) {
+    return console.log('there is no round');
+  }
+
+  if (roundInfo.combined_sig) {
+    return console.log(
+      'Round has been done with randomness',
+      roundInfo.randomness
+    );
+  }
+
+  // otherwise add the sig contribution from skShare
+  const sig = skShare.sign(
+    Buffer.from(roundInfo.input, 'base64'),
+    BigInt(roundInfo.round)
+  );
+
+  // share the signature, more gas because the verify operation
+  const response = await executeWasm(
+    cosmos,
+    childKey,
+    config.contract,
+    {
+      update_share_sig: {
+        share_sig: {
+          sig: Buffer.from(sig).toString('base64'),
+          round: roundInfo.round
+        }
+      }
+    },
+    { gas: 3000000 }
+  );
+  console.log(response);
+
+  // let msg = HandleMsg::UpdateShareSig {
+  //   share_sig: UpdateShareSigMsg { sig, round },
+  // };
 };
 
 run();
+
+// for testing purpose, input is base64 to be pass as Buffer
+const requestRandom = async (input) => {
+  const response = await executeWasm(cosmos, childKey, config.contract, {
+    request_random: {
+      input
+    }
+  });
+  console.log(response);
+};
+// requestRandom(Buffer.from('hello').toString('base64'));
