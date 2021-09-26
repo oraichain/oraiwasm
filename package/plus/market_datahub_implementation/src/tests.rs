@@ -10,7 +10,7 @@ use cosmwasm_std::{
 };
 use cw1155::Cw1155ReceiveMsg;
 use market::mock::{mock_dependencies, mock_env, MockQuerier};
-use market_1155::{Offering, OfferingQueryMsg};
+use market_1155::{DataHubQueryMsg, Offering};
 use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg, Royalty, RoyaltyMsg};
 use std::mem::transmute;
 use std::ops::Mul;
@@ -23,7 +23,7 @@ const AI_ROYALTY_ADDR: &str = "ai_royalty_addr";
 const OW_1155_ADDR: &str = "1155_addr";
 const CONTRACT_NAME: &str = "Auction Marketplace";
 const DENOM: &str = "orai";
-pub const OFFERING_STORAGE: &str = "datahub_offering";
+pub const DATAHUB_STORAGE: &str = "datahub_storage";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 
 static mut _DATA: *const DepsManager = 0 as *const DepsManager;
@@ -61,7 +61,7 @@ impl DepsManager {
                 admins: vec![HumanAddr::from(CREATOR)],
                 mutable: true,
                 storages: vec![
-                    (OFFERING_STORAGE.to_string(), HumanAddr::from(OFFERING_ADDR)),
+                    (DATAHUB_STORAGE.to_string(), HumanAddr::from(OFFERING_ADDR)),
                     (
                         AI_ROYALTY_STORAGE.to_string(),
                         HumanAddr::from(AI_ROYALTY_ADDR),
@@ -73,11 +73,11 @@ impl DepsManager {
         .unwrap();
 
         let mut offering = mock_dependencies(HumanAddr::from(OFFERING_ADDR), &[], Self::query_wasm);
-        let _res = market_1155_storage::contract::init(
+        let _res = market_datahub_storage::contract::init(
             offering.as_mut(),
             mock_env(OFFERING_ADDR),
             info.clone(),
-            market_1155_storage::msg::InitMsg {
+            market_datahub_storage::msg::InitMsg {
                 governance: HumanAddr::from(HUB_ADDR),
             },
         )
@@ -148,7 +148,7 @@ impl DepsManager {
                         from_slice(msg).unwrap(),
                     )
                     .ok(),
-                    OFFERING_ADDR => market_1155_storage::contract::handle(
+                    OFFERING_ADDR => market_datahub_storage::contract::handle(
                         self.offering.as_mut(),
                         mock_env(HUB_ADDR),
                         mock_info(HUB_ADDR, &[]),
@@ -208,7 +208,7 @@ impl DepsManager {
                             from_slice(&msg).unwrap(),
                         )
                         .unwrap_or_default(),
-                        OFFERING_ADDR => market_1155_storage::contract::query(
+                        OFFERING_ADDR => market_datahub_storage::contract::query(
                             manager.offering.as_ref(),
                             mock_env(OFFERING_ADDR),
                             from_slice(&msg).unwrap(),
@@ -314,7 +314,7 @@ fn test_royalties() {
 
         // latest offering seller as seller
         let offering_bin_first = manager
-            .query(QueryMsg::Offering(OfferingQueryMsg::GetOffering {
+            .query(QueryMsg::DataHub(DataHubQueryMsg::GetOffering {
                 offering_id: 1,
             }))
             .unwrap();
@@ -324,7 +324,7 @@ fn test_royalties() {
 
         let result: Vec<Offering> = from_binary(
             &manager
-                .query(QueryMsg::Offering(OfferingQueryMsg::GetOfferings {
+                .query(QueryMsg::DataHub(DataHubQueryMsg::GetOfferings {
                     offset: None,
                     limit: None,
                     order: None,
@@ -355,7 +355,7 @@ fn test_royalties() {
 
         // latest offering seller as seller
         let offering_bin = manager
-            .query(QueryMsg::Offering(OfferingQueryMsg::GetOffering {
+            .query(QueryMsg::DataHub(DataHubQueryMsg::GetOffering {
                 offering_id: 2,
             }))
             .unwrap();
@@ -468,7 +468,7 @@ fn withdraw_offering() {
         // Offering should be listed
         let res: Vec<Offering> = from_binary(
             &manager
-                .query(QueryMsg::Offering(OfferingQueryMsg::GetOfferings {
+                .query(QueryMsg::DataHub(DataHubQueryMsg::GetOfferings {
                     offset: None,
                     limit: None,
                     order: None,
@@ -496,7 +496,7 @@ fn withdraw_offering() {
         // Offering should be removed
         let res2: Vec<Offering> = from_binary(
             &manager
-                .query(QueryMsg::Offering(OfferingQueryMsg::GetOfferings {
+                .query(QueryMsg::DataHub(DataHubQueryMsg::GetOfferings {
                     offset: None,
                     limit: None,
                     order: None,

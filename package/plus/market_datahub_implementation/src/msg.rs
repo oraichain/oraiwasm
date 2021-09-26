@@ -3,7 +3,7 @@ use std::fmt;
 use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
 use cw1155::Cw1155ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
-use market_1155::OfferingQueryMsg;
+use market_1155::DataHubQueryMsg;
 use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -61,6 +61,12 @@ pub struct SellNft {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct RequestAnnotate {
+    pub per_price: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateContractMsg {
     pub name: Option<String>,
     pub creator: Option<String>,
@@ -75,7 +81,7 @@ pub struct UpdateContractMsg {
 pub enum QueryMsg {
     // Auction info must be queried from auction contract
     GetContractInfo {},
-    Offering(OfferingQueryMsg),
+    DataHub(DataHubQueryMsg),
     AiRoyalty(AiRoyaltyQueryMsg),
 }
 

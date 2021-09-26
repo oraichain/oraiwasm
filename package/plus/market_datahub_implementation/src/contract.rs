@@ -1,12 +1,12 @@
 use std::fmt;
 
-use crate::offering::{
-    handle_sell_nft, query_ai_royalty, query_offering, try_buy, try_handle_mint, try_withdraw,
-};
+use crate::annotation::handle_request_annotation;
+use crate::offering::{handle_sell_nft, try_buy, try_handle_mint, try_withdraw};
 
 use crate::error::ContractError;
 use crate::msg::{
-    HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellNft, UpdateContractMsg,
+    HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, RequestAnnotate, SellNft,
+    UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
@@ -15,13 +15,16 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{HumanAddr, StdError};
 use cw1155::Cw1155ReceiveMsg;
-use market::{StorageHandleMsg, StorageQueryMsg};
-use market_ai_royalty::sanitize_royalty;
+use market::{query_proxy, StorageHandleMsg, StorageQueryMsg};
+use market_1155::DataHubQueryMsg;
+use market_ai_royalty::{sanitize_royalty, AiRoyaltyQueryMsg};
 use schemars::JsonSchema;
 use serde::Serialize;
 
 pub const MAX_ROYALTY_PERCENT: u64 = 50;
 pub const MAX_FEE_PERMILLE: u64 = 100;
+pub const DATAHUB_STORAGE: &str = "datahub_storage";
+pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 
 fn sanitize_fee(fee: u64, name: &str) -> Result<u64, ContractError> {
     if fee > MAX_FEE_PERMILLE {
@@ -75,7 +78,7 @@ pub fn handle(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
-        QueryMsg::Offering(offering_msg) => query_offering(deps, offering_msg),
+        QueryMsg::DataHub(datahub_msg) => query_datahub(deps, datahub_msg),
         QueryMsg::AiRoyalty(ai_royalty_msg) => query_ai_royalty(deps, ai_royalty_msg),
     }
 }
@@ -146,8 +149,12 @@ pub fn try_receive_nft(
     rcv_msg: Cw1155ReceiveMsg,
 ) -> Result<HandleResponse, ContractError> {
     let msg_result_sell: Result<SellNft, StdError> = from_binary(&rcv_msg.msg);
+    let msg_result_annotate: Result<RequestAnnotate, StdError> = from_binary(&rcv_msg.msg);
     if !msg_result_sell.is_err() {
         return handle_sell_nft(deps, info, msg_result_sell.unwrap(), rcv_msg);
+    }
+    if !msg_result_annotate.is_err() {
+        return handle_request_annotation(deps, info, msg_result_annotate.unwrap(), rcv_msg);
     }
     Err(ContractError::NoData {})
 }
@@ -182,4 +189,22 @@ where
         send: vec![],
     }
     .into())
+}
+
+pub fn query_datahub(deps: Deps, msg: DataHubQueryMsg) -> StdResult<Binary> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    query_proxy(
+        deps,
+        get_storage_addr(deps, contract_info.governance, DATAHUB_STORAGE)?,
+        to_binary(&ProxyQueryMsg::Msg(msg))?,
+    )
+}
+
+pub fn query_ai_royalty(deps: Deps, msg: AiRoyaltyQueryMsg) -> StdResult<Binary> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    query_proxy(
+        deps,
+        get_storage_addr(deps, contract_info.governance, AI_ROYALTY_STORAGE)?,
+        to_binary(&ProxyQueryMsg::Msg(msg))?,
+    )
 }

@@ -1,20 +1,19 @@
-use crate::contract::{get_handle_msg, get_storage_addr};
+use crate::contract::{
+    get_handle_msg, get_storage_addr, query_ai_royalty, query_datahub, AI_ROYALTY_STORAGE,
+    DATAHUB_STORAGE,
+};
 use crate::error::ContractError;
 use crate::msg::{ProxyQueryMsg, SellNft};
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    attr, coins, from_binary, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
 use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
-use market::query_proxy;
-use market_1155::{Offering, OfferingHandleMsg, OfferingQueryMsg};
+use market_1155::{DataHubHandleMsg, DataHubQueryMsg, Offering};
 use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, MintMsg, Royalty, RoyaltyMsg};
 use std::ops::{Mul, Sub};
-
-pub const OFFERING_STORAGE: &str = "datahub_offering";
-pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 
 pub fn add_msg_royalty(
     sender: &str,
@@ -173,8 +172,8 @@ pub fn try_buy(
     // remove offering in the offering storage
     cosmos_msgs.push(get_handle_msg(
         governance.as_str(),
-        OFFERING_STORAGE,
-        OfferingHandleMsg::RemoveOffering { id: offering_id },
+        DATAHUB_STORAGE,
+        DataHubHandleMsg::RemoveOffering { id: offering_id },
     )?);
 
     Ok(HandleResponse {
@@ -222,8 +221,8 @@ pub fn try_withdraw(
         // remove offering
         cw721_transfer_cosmos_msg.push(get_handle_msg(
             governance.as_str(),
-            OFFERING_STORAGE,
-            OfferingHandleMsg::RemoveOffering { id: offering_id },
+            DATAHUB_STORAGE,
+            DataHubHandleMsg::RemoveOffering { id: offering_id },
         )?);
 
         return Ok(HandleResponse {
@@ -248,11 +247,13 @@ pub fn handle_sell_nft(
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     // check if same token Id form same original contract is already on sale
+
+    // TODO: This should be commented when we allow multiple owners to sell this nft
     let offering_result: Result<Offering, ContractError> = deps
         .querier
         .query_wasm_smart(
-            get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
-            &ProxyQueryMsg::Msg(OfferingQueryMsg::GetOfferingByContractTokenId {
+            get_storage_addr(deps.as_ref(), governance.clone(), DATAHUB_STORAGE)?,
+            &ProxyQueryMsg::Msg(DataHubQueryMsg::GetOfferingByContractTokenId {
                 contract: info.sender.clone(),
                 token_id: rcv_msg.token_id.clone(),
             }),
@@ -275,8 +276,8 @@ pub fn handle_sell_nft(
     // push save message to datahub storage
     cosmos_msgs.push(get_handle_msg(
         governance.as_str(),
-        OFFERING_STORAGE,
-        OfferingHandleMsg::UpdateOffering {
+        DATAHUB_STORAGE,
+        DataHubHandleMsg::UpdateOffering {
             offering: offering.clone(),
         },
     )?);
@@ -288,34 +289,15 @@ pub fn handle_sell_nft(
             attr("original_contract", info.sender),
             attr("seller", rcv_msg.operator),
             attr("per price", offering.per_price.to_string()),
-            attr("token_id", offering.token_id),
         ],
         data: None,
     })
 }
 
-pub fn query_offering(deps: Deps, msg: OfferingQueryMsg) -> StdResult<Binary> {
-    let contract_info = CONTRACT_INFO.load(deps.storage)?;
-    query_proxy(
-        deps,
-        get_storage_addr(deps, contract_info.governance, OFFERING_STORAGE)?,
-        to_binary(&ProxyQueryMsg::Msg(msg))?,
-    )
-}
-
-pub fn query_ai_royalty(deps: Deps, msg: AiRoyaltyQueryMsg) -> StdResult<Binary> {
-    let contract_info = CONTRACT_INFO.load(deps.storage)?;
-    query_proxy(
-        deps,
-        get_storage_addr(deps, contract_info.governance, AI_ROYALTY_STORAGE)?,
-        to_binary(&ProxyQueryMsg::Msg(msg))?,
-    )
-}
-
 fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError> {
-    let offering: Offering = from_binary(&query_offering(
+    let offering: Offering = from_binary(&query_datahub(
         deps,
-        OfferingQueryMsg::GetOfferingState { offering_id },
+        DataHubQueryMsg::GetOfferingState { offering_id },
     )?)
     .map_err(|_| ContractError::InvalidGetOffering {})?;
     Ok(offering)

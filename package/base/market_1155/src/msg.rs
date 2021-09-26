@@ -13,19 +13,24 @@ pub struct Offering {
     pub amount: Uint128,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum OfferingHandleMsg {
-    // this allow implementation contract to update the storage
-    UpdateOffering { offering: Offering },
-    RemoveOffering { id: u64 },
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct Annotation {
+    pub id: Option<u64>,
+    pub token_id: String,
+    pub contract_addr: HumanAddr,
+    pub requester: HumanAddr,
+    pub annotators: Vec<HumanAddr>,
+    pub per_price: Uint128,
+    pub amount: Uint128,
+    pub deposited: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InfoMsg {
-    pub name: Option<String>,
-    pub creator: Option<String>,
-    pub fee: Option<u64>,
-    pub denom: Option<String>,
-    pub max_royalty: Option<u64>,
+#[serde(rename_all = "snake_case")]
+pub enum DataHubHandleMsg {
+    // this allow implementation contract to update the storage
+    UpdateOffering { offering: Offering },
+    RemoveOffering { id: u64 },
+    UpdateAnnotation { annotation: Annotation },
+    RemoveAnnotation { id: u64 },
 }

@@ -46,6 +46,12 @@ pub enum ContractError {
     #[error("There is an error while collecting the offering")]
     InvalidGetOffering {},
 
+    #[error("There is an error while collecting the annotation")]
+    InvalidGetAnnotation {},
+
+    #[error("The requester has not deposited funds into the annotation request yet. You will not receive rewards if you submit")]
+    AnnotationNoFunds {},
+
     #[error("There is an error while collecting the list royalties of a token id: {token_id}")]
     InvalidGetRoyaltiesTokenId { token_id: String },
 

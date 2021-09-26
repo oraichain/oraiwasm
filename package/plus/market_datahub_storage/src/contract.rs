@@ -1,9 +1,10 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::state::{
-    get_contract_token_id, increment_offerings, offerings, ContractInfo, CONTRACT_INFO,
+    annotations, get_contract_token_id, increment_annotations, increment_offerings, offerings,
+    ContractInfo, CONTRACT_INFO,
 };
-use market_1155::{Offering, OfferingHandleMsg, OfferingQueryMsg};
+use market_1155::{Annotation, DataHubHandleMsg, DataHubQueryMsg, Offering};
 
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order,
@@ -43,10 +44,16 @@ pub fn handle(
 ) -> Result<HandleResponse, ContractError> {
     match msg {
         HandleMsg::Msg(offering_handle) => match offering_handle {
-            OfferingHandleMsg::UpdateOffering { offering } => {
+            DataHubHandleMsg::UpdateOffering { offering } => {
                 try_update_offering(deps, info, env, offering)
             }
-            OfferingHandleMsg::RemoveOffering { id } => try_withdraw_offering(deps, info, env, id),
+            DataHubHandleMsg::RemoveOffering { id } => try_withdraw_offering(deps, info, env, id),
+            DataHubHandleMsg::UpdateAnnotation { annotation } => {
+                try_update_annotation(deps, info, env, annotation)
+            }
+            DataHubHandleMsg::RemoveAnnotation { id } => {
+                try_withdraw_annotation(deps, info, env, id)
+            }
         },
     }
 }
@@ -54,12 +61,12 @@ pub fn handle(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Msg(auction_query) => match auction_query {
-            OfferingQueryMsg::GetOfferings {
+            DataHubQueryMsg::GetOfferings {
                 limit,
                 offset,
                 order,
             } => to_binary(&query_offerings(deps, limit, offset, order)?),
-            OfferingQueryMsg::GetOfferingsBySeller {
+            DataHubQueryMsg::GetOfferingsBySeller {
                 seller,
                 limit,
                 offset,
@@ -67,7 +74,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             } => to_binary(&query_offerings_by_seller(
                 deps, seller, limit, offset, order,
             )?),
-            OfferingQueryMsg::GetOfferingsByContract {
+            DataHubQueryMsg::GetOfferingsByContract {
                 contract,
                 limit,
                 offset,
@@ -75,16 +82,38 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             } => to_binary(&query_offerings_by_contract(
                 deps, contract, limit, offset, order,
             )?),
-            OfferingQueryMsg::GetOffering { offering_id } => {
+            DataHubQueryMsg::GetOffering { offering_id } => {
                 to_binary(&query_offering(deps, offering_id)?)
             }
-            OfferingQueryMsg::GetOfferingState { offering_id } => {
+            DataHubQueryMsg::GetOfferingState { offering_id } => {
                 to_binary(&query_offering_state(deps, offering_id)?)
             }
-            OfferingQueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
+            DataHubQueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
                 &query_offering_by_contract_tokenid(deps, contract, token_id)?,
             ),
-            OfferingQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+            DataHubQueryMsg::GetAnnotations {
+                limit,
+                offset,
+                order,
+            } => to_binary(&query_annotations(deps, limit, offset, order)?),
+            DataHubQueryMsg::GetAnnotationsByContract {
+                contract,
+                limit,
+                offset,
+                order,
+            } => to_binary(&query_annotations_by_contract(
+                deps, contract, limit, offset, order,
+            )?),
+            DataHubQueryMsg::GetAnnotation { annotation_id } => {
+                to_binary(&query_annotation(deps, annotation_id)?)
+            }
+            DataHubQueryMsg::GetAnnotationState { annotation_id } => {
+                to_binary(&query_annotation_state(deps, annotation_id)?)
+            }
+            DataHubQueryMsg::GetAnnotationByContractTokenId { contract, token_id } => to_binary(
+                &query_annotation_by_contract_tokenid(deps, contract, token_id)?,
+            ),
+            DataHubQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
         },
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
     }
@@ -143,6 +172,63 @@ pub fn try_withdraw_offering(
     return Ok(HandleResponse {
         messages: vec![],
         attributes: vec![attr("action", "remove_offering"), attr("offering_id", id)],
+        data: None,
+    });
+}
+
+pub fn try_update_annotation(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    mut annotation: Annotation,
+) -> Result<HandleResponse, ContractError> {
+    // must check the sender is implementation contract
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+
+    if contract_info.governance.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    };
+    // if no id then create new one as insert
+    if annotation.id.is_none() {
+        annotation.id = Some(increment_annotations(deps.storage)?);
+    };
+
+    annotations().save(
+        deps.storage,
+        &annotation.id.unwrap().to_be_bytes(),
+        &annotation,
+    )?;
+
+    return Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("action", "update_annotation"),
+            attr("annotation_id", annotation.id.unwrap()),
+        ],
+        data: None,
+    });
+}
+
+pub fn try_withdraw_annotation(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    id: u64,
+) -> Result<HandleResponse, ContractError> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    if contract_info.governance.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // remove offering
+    annotations().remove(deps.storage, &id.to_be_bytes())?;
+
+    return Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("action", "remove_annotation"),
+            attr("annotation_id", id),
+        ],
         data: None,
     });
 }
@@ -280,6 +366,92 @@ fn parse_offering<'a>(item: StdResult<KV<Offering>>) -> StdResult<Offering> {
         Ok(Offering {
             id: Some(id),
             ..offering
+        })
+    })
+}
+
+pub fn query_annotations(
+    deps: Deps,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<Vec<Annotation>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+
+    let annotations_result: StdResult<Vec<Annotation>> = annotations()
+        .range(deps.storage, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| parse_annotation(kv_item))
+        .collect();
+    Ok(annotations_result?)
+}
+
+pub fn query_annotation_ids(deps: Deps) -> StdResult<Vec<u64>> {
+    let res: StdResult<Vec<u64>> = annotations()
+        .range(deps.storage, None, None, Order::Ascending)
+        .map(|kv_item| kv_item.and_then(|(k, _)| Ok(u64::from_be_bytes(k.try_into().unwrap()))))
+        .collect();
+
+    Ok(res?)
+}
+
+pub fn query_annotations_by_contract(
+    deps: Deps,
+    contract: HumanAddr,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<Vec<Annotation>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let annotations_result: StdResult<Vec<Annotation>> = annotations()
+        .idx
+        .contract
+        .items(deps.storage, contract.as_bytes(), min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| parse_annotation(kv_item))
+        .collect();
+
+    Ok(annotations_result?)
+}
+
+pub fn query_annotation(deps: Deps, annotation_id: u64) -> StdResult<Annotation> {
+    let off = annotations().load(deps.storage, &annotation_id.to_be_bytes())?;
+    Ok(off)
+}
+
+pub fn query_annotation_state(deps: Deps, annotation_id: u64) -> StdResult<Annotation> {
+    let annotation = annotations().load(deps.storage, &annotation_id.to_be_bytes())?;
+    Ok(annotation)
+}
+
+pub fn query_annotation_by_contract_tokenid(
+    deps: Deps,
+    contract: HumanAddr,
+    token_id: String,
+) -> StdResult<Annotation> {
+    let annotation = annotations()
+        .idx
+        .contract_token_id
+        .item(deps.storage, get_contract_token_id(&contract, &token_id))?;
+    if let Some(annotation_obj) = annotation {
+        let off = annotation_obj.1;
+        Ok(off)
+    } else {
+        Err(StdError::generic_err("Annotation not found"))
+    }
+}
+
+fn parse_annotation<'a>(item: StdResult<KV<Annotation>>) -> StdResult<Annotation> {
+    item.and_then(|(k, annotation)| {
+        // will panic if length is greater than 8, but we can make sure it is u64
+        // try_into will box vector to fixed array
+        let value = k
+            .try_into()
+            .map_err(|_| StdError::generic_err("Cannot parse annotation key"))?;
+        let id: u64 = u64::from_be_bytes(value);
+        Ok(Annotation {
+            id: Some(id),
+            ..annotation
         })
     })
 }

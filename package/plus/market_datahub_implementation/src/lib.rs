@@ -1,3 +1,4 @@
+pub mod annotation;
 pub mod contract;
 pub mod msg;
 pub mod offering;
