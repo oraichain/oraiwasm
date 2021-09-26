@@ -1,5 +1,5 @@
 [package]
-name = "market_1155_storage"
+name = "market_datahub_storage"
 version = "0.1.0"
 authors = ["oraichain <tu@orai.io>"]
 edition = "2018"
