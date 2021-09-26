@@ -26,10 +26,6 @@ overflow-checks = true
 panic = 'abort'
 rpath = false
 
-[build]
-rustflags = ["-I/usr/include", "CC='clang -m32'"]
-
-
 [dependencies]
 cosmwasm-std = { version = "0.13.2" }
 cosmwasm-storage = { version = "0.13.2", features = ["iterator"] }
