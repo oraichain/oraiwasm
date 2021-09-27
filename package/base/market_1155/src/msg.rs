@@ -23,6 +23,7 @@ pub struct Annotation {
     pub per_price: Uint128,
     pub amount: Uint128,
     pub deposited: bool,
+    pub expired_block: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -51,9 +51,7 @@ pub fn handle(
             DataHubHandleMsg::UpdateAnnotation { annotation } => {
                 try_update_annotation(deps, info, env, annotation)
             }
-            DataHubHandleMsg::RemoveAnnotation { id } => {
-                try_withdraw_annotation(deps, info, env, id)
-            }
+            DataHubHandleMsg::RemoveAnnotation { id } => try_withdraw_annotation(deps, info, id),
         },
     }
 }
@@ -107,12 +105,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             DataHubQueryMsg::GetAnnotation { annotation_id } => {
                 to_binary(&query_annotation(deps, annotation_id)?)
             }
-            DataHubQueryMsg::GetAnnotationState { annotation_id } => {
-                to_binary(&query_annotation_state(deps, annotation_id)?)
-            }
-            DataHubQueryMsg::GetAnnotationByContractTokenId { contract, token_id } => to_binary(
-                &query_annotation_by_contract_tokenid(deps, contract, token_id)?,
-            ),
+            DataHubQueryMsg::GetAnnotationsByContractTokenId {
+                contract,
+                token_id,
+                limit,
+                offset,
+                order,
+            } => to_binary(&query_annotations_by_contract_tokenid(
+                deps, contract, token_id, limit, offset, order,
+            )?),
             DataHubQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
         },
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
@@ -212,7 +213,6 @@ pub fn try_update_annotation(
 pub fn try_withdraw_annotation(
     deps: DepsMut,
     info: MessageInfo,
-    _env: Env,
     id: u64,
 ) -> Result<HandleResponse, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
@@ -419,26 +419,30 @@ pub fn query_annotation(deps: Deps, annotation_id: u64) -> StdResult<Annotation>
     Ok(off)
 }
 
-pub fn query_annotation_state(deps: Deps, annotation_id: u64) -> StdResult<Annotation> {
-    let annotation = annotations().load(deps.storage, &annotation_id.to_be_bytes())?;
-    Ok(annotation)
-}
-
-pub fn query_annotation_by_contract_tokenid(
+pub fn query_annotations_by_contract_tokenid(
     deps: Deps,
     contract: HumanAddr,
     token_id: String,
-) -> StdResult<Annotation> {
-    let annotation = annotations()
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<Vec<Annotation>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let annotations_result: StdResult<Vec<Annotation>> = annotations()
         .idx
         .contract_token_id
-        .item(deps.storage, get_contract_token_id(&contract, &token_id))?;
-    if let Some(annotation_obj) = annotation {
-        let off = annotation_obj.1;
-        Ok(off)
-    } else {
-        Err(StdError::generic_err("Annotation not found"))
-    }
+        .items(
+            deps.storage,
+            get_contract_token_id(&contract, &token_id).0.as_slice(),
+            min,
+            max,
+            order_enum,
+        )
+        .take(limit)
+        .map(|kv_item| parse_annotation(kv_item))
+        .collect();
+
+    Ok(annotations_result?)
 }
 
 fn parse_annotation<'a>(item: StdResult<KV<Annotation>>) -> StdResult<Annotation> {

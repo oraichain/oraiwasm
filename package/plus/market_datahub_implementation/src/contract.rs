@@ -1,6 +1,10 @@
 use std::fmt;
 
-use crate::annotation::handle_request_annotation;
+use crate::annotation::{
+    handle_deposit_annotation, handle_request_annotation, handle_submit_annotation,
+    try_approve_annotation, try_update_annotation_annotators,
+    try_withdraw as try_withdraw_annotation,
+};
 use crate::offering::{handle_sell_nft, try_buy, try_handle_mint, try_withdraw};
 
 use crate::error::ContractError;
@@ -23,6 +27,7 @@ use serde::Serialize;
 
 pub const MAX_ROYALTY_PERCENT: u64 = 50;
 pub const MAX_FEE_PERMILLE: u64 = 100;
+pub const EXPIRED_BLOCK_RANGE: u64 = 50000;
 pub const DATAHUB_STORAGE: &str = "datahub_storage";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 
@@ -50,6 +55,7 @@ pub fn init(
         fee: sanitize_fee(msg.fee, "fee")?,
         governance: msg.governance,
         max_royalty: sanitize_royalty(msg.max_royalty, MAX_ROYALTY_PERCENT, "max_royalty")?,
+        expired_block: EXPIRED_BLOCK_RANGE,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -70,6 +76,23 @@ pub fn handle(
         HandleMsg::MintNft { contract, msg } => try_handle_mint(deps, info, contract, msg),
         HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, env, offering_id),
         HandleMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
+        HandleMsg::SubmitAnnotation { annotation_id } => {
+            handle_submit_annotation(deps, info, annotation_id)
+        }
+        HandleMsg::DepositAnnotation { annotation_id } => {
+            handle_deposit_annotation(deps, info, annotation_id)
+        }
+        HandleMsg::WithdrawAnnotation { annotation_id } => {
+            try_withdraw_annotation(deps, info, env, annotation_id)
+        }
+        HandleMsg::UpdateAnnotationAnnotators {
+            annotation_id,
+            annotators,
+        } => try_update_annotation_annotators(deps, info, annotation_id, annotators),
+        HandleMsg::ApproveAnnotation {
+            annotation_id,
+            annotator,
+        } => try_approve_annotation(deps, info, env, annotation_id, annotator),
     }
 }
 
@@ -131,6 +154,19 @@ pub fn try_update_info(
         if let Some(fee) = msg.fee {
             contract_info.fee = sanitize_fee(fee, "fee")?;
         }
+        if let Some(denom) = msg.denom {
+            contract_info.denom = denom;
+        }
+        if let Some(governance) = msg.governance {
+            contract_info.governance = governance;
+        }
+        if let Some(max_royalty) = msg.max_royalty {
+            contract_info.max_royalty =
+                sanitize_royalty(max_royalty, MAX_ROYALTY_PERCENT, "max_royalty")?;
+        }
+        if let Some(expired_block) = msg.expired_block {
+            contract_info.expired_block = expired_block;
+        }
         Ok(contract_info)
     })?;
 
@@ -145,7 +181,7 @@ pub fn try_update_info(
 pub fn try_receive_nft(
     deps: DepsMut,
     info: MessageInfo,
-    _env: Env,
+    env: Env,
     rcv_msg: Cw1155ReceiveMsg,
 ) -> Result<HandleResponse, ContractError> {
     let msg_result_sell: Result<SellNft, StdError> = from_binary(&rcv_msg.msg);
@@ -154,7 +190,7 @@ pub fn try_receive_nft(
         return handle_sell_nft(deps, info, msg_result_sell.unwrap(), rcv_msg);
     }
     if !msg_result_annotate.is_err() {
-        return handle_request_annotation(deps, info, msg_result_annotate.unwrap(), rcv_msg);
+        return handle_request_annotation(deps, info, env, msg_result_annotate.unwrap(), rcv_msg);
     }
     Err(ContractError::NoData {})
 }

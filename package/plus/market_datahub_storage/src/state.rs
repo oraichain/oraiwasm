@@ -69,18 +69,18 @@ pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>
 }
 
 pub fn num_annotations(storage: &dyn Storage) -> StdResult<u64> {
-    Ok(OFFERINGS_COUNT.may_load(storage)?.unwrap_or_default())
+    Ok(ANNOTATION_COUNT.may_load(storage)?.unwrap_or_default())
 }
 
 pub fn increment_annotations(storage: &mut dyn Storage) -> StdResult<u64> {
-    let val = num_offerings(storage)? + 1;
+    let val = num_annotations(storage)? + 1;
     ANNOTATION_COUNT.save(storage, &val)?;
     Ok(val)
 }
 
 pub struct AnnotationIndexes<'a> {
     pub contract: MultiIndex<'a, Annotation>,
-    pub contract_token_id: UniqueIndex<'a, PkOwned, Annotation>,
+    pub contract_token_id: MultiIndex<'a, Annotation>,
 }
 
 impl<'a> IndexList<Annotation> for AnnotationIndexes<'a> {
@@ -95,13 +95,14 @@ pub fn annotations<'a>() -> IndexedMap<'a, &'a [u8], Annotation, AnnotationIndex
     let indexes = AnnotationIndexes {
         contract: MultiIndex::new(
             |o| o.contract_addr.as_bytes().to_vec(),
-            "offerings",
-            "offerings__contract",
+            "annotations",
+            "annotations__contract",
         ),
-        contract_token_id: UniqueIndex::new(
-            |o| get_contract_token_id(&o.contract_addr, &o.token_id),
-            "request__id",
+        contract_token_id: MultiIndex::new(
+            |o| get_contract_token_id(&o.contract_addr, &o.token_id).0,
+            "annotations",
+            "annotations__contract__tokenid",
         ),
     };
-    IndexedMap::new("offerings", indexes)
+    IndexedMap::new("annotations", indexes)
 }

@@ -28,6 +28,12 @@ pub enum ContractError {
     #[error("Sent funds amount is empty")]
     InvalidSentFundAmount {},
 
+    #[error("Cannot withdraw the request because there's an annonator")]
+    InvalidNonZeroAnnonators {},
+
+    #[error("Cannot find the given annotator to send rewards to")]
+    InvalidAnnotator {},
+
     #[error("The auction asker address is invalid")]
     InvalidSellerAddr {},
 

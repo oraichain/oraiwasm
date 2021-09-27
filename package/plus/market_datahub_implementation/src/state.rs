@@ -15,6 +15,7 @@ pub struct ContractInfo {
     /// this defines the number of blocks until the end of auction
     pub governance: HumanAddr,
     pub max_royalty: u64,
+    pub expired_block: u64,
 }
 
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("contract_info");

@@ -98,7 +98,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 offset,
                 limit,
                 order,
-            } => to_binary(&query_royalties_by_royalty_owner(
+            } => to_binary(&query_royalties_map_by_contract(
                 deps,
                 contract_addr,
                 offset,

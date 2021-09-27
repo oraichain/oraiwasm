@@ -197,6 +197,7 @@ fn sort_annotations() {
             per_price: Uint128::from(1u64),
             amount: Uint128::from(10u64),
             deposited: true,
+            expired_block: 1,
         };
         annotationss.push(annotations);
     }
@@ -239,13 +240,16 @@ fn sort_annotations() {
     let res = query(
         deps.as_ref(),
         mock_env(),
-        QueryMsg::Msg(DataHubQueryMsg::GetAnnotationByContractTokenId {
+        QueryMsg::Msg(DataHubQueryMsg::GetAnnotationsByContractTokenId {
             token_id: 1.to_string(),
             contract: HumanAddr::from("xxx"),
+            limit: None,
+            offset: None,
+            order: Some(Order::Ascending as u8),
         }),
     )
     .unwrap();
-    let value: Annotation = from_binary(&res).unwrap();
+    let value: Vec<Annotation> = from_binary(&res).unwrap();
     println!("value query annotations by contract token id: {:?}", value);
 
     // query by contract
@@ -280,6 +284,7 @@ fn withdraw_annotations() {
             per_price: Uint128::from(1u64),
             amount: Uint128::from(1u64),
             deposited: true,
+            expired_block: 1,
         };
         annotationss.push(annotations);
     }

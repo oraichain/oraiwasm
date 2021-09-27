@@ -48,12 +48,12 @@ pub enum DataHubQueryMsg {
     GetAnnotation {
         annotation_id: u64,
     },
-    GetAnnotationState {
-        annotation_id: u64,
-    },
-    GetAnnotationByContractTokenId {
+    GetAnnotationsByContractTokenId {
         contract: HumanAddr,
         token_id: String,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
     },
     GetContractInfo {},
 }

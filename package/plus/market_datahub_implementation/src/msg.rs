@@ -14,6 +14,7 @@ pub struct InitMsg {
     pub denom: String,
     pub governance: HumanAddr,
     pub max_royalty: u64,
+    pub expired_block: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -37,6 +38,23 @@ pub enum HandleMsg {
     MintNft {
         contract: HumanAddr,
         msg: MintMsg,
+    },
+    DepositAnnotation {
+        annotation_id: u64,
+    },
+    WithdrawAnnotation {
+        annotation_id: u64,
+    },
+    SubmitAnnotation {
+        annotation_id: u64,
+    },
+    UpdateAnnotationAnnotators {
+        annotation_id: u64,
+        annotators: Vec<HumanAddr>,
+    },
+    ApproveAnnotation {
+        annotation_id: u64,
+        annotator: HumanAddr,
     },
 }
 
@@ -63,7 +81,8 @@ pub struct SellNft {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct RequestAnnotate {
-    pub per_price: Uint128,
+    pub per_price_annotation: Uint128,
+    pub expired_block: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -72,8 +91,9 @@ pub struct UpdateContractMsg {
     pub creator: Option<String>,
     pub fee: Option<u64>,
     pub denom: Option<String>,
-    pub auction_duration: Option<Uint128>,
-    pub step_price: Option<u64>,
+    pub governance: Option<HumanAddr>,
+    pub max_royalty: Option<u64>,
+    pub expired_block: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
