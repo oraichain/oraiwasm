@@ -32,7 +32,7 @@ const run = async () => {
 
   switch (status) {
     case 'WaitForDealer':
-      return processDealer(threshold, total);
+      return await processDealer(threshold, total);
     case 'WaitForRow':
     case 'WaitForRequest':
       const currentMember = await getMember(address);
@@ -47,10 +47,10 @@ const run = async () => {
         if (currentMember.shared_row) {
           return console.log('we are done row sharing');
         }
-        return processRow(skShare);
+        return await processRow(skShare);
       }
       // default process each request
-      return processRequest(skShare);
+      return await processRequest(skShare);
     default:
       return console.log('Unknown status', status);
   }
@@ -231,7 +231,11 @@ const processRequest = async (skShare) => {
   console.log(response);
 };
 
-run();
+// run interval, default is 5000ms block confirmed
+const runInterval = (interval = 5000) => {
+  await run();
+  setTimeout(runInterval, interval);
+};
 
 // for testing purpose, input is base64 to be pass as Buffer
 const requestRandom = async (input) => {
@@ -242,4 +246,7 @@ const requestRandom = async (input) => {
   });
   console.log(response);
 };
+
+runInterval();
+// run();
 // requestRandom(Buffer.from('hello').toString('base64'));
