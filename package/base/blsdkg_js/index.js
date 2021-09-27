@@ -232,7 +232,7 @@ const processRequest = async (skShare) => {
 };
 
 // run interval, default is 5000ms block confirmed
-const runInterval = (interval = 5000) => {
+const runInterval = async (interval = 5000) => {
   await run();
   setTimeout(runInterval, interval);
 };
