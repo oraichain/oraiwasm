@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, HumanAddr};
+use cosmwasm_std::HumanAddr;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -22,8 +22,29 @@ pub struct Royalty {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct MintMsg {
-    pub royalty_msg: RoyaltyMsg,
-    pub msg: Binary,
+    pub contract_addr: HumanAddr,
+    pub royalty_owner: HumanAddr,
+    pub mint: MintIntermediate,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct MintIntermediate {
+    pub mint: MintStruct,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct MintStruct {
+    pub token_id: String,
+    /// The owner of the newly minter NFT
+    pub owner: HumanAddr,
+    /// Identifies the asset to which this NFT represents
+    pub name: String,
+    /// Describes the asset to which this NFT represents (may be empty)
+    pub description: Option<String>,
+    /// A URI pointing to an image representing the asset
+    pub image: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

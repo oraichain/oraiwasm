@@ -12,7 +12,7 @@ use cosmwasm_std::{
 use cw1155::Cw1155ReceiveMsg;
 use market::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_1155::{Annotation, DataHubQueryMsg, Offering};
-use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg, Royalty, RoyaltyMsg};
+use market_ai_royalty::{AiRoyaltyQueryMsg, MintIntermediate, MintMsg, MintStruct, Royalty};
 use std::mem::transmute;
 use std::ops::Mul;
 use std::ptr::null;
@@ -287,17 +287,19 @@ fn test_royalties() {
         let manager = DepsManager::get_new();
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
-        let mint_msg = HandleMsg::MintNft {
-            contract: HumanAddr::from("nft_contract"),
-            msg: MintMsg {
-                royalty_msg: RoyaltyMsg {
-                    contract_addr: HumanAddr::from("offering"),
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from("offering"),
+            royalty_owner: HumanAddr::from("provider"),
+            mint: MintIntermediate {
+                mint: MintStruct {
                     token_id: String::from("SellableNFT"),
-                    royalty_owner: HumanAddr::from("provider"),
+                    owner: HumanAddr::from("provider"),
+                    name: String::from("asbv"),
+                    description: None,
+                    image: String::from("baxv"),
                 },
-                msg: to_binary("something").unwrap(),
             },
-        };
+        });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 

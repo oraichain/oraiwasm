@@ -50,10 +50,7 @@ pub enum HandleMsg {
         offering_id: u64,
     },
     /// Mint a new NFT, can only be called by the contract minter
-    MintNft {
-        contract: HumanAddr,
-        msg: MintMsg,
-    },
+    MintNft(MintMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

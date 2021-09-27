@@ -3,7 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::HumanAddr;
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, PkOwned, UniqueIndex};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
@@ -19,11 +19,29 @@ pub struct RoyaltyIndexes<'a> {
     pub contract_addr: MultiIndex<'a, Royalty>,
     pub token_id: MultiIndex<'a, Royalty>,
     pub royalty_owner: MultiIndex<'a, Royalty>,
+    pub unique_royalty: UniqueIndex<'a, PkOwned, Royalty>,
+}
+
+// contract nft + token id => unique id
+pub fn get_unique_royalty(
+    contract: &HumanAddr,
+    token_id: &str,
+    royalty_owner: &HumanAddr,
+) -> PkOwned {
+    let mut vec = contract.as_bytes().to_vec();
+    vec.extend(token_id.as_bytes());
+    vec.extend(royalty_owner.as_bytes());
+    PkOwned(vec)
 }
 
 impl<'a> IndexList<Royalty> for RoyaltyIndexes<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Royalty>> + '_> {
-        let v: Vec<&dyn Index<Royalty>> = vec![&self.token_id, &self.royalty_owner];
+        let v: Vec<&dyn Index<Royalty>> = vec![
+            &self.contract_addr,
+            &self.token_id,
+            &self.royalty_owner,
+            &self.unique_royalty,
+        ];
         Box::new(v.into_iter())
     }
 }
@@ -45,6 +63,10 @@ pub fn royalties_map<'a>() -> IndexedMap<'a, &'a [u8], Royalty, RoyaltyIndexes<'
             |d| d.royalty_owner.to_string().into_bytes(),
             "royalties",
             "royalties__owner",
+        ),
+        unique_royalty: UniqueIndex::new(
+            |o| get_unique_royalty(&o.contract_addr, &o.token_id, &o.royalty_owner),
+            "royalties_unique",
         ),
     };
     IndexedMap::new("royalties", indexes)

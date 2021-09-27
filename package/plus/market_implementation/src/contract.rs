@@ -80,7 +80,7 @@ pub fn handle(
         HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
         // royalty
-        HandleMsg::MintNft { contract, msg } => try_handle_mint(deps, info, contract, msg),
+        HandleMsg::MintNft(msg) => try_handle_mint(deps, info, msg),
         HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, offering_id),
         HandleMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
     }

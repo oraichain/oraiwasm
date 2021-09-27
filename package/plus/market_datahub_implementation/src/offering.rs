@@ -44,18 +44,25 @@ pub fn add_msg_royalty(
 pub fn try_handle_mint(
     deps: DepsMut,
     info: MessageInfo,
-    contract: HumanAddr,
     msg: MintMsg,
 ) -> Result<HandleResponse, ContractError> {
     let mint_msg = WasmMsg::Execute {
-        contract_addr: contract.clone(),
-        msg: msg.msg.clone(),
+        contract_addr: msg.contract_addr.clone(),
+        msg: to_binary(&msg.mint)?,
         send: vec![],
     }
     .into();
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
-    let mut cosmos_msgs = add_msg_royalty(info.sender.as_str(), &governance, msg.royalty_msg)?;
+    let mut cosmos_msgs = add_msg_royalty(
+        info.sender.as_str(),
+        &governance,
+        RoyaltyMsg {
+            contract_addr: msg.contract_addr,
+            token_id: msg.mint.mint.token_id,
+            royalty_owner: msg.royalty_owner,
+        },
+    )?;
     cosmos_msgs.push(mint_msg);
 
     let response = HandleResponse {
@@ -301,7 +308,7 @@ pub fn handle_sell_nft(
 fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError> {
     let offering: Offering = from_binary(&query_datahub(
         deps,
-        DataHubQueryMsg::GetOfferingState { offering_id },
+        DataHubQueryMsg::GetOffering { offering_id },
     )?)
     .map_err(|_| ContractError::InvalidGetOffering {})?;
     Ok(offering)

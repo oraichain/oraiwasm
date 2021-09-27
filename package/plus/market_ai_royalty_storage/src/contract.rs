@@ -1,8 +1,8 @@
 use crate::error::ContractError;
-use crate::state::{royalties_map, ContractInfo, CONTRACT_INFO, PREFERENCES};
+use crate::state::{get_unique_royalty, royalties_map, ContractInfo, CONTRACT_INFO, PREFERENCES};
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
-    StdResult, KV,
+    StdError, StdResult, KV,
 };
 use cosmwasm_std::{HumanAddr, Order};
 use cw_storage_plus::Bound;
@@ -203,15 +203,18 @@ pub fn query_royalty(
     token_id: String,
     royalty_owner: HumanAddr,
 ) -> StdResult<Royalty> {
-    let royalties = royalties_map().load(
-        deps.storage,
-        &get_key_royalty(
-            contract_addr.as_bytes(),
-            token_id.as_bytes(),
-            royalty_owner.as_bytes(),
-        ),
-    )?;
-    Ok(royalties)
+    if let Some(kv_item) = royalties_map()
+        .idx
+        .unique_royalty
+        .item(
+            deps.storage,
+            get_unique_royalty(&contract_addr, &token_id, &royalty_owner),
+        )
+        .transpose()
+    {
+        return parse_royalty(kv_item);
+    }
+    Err(StdError::generic_err("Royalty not found"))
 }
 
 // ============================== Query Handlers ==============================
@@ -278,25 +281,6 @@ pub fn query_royalties_by_token_id(
 }
 
 pub fn query_royalties_by_royalty_owner(
-    deps: Deps,
-    royalty_owner: HumanAddr,
-    offset: Option<u64>,
-    limit: Option<u8>,
-    order: Option<u8>,
-) -> StdResult<Vec<Royalty>> {
-    let (limit, min, max, order) = _get_range_params(limit, offset, order);
-    let royalties: StdResult<Vec<Royalty>> = royalties_map()
-        .idx
-        .royalty_owner
-        .items(deps.storage, royalty_owner.as_bytes(), min, max, order)
-        .take(limit)
-        .map(|kv_item| parse_royalty(kv_item))
-        .collect();
-
-    Ok(royalties?)
-}
-
-pub fn query_royalties_map_by_royalty_owner(
     deps: Deps,
     royalty_owner: HumanAddr,
     offset: Option<u64>,

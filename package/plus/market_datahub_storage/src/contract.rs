@@ -83,9 +83,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             DataHubQueryMsg::GetOffering { offering_id } => {
                 to_binary(&query_offering(deps, offering_id)?)
             }
-            DataHubQueryMsg::GetOfferingState { offering_id } => {
-                to_binary(&query_offering_state(deps, offering_id)?)
-            }
             DataHubQueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
                 &query_offering_by_contract_tokenid(deps, contract, token_id)?,
             ),
@@ -327,11 +324,6 @@ pub fn query_offerings_by_contract(
 pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<Offering> {
     let off = offerings().load(deps.storage, &offering_id.to_be_bytes())?;
     Ok(off)
-}
-
-pub fn query_offering_state(deps: Deps, offering_id: u64) -> StdResult<Offering> {
-    let offering = offerings().load(deps.storage, &offering_id.to_be_bytes())?;
-    Ok(offering)
 }
 
 pub fn query_offering_by_contract_tokenid(

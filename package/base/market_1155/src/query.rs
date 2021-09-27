@@ -27,9 +27,6 @@ pub enum DataHubQueryMsg {
     GetOffering {
         offering_id: u64,
     },
-    GetOfferingState {
-        offering_id: u64,
-    },
     GetOfferingByContractTokenId {
         contract: HumanAddr,
         token_id: String,

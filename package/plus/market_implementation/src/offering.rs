@@ -18,13 +18,17 @@ use std::ops::{Mul, Sub};
 pub const OFFERING_STORAGE: &str = "offering";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 
-pub fn add_msg_royalty(sender: &str, governance: &str, msg: MintMsg) -> StdResult<Vec<CosmosMsg>> {
+pub fn add_msg_royalty(
+    sender: &str,
+    governance: &str,
+    msg: RoyaltyMsg,
+) -> StdResult<Vec<CosmosMsg>> {
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
     // update ai royalty provider
     cosmos_msgs.push(get_handle_msg(
         governance,
         AI_ROYALTY_STORAGE,
-        AiRoyaltyHandleMsg::UpdateRoyalty(msg.royalty_msg.clone()),
+        AiRoyaltyHandleMsg::UpdateRoyalty(msg.clone()),
     )?);
 
     // update creator as the caller of the mint tx
@@ -32,8 +36,8 @@ pub fn add_msg_royalty(sender: &str, governance: &str, msg: MintMsg) -> StdResul
         governance,
         AI_ROYALTY_STORAGE,
         AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
-            contract_addr: msg.royalty_msg.contract_addr,
-            token_id: msg.royalty_msg.token_id,
+            contract_addr: msg.contract_addr,
+            token_id: msg.token_id,
             royalty_owner: HumanAddr(sender.to_string()),
         }),
     )?);
@@ -43,19 +47,25 @@ pub fn add_msg_royalty(sender: &str, governance: &str, msg: MintMsg) -> StdResul
 pub fn try_handle_mint(
     deps: DepsMut,
     info: MessageInfo,
-    contract: HumanAddr,
     msg: MintMsg,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     let mint_msg = WasmMsg::Execute {
-        contract_addr: contract.clone(),
-        msg: msg.msg.clone(),
+        contract_addr: msg.contract_addr.clone(),
+        msg: to_binary(&msg.mint)?,
         send: vec![],
     }
     .into();
 
-    let mut cosmos_msgs: Vec<CosmosMsg> =
-        add_msg_royalty(info.sender.as_str(), governance.as_str(), msg)?;
+    let mut cosmos_msgs: Vec<CosmosMsg> = add_msg_royalty(
+        info.sender.as_str(),
+        governance.as_str(),
+        RoyaltyMsg {
+            contract_addr: msg.contract_addr,
+            token_id: msg.mint.mint.token_id,
+            royalty_owner: msg.royalty_owner,
+        },
+    )?;
 
     cosmos_msgs.push(mint_msg);
 
