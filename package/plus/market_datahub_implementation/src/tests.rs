@@ -14,6 +14,7 @@ use market_1155::{DataHubQueryMsg, Offering};
 use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg, Royalty, RoyaltyMsg};
 use std::mem::transmute;
 use std::ops::Mul;
+use std::ptr::null;
 
 const CREATOR: &str = "owner";
 const MARKET_ADDR: &str = "market_addr";
@@ -46,7 +47,7 @@ impl DepsManager {
     }
 
     unsafe fn get_new<'a>() -> &'a mut Self {
-        drop(_DATA);
+        _DATA = null();
         Self::get()
     }
 
