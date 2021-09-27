@@ -5,7 +5,7 @@ const dotenv = require('dotenv');
 const Cosmos = require('@oraichain/cosmosjs').default;
 const blsdkgJs = require('./pkg/blsdkg_js');
 
-const { queryWasm, executeWasm, encrypt, decrypt } = require('./utils');
+const { queryWasm, executeWasm, encrypt, decrypt, delay } = require('./utils');
 
 const env = dotenv.config({
   path: `.env${process.env.NODE_ENV ? '.' + process.env.NODE_ENV : ''}`
@@ -233,8 +233,10 @@ const processRequest = async (skShare) => {
 
 // run interval, default is 5000ms block confirmed
 const runInterval = async (interval = 5000) => {
-  await run();
-  setTimeout(runInterval, interval);
+  while (true) {
+    await run();
+    await delay(interval);
+  }
 };
 
 // for testing purpose, input is base64 to be pass as Buffer
