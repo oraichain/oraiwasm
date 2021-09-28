@@ -182,7 +182,7 @@ pub fn try_claim_winner(
                     cosmos_msgs.push(
                         BankMsg::Send {
                             from_address: env.contract.address.clone(),
-                            to_address: royalty.royalty_owner,
+                            to_address: royalty.creator,
                             amount: coins(provider_amount.u128(), &denom),
                         }
                         .into(),
@@ -261,14 +261,6 @@ pub fn handle_ask_auction(
                 contract: info.sender.clone(),
                 token_id: rcv_msg.token_id.clone(),
             }),
-            // governance.clone(),
-            // &get_auction_query_msg(
-            //     AUCTION_STORAGE,
-            //     AuctionQueryMsg::GetAuctionByContractTokenId {
-            //         contract: info.sender.clone(),
-            //         token_id: rcv_msg.token_id.clone(),
-            //     },
-            // )?,
         )
         .ok();
 
@@ -424,7 +416,9 @@ pub fn try_cancel_bid(
             });
         }
     }
-    Err(ContractError::Unauthorized {})
+    Err(ContractError::Unauthorized {
+        sender: info.sender.to_string(),
+    })
 }
 
 pub fn try_emergency_cancel_auction(
@@ -453,7 +447,9 @@ pub fn try_emergency_cancel_auction(
     let asker_addr = deps.api.human_address(&off.asker)?;
 
     if info.sender.to_string().ne(&creator) {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
     }
 
     // transfer token back to original owner

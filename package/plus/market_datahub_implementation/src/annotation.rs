@@ -30,11 +30,13 @@ pub fn try_approve_annotation(
 
     // check authorization
     if off.requester.ne(&info.sender) && creator.ne(&info.sender.to_string()) {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
     }
 
     // check if annotator is in the list
-    if !off.annotators.contains(&annotator) {
+    if !off.annotators.contains(&annotator) && off.requester.eq(&info.sender) {
         return Err(ContractError::InvalidAnnotator {});
     }
 
@@ -52,7 +54,7 @@ pub fn try_approve_annotation(
             cosmos_msgs.push(
                 BankMsg::Send {
                     from_address: env.contract.address.clone(),
-                    to_address: HumanAddr::from(creator),
+                    to_address: HumanAddr::from(creator.clone()),
                     amount: coins(fee_amount.u128(), &denom),
                 }
                 .into(),
@@ -60,16 +62,35 @@ pub fn try_approve_annotation(
         }
     }
 
-    // pay the annotator
-    if requester_amount.gt(&Uint128::from(0u128)) {
-        cosmos_msgs.push(
-            BankMsg::Send {
-                from_address: env.contract.address.clone(),
-                to_address: annotator,
-                amount: coins(requester_amount.u128(), &denom),
+    if !requester_amount.is_zero() {
+        // if requester invokes => pay the annotator
+        if off.requester.eq(&info.sender) {
+            // pay the annotator
+            cosmos_msgs.push(
+                BankMsg::Send {
+                    from_address: env.contract.address.clone(),
+                    to_address: annotator,
+                    amount: coins(requester_amount.u128(), &denom),
+                }
+                .into(),
+            );
+        } else if creator.eq(&info.sender.to_string()) {
+            // otherwise, creator will split the rewards
+            let mean_amount = requester_amount
+                .multiply_ratio(Uint128::from(1u64).u128(), off.annotators.len() as u128);
+            if !mean_amount.is_zero() {
+                for ann in off.annotators {
+                    cosmos_msgs.push(
+                        BankMsg::Send {
+                            from_address: env.contract.address.clone(),
+                            to_address: ann,
+                            amount: coins(mean_amount.u128(), &denom),
+                        }
+                        .into(),
+                    );
+                }
             }
-            .into(),
-        );
+        }
     }
 
     // create transfer cw721 msg to transfer the nft back to the requester
@@ -221,7 +242,9 @@ pub fn try_update_annotation_annotators(
             data: None,
         });
     }
-    Err(ContractError::Unauthorized {})
+    Err(ContractError::Unauthorized {
+        sender: info.sender.to_string(),
+    })
 }
 
 pub fn try_withdraw(
@@ -297,7 +320,9 @@ pub fn try_withdraw(
             data: None,
         });
     }
-    Err(ContractError::Unauthorized {})
+    Err(ContractError::Unauthorized {
+        sender: info.sender.to_string(),
+    })
 }
 
 pub fn handle_request_annotation(
@@ -377,6 +402,6 @@ pub fn get_annotation(deps: Deps, annotation_id: u64) -> Result<Annotation, Cont
     Ok(annotation)
 }
 
-fn calculate_annotation_price(per_price: Uint128, amount: Uint128) -> Uint128 {
+pub fn calculate_annotation_price(per_price: Uint128, amount: Uint128) -> Uint128 {
     return per_price.mul(Decimal::from_ratio(amount.u128(), 1u128));
 }

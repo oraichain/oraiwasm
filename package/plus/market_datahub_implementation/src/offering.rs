@@ -35,7 +35,7 @@ pub fn add_msg_royalty(
         AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
             contract_addr: msg.contract_addr,
             token_id: msg.token_id,
-            royalty_owner: HumanAddr(sender.to_string()),
+            creator: HumanAddr(sender.to_string()),
         }),
     )?);
     Ok(cosmos_msgs)
@@ -60,7 +60,7 @@ pub fn try_handle_mint(
         RoyaltyMsg {
             contract_addr: msg.contract_addr,
             token_id: msg.mint.mint.token_id,
-            royalty_owner: msg.royalty_owner,
+            creator: msg.creator,
         },
     )?;
     cosmos_msgs.push(mint_msg);
@@ -134,7 +134,7 @@ pub fn try_buy(
                         cosmos_msgs.push(
                             BankMsg::Send {
                                 from_address: env.contract.address.clone(),
-                                to_address: royalty.royalty_owner,
+                                to_address: royalty.creator,
                                 amount: coins(creator_amount.u128(), &contract_info.denom),
                             }
                             .into(),
@@ -247,7 +247,9 @@ pub fn try_withdraw(
             data: None,
         });
     }
-    Err(ContractError::Unauthorized {})
+    Err(ContractError::Unauthorized {
+        sender: info.sender.to_string(),
+    })
 }
 
 pub fn handle_sell_nft(

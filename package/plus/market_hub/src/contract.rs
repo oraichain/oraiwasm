@@ -71,7 +71,9 @@ pub fn handle_update_implementation(
     implementation: HumanAddr,
 ) -> Result<HandleResponse, ContractError> {
     if !can_execute(deps.as_ref(), &info.sender)? {
-        Err(ContractError::Unauthorized {})
+        Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        })
     } else {
         registry(deps.storage).update(|mut data| -> StdResult<_> {
             data.implementations.push(implementation.clone());
@@ -93,7 +95,9 @@ pub fn handle_remove_implementation(
     implementation: HumanAddr,
 ) -> Result<HandleResponse, ContractError> {
     if !can_execute(deps.as_ref(), &info.sender)? {
-        Err(ContractError::Unauthorized {})
+        Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        })
     } else {
         registry(deps.storage).update(|mut data| -> StdResult<_> {
             let index_of = data
@@ -122,7 +126,9 @@ pub fn handle_update_storages(
     storages: Vec<(String, HumanAddr)>,
 ) -> Result<HandleResponse, ContractError> {
     if !can_execute(deps.as_ref(), &info.sender)? {
-        Err(ContractError::Unauthorized {})
+        Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        })
     } else {
         let mut data = registry_read(deps.storage).load()?;
         for (item_key, addr) in &storages {
@@ -158,7 +164,9 @@ pub fn handle_update_storage_data(
     // can_update = admin_list.admins.iter().any(|f| f.eq(&sender_canonical));
 
     if !can_update {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
     }
 
     let storage_addr = get_storage_addr(&registry_obj, &name)?;
@@ -185,7 +193,9 @@ pub fn handle_freeze(
 ) -> Result<HandleResponse, ContractError> {
     let mut cfg = admin_list_read(deps.storage).load()?;
     if !cfg.can_modify(&deps.api.canonical_address(&info.sender)?) {
-        Err(ContractError::Unauthorized {})
+        Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        })
     } else {
         cfg.mutable = false;
         admin_list(deps.storage).save(&cfg)?;
@@ -204,7 +214,9 @@ pub fn handle_update_admins(
 ) -> Result<HandleResponse, ContractError> {
     let mut cfg = admin_list_read(deps.storage).load()?;
     if !cfg.can_modify(&deps.api.canonical_address(&info.sender)?) {
-        Err(ContractError::Unauthorized {})
+        Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        })
     } else {
         cfg.admins = map_canonical(deps.api, &admins)?;
         admin_list(deps.storage).save(&cfg)?;

@@ -28,7 +28,7 @@ const AI_ROYALTY_ADDR: &str = "ai_royalty_addr";
 const CONTRACT_NAME: &str = "Auction Marketplace";
 const DENOM: &str = "orai";
 pub const AUCTION_STORAGE: &str = "auction";
-pub const OFFERING_STORAGE: &str = "offering";
+pub const OFFERING_STORAGE: &str = "offering_v1.1";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 
 static mut _DATA: *const DepsManager = 0 as *const DepsManager;
@@ -581,7 +581,7 @@ fn cancel_bid_unhappy_path() {
         let hacker_info = mock_info("hacker", &coins(2, DENOM));
         let cancel_bid_msg = HandleMsg::CancelBid { auction_id: 1 };
         match manager.handle(hacker_info, cancel_bid_msg).unwrap_err() {
-            ContractError::Unauthorized {} => {}
+            ContractError::Unauthorized { .. } => {}
             ContractError::InvalidBidder { bidder, sender } => {
                 println!("sender :{}, bidder: {}", sender, bidder)
             }
@@ -710,7 +710,7 @@ fn test_royalties() {
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from("offering"),
-            royalty_owner: HumanAddr::from("provider"),
+            creator: HumanAddr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     token_id: String::from("SellableNFT"),
@@ -867,7 +867,7 @@ fn test_royalties() {
 
         // increment royalty to total payment
         for royalty in royalties {
-            let index = to_addrs.iter().position(|op| op.eq(&royalty.royalty_owner));
+            let index = to_addrs.iter().position(|op| op.eq(&royalty.creator));
             if let Some(index) = index {
                 let amount = amounts[index];
                 assert_eq!(
@@ -936,11 +936,13 @@ fn withdraw_offering() {
 
         assert!(matches!(
             manager.handle(withdraw_info_unauthorized, withdraw_msg.clone()),
-            Err(ContractError::Unauthorized {})
+            Err(ContractError::Unauthorized { .. })
         ));
 
         // happy path
-        let _res = manager.handle(withdraw_info, withdraw_msg).unwrap();
+        let _res = manager
+            .handle(mock_info(CREATOR, &coins(2, DENOM)), withdraw_msg)
+            .unwrap();
 
         // Offering should be removed
         let res2: OfferingsResponse = from_binary(

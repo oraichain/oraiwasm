@@ -8,14 +8,14 @@ use serde::{Deserialize, Serialize};
 pub struct RoyaltyMsg {
     pub contract_addr: HumanAddr,
     pub token_id: String,
-    pub royalty_owner: HumanAddr,
+    pub creator: HumanAddr,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Royalty {
     pub contract_addr: HumanAddr,
     pub token_id: String,
-    pub royalty_owner: HumanAddr,
+    pub creator: HumanAddr,
     pub royalty: u64,
 }
 
@@ -23,7 +23,7 @@ pub struct Royalty {
 #[serde(rename_all = "snake_case")]
 pub struct MintMsg {
     pub contract_addr: HumanAddr,
-    pub royalty_owner: HumanAddr,
+    pub creator: HumanAddr,
     pub mint: MintIntermediate,
 }
 

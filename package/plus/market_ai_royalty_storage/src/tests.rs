@@ -37,7 +37,7 @@ fn update_ai_royalty() {
     for i in 1u64..3u64 {
         let royalty = RoyaltyMsg {
             contract_addr: HumanAddr::from("xxx"),
-            royalty_owner: HumanAddr::from(format!("provider{}", i)),
+            creator: HumanAddr::from(format!("provider{}", i)),
             token_id: i.to_string(),
         };
         royalties.push(royalty);
@@ -54,7 +54,7 @@ fn update_ai_royalty() {
                 royalties.iter().last().unwrap().to_owned()
             ))
         ),
-        Err(ContractError::Unauthorized {})
+        Err(ContractError::Unauthorized { .. })
     ));
 
     for royalty in royalties {
@@ -70,7 +70,7 @@ fn update_ai_royalty() {
             QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr: HumanAddr::from("xxx"),
                 token_id: i.to_string(),
-                royalty_owner: HumanAddr::from(format!("provider{}", i)),
+                creator: HumanAddr::from(format!("provider{}", i)),
             }),
         )
         .unwrap();
@@ -94,7 +94,7 @@ fn query_royalties() {
     for i in 1u64..3u64 {
         let royalty = RoyaltyMsg {
             contract_addr: HumanAddr::from("xxx"),
-            royalty_owner: HumanAddr::from(format!("provider{}", i)),
+            creator: HumanAddr::from(format!("provider{}", i)),
             token_id: "1".to_string(),
         };
         royalties.push(royalty);
@@ -109,7 +109,7 @@ fn query_royalties() {
     let mut query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalty {
         contract_addr: HumanAddr::from("xxx"),
         token_id: "1".to_string(),
-        royalty_owner: HumanAddr::from(format!("provider{}", 2)),
+        creator: HumanAddr::from(format!("provider{}", 2)),
     });
     let result: Royalty =
         from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
@@ -158,7 +158,7 @@ fn remove_ai_royalty() {
     for i in 1u64..3u64 {
         let royalty = RoyaltyMsg {
             contract_addr: HumanAddr::from("xxx"),
-            royalty_owner: HumanAddr::from(format!("provider{}", i)),
+            creator: HumanAddr::from(format!("provider{}", i)),
             token_id: i.to_string(),
         };
         royalties.push(royalty);
@@ -175,7 +175,7 @@ fn remove_ai_royalty() {
                 royalties.iter().last().unwrap().to_owned()
             ))
         ),
-        Err(ContractError::Unauthorized {})
+        Err(ContractError::Unauthorized { .. })
     ));
 
     for royalty in royalties {
@@ -191,7 +191,7 @@ fn remove_ai_royalty() {
             QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr: HumanAddr::from("xxx"),
                 token_id: i.to_string(),
-                royalty_owner: HumanAddr::from(format!("provider{}", i)),
+                creator: HumanAddr::from(format!("provider{}", i)),
             }),
         );
         let _err: Result<u64, StdError> = Err(cosmwasm_std::StdError::NotFound {

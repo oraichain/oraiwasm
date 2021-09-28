@@ -15,7 +15,7 @@ use market_ai_royalty::{
 use market_royalty::{Offering, OfferingHandleMsg, OfferingQueryMsg, QueryOfferingsResult};
 use std::ops::{Mul, Sub};
 
-pub const OFFERING_STORAGE: &str = "offering";
+pub const OFFERING_STORAGE: &str = "offering_v1.1";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 
 pub fn add_msg_royalty(
@@ -38,7 +38,7 @@ pub fn add_msg_royalty(
         AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
             contract_addr: msg.contract_addr,
             token_id: msg.token_id,
-            royalty_owner: HumanAddr(sender.to_string()),
+            creator: HumanAddr(sender.to_string()),
         }),
     )?);
     Ok(cosmos_msgs)
@@ -63,7 +63,7 @@ pub fn try_handle_mint(
         RoyaltyMsg {
             contract_addr: msg.contract_addr,
             token_id: msg.mint.mint.token_id,
-            royalty_owner: msg.royalty_owner,
+            creator: msg.creator,
         },
     )?;
 
@@ -134,7 +134,7 @@ pub fn try_buy(
                         cosmos_msgs.push(
                             BankMsg::Send {
                                 from_address: env.contract.address.clone(),
-                                to_address: royalty.royalty_owner,
+                                to_address: royalty.creator,
                                 amount: coins(provider_amount.u128(), &contract_info.denom),
                             }
                             .into(),
@@ -222,43 +222,45 @@ pub fn try_withdraw(
     // check if token_id is currently sold by the requesting address
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
     let off: Offering = get_offering(deps.as_ref(), offering_id)?;
-    if info.sender.eq(&HumanAddr(creator))
-        || off.seller == deps.api.canonical_address(&info.sender)?
+    if info.sender.ne(&HumanAddr(creator.clone()))
+        && off.seller.ne(&deps.api.canonical_address(&info.sender)?)
     {
-        // check if token_id is currently sold by the requesting address
-        // transfer token back to original owner
-        let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
-            recipient: deps.api.human_address(&off.seller)?,
-            token_id: off.token_id.clone(),
-        };
-
-        let exec_cw721_transfer = WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&off.contract_addr)?,
-            msg: to_binary(&transfer_cw721_msg)?,
-            send: vec![],
-        };
-
-        let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![exec_cw721_transfer.into()];
-
-        // remove offering
-        cw721_transfer_cosmos_msg.push(get_offering_handle_msg(
-            governance,
-            OFFERING_STORAGE,
-            OfferingHandleMsg::RemoveOffering { id: offering_id },
-        )?);
-
-        return Ok(HandleResponse {
-            messages: cw721_transfer_cosmos_msg,
-            attributes: vec![
-                attr("action", "withdraw_nft"),
-                attr("seller", info.sender),
-                attr("offering_id", offering_id),
-                attr("token_id", off.token_id),
-            ],
-            data: None,
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
         });
     }
-    Err(ContractError::Unauthorized {})
+    // check if token_id is currently sold by the requesting address
+    // transfer token back to original owner
+    let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+        recipient: deps.api.human_address(&off.seller)?,
+        token_id: off.token_id.clone(),
+    };
+
+    let exec_cw721_transfer = WasmMsg::Execute {
+        contract_addr: deps.api.human_address(&off.contract_addr)?,
+        msg: to_binary(&transfer_cw721_msg)?,
+        send: vec![],
+    };
+
+    let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![exec_cw721_transfer.into()];
+
+    // remove offering
+    cw721_transfer_cosmos_msg.push(get_offering_handle_msg(
+        governance,
+        OFFERING_STORAGE,
+        OfferingHandleMsg::RemoveOffering { id: offering_id },
+    )?);
+
+    Ok(HandleResponse {
+        messages: cw721_transfer_cosmos_msg,
+        attributes: vec![
+            attr("action", "withdraw_nft"),
+            attr("seller", info.sender),
+            attr("offering_id", offering_id),
+            attr("token_id", off.token_id),
+        ],
+        data: None,
+    })
 }
 
 pub fn handle_sell_nft(

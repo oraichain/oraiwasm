@@ -6,6 +6,6 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Unauthorized")]
-    Unauthorized {},
+    #[error("Unauthorized market hub with sender: {sender}")]
+    Unauthorized { sender: String },
 }

@@ -143,7 +143,9 @@ pub fn try_update_info(
     let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
         // Unauthorized
         if !info.sender.to_string().eq(&contract_info.creator) {
-            return Err(ContractError::Unauthorized {});
+            return Err(ContractError::Unauthorized {
+                sender: info.sender.to_string(),
+            });
         }
         if let Some(name) = msg.name {
             contract_info.name = name;

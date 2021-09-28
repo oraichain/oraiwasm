@@ -6,6 +6,6 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
-    #[error("Unauthorized")]
-    Unauthorized {},
+    #[error("Unauthorized auction storage with sender: {sender}")]
+    Unauthorized { sender: String },
 }

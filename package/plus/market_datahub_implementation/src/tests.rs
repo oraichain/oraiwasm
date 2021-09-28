@@ -1,4 +1,4 @@
-use crate::annotation::get_annotation;
+use crate::annotation::{calculate_annotation_price, get_annotation};
 use crate::contract::{handle, init, query};
 use crate::error::ContractError;
 use crate::msg::*;
@@ -289,7 +289,7 @@ fn test_royalties() {
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from("offering"),
-            royalty_owner: HumanAddr::from("provider"),
+            creator: HumanAddr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     token_id: String::from("SellableNFT"),
@@ -430,7 +430,7 @@ fn test_royalties() {
 
         // increment royalty to total payment
         for royalty in royalties {
-            let index = to_addrs.iter().position(|op| op.eq(&royalty.royalty_owner));
+            let index = to_addrs.iter().position(|op| op.eq(&royalty.creator));
             if let Some(index) = index {
                 let amount = amounts[index];
                 assert_eq!(price.mul(Decimal::percent(royalty.royalty)), amount);
@@ -493,7 +493,7 @@ fn withdraw_offering() {
         // unhappy path unauthorized
         assert!(matches!(
             manager.handle(withdraw_info_unauthorized, withdraw_msg.clone()),
-            Err(ContractError::Unauthorized {})
+            Err(ContractError::Unauthorized { .. })
         ));
 
         // happy path
@@ -836,7 +836,7 @@ fn test_submit_annotations() {
 }
 
 #[test]
-fn test_approve_annotations() {
+fn test_approve_annotations_requester() {
     unsafe {
         let manager = DepsManager::get_new();
 
@@ -872,7 +872,7 @@ fn test_approve_annotations() {
                 mock_info("not-requester", &coins(100, "Something else")),
                 approve_msg.clone(),
             ),
-            Err(ContractError::Unauthorized {})
+            Err(ContractError::Unauthorized { .. })
         ));
 
         // invalid annotator case
@@ -932,5 +932,104 @@ fn test_approve_annotations() {
                 }
             }
         }
+    }
+}
+
+#[test]
+fn test_approve_annotations_creator() {
+    unsafe {
+        let manager = DepsManager::get_new();
+
+        // beneficiary can release it
+        let info = mock_info("datahub", &coins(900, DENOM));
+        let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
+            operator: "requester".to_string(),
+            token_id: String::from("SellableNFT"),
+            from: None,
+            amount: Uint128::from(3u64),
+            msg: to_binary(&RequestAnnotate {
+                per_price_annotation: Uint128(7),
+                expired_block: None,
+            })
+            .unwrap(),
+        });
+        manager.handle(info.clone(), msg.clone()).unwrap();
+
+        // submit many annotations
+        for i in 1..9 {
+            let submit_info = mock_info(format!("annotator{}", i), &coins(900, DENOM));
+            let submit_msg = HandleMsg::SubmitAnnotation { annotation_id: 1 };
+            manager.handle(submit_info, submit_msg).unwrap();
+        }
+
+        // approve annotation cases
+        let approve_msg = HandleMsg::ApproveAnnotation {
+            annotation_id: 1,
+            annotator: HumanAddr::from("annotator"),
+        };
+
+        // unauthorized case not requester nor creator
+        assert!(matches!(
+            manager.handle(
+                mock_info("not-requester", &coins(100, "Something else")),
+                approve_msg.clone(),
+            ),
+            Err(ContractError::Unauthorized { .. })
+        ));
+
+        let annotation: Annotation = from_binary(
+            &manager
+                .query(QueryMsg::DataHub(DataHubQueryMsg::GetAnnotation {
+                    annotation_id: 1,
+                }))
+                .unwrap(),
+        )
+        .unwrap();
+
+        // valid case
+        let results = manager
+            .handle(
+                mock_info(CREATOR, &coins(100, "Something else")),
+                HandleMsg::ApproveAnnotation {
+                    annotation_id: 1,
+                    annotator: HumanAddr::from("annotator"),
+                },
+            )
+            .unwrap();
+        let requester_amount = calculate_annotation_price(annotation.per_price, annotation.amount);
+        println!("requester amount: {:?}", requester_amount);
+        let mean_amount = requester_amount.multiply_ratio(
+            Uint128::from(1u64).u128(),
+            annotation.annotators.len() as u128,
+        );
+        println!("mean amount: {:?}", mean_amount);
+        let final_payment = mean_amount.multiply_ratio(
+            annotation.annotators.len() as u128,
+            Uint128::from(1u64).u128(),
+        );
+        println!("final payment: {:?}", final_payment);
+        let mut real_payment = Uint128::from(0u64);
+
+        for result in results {
+            for message in result.clone().messages {
+                if let CosmosMsg::Bank(msg) = message {
+                    match msg {
+                        cosmwasm_std::BankMsg::Send {
+                            from_address,
+                            to_address,
+                            amount,
+                        } => {
+                            println!("from address: {}", from_address);
+                            println!("to address: {}", to_address);
+                            println!("amount: {:?}", amount);
+                            let amount = amount[0].amount;
+                            // check royalty sent to seller
+                            real_payment = real_payment + amount;
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(real_payment, final_payment);
     }
 }

@@ -134,7 +134,9 @@ pub fn try_update_offering(
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     if contract_info.governance.ne(&info.sender) {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
     };
     // if no id then create new one as insert
     if offering.id.is_none() {
@@ -161,7 +163,9 @@ pub fn try_withdraw_offering(
 ) -> Result<HandleResponse, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if contract_info.governance.ne(&info.sender) {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
     }
 
     // remove offering
@@ -184,7 +188,9 @@ pub fn try_update_annotation(
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     if contract_info.governance.ne(&info.sender) {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
     };
     // if no id then create new one as insert
     if annotation.id.is_none() {
@@ -214,7 +220,9 @@ pub fn try_withdraw_annotation(
 ) -> Result<HandleResponse, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if contract_info.governance.ne(&info.sender) {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
     }
 
     // remove offering

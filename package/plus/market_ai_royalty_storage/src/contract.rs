@@ -65,13 +65,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr,
                 token_id,
-                royalty_owner,
-            } => to_binary(&query_royalty(
-                deps,
-                contract_addr,
-                token_id,
-                royalty_owner,
-            )?),
+                creator,
+            } => to_binary(&query_royalty(deps, contract_addr, token_id, creator)?),
             AiRoyaltyQueryMsg::GetRoyalties {
                 offset,
                 limit,
@@ -90,7 +85,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 offset,
                 limit,
                 order,
-            } => to_binary(&query_royalties_by_royalty_owner(
+            } => to_binary(&query_royalties_by_creator(
                 deps, owner, offset, limit, order,
             )?),
             AiRoyaltyQueryMsg::GetRoyaltiesContract {
@@ -136,14 +131,16 @@ pub fn try_update_royalty(
     // must check the sender is implementation contract
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
-    // QUESTION: should we let ai.royalty_owner edit royalty for a token id?
-    if contract_info.governance.ne(&info.sender) && royalty.royalty_owner.ne(&info.sender) {
-        return Err(ContractError::Unauthorized {});
+    // QUESTION: should we let ai.creator edit royalty for a token id?
+    if contract_info.governance.ne(&info.sender) && royalty.creator.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
     };
 
     // collect royalty preference, default is 0 if does not specify
     let preference_royalty = PREFERENCES
-        .load(deps.storage, royalty.royalty_owner.as_bytes())
+        .load(deps.storage, royalty.creator.as_bytes())
         .unwrap_or(DEFAULT_ROYALTY_PERCENT);
 
     royalties_map().save(
@@ -151,12 +148,12 @@ pub fn try_update_royalty(
         &get_key_royalty(
             royalty.contract_addr.as_bytes(),
             royalty.token_id.as_bytes(),
-            royalty.royalty_owner.as_bytes(),
+            royalty.creator.as_bytes(),
         ),
         &Royalty {
             contract_addr: royalty.contract_addr,
             token_id: royalty.token_id,
-            royalty_owner: royalty.royalty_owner,
+            creator: royalty.creator,
             royalty: preference_royalty,
         },
     )?;
@@ -176,14 +173,16 @@ pub fn try_remove_royalty(
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     if contract_info.governance.ne(&info.sender) {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
     };
     royalties_map().remove(
         deps.storage,
         &get_key_royalty(
             royalty.contract_addr.as_bytes(),
             royalty.token_id.as_bytes(),
-            royalty.royalty_owner.as_bytes(),
+            royalty.creator.as_bytes(),
         ),
     )?;
 
@@ -201,14 +200,14 @@ pub fn query_royalty(
     deps: Deps,
     contract_addr: HumanAddr,
     token_id: String,
-    royalty_owner: HumanAddr,
+    creator: HumanAddr,
 ) -> StdResult<Royalty> {
     if let Some(kv_item) = royalties_map()
         .idx
         .unique_royalty
         .item(
             deps.storage,
-            get_unique_royalty(&contract_addr, &token_id, &royalty_owner),
+            get_unique_royalty(&contract_addr, &token_id, &creator),
         )
         .transpose()
     {
@@ -280,9 +279,9 @@ pub fn query_royalties_by_token_id(
     Ok(royalties?)
 }
 
-pub fn query_royalties_by_royalty_owner(
+pub fn query_royalties_by_creator(
     deps: Deps,
-    royalty_owner: HumanAddr,
+    creator: HumanAddr,
     offset: Option<u64>,
     limit: Option<u8>,
     order: Option<u8>,
@@ -290,8 +289,8 @@ pub fn query_royalties_by_royalty_owner(
     let (limit, min, max, order) = _get_range_params(limit, offset, order);
     let royalties: StdResult<Vec<Royalty>> = royalties_map()
         .idx
-        .royalty_owner
-        .items(deps.storage, royalty_owner.as_bytes(), min, max, order)
+        .creator
+        .items(deps.storage, creator.as_bytes(), min, max, order)
         .take(limit)
         .map(|kv_item| parse_royalty(kv_item))
         .collect();
@@ -301,7 +300,7 @@ pub fn query_royalties_by_royalty_owner(
 
 pub fn query_royalties_map_by_contract(
     deps: Deps,
-    royalty_owner: HumanAddr,
+    creator: HumanAddr,
     offset: Option<u64>,
     limit: Option<u8>,
     order: Option<u8>,
@@ -310,7 +309,7 @@ pub fn query_royalties_map_by_contract(
     let royalties: StdResult<Vec<Royalty>> = royalties_map()
         .idx
         .contract_addr
-        .items(deps.storage, royalty_owner.as_bytes(), min, max, order)
+        .items(deps.storage, creator.as_bytes(), min, max, order)
         .take(limit)
         .map(|kv_item| parse_royalty(kv_item))
         .collect();

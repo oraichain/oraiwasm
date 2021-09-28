@@ -63,7 +63,9 @@ pub fn try_update_auction(
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     if contract_info.governance.ne(&info.sender) {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
     }
 
     // if no id then create new one as insert
@@ -94,7 +96,9 @@ pub fn try_remove_auction(
 ) -> Result<HandleResponse, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if contract_info.governance.ne(&info.sender) {
-        return Err(ContractError::Unauthorized {});
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
     }
 
     auctions().remove(deps.storage, &id.to_be_bytes())?;
