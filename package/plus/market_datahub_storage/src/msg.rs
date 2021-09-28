@@ -2,7 +2,7 @@ use cosmwasm_std::HumanAddr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use market_1155::{DataHubHandleMsg, DataHubQueryMsg};
+use market_datahub::{DataHubHandleMsg, DataHubQueryMsg};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {

@@ -4,7 +4,7 @@ use crate::state::{
     annotations, get_contract_token_id, increment_annotations, increment_offerings, offerings,
     ContractInfo, CONTRACT_INFO,
 };
-use market_1155::{Annotation, DataHubHandleMsg, DataHubQueryMsg, Offering};
+use market_datahub::{Annotation, DataHubHandleMsg, DataHubQueryMsg, Offering};
 
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order,

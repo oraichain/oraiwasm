@@ -720,6 +720,7 @@ fn test_royalties() {
                     image: String::from("baxv"),
                 },
             },
+            creator_type: String::from("sacx"),
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();

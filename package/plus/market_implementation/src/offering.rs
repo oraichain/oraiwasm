@@ -1,4 +1,4 @@
-use crate::contract::{get_handle_msg, get_storage_addr};
+use crate::contract::{get_handle_msg, get_storage_addr, CREATOR_NAME};
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg, SellNft};
 use crate::state::{ContractInfo, CONTRACT_INFO};
@@ -39,6 +39,7 @@ pub fn add_msg_royalty(
             contract_addr: msg.contract_addr,
             token_id: msg.token_id,
             creator: HumanAddr(sender.to_string()),
+            creator_type: String::from(CREATOR_NAME),
         }),
     )?);
     Ok(cosmos_msgs)
@@ -64,6 +65,7 @@ pub fn try_handle_mint(
             contract_addr: msg.contract_addr,
             token_id: msg.mint.mint.token_id,
             creator: msg.creator,
+            creator_type: msg.creator_type,
         },
     )?;
 

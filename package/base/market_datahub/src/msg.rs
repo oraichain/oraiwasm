@@ -28,6 +28,29 @@ pub struct Annotation {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+pub struct MintMsg {
+    pub contract_addr: HumanAddr,
+    pub creator: HumanAddr,
+    pub creator_type: String,
+    pub mint: MintIntermediate,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct MintIntermediate {
+    pub mint: MintStruct,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct MintStruct {
+    pub to: String,
+    pub token_id: String,
+    pub value: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub enum DataHubHandleMsg {
     // this allow implementation contract to update the storage
     UpdateOffering { offering: Offering },

@@ -2,6 +2,7 @@ use std::ops::Mul;
 
 use crate::contract::*;
 use crate::msg::*;
+use crate::state::ContractInfo;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
@@ -157,4 +158,38 @@ fn withdraw_offering() {
     let value: OfferingsResponse = from_binary(&res).unwrap();
     println!("value: {:?}", value);
     assert_eq!(value.offerings.len(), 1);
+}
+
+#[test]
+fn update_info_test() {
+    let mut deps = setup_contract();
+
+    // update contract to set fees
+    let update_info = UpdateContractMsg {
+        governance: Some(HumanAddr::from("asvx")),
+        creator: None,
+    };
+    let update_info_msg = HandleMsg::UpdateInfo(update_info);
+
+    // random account cannot update info, only creator
+    let info_unauthorized = mock_info("anyone", &vec![coin(5, DENOM)]);
+
+    let mut response = handle(
+        deps.as_mut(),
+        mock_env(),
+        info_unauthorized.clone(),
+        update_info_msg.clone(),
+    );
+    assert_eq!(response.is_err(), true);
+    println!("{:?}", response.expect_err("msg"));
+
+    // now we can update the info using creator
+    let info = mock_info(CREATOR, &[]);
+    response = handle(deps.as_mut(), mock_env(), info, update_info_msg.clone());
+    assert_eq!(response.is_err(), false);
+
+    let query_info = QueryMsg::GetContractInfo {};
+    let res_info: ContractInfo =
+        from_binary(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
+    assert_eq!(res_info.governance.as_str(), HumanAddr::from("asvx"));
 }

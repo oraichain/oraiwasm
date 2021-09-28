@@ -8,6 +8,7 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, PkOwn
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
     pub governance: HumanAddr,
+    pub creator: HumanAddr,
 }
 
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("marketplace_info");

@@ -1,4 +1,4 @@
-use market_1155::{Annotation, Offering};
+use market_datahub::{Annotation, Offering};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

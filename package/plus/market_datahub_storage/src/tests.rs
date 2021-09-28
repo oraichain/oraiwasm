@@ -8,10 +8,10 @@ use cosmwasm_std::testing::{
 use cosmwasm_std::Decimal;
 use cosmwasm_std::{coin, coins, from_binary, HumanAddr, Order, OwnedDeps, Uint128};
 
-use market_1155::Annotation;
-use market_1155::DataHubHandleMsg;
-use market_1155::DataHubQueryMsg;
-use market_1155::Offering;
+use market_datahub::Annotation;
+use market_datahub::DataHubHandleMsg;
+use market_datahub::DataHubQueryMsg;
+use market_datahub::Offering;
 
 const CREATOR: &str = "marketplace";
 const DENOM: &str = "MGK";

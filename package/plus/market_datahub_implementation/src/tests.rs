@@ -11,8 +11,10 @@ use cosmwasm_std::{
 };
 use cw1155::Cw1155ReceiveMsg;
 use market::mock::{mock_dependencies, mock_env, MockQuerier};
-use market_1155::{Annotation, DataHubQueryMsg, Offering};
-use market_ai_royalty::{AiRoyaltyQueryMsg, MintIntermediate, MintMsg, MintStruct, Royalty};
+use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
+use market_datahub::{
+    Annotation, DataHubQueryMsg, MintIntermediate, MintMsg, MintStruct, Offering,
+};
 use std::mem::transmute;
 use std::ops::Mul;
 use std::ptr::null;
@@ -121,7 +123,6 @@ impl DepsManager {
             // creator can update storage contract
             governance: HumanAddr::from(HUB_ADDR),
             max_royalty: 20,
-            expired_block: 1,
         };
 
         let _res = init(deps.as_mut(), mock_env(MARKET_ADDR), info.clone(), msg).unwrap();
@@ -292,13 +293,12 @@ fn test_royalties() {
             creator: HumanAddr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
+                    to: String::from("provider"),
+                    value: Uint128::from(50u64),
                     token_id: String::from("SellableNFT"),
-                    owner: HumanAddr::from("provider"),
-                    name: String::from("asbv"),
-                    description: None,
-                    image: String::from("baxv"),
                 },
             },
+            creator_type: String::from("cxacx"),
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();

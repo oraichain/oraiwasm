@@ -10,7 +10,7 @@ use market_ai_royalty::{
     sanitize_royalty, AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg,
 };
 
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
 
 pub const MAX_ROYALTY_PERCENT: u64 = 50;
 pub const DEFAULT_ROYALTY_PERCENT: u64 = 10;
@@ -32,12 +32,13 @@ pub fn get_key_royalty<'a>(contract: &'a [u8], token_id: &'a [u8], creator: &'a 
 pub fn init(
     deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: InitMsg,
 ) -> Result<InitResponse, ContractError> {
     // first time deploy, it will not know about the implementation
     let info = ContractInfo {
         governance: msg.governance,
+        creator: info.sender,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -46,7 +47,7 @@ pub fn init(
 // And declare a custom Error variant for the ones where you will want to make use of it
 pub fn handle(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
@@ -56,6 +57,7 @@ pub fn handle(
             AiRoyaltyHandleMsg::RemoveRoyalty(royalty) => try_remove_royalty(deps, info, royalty),
         },
         HandleMsg::UpdatePreference(pref) => try_update_preference(deps, info, pref),
+        HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
 }
 
@@ -137,6 +139,18 @@ pub fn try_update_royalty(
             sender: info.sender.to_string(),
         });
     };
+    let royalty_data = query_royalty(
+        deps.as_ref(),
+        royalty.contract_addr.clone(),
+        royalty.token_id.clone(),
+        info.sender.clone(),
+    );
+    // if error then not found, if
+    if royalty_data.is_err() && royalty.creator.eq(&info.sender) {
+        return Err(ContractError::Forbidden {
+            sender: info.sender.to_string(),
+        });
+    }
 
     // collect royalty preference, default is 0 if does not specify
     let preference_royalty = PREFERENCES
@@ -155,6 +169,7 @@ pub fn try_update_royalty(
             token_id: royalty.token_id,
             creator: royalty.creator,
             royalty: preference_royalty,
+            creator_type: royalty.creator_type,
         },
     )?;
 
@@ -190,6 +205,35 @@ pub fn try_remove_royalty(
         attributes: vec![attr("action", "remove_ai_royalty")],
         ..HandleResponse::default()
     });
+}
+
+pub fn try_update_info(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    msg: UpdateContractMsg,
+) -> Result<HandleResponse, ContractError> {
+    let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
+        // Unauthorized
+        if !info.sender.eq(&contract_info.creator) {
+            return Err(ContractError::Unauthorized {
+                sender: info.sender.to_string(),
+            });
+        }
+        if let Some(governance) = msg.governance {
+            contract_info.governance = governance;
+        }
+        if let Some(creator) = msg.creator {
+            contract_info.creator = creator;
+        }
+        Ok(contract_info)
+    })?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![attr("action", "update_info")],
+        data: to_binary(&new_contract_info).ok(),
+    })
 }
 
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {

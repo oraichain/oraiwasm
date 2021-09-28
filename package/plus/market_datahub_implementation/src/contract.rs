@@ -20,8 +20,8 @@ use cosmwasm_std::{
 use cosmwasm_std::{HumanAddr, StdError};
 use cw1155::Cw1155ReceiveMsg;
 use market::{query_proxy, StorageHandleMsg, StorageQueryMsg};
-use market_1155::DataHubQueryMsg;
 use market_ai_royalty::{sanitize_royalty, AiRoyaltyQueryMsg};
+use market_datahub::DataHubQueryMsg;
 use schemars::JsonSchema;
 use serde::Serialize;
 
@@ -30,6 +30,7 @@ pub const MAX_FEE_PERMILLE: u64 = 100;
 pub const EXPIRED_BLOCK_RANGE: u64 = 50000;
 pub const DATAHUB_STORAGE: &str = "datahub_storage";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
+pub const CREATOR_NAME: &str = "creator";
 
 fn sanitize_fee(fee: u64, name: &str) -> Result<u64, ContractError> {
     if fee > MAX_FEE_PERMILLE {

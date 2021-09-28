@@ -8,7 +8,7 @@ use cosmwasm_std::{
     HandleResponse, MessageInfo, Uint128, WasmMsg,
 };
 use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
-use market_1155::{Annotation, DataHubHandleMsg, DataHubQueryMsg};
+use market_datahub::{Annotation, DataHubHandleMsg, DataHubQueryMsg};
 use std::ops::{Mul, Sub};
 
 pub fn try_approve_annotation(

@@ -3,7 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use market_1155::Offering;
+use market_datahub::Offering;
 use market_datahub_storage::msg::{HandleMsg, InitMsg, QueryMsg};
 use market_datahub_storage::state::ContractInfo;
 

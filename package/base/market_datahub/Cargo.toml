@@ -1,5 +1,5 @@
 [package]
-name = "market_1155"
+name = "market_datahub"
 version = "0.6.0"
 authors = ["ThanhTu <tu@orai.io>"]
 edition = "2018"

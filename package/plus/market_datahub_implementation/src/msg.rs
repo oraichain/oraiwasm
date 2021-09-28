@@ -3,8 +3,8 @@ use std::fmt;
 use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
 use cw1155::Cw1155ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
-use market_1155::DataHubQueryMsg;
-use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg};
+use market_ai_royalty::AiRoyaltyQueryMsg;
+use market_datahub::{DataHubQueryMsg, MintMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -14,7 +14,6 @@ pub struct InitMsg {
     pub denom: String,
     pub governance: HumanAddr,
     pub max_royalty: u64,
-    pub expired_block: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

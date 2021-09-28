@@ -1,6 +1,6 @@
 use crate::contract::{
     get_handle_msg, get_storage_addr, query_ai_royalty, query_datahub, AI_ROYALTY_STORAGE,
-    DATAHUB_STORAGE,
+    CREATOR_NAME, DATAHUB_STORAGE,
 };
 use crate::error::ContractError;
 use crate::msg::{ProxyQueryMsg, SellNft};
@@ -11,8 +11,8 @@ use cosmwasm_std::{
     HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
 use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
-use market_1155::{DataHubHandleMsg, DataHubQueryMsg, Offering};
-use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, MintMsg, Royalty, RoyaltyMsg};
+use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
+use market_datahub::{DataHubHandleMsg, DataHubQueryMsg, MintMsg, Offering};
 use std::ops::{Mul, Sub};
 
 pub fn add_msg_royalty(
@@ -36,6 +36,7 @@ pub fn add_msg_royalty(
             contract_addr: msg.contract_addr,
             token_id: msg.token_id,
             creator: HumanAddr(sender.to_string()),
+            creator_type: String::from(CREATOR_NAME),
         }),
     )?);
     Ok(cosmos_msgs)
@@ -61,6 +62,7 @@ pub fn try_handle_mint(
             contract_addr: msg.contract_addr,
             token_id: msg.mint.mint.token_id,
             creator: msg.creator,
+            creator_type: msg.creator_type,
         },
     )?;
     cosmos_msgs.push(mint_msg);

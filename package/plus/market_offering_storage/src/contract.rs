@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
     get_contract_token_id, increment_offerings, offerings, ContractInfo, CONTRACT_INFO,
 };
@@ -25,12 +25,13 @@ const DEFAULT_LIMIT: u8 = 20;
 pub fn init(
     deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
+    info: MessageInfo,
     msg: InitMsg,
 ) -> Result<InitResponse, ContractError> {
     // first time deploy, it will not know about the implementation
     let info = ContractInfo {
         governance: msg.governance,
+        creator: info.sender,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -50,6 +51,7 @@ pub fn handle(
             }
             OfferingHandleMsg::RemoveOffering { id } => try_withdraw_offering(deps, info, env, id),
         },
+        HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
 }
 
@@ -144,6 +146,35 @@ pub fn try_withdraw_offering(
         attributes: vec![attr("action", "remove_offering"), attr("offering_id", id)],
         data: None,
     });
+}
+
+pub fn try_update_info(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    msg: UpdateContractMsg,
+) -> Result<HandleResponse, ContractError> {
+    let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
+        // Unauthorized
+        if !info.sender.eq(&contract_info.creator) {
+            return Err(ContractError::Unauthorized {
+                sender: info.sender.to_string(),
+            });
+        }
+        if let Some(governance) = msg.governance {
+            contract_info.governance = governance;
+        }
+        if let Some(creator) = msg.creator {
+            contract_info.creator = creator;
+        }
+        Ok(contract_info)
+    })?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![attr("action", "update_info")],
+        data: to_binary(&new_contract_info).ok(),
+    })
 }
 
 // ============================== Query Handlers ==============================

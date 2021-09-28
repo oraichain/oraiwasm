@@ -9,6 +9,7 @@ use market_auction::Auction;
 pub struct ContractInfo {
     /// the contract that has permission to update the implementation
     pub governance: HumanAddr,
+    pub creator: HumanAddr,
 }
 
 pub const AUCTIONS_COUNT: Item<u64> = Item::new("num_auctions");
