@@ -1,13 +1,14 @@
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, Order, StdError, StdResult, Uint128, KV,
+    attr, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
+    HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, Uint128, KV,
 };
 use cw_storage_plus::Bound;
 
 use cw1155::{
     ApproveAllEvent, ApprovedForAllResponse, BalanceResponse, BatchBalanceResponse,
     Cw1155BatchReceiveMsg, Cw1155ExecuteMsg, Cw1155QueryMsg, Cw1155ReceiveMsg, Event, Expiration,
-    IsApprovedForAllResponse, TokenId, TokenInfoResponse, TokensResponse, TransferEvent,
+    IsApprovedForAllResponse, RequestAnnotate, TokenId, TokenInfoResponse, TokensResponse,
+    TransferEvent,
 };
 
 use crate::error::{ContractError, DivideByZeroError, OverflowError, OverflowOperation};
@@ -227,7 +228,7 @@ pub fn execute_send_from(
     let cosmos_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address.clone(),
         to_address: HumanAddr(to.clone()),
-        amount: info.sent_funds,
+        amount: info.sent_funds.clone(),
     }
     .into();
 
@@ -237,10 +238,29 @@ pub fn execute_send_from(
             from: Some(from),
             amount,
             token_id: token_id.clone(),
-            msg,
+            msg: msg.clone(),
         }
         .into_cosmos_msg(to)?];
-        rsp.messages.push(cosmos_msg);
+
+        let request_annotation_result: StdResult<RequestAnnotate> = from_binary(&msg);
+        // if the msg is request annotation then we check balance. If does not match info sent funds amount => error
+        if let Some(request_annotation_msg) = request_annotation_result.ok() {
+            for fund in info.sent_funds.clone() {
+                if fund.denom.eq(&request_annotation_msg.sent_funds.denom)
+                    && fund.amount.ge(&request_annotation_msg.sent_funds.amount)
+                {
+                    rsp.messages.push(cosmos_msg);
+                    break;
+                }
+            }
+            // error when there's no message pushed
+            if rsp.messages.len() == 1 {
+                return Err(ContractError::InvalidSentFunds {
+                    expected: format!("{:?}", request_annotation_msg.sent_funds),
+                    got: format!("{:?}", info.sent_funds),
+                });
+            }
+        }
     }
 
     Ok(rsp)

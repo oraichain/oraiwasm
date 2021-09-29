@@ -9,8 +9,7 @@ use crate::offering::{handle_sell_nft, try_buy, try_handle_mint, try_withdraw};
 
 use crate::error::ContractError;
 use crate::msg::{
-    HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, RequestAnnotate, SellNft,
-    UpdateContractMsg,
+    HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellNft, UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
@@ -18,7 +17,7 @@ use cosmwasm_std::{
     HandleResponse, InitResponse, MessageInfo, StdResult, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, StdError};
-use cw1155::Cw1155ReceiveMsg;
+use cw1155::{Cw1155ReceiveMsg, RequestAnnotate};
 use market::{query_proxy, StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::{sanitize_royalty, AiRoyaltyQueryMsg};
 use market_datahub::DataHubQueryMsg;

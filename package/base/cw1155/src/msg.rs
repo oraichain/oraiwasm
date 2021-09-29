@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Binary, Uint128};
+use cosmwasm_std::{Binary, Coin, Uint128};
 use cw0::Expiration;
 
 pub type TokenId = String;
@@ -69,4 +69,12 @@ pub enum Cw1155ExecuteMsg {
     RevokeAll {
         operator: String,
     },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct RequestAnnotate {
+    pub per_price_annotation: Uint128,
+    pub sent_funds: Coin,
+    pub expired_block: Option<u64>,
 }

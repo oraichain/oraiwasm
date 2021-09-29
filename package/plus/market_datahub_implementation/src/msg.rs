@@ -75,14 +75,6 @@ pub struct SellNft {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct RequestAnnotate {
-    pub per_price_annotation: Uint128,
-    pub sent_funds: Coin,
-    pub expired_block: Option<u64>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateContractMsg {
     pub name: Option<String>,
     pub creator: Option<String>,

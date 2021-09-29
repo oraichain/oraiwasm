@@ -1,13 +1,12 @@
 use crate::contract::{get_handle_msg, query_datahub, DATAHUB_STORAGE};
 use crate::error::ContractError;
-use crate::msg::RequestAnnotate;
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, MessageInfo, Uint128, WasmMsg,
 };
-use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
+use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg, RequestAnnotate};
 use market_datahub::{Annotation, DataHubHandleMsg, DataHubQueryMsg};
 use std::ops::{Mul, Sub};
 

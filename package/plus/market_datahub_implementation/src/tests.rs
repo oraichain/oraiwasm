@@ -9,7 +9,7 @@ use cosmwasm_std::{
     HandleResponse, HumanAddr, MessageInfo, OwnedDeps, QuerierResult, StdResult, SystemError,
     SystemResult, Uint128, WasmMsg, WasmQuery,
 };
-use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
+use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg, RequestAnnotate};
 use market::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_datahub::{
