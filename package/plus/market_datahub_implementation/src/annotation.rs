@@ -123,7 +123,6 @@ pub fn try_approve_annotation(
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "approve_annotation"),
-            attr("buyer", info.sender),
             attr("requester", requester_addr),
             attr("token_id", off.token_id),
             attr("annotation_id", annotation_id),
@@ -340,10 +339,10 @@ pub fn handle_request_annotation(
     } = CONTRACT_INFO.load(deps.storage)?;
     let mut deposited = false;
     // If requester have not deposited funds => an alert to annotators to not submit their work. Annotators will try to submit by adding their addresses to the list
-    if let Some(sent_fund) = info.sent_funds.iter().find(|fund| fund.denom.eq(&denom)) {
+    if msg.sent_funds.denom.eq(&denom) {
         // can only deposit 100% funds (for simplicity)
         let price = calculate_annotation_price(msg.per_price_annotation, rcv_msg.amount);
-        if sent_fund.amount.lt(&price) {
+        if msg.sent_funds.amount.lt(&price) {
             return Err(ContractError::InsufficientFunds {});
         }
         // cannot allow annotation price as 0 (because it is pointless)
@@ -383,12 +382,12 @@ pub fn handle_request_annotation(
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "request_annotation"),
-            attr("original_contract", info.sender),
+            attr("original_contract", info.clone().sender),
             attr("requester", rcv_msg.operator),
             attr("per price", annotation.per_price.to_string()),
             attr("deposited", deposited),
         ],
-        data: None,
+        data: Some(to_binary(&info)?),
     })
 }
 

@@ -624,6 +624,7 @@ fn test_request_annotations_happy_path() {
                 to_binary(&RequestAnnotate {
                     per_price_annotation: Uint128::from(5u64),
                     expired_block: None,
+                    sent_funds: coin(900, DENOM),
                 })
                 .unwrap(),
             ),
@@ -659,6 +660,7 @@ fn test_request_annotations_happy_path() {
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(5),
                 expired_block: None,
+                sent_funds: coin(900, DENOM),
             })
             .unwrap(),
         });
@@ -673,6 +675,7 @@ fn test_request_annotations_happy_path() {
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(5),
                 expired_block: None,
+                sent_funds: coin(900, DENOM),
             })
             .unwrap(),
         });
@@ -730,6 +733,7 @@ fn test_request_annotations_unhappy_path() {
             amount: Uint128::from(10u64),
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(90),
+                sent_funds: coin(100, DENOM),
                 expired_block: None,
             })
             .unwrap(),
@@ -748,6 +752,7 @@ fn test_request_annotations_unhappy_path() {
             amount: Uint128::from(10u64),
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(0),
+                sent_funds: coin(100, DENOM),
                 expired_block: None,
             })
             .unwrap(),
@@ -785,6 +790,7 @@ fn test_deposit_annotations() {
             amount: Uint128::from(10u64),
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(90),
+                sent_funds: coin(100, "something else"),
                 expired_block: None,
             })
             .unwrap(),
@@ -840,6 +846,7 @@ fn test_submit_annotations() {
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(90),
                 expired_block: None,
+                sent_funds: coin(900, "DENOM"),
             })
             .unwrap(),
         });
@@ -889,6 +896,7 @@ fn test_approve_annotations_requester() {
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(90),
                 expired_block: None,
+                sent_funds: coin(900, DENOM),
             })
             .unwrap(),
         });
@@ -989,6 +997,7 @@ fn test_approve_annotations_creator() {
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(7),
                 expired_block: None,
+                sent_funds: coin(900, DENOM),
             })
             .unwrap(),
         });
