@@ -721,6 +721,7 @@ fn test_royalties() {
                 },
             },
             creator_type: String::from("sacx"),
+            royalty: Some(40),
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();

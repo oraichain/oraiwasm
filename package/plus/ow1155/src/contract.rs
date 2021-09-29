@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, Order, StdError, StdResult, Uint128, KV,
+    attr, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse, HumanAddr,
+    InitResponse, MessageInfo, Order, StdError, StdResult, Uint128, KV,
 };
 use cw_storage_plus::Bound;
 
@@ -223,6 +223,14 @@ pub fn execute_send_from(
     )?;
     event.add_attributes(&mut rsp);
 
+    // send funds to market implementation
+    let cosmos_msg: CosmosMsg = BankMsg::Send {
+        from_address: env.contract.address.clone(),
+        to_address: HumanAddr(to.clone()),
+        amount: info.sent_funds,
+    }
+    .into();
+
     if let Some(msg) = msg {
         rsp.messages = vec![Cw1155ReceiveMsg {
             operator: info.sender.to_string(),
@@ -231,7 +239,8 @@ pub fn execute_send_from(
             token_id: token_id.clone(),
             msg,
         }
-        .into_cosmos_msg(to)?]
+        .into_cosmos_msg(to)?];
+        rsp.messages.push(cosmos_msg);
     }
 
     Ok(rsp)

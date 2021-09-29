@@ -39,7 +39,8 @@ fn update_ai_royalty() {
             contract_addr: HumanAddr::from("xxx"),
             creator: HumanAddr::from(format!("provider{}", i)),
             token_id: i.to_string(),
-            creator_type: String::from("sacx"),
+            creator_type: Some(String::from("sacx")),
+            royalty: Some(40),
         };
         royalties.push(royalty);
     }
@@ -55,7 +56,8 @@ fn update_ai_royalty() {
                 contract_addr: HumanAddr::from("xxx"),
                 creator: HumanAddr::from("theft"),
                 token_id: "1".to_string(),
-                creator_type: String::from("sacx")
+                creator_type: Some(String::from("sacx")),
+                royalty: None,
             }))
         ),
         Err(ContractError::Forbidden { .. })
@@ -96,12 +98,14 @@ fn update_ai_royalty() {
         println!("value: {:?}", value);
     }
 
-    let msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+    let mut royalty_msg = RoyaltyMsg {
         contract_addr: HumanAddr::from("xxx"),
         creator: HumanAddr::from(format!("provider{}", "1")),
         token_id: "1".to_string(),
-        creator_type: String::from("sacx"),
-    }));
+        creator_type: Some(String::from("sacx")),
+        royalty: None,
+    };
+    let mut msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdateRoyalty(royalty_msg.clone()));
     let pref_msg_sec = HandleMsg::UpdatePreference(20);
     handle(
         deps.as_mut(),
@@ -110,7 +114,21 @@ fn update_ai_royalty() {
         pref_msg_sec,
     )
     .unwrap();
-    let _res = handle(deps.as_mut(), mock_env(), provider_info.clone(), msg).unwrap();
+    let _res = handle(
+        deps.as_mut(),
+        mock_env(),
+        provider_info.clone(),
+        msg.clone(),
+    )
+    .unwrap();
+
+    // reach above sanitize case
+    royalty_msg.royalty = Some(70);
+    msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdateRoyalty(royalty_msg));
+    assert_eq!(
+        handle(deps.as_mut(), mock_env(), provider_info.clone(), msg).is_err(),
+        true
+    );
 
     let res = query(
         deps.as_ref(),
@@ -124,6 +142,10 @@ fn update_ai_royalty() {
     .unwrap();
     let value: Vec<Royalty> = from_binary(&res).unwrap();
     println!("list royalties: {:?}", value);
+
+    // first royalty should be 20, 2nd should be 40
+    assert_eq!(value[0].royalty, 20);
+    assert_eq!(value[1].royalty, 40);
 }
 
 #[test]
@@ -143,7 +165,8 @@ fn query_royalties() {
             contract_addr: HumanAddr::from("xxx"),
             creator: HumanAddr::from(format!("provider{}", i)),
             token_id: "1".to_string(),
-            creator_type: String::from("sacx"),
+            creator_type: Some(String::from("sacx")),
+            royalty: None,
         };
         royalties.push(royalty);
     }
@@ -208,7 +231,8 @@ fn remove_ai_royalty() {
             contract_addr: HumanAddr::from("xxx"),
             creator: HumanAddr::from(format!("provider{}", i)),
             token_id: i.to_string(),
-            creator_type: String::from("sacx"),
+            creator_type: Some(String::from("sacx")),
+            royalty: None,
         };
         royalties.push(royalty);
     }

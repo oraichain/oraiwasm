@@ -9,6 +9,8 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, PkOwn
 pub struct ContractInfo {
     pub governance: HumanAddr,
     pub creator: HumanAddr,
+    pub default_royalty: u64,
+    pub max_royalty: u64,
 }
 
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("marketplace_info");

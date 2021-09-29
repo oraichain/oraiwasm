@@ -25,7 +25,10 @@ pub fn add_msg_royalty(
     cosmos_msgs.push(get_handle_msg(
         governance,
         AI_ROYALTY_STORAGE,
-        AiRoyaltyHandleMsg::UpdateRoyalty(msg.clone()),
+        AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+            royalty: None,
+            ..msg.clone()
+        }),
     )?);
 
     // update creator as the caller of the mint tx
@@ -33,10 +36,9 @@ pub fn add_msg_royalty(
         governance,
         AI_ROYALTY_STORAGE,
         AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
-            contract_addr: msg.contract_addr,
-            token_id: msg.token_id,
             creator: HumanAddr(sender.to_string()),
-            creator_type: String::from(CREATOR_NAME),
+            creator_type: Some(String::from(CREATOR_NAME)),
+            ..msg
         }),
     )?);
     Ok(cosmos_msgs)
@@ -62,7 +64,8 @@ pub fn try_handle_mint(
             contract_addr: msg.contract_addr,
             token_id: msg.mint.mint.token_id,
             creator: msg.creator,
-            creator_type: msg.creator_type,
+            creator_type: Some(msg.creator_type),
+            royalty: msg.royalty,
         },
     )?;
     cosmos_msgs.push(mint_msg);

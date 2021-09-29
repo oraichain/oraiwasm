@@ -39,6 +39,8 @@ pub fn init(
     let info = ContractInfo {
         governance: msg.governance,
         creator: info.sender,
+        default_royalty: DEFAULT_ROYALTY_PERCENT,
+        max_royalty: MAX_ROYALTY_PERCENT,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -113,7 +115,8 @@ pub fn try_update_preference(
     info: MessageInfo,
     pref: u64,
 ) -> Result<HandleResponse, ContractError> {
-    let pref_royalty = sanitize_royalty(pref, MAX_ROYALTY_PERCENT, "ai_royalty_preference")?;
+    let ContractInfo { max_royalty, .. } = CONTRACT_INFO.load(deps.storage)?;
+    let pref_royalty = sanitize_royalty(pref, max_royalty, "ai_royalty_preference")?;
     PREFERENCES.save(deps.storage, info.sender.as_bytes(), &pref_royalty)?;
     return Ok(HandleResponse {
         attributes: vec![
@@ -131,10 +134,15 @@ pub fn try_update_royalty(
     royalty: RoyaltyMsg,
 ) -> Result<HandleResponse, ContractError> {
     // must check the sender is implementation contract
-    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    let ContractInfo {
+        governance,
+        default_royalty,
+        max_royalty,
+        ..
+    } = CONTRACT_INFO.load(deps.storage)?;
 
     // QUESTION: should we let ai.creator edit royalty for a token id?
-    if contract_info.governance.ne(&info.sender) && royalty.creator.ne(&info.sender) {
+    if governance.ne(&info.sender) && royalty.creator.ne(&info.sender) {
         return Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
         });
@@ -152,10 +160,14 @@ pub fn try_update_royalty(
         });
     }
 
-    // collect royalty preference, default is 0 if does not specify
-    let preference_royalty = PREFERENCES
-        .load(deps.storage, royalty.creator.as_bytes())
-        .unwrap_or(DEFAULT_ROYALTY_PERCENT);
+    let final_royalty;
+    if let Some(msg_royalty) = royalty.royalty {
+        final_royalty = sanitize_royalty(msg_royalty, max_royalty, "ai_royalty")?;
+    } else {
+        final_royalty = PREFERENCES
+            .load(deps.storage, royalty.creator.as_bytes())
+            .unwrap_or(default_royalty);
+    }
 
     royalties_map().save(
         deps.storage,
@@ -165,16 +177,22 @@ pub fn try_update_royalty(
             royalty.creator.as_bytes(),
         ),
         &Royalty {
-            contract_addr: royalty.contract_addr,
-            token_id: royalty.token_id,
-            creator: royalty.creator,
-            royalty: preference_royalty,
-            creator_type: royalty.creator_type,
+            contract_addr: royalty.contract_addr.clone(),
+            token_id: royalty.token_id.clone(),
+            creator: royalty.creator.clone(),
+            royalty: final_royalty,
+            creator_type: royalty.creator_type.unwrap_or(String::from("creator")),
         },
     )?;
 
     return Ok(HandleResponse {
-        attributes: vec![attr("action", "update_ai_royalty")],
+        attributes: vec![
+            attr("action", "update_ai_royalty"),
+            attr("contract_addr", royalty.contract_addr),
+            attr("token_id", royalty.token_id),
+            attr("creator", royalty.creator),
+            attr("new_royalty", final_royalty),
+        ],
         ..HandleResponse::default()
     });
 }
@@ -202,7 +220,12 @@ pub fn try_remove_royalty(
     )?;
 
     return Ok(HandleResponse {
-        attributes: vec![attr("action", "remove_ai_royalty")],
+        attributes: vec![
+            attr("action", "remove_ai_royalty"),
+            attr("contract_addr", royalty.contract_addr),
+            attr("token_id", royalty.token_id),
+            attr("creator", royalty.creator),
+        ],
         ..HandleResponse::default()
     });
 }
@@ -225,6 +248,12 @@ pub fn try_update_info(
         }
         if let Some(creator) = msg.creator {
             contract_info.creator = creator;
+        }
+        if let Some(default_royalty) = msg.default_royalty {
+            contract_info.default_royalty = default_royalty;
+        }
+        if let Some(max_royalty) = msg.max_royalty {
+            contract_info.max_royalty = max_royalty;
         }
         Ok(contract_info)
     })?;

@@ -21,6 +21,8 @@ pub enum HandleMsg {
 pub struct UpdateContractMsg {
     pub governance: Option<HumanAddr>,
     pub creator: Option<HumanAddr>,
+    pub default_royalty: Option<u64>,
+    pub max_royalty: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

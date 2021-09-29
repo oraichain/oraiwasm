@@ -32,6 +32,7 @@ pub struct MintMsg {
     pub contract_addr: HumanAddr,
     pub creator: HumanAddr,
     pub creator_type: String,
+    pub royalty: Option<u64>,
     pub mint: MintIntermediate,
 }
 

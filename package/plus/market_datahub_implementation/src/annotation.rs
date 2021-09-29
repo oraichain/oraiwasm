@@ -339,7 +339,6 @@ pub fn handle_request_annotation(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
     let mut deposited = false;
-
     // If requester have not deposited funds => an alert to annotators to not submit their work. Annotators will try to submit by adding their addresses to the list
     if let Some(sent_fund) = info.sent_funds.iter().find(|fund| fund.denom.eq(&denom)) {
         // can only deposit 100% funds (for simplicity)

@@ -9,7 +9,8 @@ pub struct RoyaltyMsg {
     pub contract_addr: HumanAddr,
     pub token_id: String,
     pub creator: HumanAddr,
-    pub creator_type: String,
+    pub creator_type: Option<String>,
+    pub royalty: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -27,6 +28,7 @@ pub struct MintMsg {
     pub contract_addr: HumanAddr,
     pub creator: HumanAddr,
     pub creator_type: String,
+    pub royalty: Option<u64>,
     pub mint: MintIntermediate,
 }
 

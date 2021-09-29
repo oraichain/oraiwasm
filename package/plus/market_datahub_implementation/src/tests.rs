@@ -9,7 +9,7 @@ use cosmwasm_std::{
     HandleResponse, HumanAddr, MessageInfo, OwnedDeps, QuerierResult, StdResult, SystemError,
     SystemResult, Uint128, WasmMsg, WasmQuery,
 };
-use cw1155::Cw1155ReceiveMsg;
+use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
 use market::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_datahub::{
@@ -299,6 +299,7 @@ fn test_royalties() {
                 },
             },
             creator_type: String::from("cxacx"),
+            royalty: None,
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -596,23 +597,61 @@ fn test_request_annotations_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
 
-        // beneficiary can release it
-        let info = mock_info("datahub", &coins(900, "something else"));
-        let mut msg = HandleMsg::Receive(Cw1155ReceiveMsg {
-            operator: "requester".to_string(),
-            token_id: String::from("SellableNFT"),
-            from: None,
-            amount: Uint128::from(10u64),
-            msg: to_binary(&RequestAnnotate {
-                per_price_annotation: Uint128(90),
-                expired_block: None,
-            })
-            .unwrap(),
+        let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            creator: HumanAddr::from("provider"),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    to: String::from("creator"),
+                    value: Uint128::from(50u64),
+                    token_id: String::from("SellableNFT"),
+                },
+            },
+            creator_type: String::from("cxacx"),
+            royalty: None,
         });
-        let _res = manager.handle(info.clone(), msg.clone()).unwrap();
+
+        manager.handle(provider_info.clone(), mint_msg).unwrap();
+
+        // request annotate
+        let request_msg = Cw1155ExecuteMsg::SendFrom {
+            from: String::from("creator"),
+            to: String::from("offering"),
+            token_id: String::from("SellableNFT"),
+            value: Uint128::from(10u64),
+            msg: Some(
+                to_binary(&RequestAnnotate {
+                    per_price_annotation: Uint128::from(5u64),
+                    expired_block: None,
+                })
+                .unwrap(),
+            ),
+        };
+
+        // beneficiary can release it
+        let info = mock_info("datahub", &coins(900, DENOM));
+        // let mut msg = HandleMsg::Receive(Cw1155ReceiveMsg {
+        //     operator: "requester".to_string(),
+        //     token_id: String::from("SellableNFT"),
+        //     from: None,
+        //     amount: Uint128::from(10u64),
+        //     msg: to_binary(&RequestAnnotate {
+        //         per_price_annotation: Uint128(90),
+        //         expired_block: None,
+        //     })
+        //     .unwrap(),
+        // });
+        let _res = ow1155::contract::handle(
+            manager.ow1155.as_mut(),
+            mock_env(OW_1155_ADDR),
+            mock_info("creator", &coins(900, DENOM)),
+            request_msg,
+        )
+        .unwrap();
 
         // second annotation
-        msg = HandleMsg::Receive(Cw1155ReceiveMsg {
+        let mut msg = HandleMsg::Receive(Cw1155ReceiveMsg {
             operator: "requester_second".to_string(),
             token_id: String::from("SellableNFT"),
             from: None,
