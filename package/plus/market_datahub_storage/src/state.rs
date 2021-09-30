@@ -81,11 +81,13 @@ pub fn increment_annotations(storage: &mut dyn Storage) -> StdResult<u64> {
 pub struct AnnotationIndexes<'a> {
     pub contract: MultiIndex<'a, Annotation>,
     pub contract_token_id: MultiIndex<'a, Annotation>,
+    pub requester: MultiIndex<'a, Annotation>,
 }
 
 impl<'a> IndexList<Annotation> for AnnotationIndexes<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Annotation>> + '_> {
-        let v: Vec<&dyn Index<Annotation>> = vec![&self.contract, &self.contract_token_id];
+        let v: Vec<&dyn Index<Annotation>> =
+            vec![&self.contract, &self.contract_token_id, &self.requester];
         Box::new(v.into_iter())
     }
 }
@@ -102,6 +104,11 @@ pub fn annotations<'a>() -> IndexedMap<'a, &'a [u8], Annotation, AnnotationIndex
             |o| get_contract_token_id(&o.contract_addr, &o.token_id).0,
             "annotations",
             "annotations__contract__tokenid",
+        ),
+        requester: MultiIndex::new(
+            |o| o.requester.as_bytes().to_vec(),
+            "annotations",
+            "annotations__requester",
         ),
     };
     IndexedMap::new("annotations", indexes)

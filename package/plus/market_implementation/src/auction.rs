@@ -11,7 +11,6 @@ use cosmwasm_std::{
 };
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{query_proxy, StorageHandleMsg};
-use market_ai_royalty::Royalty;
 use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, QueryAuctionsResult};
 // use market_royalty::OfferingQueryMsg;
 use std::ops::{Add, Mul, Sub};
@@ -172,10 +171,8 @@ pub fn try_claim_winner(
         let mut fund_amount = off.price;
 
         // pay for creator, ai provider and others
-        let royalties: Result<Vec<Royalty>, ContractError> =
-            get_royalties(deps.as_ref(), &off.token_id);
-        if royalties.is_ok() {
-            for royalty in royalties.unwrap() {
+        if let Ok(royalties) = get_royalties(deps.as_ref(), &off.token_id) {
+            for royalty in royalties {
                 let provider_amount = off.price.mul(Decimal::percent(royalty.royalty));
                 if provider_amount.gt(&Uint128::from(0u128)) {
                     fund_amount = fund_amount.sub(provider_amount)?;

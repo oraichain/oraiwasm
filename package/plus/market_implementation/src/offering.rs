@@ -112,27 +112,22 @@ pub fn try_buy(
             let mut seller_amount = sent_fund.amount;
 
             // pay for the owner of this minter contract if there is fee set in marketplace
-            if contract_info.fee > 0 {
-                let fee_amount = off.price.mul(Decimal::permille(contract_info.fee));
-                // Rust will automatically floor down the value to 0 if amount is too small => error
-                if fee_amount.gt(&Uint128::from(0u128)) {
-                    seller_amount = seller_amount.sub(fee_amount)?;
-                    cosmos_msgs.push(
-                        BankMsg::Send {
-                            from_address: env.contract.address.clone(),
-                            to_address: HumanAddr::from(contract_info.creator),
-                            amount: coins(fee_amount.u128(), &contract_info.denom),
-                        }
-                        .into(),
-                    );
-                }
-            }
+            let fee_amount = off.price.mul(Decimal::permille(contract_info.fee));
+            // Rust will automatically floor down the value to 0 if amount is too small => error
+            seller_amount = seller_amount.sub(fee_amount)?;
+            // // comment this line because it is redundant, no need to pay the creator immediately since we have the withdraw funds function
+            // cosmos_msgs.push(
+            //     BankMsg::Send {
+            //         from_address: env.contract.address.clone(),
+            //         to_address: HumanAddr::from(contract_info.creator),
+            //         amount: coins(fee_amount.u128(), &contract_info.denom),
+            //     }
+            //     .into(),
+            // );
 
             // pay for creator, ai provider and others
-            let royalties: Result<Vec<Royalty>, ContractError> =
-                get_royalties(deps.as_ref(), &off.token_id);
-            if royalties.is_ok() {
-                for royalty in royalties.unwrap() {
+            if let Ok(royalties) = get_royalties(deps.as_ref(), &off.token_id) {
+                for royalty in royalties {
                     let provider_amount = off.price.mul(Decimal::percent(royalty.royalty));
                     if provider_amount.gt(&Uint128::from(0u128)) {
                         seller_amount = seller_amount.sub(provider_amount)?;
@@ -165,14 +160,16 @@ pub fn try_buy(
             }
 
             // pay the left to the seller
-            cosmos_msgs.push(
-                BankMsg::Send {
-                    from_address: env.contract.address,
-                    to_address: seller_addr.clone(),
-                    amount: coins(seller_amount.u128(), &contract_info.denom),
-                }
-                .into(),
-            );
+            if !seller_amount.is_zero() {
+                cosmos_msgs.push(
+                    BankMsg::Send {
+                        from_address: env.contract.address,
+                        to_address: seller_addr.clone(),
+                        amount: coins(seller_amount.u128(), &contract_info.denom),
+                    }
+                    .into(),
+                );
+            }
         } else {
             return Err(ContractError::InvalidSentFundAmount {});
         }

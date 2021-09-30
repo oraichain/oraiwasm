@@ -12,11 +12,11 @@ use crate::msg::{
     HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellNft, UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
+use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
     HandleResponse, InitResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{HumanAddr, StdError};
 use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg, RequestAnnotate};
 use market::{query_proxy, StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::{sanitize_royalty, AiRoyaltyQueryMsg};
@@ -243,13 +243,11 @@ pub fn try_receive_nft(
     env: Env,
     rcv_msg: Cw1155ReceiveMsg,
 ) -> Result<HandleResponse, ContractError> {
-    let msg_result_sell: Result<SellNft, StdError> = from_binary(&rcv_msg.msg);
-    let msg_result_annotate: Result<RequestAnnotate, StdError> = from_binary(&rcv_msg.msg);
-    if !msg_result_sell.is_err() {
-        return handle_sell_nft(deps, info, msg_result_sell.unwrap(), rcv_msg);
+    if let Ok(msg_sell) = from_binary::<SellNft>(&rcv_msg.msg) {
+        return handle_sell_nft(deps, info, msg_sell, rcv_msg);
     }
-    if !msg_result_annotate.is_err() {
-        return handle_request_annotation(deps, info, env, msg_result_annotate.unwrap(), rcv_msg);
+    if let Ok(msg_annotation) = from_binary::<RequestAnnotate>(&rcv_msg.msg) {
+        return handle_request_annotation(deps, info, env, msg_annotation, rcv_msg);
     }
     Err(ContractError::NoData {})
 }

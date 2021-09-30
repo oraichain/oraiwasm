@@ -15,11 +15,11 @@ use crate::msg::{
     UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
+use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
     HandleResponse, InitResponse, MessageInfo, StdResult, WasmMsg,
 };
-use cosmwasm_std::{HumanAddr, StdError};
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::sanitize_royalty;
@@ -183,17 +183,13 @@ pub fn try_receive_nft(
     env: Env,
     rcv_msg: Cw721ReceiveMsg,
 ) -> Result<HandleResponse, ContractError> {
-    let msg_bin = match rcv_msg.msg.clone() {
-        Some(bin) => Ok(bin),
-        None => Err(ContractError::NoData {}),
-    }?;
-    let msg_result_ask: Result<AskNftMsg, StdError> = from_binary(&msg_bin);
-    let msg_result_sell: Result<SellNft, StdError> = from_binary(&msg_bin);
-    if !msg_result_ask.is_err() {
-        return handle_ask_auction(deps, info, env, msg_result_ask.unwrap(), rcv_msg);
-    }
-    if !msg_result_sell.is_err() {
-        return handle_sell_nft(deps, info, msg_result_sell.unwrap(), rcv_msg);
+    if let Some(msg) = rcv_msg.msg.clone() {
+        if let Ok(ask_msg) = from_binary::<AskNftMsg>(&msg) {
+            return handle_ask_auction(deps, info, env, ask_msg, rcv_msg);
+        }
+        if let Ok(sell_msg) = from_binary::<SellNft>(&msg) {
+            return handle_sell_nft(deps, info, sell_msg, rcv_msg);
+        }
     }
     Err(ContractError::NoData {})
 }
