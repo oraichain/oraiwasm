@@ -201,17 +201,35 @@ pub fn try_buy(
         OfferingHandleMsg::RemoveOffering { id: offering_id },
     )?);
 
-    Ok(HandleResponse {
+    let mut handle_response = HandleResponse {
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "buy_nft"),
             attr("buyer", info.sender),
             attr("seller", seller_addr),
-            attr("token_id", off.token_id),
+            attr("token_id", off.token_id.clone()),
             attr("offering_id", offering_id),
+            attr("total_price", off.price),
         ],
         data: None,
-    })
+    };
+    let royalties = get_royalties(deps.as_ref(), &off.token_id)
+        .ok()
+        .unwrap_or(vec![]);
+    for royalty in royalties {
+        handle_response.attributes.push(attr(
+            format!("royalty_{}_{}", royalty.creator_type, royalty.creator),
+            royalty.royalty,
+        ));
+    }
+    if let Some(royalty) = off.royalty {
+        handle_response.attributes.push(attr(
+            format!("royalty__{}", deps.api.human_address(&off.seller)?),
+            royalty,
+        ));
+    }
+
+    Ok(handle_response)
 }
 
 pub fn try_withdraw(

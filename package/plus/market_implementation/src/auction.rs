@@ -225,17 +225,29 @@ pub fn try_claim_winner(
         AUCTION_STORAGE,
         AuctionHandleMsg::RemoveAuction { id: auction_id },
     )?);
-
-    Ok(HandleResponse {
+    let mut handle_response = HandleResponse {
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "claim_winner"),
             attr("claimer", info.sender),
-            attr("token_id", off.token_id),
+            attr("token_id", off.token_id.clone()),
             attr("auction_id", auction_id),
+            attr("total_price", off.price),
         ],
         data: None,
-    })
+    };
+
+    let royalties = get_royalties(deps.as_ref(), &off.token_id)
+        .ok()
+        .unwrap_or(vec![]);
+    for royalty in royalties {
+        handle_response.attributes.push(attr(
+            format!("royalty_{}", royalty.creator),
+            royalty.royalty,
+        ));
+    }
+
+    Ok(handle_response)
 }
 
 pub fn handle_ask_auction(

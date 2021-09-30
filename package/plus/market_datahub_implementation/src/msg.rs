@@ -52,6 +52,11 @@ pub enum HandleMsg {
         annotation_id: u64,
         annotator: HumanAddr,
     },
+    MigrateVersion {
+        nft_contract_addr: HumanAddr,
+        token_infos: Vec<(String, Uint128)>,
+        new_marketplace: HumanAddr,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

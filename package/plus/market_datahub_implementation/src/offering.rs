@@ -196,6 +196,8 @@ pub fn try_buy(
             attr("seller", seller_addr),
             attr("token_id", off.token_id),
             attr("offering_id", offering_id),
+            attr("per_price", off.per_price),
+            attr("amount", off.amount),
         ],
         data: None,
     })
