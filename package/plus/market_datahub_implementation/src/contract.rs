@@ -9,16 +9,15 @@ use crate::offering::{handle_sell_nft, try_buy, try_handle_mint, try_withdraw};
 
 use crate::error::ContractError;
 use crate::msg::{
-    HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, RequestAnnotate, SellNft,
-    UpdateContractMsg,
+    HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellNft, UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
+use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
-    HandleResponse, InitResponse, MessageInfo, StdResult, WasmMsg,
+    HandleResponse, InitResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{HumanAddr, StdError};
-use cw1155::Cw1155ReceiveMsg;
+use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg, RequestAnnotate};
 use market::{query_proxy, StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::{sanitize_royalty, AiRoyaltyQueryMsg};
 use market_datahub::DataHubQueryMsg;
@@ -94,6 +93,18 @@ pub fn handle(
             annotation_id,
             annotator,
         } => try_approve_annotation(deps, info, env, annotation_id, annotator),
+        HandleMsg::MigrateVersion {
+            nft_contract_addr,
+            token_infos,
+            new_marketplace,
+        } => try_migrate(
+            deps,
+            info,
+            env,
+            token_infos,
+            nft_contract_addr,
+            new_marketplace,
+        ),
     }
 }
 
@@ -180,6 +191,51 @@ pub fn try_update_info(
     })
 }
 
+pub fn try_migrate(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    token_infos: Vec<(String, Uint128)>,
+    nft_contract_addr: HumanAddr,
+    new_marketplace: HumanAddr,
+) -> Result<HandleResponse, ContractError> {
+    let ContractInfo { creator, .. } = CONTRACT_INFO.load(deps.storage)?;
+    if info.sender.ne(&HumanAddr(creator.clone())) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    }
+    let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
+    for token_info in token_infos.clone() {
+        // check if token_id is currently sold by the requesting address
+        // transfer token back to original owner
+        let transfer_cw721_msg = Cw1155ExecuteMsg::SendFrom {
+            token_id: token_info.0.clone(),
+            from: env.contract.address.to_string(),
+            to: new_marketplace.to_string(),
+            value: token_info.1.clone(),
+            msg: None,
+        };
+
+        let exec_cw721_transfer = WasmMsg::Execute {
+            contract_addr: nft_contract_addr.clone(),
+            msg: to_binary(&transfer_cw721_msg)?,
+            send: vec![],
+        }
+        .into();
+        cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
+    }
+    Ok(HandleResponse {
+        messages: cw721_transfer_cosmos_msg,
+        attributes: vec![
+            attr("action", "migrate_marketplace"),
+            attr("nft_contract_addr", nft_contract_addr),
+            attr("new_marketplace", new_marketplace),
+        ],
+        data: to_binary(&token_infos).ok(),
+    })
+}
+
 // when user sell NFT to
 pub fn try_receive_nft(
     deps: DepsMut,
@@ -187,13 +243,11 @@ pub fn try_receive_nft(
     env: Env,
     rcv_msg: Cw1155ReceiveMsg,
 ) -> Result<HandleResponse, ContractError> {
-    let msg_result_sell: Result<SellNft, StdError> = from_binary(&rcv_msg.msg);
-    let msg_result_annotate: Result<RequestAnnotate, StdError> = from_binary(&rcv_msg.msg);
-    if !msg_result_sell.is_err() {
-        return handle_sell_nft(deps, info, msg_result_sell.unwrap(), rcv_msg);
+    if let Ok(msg_sell) = from_binary::<SellNft>(&rcv_msg.msg) {
+        return handle_sell_nft(deps, info, msg_sell, rcv_msg);
     }
-    if !msg_result_annotate.is_err() {
-        return handle_request_annotation(deps, info, env, msg_result_annotate.unwrap(), rcv_msg);
+    if let Ok(msg_annotation) = from_binary::<RequestAnnotate>(&rcv_msg.msg) {
+        return handle_request_annotation(deps, info, env, msg_annotation, rcv_msg);
     }
     Err(ContractError::NoData {})
 }

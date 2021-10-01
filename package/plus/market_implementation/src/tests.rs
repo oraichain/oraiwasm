@@ -17,7 +17,7 @@ use std::mem::transmute;
 use std::ops::{Add, Mul};
 use std::ptr::null;
 
-use cw721::Cw721ReceiveMsg;
+use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 
 const CREATOR: &str = "owner";
 const MARKET_ADDR: &str = "market_addr";
@@ -52,7 +52,6 @@ impl DepsManager {
 
     unsafe fn get_new<'a>() -> &'a mut Self {
         _DATA = null();
-        println!("is_null: {:?}", _DATA.is_null());
         Self::get()
     }
 
@@ -862,7 +861,6 @@ fn test_royalties() {
                             }
                         }
                     }
-                } else {
                 }
             }
         }
@@ -1092,5 +1090,93 @@ fn test_buy_nft_unhappy() {
             manager.handle(info_buy, buy_msg),
             Err(ContractError::InsufficientFunds {})
         ))
+    }
+}
+
+#[test]
+fn test_migrate() {
+    unsafe {
+        let manager = DepsManager::get_new();
+
+        // try mint nft to get royalty for provider
+        let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from("offering"),
+            creator: HumanAddr::from("provider"),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    token_id: String::from("SellableNFT"),
+                    owner: HumanAddr::from("provider"),
+                    name: String::from("asbv"),
+                    description: None,
+                    image: String::from("baxv"),
+                },
+            },
+            creator_type: String::from("sacx"),
+            royalty: Some(40),
+        });
+
+        manager.handle(provider_info.clone(), mint_msg).unwrap();
+
+        // beneficiary can release it
+        let info_sell = mock_info("offering", &vec![coin(50, DENOM)]);
+
+        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+            sender: HumanAddr::from("seller"),
+            token_id: String::from("SellableNFT"),
+            msg: to_binary(&SellNft {
+                off_price: Uint128(50),
+                royalty: Some(10),
+            })
+            .ok(),
+        });
+        manager.handle(info_sell.clone(), msg).unwrap();
+
+        // try migrate
+        let token_ids = vec![String::from("SellableNFT")];
+        // unauthorized case
+        let migrate_msg = HandleMsg::MigrateVersion {
+            nft_contract_addr: HumanAddr::from("offering"),
+            token_ids: token_ids.clone(),
+            new_marketplace: HumanAddr::from("new_offering"),
+        };
+        assert!(matches!(
+            manager.handle(
+                mock_info("hacker", &vec![coin(50, DENOM)]),
+                migrate_msg.clone()
+            ),
+            Err(ContractError::Unauthorized { .. })
+        ));
+
+        let results = manager
+            .handle(mock_info(CREATOR, &vec![coin(50, DENOM)]), migrate_msg)
+            .unwrap();
+
+        // shall pass
+        for result in results {
+            for message in result.clone().messages {
+                if let CosmosMsg::Wasm(msg) = message {
+                    if let WasmMsg::Execute {
+                        contract_addr,
+                        msg,
+                        send: _,
+                    } = msg
+                    {
+                        println!("In wasm msg execute");
+                        assert_eq!(contract_addr, HumanAddr::from("offering"));
+                        let transfer_msg: Cw721HandleMsg = from_binary(&msg).unwrap();
+                        if let Cw721HandleMsg::TransferNft {
+                            recipient,
+                            token_id,
+                        } = transfer_msg
+                        {
+                            println!("in transfer nft msg");
+                            assert_eq!(recipient, HumanAddr::from("new_offering"));
+                            assert_eq!(token_ids.contains(&token_id), true);
+                        }
+                    }
+                }
+            }
+        }
     }
 }

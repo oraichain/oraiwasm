@@ -15,12 +15,12 @@ use crate::msg::{
     UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
+use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
     HandleResponse, InitResponse, MessageInfo, StdResult, WasmMsg,
 };
-use cosmwasm_std::{HumanAddr, StdError};
-use cw721::Cw721ReceiveMsg;
+use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::sanitize_royalty;
 use schemars::JsonSchema;
@@ -84,6 +84,18 @@ pub fn handle(
         HandleMsg::MintNft(msg) => try_handle_mint(deps, info, msg),
         HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, offering_id),
         HandleMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
+        HandleMsg::MigrateVersion {
+            nft_contract_addr,
+            token_ids,
+            new_marketplace,
+        } => try_migrate(
+            deps,
+            info,
+            env,
+            token_ids,
+            nft_contract_addr,
+            new_marketplace,
+        ),
     }
 }
 
@@ -171,19 +183,58 @@ pub fn try_receive_nft(
     env: Env,
     rcv_msg: Cw721ReceiveMsg,
 ) -> Result<HandleResponse, ContractError> {
-    let msg_bin = match rcv_msg.msg.clone() {
-        Some(bin) => Ok(bin),
-        None => Err(ContractError::NoData {}),
-    }?;
-    let msg_result_ask: Result<AskNftMsg, StdError> = from_binary(&msg_bin);
-    let msg_result_sell: Result<SellNft, StdError> = from_binary(&msg_bin);
-    if !msg_result_ask.is_err() {
-        return handle_ask_auction(deps, info, env, msg_result_ask.unwrap(), rcv_msg);
-    }
-    if !msg_result_sell.is_err() {
-        return handle_sell_nft(deps, info, msg_result_sell.unwrap(), rcv_msg);
+    if let Some(msg) = rcv_msg.msg.clone() {
+        if let Ok(ask_msg) = from_binary::<AskNftMsg>(&msg) {
+            return handle_ask_auction(deps, info, env, ask_msg, rcv_msg);
+        }
+        if let Ok(sell_msg) = from_binary::<SellNft>(&msg) {
+            return handle_sell_nft(deps, info, sell_msg, rcv_msg);
+        }
     }
     Err(ContractError::NoData {})
+}
+
+pub fn try_migrate(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    token_ids: Vec<String>,
+    nft_contract_addr: HumanAddr,
+    new_marketplace: HumanAddr,
+) -> Result<HandleResponse, ContractError> {
+    let ContractInfo { creator, .. } = CONTRACT_INFO.load(deps.storage)?;
+    if info.sender.ne(&HumanAddr(creator.clone())) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    }
+    let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
+    for token_id in token_ids.clone() {
+        // check if token_id is currently sold by the requesting address
+        // transfer token back to original owner
+        let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+            recipient: new_marketplace.clone(),
+            token_id,
+        };
+
+        let exec_cw721_transfer = WasmMsg::Execute {
+            contract_addr: nft_contract_addr.clone(),
+            msg: to_binary(&transfer_cw721_msg)?,
+            send: vec![],
+        }
+        .into();
+        cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
+    }
+    Ok(HandleResponse {
+        messages: cw721_transfer_cosmos_msg,
+        attributes: vec![
+            attr("action", "migrate_marketplace"),
+            attr("nft_contract_addr", nft_contract_addr),
+            attr("token_ids", format!("{:?}", token_ids)),
+            attr("new_marketplace", new_marketplace),
+        ],
+        data: None,
+    })
 }
 
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {

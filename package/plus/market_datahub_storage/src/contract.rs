@@ -111,6 +111,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             } => to_binary(&query_annotations_by_contract_tokenid(
                 deps, contract, token_id, limit, offset, order,
             )?),
+            DataHubQueryMsg::GetAnnotationsByRequester {
+                requester,
+                limit,
+                offset,
+                order,
+            } => to_binary(&query_annotations_by_requester(
+                deps, requester, limit, offset, order,
+            )?),
             DataHubQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
         },
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
@@ -438,6 +446,25 @@ pub fn query_annotations_by_contract_tokenid(
             max,
             order_enum,
         )
+        .take(limit)
+        .map(|kv_item| parse_annotation(kv_item))
+        .collect();
+
+    Ok(annotations_result?)
+}
+
+pub fn query_annotations_by_requester(
+    deps: Deps,
+    requester: HumanAddr,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<Vec<Annotation>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let annotations_result: StdResult<Vec<Annotation>> = annotations()
+        .idx
+        .requester
+        .items(deps.storage, requester.as_bytes(), min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_annotation(kv_item))
         .collect();

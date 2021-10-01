@@ -1,13 +1,12 @@
 use crate::contract::{get_handle_msg, query_datahub, DATAHUB_STORAGE};
 use crate::error::ContractError;
-use crate::msg::RequestAnnotate;
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, MessageInfo, Uint128, WasmMsg,
 };
-use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
+use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg, RequestAnnotate};
 use market_datahub::{Annotation, DataHubHandleMsg, DataHubQueryMsg};
 use std::ops::{Mul, Sub};
 
@@ -46,21 +45,17 @@ pub fn try_approve_annotation(
     let price = calculate_annotation_price(off.per_price, off.amount);
     let mut requester_amount = price;
     // pay for the owner of this minter contract if there is fee set in marketplace
-    if fee > 0 {
-        let fee_amount = price.mul(Decimal::permille(fee));
-        // Rust will automatically floor down the value to 0 if amount is too small => error
-        if fee_amount.gt(&Uint128::from(0u128)) {
-            requester_amount = requester_amount.sub(fee_amount)?;
-            cosmos_msgs.push(
-                BankMsg::Send {
-                    from_address: env.contract.address.clone(),
-                    to_address: HumanAddr::from(creator.clone()),
-                    amount: coins(fee_amount.u128(), &denom),
-                }
-                .into(),
-            );
-        }
-    }
+    let fee_amount = price.mul(Decimal::permille(fee));
+    // Rust will automatically floor down the value to 0 if amount is too small => error
+    requester_amount = requester_amount.sub(fee_amount)?;
+    // cosmos_msgs.push(
+    //     BankMsg::Send {
+    //         from_address: env.contract.address.clone(),
+    //         to_address: HumanAddr::from(creator.clone()),
+    //         amount: coins(fee_amount.u128(), &denom),
+    //     }
+    //     .into(),
+    // );
 
     if !requester_amount.is_zero() {
         // if requester invokes => pay the annotator
@@ -69,7 +64,7 @@ pub fn try_approve_annotation(
             cosmos_msgs.push(
                 BankMsg::Send {
                     from_address: env.contract.address.clone(),
-                    to_address: annotator,
+                    to_address: annotator.clone(),
                     amount: coins(requester_amount.u128(), &denom),
                 }
                 .into(),
@@ -93,8 +88,8 @@ pub fn try_approve_annotation(
         }
     }
 
-    // create transfer cw721 msg to transfer the nft back to the requester
-    let transfer_cw721_msg = Cw1155ExecuteMsg::SendFrom {
+    // create transfer cw1155 msg to transfer the nft back to the requester
+    let transfer_cw1155_msg = Cw1155ExecuteMsg::SendFrom {
         token_id: off.token_id.clone(),
         from: env.contract.address.to_string(),
         to: off.requester.to_string(),
@@ -106,7 +101,7 @@ pub fn try_approve_annotation(
     cosmos_msgs.push(
         WasmMsg::Execute {
             contract_addr: off.contract_addr,
-            msg: to_binary(&transfer_cw721_msg)?,
+            msg: to_binary(&transfer_cw1155_msg)?,
             send: vec![],
         }
         .into(),
@@ -123,10 +118,10 @@ pub fn try_approve_annotation(
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "approve_annotation"),
-            attr("buyer", info.sender),
             attr("requester", requester_addr),
             attr("token_id", off.token_id),
             attr("annotation_id", annotation_id),
+            attr("annotator", annotator),
         ],
         data: None,
     })
@@ -143,7 +138,9 @@ pub fn handle_submit_annotation(
         return Err(ContractError::AnnotationNoFunds {});
     }
     let mut annotators = annotation.annotators;
-    annotators.push(info.sender.clone());
+    if !annotators.contains(&info.sender) {
+        annotators.push(info.sender.clone());
+    }
 
     // allow multiple annotations on the market with the same contract and token id
     annotation.annotators = annotators;
@@ -340,10 +337,10 @@ pub fn handle_request_annotation(
     } = CONTRACT_INFO.load(deps.storage)?;
     let mut deposited = false;
     // If requester have not deposited funds => an alert to annotators to not submit their work. Annotators will try to submit by adding their addresses to the list
-    if let Some(sent_fund) = info.sent_funds.iter().find(|fund| fund.denom.eq(&denom)) {
+    if msg.sent_funds.denom.eq(&denom) {
         // can only deposit 100% funds (for simplicity)
         let price = calculate_annotation_price(msg.per_price_annotation, rcv_msg.amount);
-        if sent_fund.amount.lt(&price) {
+        if msg.sent_funds.amount.lt(&price) {
             return Err(ContractError::InsufficientFunds {});
         }
         // cannot allow annotation price as 0 (because it is pointless)
@@ -383,12 +380,12 @@ pub fn handle_request_annotation(
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "request_annotation"),
-            attr("original_contract", info.sender),
+            attr("original_contract", info.clone().sender),
             attr("requester", rcv_msg.operator),
             attr("per price", annotation.per_price.to_string()),
             attr("deposited", deposited),
         ],
-        data: None,
+        data: Some(to_binary(&info)?),
     })
 }
 

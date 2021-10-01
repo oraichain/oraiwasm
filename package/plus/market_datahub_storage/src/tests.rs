@@ -193,7 +193,7 @@ fn sort_annotations() {
             contract_addr: HumanAddr::from("xxx"),
             token_id: i.to_string(),
             annotators: vec![HumanAddr::from("annotator")],
-            requester: HumanAddr::from("requester"),
+            requester: HumanAddr::from(format!("requester{}", i)),
             per_price: Uint128::from(1u64),
             amount: Uint128::from(10u64),
             deposited: true,
@@ -219,7 +219,8 @@ fn sort_annotations() {
     )
     .unwrap();
     let value: Vec<Annotation> = from_binary(&res).unwrap();
-    println!("value query list annotationss: {:?}", value);
+    assert_eq!(value.len(), 2);
+    println!("value query list annotationss: {:?}\n", value);
 
     // query by contract
     let res = query(
@@ -228,13 +229,14 @@ fn sort_annotations() {
         QueryMsg::Msg(DataHubQueryMsg::GetAnnotationsByContract {
             contract: "xxx".into(),
             limit: Some(100),
-            offset: Some(1),
+            offset: Some(0),
             order: Some(Order::Ascending as u8),
         }),
     )
     .unwrap();
     let value: Vec<Annotation> = from_binary(&res).unwrap();
-    println!("value query list annotations by contract: {:?}", value);
+    assert_eq!(value.len(), 2);
+    println!("value query list annotations by contract: {:?}\n", value);
 
     // query by contract token id
     let res = query(
@@ -250,7 +252,27 @@ fn sort_annotations() {
     )
     .unwrap();
     let value: Vec<Annotation> = from_binary(&res).unwrap();
-    println!("value query annotations by contract token id: {:?}", value);
+    assert_eq!(value.len(), 1);
+    println!(
+        "value query annotations by contract token id: {:?}\n",
+        value
+    );
+
+    // query by requester
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Msg(DataHubQueryMsg::GetAnnotationsByRequester {
+            requester: HumanAddr::from("requester1"),
+            limit: None,
+            offset: None,
+            order: Some(Order::Ascending as u8),
+        }),
+    )
+    .unwrap();
+    let value: Vec<Annotation> = from_binary(&res).unwrap();
+    assert_eq!(value.len(), 1);
+    println!("value query annotations by requester: {:?}\n", value);
 
     // query by contract
     let res = query(
@@ -260,10 +282,10 @@ fn sort_annotations() {
     )
     .unwrap();
     let value: Annotation = from_binary(&res).unwrap();
-    println!("value query annotations info: {:?}", value);
+    println!("value query annotations info: {:?}\n", value);
 
     let res_second = query_annotation_ids(deps.as_ref()).unwrap();
-    println!("value list ids: {:?}", res_second);
+    println!("value list ids: {:?}\n", res_second);
 }
 
 #[test]

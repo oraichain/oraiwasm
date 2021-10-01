@@ -52,6 +52,11 @@ pub enum HandleMsg {
         annotation_id: u64,
         annotator: HumanAddr,
     },
+    MigrateVersion {
+        nft_contract_addr: HumanAddr,
+        token_infos: Vec<(String, Uint128)>,
+        new_marketplace: HumanAddr,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -72,13 +77,6 @@ pub struct AskNftMsg {
 pub struct SellNft {
     pub per_price: Uint128,
     pub royalty: Option<u64>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub struct RequestAnnotate {
-    pub per_price_annotation: Uint128,
-    pub expired_block: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

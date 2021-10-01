@@ -9,7 +9,7 @@ use cosmwasm_std::{
     HandleResponse, HumanAddr, MessageInfo, OwnedDeps, QuerierResult, StdResult, SystemError,
     SystemResult, Uint128, WasmMsg, WasmQuery,
 };
-use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
+use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg, RequestAnnotate};
 use market::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_datahub::{
@@ -624,6 +624,7 @@ fn test_request_annotations_happy_path() {
                 to_binary(&RequestAnnotate {
                     per_price_annotation: Uint128::from(5u64),
                     expired_block: None,
+                    sent_funds: coin(900, DENOM),
                 })
                 .unwrap(),
             ),
@@ -659,6 +660,7 @@ fn test_request_annotations_happy_path() {
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(5),
                 expired_block: None,
+                sent_funds: coin(900, DENOM),
             })
             .unwrap(),
         });
@@ -673,6 +675,7 @@ fn test_request_annotations_happy_path() {
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(5),
                 expired_block: None,
+                sent_funds: coin(900, DENOM),
             })
             .unwrap(),
         });
@@ -730,6 +733,7 @@ fn test_request_annotations_unhappy_path() {
             amount: Uint128::from(10u64),
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(90),
+                sent_funds: coin(100, DENOM),
                 expired_block: None,
             })
             .unwrap(),
@@ -748,6 +752,7 @@ fn test_request_annotations_unhappy_path() {
             amount: Uint128::from(10u64),
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(0),
+                sent_funds: coin(100, DENOM),
                 expired_block: None,
             })
             .unwrap(),
@@ -785,6 +790,7 @@ fn test_deposit_annotations() {
             amount: Uint128::from(10u64),
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(90),
+                sent_funds: coin(100, "something else"),
                 expired_block: None,
             })
             .unwrap(),
@@ -840,6 +846,7 @@ fn test_submit_annotations() {
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(90),
                 expired_block: None,
+                sent_funds: coin(900, "DENOM"),
             })
             .unwrap(),
         });
@@ -889,6 +896,7 @@ fn test_approve_annotations_requester() {
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(90),
                 expired_block: None,
+                sent_funds: coin(900, DENOM),
             })
             .unwrap(),
         });
@@ -989,6 +997,7 @@ fn test_approve_annotations_creator() {
             msg: to_binary(&RequestAnnotate {
                 per_price_annotation: Uint128(7),
                 expired_block: None,
+                sent_funds: coin(900, DENOM),
             })
             .unwrap(),
         });
@@ -1070,5 +1079,96 @@ fn test_approve_annotations_creator() {
             }
         }
         assert_eq!(real_payment, final_payment);
+    }
+}
+
+#[test]
+fn test_migrate() {
+    unsafe {
+        let manager = DepsManager::get_new();
+
+        // try mint nft to get royalty for provider
+        let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            creator: HumanAddr::from("provider"),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    to: String::from("creator"),
+                    value: Uint128::from(50u64),
+                    token_id: String::from("SellableNFT"),
+                },
+            },
+            creator_type: String::from("cxacx"),
+            royalty: None,
+        });
+
+        manager.handle(provider_info.clone(), mint_msg).unwrap();
+
+        // beneficiary can release it
+        let info_sell = mock_info(OW_1155_ADDR, &vec![coin(50, DENOM)]);
+        let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
+            operator: "creator".to_string(),
+            token_id: String::from("SellableNFT"),
+            from: None,
+            amount: Uint128::from(10u64),
+            msg: to_binary(&SellNft {
+                per_price: Uint128(50),
+                royalty: Some(10),
+            })
+            .unwrap(),
+        });
+        manager.handle(info_sell.clone(), msg).unwrap();
+
+        // try migrate
+        let token_infos = vec![(String::from("SellableNFT"), Uint128::from(500u64))];
+        // unauthorized case
+        let migrate_msg = HandleMsg::MigrateVersion {
+            nft_contract_addr: HumanAddr::from("offering"),
+            token_infos: token_infos.clone(),
+            new_marketplace: HumanAddr::from("new_market_datahub"),
+        };
+        assert!(matches!(
+            manager.handle(
+                mock_info("hacker", &vec![coin(50, DENOM)]),
+                migrate_msg.clone()
+            ),
+            Err(ContractError::Unauthorized { .. })
+        ));
+
+        let results = manager
+            .handle(mock_info(CREATOR, &vec![coin(50, DENOM)]), migrate_msg)
+            .unwrap();
+
+        // shall pass
+        for result in results {
+            for message in result.clone().messages {
+                if let CosmosMsg::Wasm(msg) = message {
+                    if let WasmMsg::Execute {
+                        contract_addr,
+                        msg,
+                        send: _,
+                    } = msg
+                    {
+                        println!("in wasm msg execute");
+                        assert_eq!(contract_addr, HumanAddr::from("offering"));
+                        let transfer_msg: Cw1155ExecuteMsg = from_binary(&msg).unwrap();
+                        if let Cw1155ExecuteMsg::SendFrom {
+                            from,
+                            to,
+                            token_id,
+                            value,
+                            msg: _,
+                        } = transfer_msg
+                        {
+                            println!("in send from execute msg");
+                            assert_eq!(from, MARKET_ADDR);
+                            assert_eq!(to, String::from("new_market_datahub"));
+                            assert_eq!(token_infos.contains(&(token_id, value)), true);
+                        }
+                    }
+                }
+            }
+        }
     }
 }

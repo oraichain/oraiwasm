@@ -52,5 +52,11 @@ pub enum DataHubQueryMsg {
         limit: Option<u8>,
         order: Option<u8>,
     },
+    GetAnnotationsByRequester {
+        requester: HumanAddr,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
     GetContractInfo {},
 }

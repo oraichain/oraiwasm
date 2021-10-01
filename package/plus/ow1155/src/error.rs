@@ -13,6 +13,9 @@ pub enum ContractError {
     #[error("Expired")]
     Expired {},
 
+    #[error("Invalid sent funds amount. Expected amount: {expected}, Got: {got}")]
+    InvalidSentFunds { expected: String, got: String },
+
     #[error("Overflow")]
     Overflow {
         source: OverflowError,
