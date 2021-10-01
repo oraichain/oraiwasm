@@ -133,9 +133,14 @@ pub fn generate_bivars(
 // expr is variable, indent is function name
 macro_rules! init_dealer {
     ($deps:expr, $addresses:expr, $dealer:expr) => {
+        init_dealer!($deps, $addresses, $dealer, false)
+    };
+    ($deps:expr, $addresses:expr, $dealer:expr, $sample:expr) => {
         // if using constant then comment this below line
-        let (commits_list, rows_list) = generate_bivars(THRESHOLD, NUM_NODE, $dealer);
-        // let (commits_list, rows_list) = generate_sample_bivars();
+        let (commits_list, rows_list) = match $sample {
+            true => generate_sample_bivars(),
+            false => generate_bivars(THRESHOLD, NUM_NODE, $dealer),
+        };
         for i in 0..$dealer {
             let info = mock_info($addresses[i], &vec![]);
             let msg = HandleMsg::ShareDealer {
