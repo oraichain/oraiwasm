@@ -16,7 +16,7 @@ mod poly_benches {
     fn multiplication(c: &mut Criterion) {
         let mut group = c.benchmark_group("Polynomial multiplication");
         let mut rng = XorShiftRng::from_seed(RNG_SEED);
-        for deg in TEST_DEGREES {
+        for deg in TEST_DEGREES.to_vec() {
             let parameter_string = format!("{}", deg);
             group.bench_with_input(
                 BenchmarkId::new("Polynomial multiplication", parameter_string),
@@ -38,7 +38,7 @@ mod poly_benches {
     fn subtraction(c: &mut Criterion) {
         let mut group = c.benchmark_group("Polynomial subtraction");
         let mut rng = XorShiftRng::from_seed(RNG_SEED);
-        for deg in TEST_DEGREES {
+        for deg in TEST_DEGREES.to_vec() {
             let parameter_string = format!("{}", deg);
             group.bench_with_input(
                 BenchmarkId::new("Polynomial subtraction", parameter_string),
@@ -59,7 +59,7 @@ mod poly_benches {
     fn addition(c: &mut Criterion) {
         let mut group = c.benchmark_group("Polynomial addition");
         let mut rng = XorShiftRng::from_seed(RNG_SEED);
-        for deg in TEST_DEGREES {
+        for deg in TEST_DEGREES.to_vec() {
             let parameter_string = format!("{}", deg);
             group.bench_with_input(
                 BenchmarkId::new("Polynomial addition", parameter_string),
@@ -80,7 +80,7 @@ mod poly_benches {
     fn interpolate(c: &mut Criterion) {
         let mut group = c.benchmark_group("Polynomial interpolation");
         let mut rng = XorShiftRng::from_seed(RNG_SEED);
-        for deg in TEST_DEGREES {
+        for deg in TEST_DEGREES.to_vec() {
             let parameter_string = format!("{}", deg);
             group.bench_with_input(
                 BenchmarkId::new("Polynomial interpolation", parameter_string),
@@ -118,7 +118,7 @@ mod public_key_set_benches {
         let mut rng = XorShiftRng::from_seed(RNG_SEED);
         let mut group = c.benchmark_group("Combine Signatures");
         let msg = "Test message";
-        for threshold in TEST_THRESHOLDS {
+        for threshold in TEST_THRESHOLDS.to_vec() {
             let parameter_string = format!("{}", threshold);
             group.bench_with_input(
                 BenchmarkId::new("Combine Signatures", parameter_string),

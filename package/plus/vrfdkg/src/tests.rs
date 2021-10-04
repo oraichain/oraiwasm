@@ -47,7 +47,7 @@ fn get_sk_key(member: &Member, dealers: &Vec<Member>) -> SecretKeyShare {
     SecretKeyShare::from_mut(&mut sec_key)
 }
 
-fn generate_sample_bivars() -> (Vec<Vec<String>>, Vec<Vec<String>>) {
+fn _generate_sample_bivars() -> (Vec<Vec<String>>, Vec<Vec<String>>) {
     let commits_list = vec![
         vec![
             "qoUJsN52CGh28XYTUq2UOX/LwIma3mCk5C6fSpTXsrcZIbosRA/C14MFM4OidoWholKZlg6oEJxqIpI07SsVdQkyU5Scl31KQlR3lS9iGWbHG8zBli+orbAUwEDi0Q6AlCURH9LuwNn3BGV/E18MtOxYrWXuy5j0sbh1c5L9qDTBnhlz30A7et1q1wdrTPb7".to_string(),
@@ -284,7 +284,7 @@ fn request_round() {
             // now can share secret pubkey for contract to verify
             let sk = get_sk_key(contributor, &dealers);
             let mut msg = input.to_vec();
-            msg.extend((round as u64).to_be_bytes());
+            msg.extend((round as u64).to_be_bytes().to_vec());
             let msg_hash = hash_g2(msg);
             let mut sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
             sig_bytes.copy_from_slice(&sk.sign_g2(msg_hash).to_bytes());

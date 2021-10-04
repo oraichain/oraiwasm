@@ -224,4 +224,5 @@ fn main() {
     let (_, msg, sig) = network.chat_log.first().unwrap();
     let verifed = network.pk_set.public_key().verify(sig, msg);
     println!("msg : {:?}, pk: {:?}", msg, network.pk_set.public_key());
+    println!("verified: {}", verifed);
 }
