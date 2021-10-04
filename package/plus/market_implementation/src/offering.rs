@@ -12,7 +12,9 @@ use market::{query_proxy, StorageHandleMsg};
 use market_ai_royalty::{
     sanitize_royalty, AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, MintMsg, Royalty, RoyaltyMsg,
 };
-use market_royalty::{Offering, OfferingHandleMsg, OfferingQueryMsg, QueryOfferingsResult};
+use market_royalty::{
+    Offering, OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty, QueryOfferingsResult,
+};
 use std::ops::{Mul, Sub};
 
 pub const OFFERING_STORAGE: &str = "offering_v1.1";
@@ -143,21 +145,50 @@ pub fn try_buy(
                 }
             }
 
+            let mut offering_royalty_result: OfferingRoyalty = deps
+                .querier
+                .query_wasm_smart(
+                    get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
+                    &ProxyQueryMsg::Offering(
+                        OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId {
+                            contract: deps.api.human_address(&off.contract_addr)?,
+                            token_id: off.token_id.clone(),
+                        },
+                    ),
+                )
+                .map_err(|_| ContractError::InvalidGetOfferingRoyalty {})?;
+
             // payout for the previous owner
-            if let Some(owner_royalty) = off.royalty {
-                let owner_amount = off.price.mul(Decimal::percent(owner_royalty));
+            if offering_royalty_result.previous_owner.is_some()
+                && offering_royalty_result.prev_royalty.is_some()
+            {
+                let owner_amount = off.price.mul(Decimal::percent(
+                    offering_royalty_result.prev_royalty.unwrap(),
+                ));
                 if owner_amount.gt(&Uint128::from(0u128)) {
                     seller_amount = seller_amount.sub(owner_amount)?;
                     cosmos_msgs.push(
                         BankMsg::Send {
                             from_address: env.contract.address.clone(),
-                            to_address: deps.api.human_address(&off.seller)?,
+                            to_address: offering_royalty_result.previous_owner.unwrap(),
                             amount: coins(owner_amount.u128(), &contract_info.denom),
                         }
                         .into(),
                     );
                 }
             }
+
+            // update offering royalty result, current royalty info now turns to prev
+            offering_royalty_result.prev_royalty = offering_royalty_result.cur_royalty;
+            offering_royalty_result.previous_owner =
+                Some(offering_royalty_result.current_owner.clone());
+            cosmos_msgs.push(get_offering_handle_msg(
+                governance.clone(),
+                OFFERING_STORAGE,
+                OfferingHandleMsg::UpdateOfferingRoyalty {
+                    offering: offering_royalty_result.clone(),
+                },
+            )?);
 
             // pay the left to the seller
             if !seller_amount.is_zero() {
@@ -217,12 +248,6 @@ pub fn try_buy(
         handle_response.attributes.push(attr(
             format!("royalty_{}_{}", royalty.creator_type, royalty.creator),
             royalty.royalty,
-        ));
-    }
-    if let Some(royalty) = off.royalty {
-        handle_response.attributes.push(attr(
-            format!("royalty__{}", deps.api.human_address(&off.seller)?),
-            royalty,
         ));
     }
 
@@ -314,22 +339,51 @@ pub fn handle_sell_nft(
         "royalty",
     )?);
 
+    let mut offering_royalty_result: OfferingRoyalty = deps
+        .querier
+        .query_wasm_smart(
+            get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
+            &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId {
+                contract: info.sender.clone(),
+                token_id: rcv_msg.token_id.clone(),
+            }),
+        )
+        .map_err(|_| ContractError::InvalidGetOfferingRoyalty {})
+        .unwrap_or(OfferingRoyalty {
+            token_id: rcv_msg.token_id.clone(),
+            contract_addr: info.sender.clone(),
+            previous_owner: None,
+            current_owner: rcv_msg.sender.clone(),
+            prev_royalty: None,
+            cur_royalty: royalty,
+        });
+    offering_royalty_result.current_owner = rcv_msg.sender.clone();
+    offering_royalty_result.cur_royalty = royalty;
+
     let offering = Offering {
         id: None,
         token_id: rcv_msg.token_id,
         contract_addr: deps.api.canonical_address(&info.sender)?,
         seller: deps.api.canonical_address(&rcv_msg.sender)?,
         price: msg.off_price,
-        royalty,
     };
 
     let mut cosmos_msgs = vec![];
     // push save message to auction_storage
     cosmos_msgs.push(get_offering_handle_msg(
-        governance,
+        governance.clone(),
         OFFERING_STORAGE,
         OfferingHandleMsg::UpdateOffering {
             offering: offering.clone(),
+        },
+    )?);
+
+    // update offering royalty result
+    cosmos_msgs.push(get_offering_handle_msg(
+        governance,
+        OFFERING_STORAGE,
+        OfferingHandleMsg::UpdateOfferingRoyalty {
+            offering: offering_royalty_result.clone(),
         },
     )?);
 
@@ -339,6 +393,12 @@ pub fn handle_sell_nft(
             attr("action", "sell_nft"),
             attr("original_contract", info.sender),
             attr("seller", rcv_msg.sender),
+            attr(
+                "previous_owner",
+                offering_royalty_result
+                    .previous_owner
+                    .unwrap_or(HumanAddr::from("")),
+            ),
             attr("price", offering.price.to_string()),
             attr("token_id", offering.token_id),
         ],

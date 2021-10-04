@@ -1,9 +1,10 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
-    get_contract_token_id, increment_offerings, offerings, ContractInfo, CONTRACT_INFO,
+    get_contract_token_id, get_contract_token_id_human, increment_offerings, offerings,
+    offerings_royalty, ContractInfo, CONTRACT_INFO,
 };
-use market_royalty::OfferingHandleMsg;
+use market_royalty::{OfferingHandleMsg, OfferingRoyalty};
 use market_royalty::{OfferingQueryMsg, OfferingsResponse, QueryOfferingsResult};
 
 use cosmwasm_std::{
@@ -49,7 +50,12 @@ pub fn handle(
             OfferingHandleMsg::UpdateOffering { offering } => {
                 try_update_offering(deps, info, env, offering)
             }
-            OfferingHandleMsg::RemoveOffering { id } => try_withdraw_offering(deps, info, env, id),
+            OfferingHandleMsg::RemoveOffering { id } => try_remove_offering(deps, info, env, id),
+            OfferingHandleMsg::UpdateOfferingRoyalty { offering } => {
+                try_update_offering_royalty(deps, info, env, offering)
+            } // OfferingHandleMsg::RemoveOfferingRoyalty { id } => {
+              //     try_delete_offering_royalty(deps, info, env, id)
+              // }
         },
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
@@ -88,6 +94,40 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             OfferingQueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
                 &query_offering_by_contract_tokenid(deps, contract, token_id)?,
             ),
+            OfferingQueryMsg::GetOfferingsRoyalty {
+                limit,
+                offset,
+                order,
+            } => to_binary(&query_offerings_royalty(deps, limit, offset, order)?),
+
+            OfferingQueryMsg::GetOfferingsRoyaltyByContract {
+                contract,
+                limit,
+                offset,
+                order,
+            } => to_binary(&query_offerings_royalty_by_contract(
+                deps, contract, limit, offset, order,
+            )?),
+            OfferingQueryMsg::GetOfferingsRoyaltyByCurrentOwner {
+                current_owner,
+                limit,
+                offset,
+                order,
+            } => to_binary(&query_offerings_royalty_by_current_owner(
+                deps,
+                current_owner,
+                limit,
+                offset,
+                order,
+            )?),
+            OfferingQueryMsg::GetOfferingRoyalty { offering_id } => {
+                to_binary(&query_offering_royalty(deps, offering_id)?)
+            }
+            OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId { contract, token_id } => {
+                to_binary(&query_offering_royalty_by_contract_tokenid(
+                    deps, contract, token_id,
+                )?)
+            }
             OfferingQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
         },
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
@@ -125,7 +165,7 @@ pub fn try_update_offering(
     });
 }
 
-pub fn try_withdraw_offering(
+pub fn try_remove_offering(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
@@ -147,6 +187,61 @@ pub fn try_withdraw_offering(
         data: None,
     });
 }
+
+pub fn try_update_offering_royalty(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    offering: OfferingRoyalty,
+) -> Result<HandleResponse, ContractError> {
+    // must check the sender is implementation contract
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+
+    if contract_info.governance.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    };
+
+    offerings_royalty().save(
+        deps.storage,
+        &get_contract_token_id_human(&offering.contract_addr, &offering.token_id).0,
+        &offering,
+    )?;
+
+    return Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![attr("action", "update_offering_royalty")],
+        data: to_binary(&offering).ok(),
+    });
+}
+
+// pub fn try_remove_offering_royalty(
+//     deps: DepsMut,
+//     info: MessageInfo,
+//     _env: Env,
+//     contract_addr: HumanAddr,
+//     token_id: String,
+// ) -> Result<HandleResponse, ContractError> {
+//     let contract_info = CONTRACT_INFO.load(deps.storage)?;
+//     if contract_info.governance.ne(&info.sender) {
+//         return Err(ContractError::Unauthorized {
+//             sender: info.sender.to_string(),
+//         });
+//     }
+
+//     // remove offering
+//     offerings().remove(
+//         deps.storage,
+//         &get_contract_token_id_human(&contract_addr, &token_id).0,
+//     )?;
+
+//     return Ok(HandleResponse {
+//         messages: vec![],
+//         attributes: vec![attr("action", "remove_offering_royalty")],
+//         data: None,
+//     });
+// }
 
 pub fn try_update_info(
     deps: DepsMut,
@@ -279,7 +374,6 @@ pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<QueryOfferingsR
         price: offering.price,
         contract_addr: deps.api.human_address(&offering.contract_addr)?,
         seller: deps.api.human_address(&offering.seller)?,
-        royalty_owner: offering.royalty,
     })
 }
 
@@ -306,11 +400,92 @@ pub fn query_offering_by_contract_tokenid(
             price: offering_result.price,
             contract_addr: deps.api.human_address(&offering_result.contract_addr)?,
             seller: deps.api.human_address(&offering_result.seller)?,
-            royalty_owner: offering_result.royalty,
         };
         Ok(offering_resposne)
     } else {
         Err(StdError::generic_err("Offering not found"))
+    }
+}
+
+pub fn query_offerings_royalty(
+    deps: Deps,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<Vec<OfferingRoyalty>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+
+    let res: StdResult<Vec<OfferingRoyalty>> = offerings_royalty()
+        .range(deps.storage, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| parse_offering_royalty(kv_item))
+        .collect();
+
+    Ok(res?)
+}
+
+pub fn query_offerings_royalty_by_current_owner(
+    deps: Deps,
+    current_owner: HumanAddr,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<Vec<OfferingRoyalty>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let res: StdResult<Vec<OfferingRoyalty>> = offerings_royalty()
+        .idx
+        .current_owner
+        .items(
+            deps.storage,
+            &current_owner.as_bytes(),
+            min,
+            max,
+            order_enum,
+        )
+        .take(limit)
+        .map(|kv_item| parse_offering_royalty(kv_item))
+        .collect();
+
+    Ok(res?)
+}
+
+pub fn query_offerings_royalty_by_contract(
+    deps: Deps,
+    contract: HumanAddr,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<Vec<OfferingRoyalty>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let res: StdResult<Vec<OfferingRoyalty>> = offerings_royalty()
+        .idx
+        .contract
+        .items(deps.storage, &contract.as_bytes(), min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| parse_offering_royalty(kv_item))
+        .collect();
+
+    Ok(res?)
+}
+
+pub fn query_offering_royalty(deps: Deps, offering_id: u64) -> StdResult<OfferingRoyalty> {
+    let offering = offerings_royalty().load(deps.storage, &offering_id.to_be_bytes())?;
+    Ok(offering)
+}
+
+pub fn query_offering_royalty_by_contract_tokenid(
+    deps: Deps,
+    contract: HumanAddr,
+    token_id: String,
+) -> StdResult<OfferingRoyalty> {
+    let offering = offerings_royalty().idx.contract_token_id.item(
+        deps.storage,
+        get_contract_token_id_human(&contract, &token_id),
+    )?;
+    if let Some(offering_obj) = offering {
+        Ok(offering_obj.1)
+    } else {
+        Err(StdError::generic_err("Offering royalty not found"))
     }
 }
 
@@ -326,14 +501,20 @@ fn parse_offering<'a>(
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array
         let id: u64 = u64::from_be_bytes(k.try_into().unwrap());
-        let royalty_owner = offering.royalty;
         Ok(QueryOfferingsResult {
             id,
             token_id: offering.token_id,
             price: offering.price,
             contract_addr: api.human_address(&offering.contract_addr)?,
             seller: api.human_address(&offering.seller)?,
-            royalty_owner,
         })
+    })
+}
+
+fn parse_offering_royalty<'a>(item: StdResult<KV<OfferingRoyalty>>) -> StdResult<OfferingRoyalty> {
+    item.and_then(|(_, offering)| {
+        // will panic if length is greater than 8, but we can make sure it is u64
+        // try_into will box vector to fixed array
+        Ok(offering)
     })
 }

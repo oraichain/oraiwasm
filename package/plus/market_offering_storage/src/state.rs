@@ -1,4 +1,4 @@
-use market_royalty::Offering;
+use market_royalty::{Offering, OfferingRoyalty};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -61,4 +61,47 @@ pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>
         ),
     };
     IndexedMap::new("offerings", indexes)
+}
+
+pub struct OfferingRoyaltyIndexes<'a> {
+    pub current_owner: MultiIndex<'a, OfferingRoyalty>,
+    pub contract: MultiIndex<'a, OfferingRoyalty>,
+    pub contract_token_id: UniqueIndex<'a, PkOwned, OfferingRoyalty>,
+}
+
+impl<'a> IndexList<OfferingRoyalty> for OfferingRoyaltyIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<OfferingRoyalty>> + '_> {
+        let v: Vec<&dyn Index<OfferingRoyalty>> =
+            vec![&self.current_owner, &self.contract, &self.contract_token_id];
+        Box::new(v.into_iter())
+    }
+}
+
+// contract nft + token id => unique id
+pub fn get_contract_token_id_human(contract: &HumanAddr, token_id: &str) -> PkOwned {
+    let mut vec = contract.as_bytes().to_vec();
+    vec.extend(token_id.as_bytes());
+    PkOwned(vec)
+}
+
+// this IndexedMap instance has a lifetime
+pub fn offerings_royalty<'a>(
+) -> IndexedMap<'a, &'a [u8], OfferingRoyalty, OfferingRoyaltyIndexes<'a>> {
+    let indexes = OfferingRoyaltyIndexes {
+        current_owner: MultiIndex::new(
+            |o| o.current_owner.as_bytes().to_vec(),
+            "offerings_royalty",
+            "offerings_royalty_current_owner",
+        ),
+        contract: MultiIndex::new(
+            |o| o.contract_addr.as_bytes().to_vec(),
+            "offerings_royalty",
+            "offerings_royalty_contract",
+        ),
+        contract_token_id: UniqueIndex::new(
+            |o| get_contract_token_id_human(&o.contract_addr, &o.token_id),
+            "offerings_royalty_id",
+        ),
+    };
+    IndexedMap::new("offerings_royalty", indexes)
 }

@@ -86,9 +86,18 @@ pub enum QueryMsg {
         order: Option<u8>,
     },
     // suppose to return all
-    GetDealers {},
+    GetDealers {
+        limit: Option<u8>,
+        offset: Option<u8>,
+        order: Option<u8>,
+    },
     LatestRound {},
-    // EarliestHandling {},
+    GetRounds {
+        limit: Option<u8>,
+        offset: Option<u8>,
+        order: Option<u8>,
+    },
+    EarliestHandling {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

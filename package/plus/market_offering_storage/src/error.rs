@@ -28,6 +28,9 @@ pub enum ContractError {
     #[error("There is an error while collecting the offering")]
     InvalidGetOffering {},
 
+    #[error("There is an error while collecting the offering royalty")]
+    InvalidGetOfferingRoyalty {},
+
     #[error("The offering seller address is invalid")]
     InvalidSellerAddr {},
 

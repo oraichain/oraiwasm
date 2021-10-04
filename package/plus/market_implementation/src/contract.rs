@@ -166,6 +166,9 @@ pub fn try_update_info(
         if let Some(step_price) = msg.step_price {
             contract_info.step_price = step_price
         }
+        if let Some(governance) = msg.governance {
+            contract_info.governance = governance;
+        }
         Ok(contract_info)
     })?;
 

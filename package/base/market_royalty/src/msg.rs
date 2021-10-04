@@ -1,4 +1,4 @@
-use cosmwasm_std::{CanonicalAddr, Uint128};
+use cosmwasm_std::{CanonicalAddr, HumanAddr, Uint128};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -11,7 +11,16 @@ pub struct Offering {
     pub seller: CanonicalAddr,
     pub price: Uint128,
     // percentage for seller(previous-owner) of the NFT
-    pub royalty: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct OfferingRoyalty {
+    pub token_id: String,
+    pub contract_addr: HumanAddr,
+    pub previous_owner: Option<HumanAddr>,
+    pub current_owner: HumanAddr,
+    pub prev_royalty: Option<u64>,
+    pub cur_royalty: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -19,7 +28,9 @@ pub struct Offering {
 pub enum OfferingHandleMsg {
     // this allow implementation contract to update the storage
     UpdateOffering { offering: Offering },
+    UpdateOfferingRoyalty { offering: OfferingRoyalty },
     RemoveOffering { id: u64 },
+    // RemoveOfferingRoyalty { id: u64 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

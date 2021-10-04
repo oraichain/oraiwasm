@@ -47,7 +47,7 @@ fn get_sk_key(member: &Member, dealers: &Vec<Member>) -> SecretKeyShare {
     SecretKeyShare::from_mut(&mut sec_key)
 }
 
-fn _generate_sample_bivars() -> (Vec<Vec<String>>, Vec<Vec<String>>) {
+fn generate_sample_bivars() -> (Vec<Vec<String>>, Vec<Vec<String>>) {
     let commits_list = vec![
         vec![
             "qoUJsN52CGh28XYTUq2UOX/LwIma3mCk5C6fSpTXsrcZIbosRA/C14MFM4OidoWholKZlg6oEJxqIpI07SsVdQkyU5Scl31KQlR3lS9iGWbHG8zBli+orbAUwEDi0Q6AlCURH9LuwNn3BGV/E18MtOxYrWXuy5j0sbh1c5L9qDTBnhlz30A7et1q1wdrTPb7".to_string(),

@@ -12,7 +12,7 @@ use cosmwasm_std::{
 use market_ai_royalty::{AiRoyaltyQueryMsg, MintIntermediate, MintMsg, MintStruct, Royalty};
 use market_auction::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_auction::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
-use market_royalty::{OfferingQueryMsg, OfferingsResponse, QueryOfferingsResult};
+use market_royalty::{OfferingQueryMsg, OfferingRoyalty, OfferingsResponse, QueryOfferingsResult};
 use std::mem::transmute;
 use std::ops::{Add, Mul};
 use std::ptr::null;
@@ -126,7 +126,7 @@ impl DepsManager {
             step_price: 10,
             // creator can update storage contract
             governance: HumanAddr::from(HUB_ADDR),
-            max_royalty: 20,
+            max_royalty: 50,
         };
         let info = mock_info(CREATOR, &[]);
         let _res = init(deps.as_mut(), mock_env(MARKET_ADDR), info.clone(), msg).unwrap();
@@ -317,6 +317,7 @@ fn update_info_test() {
             fee: Some(5),
             auction_duration: None,
             step_price: None,
+            governance: None,
         };
         let update_info_msg = HandleMsg::UpdateInfo(update_info);
 
@@ -749,7 +750,7 @@ fn test_royalties() {
                 .unwrap(),
         )
         .unwrap();
-        println!("{:?}", result);
+        println!("offerings: {:?}", result);
 
         let buy_msg = HandleMsg::BuyNft { offering_id: 1 };
         let info_buy = mock_info("buyer", &coins(50, DENOM));
@@ -761,7 +762,7 @@ fn test_royalties() {
             token_id: String::from("SellableNFT"),
             msg: to_binary(&SellNft {
                 off_price: Uint128(70),
-                royalty: Some(10),
+                royalty: Some(40),
             })
             .ok(),
         });
@@ -786,7 +787,7 @@ fn test_royalties() {
 
         // sell again again
         let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-            sender: HumanAddr::from("buyer3"),
+            sender: HumanAddr::from("buyer1"),
             token_id: String::from("SellableNFT"),
             msg: to_binary(&SellNft {
                 off_price: Uint128(90),
@@ -805,6 +806,21 @@ fn test_royalties() {
         // other buyer again
         let buy_msg = HandleMsg::BuyNft { offering_id: 3 };
         let info_buy = mock_info("buyer2", &coins(9000000, DENOM));
+
+        // before the final buy
+        let result_royalty: OfferingRoyalty = from_binary(
+            &manager
+                .query(QueryMsg::Offering(
+                    OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId {
+                        contract: HumanAddr::from("offering"),
+                        token_id: String::from("SellableNFT"),
+                    },
+                ))
+                .unwrap(),
+        )
+        .unwrap();
+        println!("offerings royalties before final buy: {:?}", result_royalty);
+
         let results = manager.handle(info_buy, buy_msg).unwrap();
         let mut total_payment = Uint128::from(0u128);
         let mut royatly_marketplace = Uint128::from(0u128);
@@ -849,6 +865,15 @@ fn test_royalties() {
                             amounts.push(amount);
                             // check royalty sent to seller
                             if to_address.eq(&offering.clone().seller) {
+                                total_payment = total_payment + amount;
+                            }
+                            if to_address.eq(&result_royalty.previous_owner.clone().unwrap()) {
+                                assert_eq!(
+                                    offering.price.mul(Decimal::percent(
+                                        result_royalty.prev_royalty.unwrap()
+                                    )),
+                                    amount
+                                );
                                 total_payment = total_payment + amount;
                             }
 

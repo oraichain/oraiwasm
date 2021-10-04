@@ -12,6 +12,7 @@ use cosmwasm_std::{coin, coins, from_binary, HumanAddr, Order, OwnedDeps, Uint12
 use market_royalty::Offering;
 use market_royalty::OfferingHandleMsg;
 use market_royalty::OfferingQueryMsg;
+use market_royalty::OfferingRoyalty;
 use market_royalty::OfferingsResponse;
 
 const CREATOR: &str = "marketplace";
@@ -64,7 +65,6 @@ fn sort_offering() {
                 .canonical_address(&HumanAddr::from("seller"))
                 .unwrap(),
             price: Uint128::from(1u64),
-            royalty: None,
         };
         offerings.push(offering);
     }
@@ -109,6 +109,73 @@ fn sort_offering() {
 }
 
 #[test]
+fn sort_offering_royalty() {
+    let mut deps = setup_contract();
+
+    // beneficiary can release it
+    let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
+    let mut offerings: Vec<OfferingRoyalty> = vec![];
+
+    for i in 1u64..3u64 {
+        let offering = OfferingRoyalty {
+            contract_addr: HumanAddr::from("xxx"),
+            token_id: i.to_string(),
+            previous_owner: None,
+            prev_royalty: None,
+            current_owner: HumanAddr::from(format!("{}{}", "seller", i)),
+            cur_royalty: Some(15u64),
+        };
+        offerings.push(offering);
+    }
+
+    for off in offerings {
+        let msg = HandleMsg::Offering(OfferingHandleMsg::UpdateOfferingRoyalty { offering: off });
+        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    }
+
+    // Offering should be listed
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Offering(OfferingQueryMsg::GetOfferingsRoyaltyByCurrentOwner {
+            current_owner: "seller1".into(),
+            limit: None,
+            offset: None,
+            order: Some(Order::Ascending as u8),
+        }),
+    )
+    .unwrap();
+    let value: Vec<OfferingRoyalty> = from_binary(&res).unwrap();
+    println!("value: {:?}", value);
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Offering(OfferingQueryMsg::GetOfferingsRoyaltyByContract {
+            contract: HumanAddr::from("xxx"),
+            limit: None,
+            offset: None,
+            order: Some(Order::Ascending as u8),
+        }),
+    )
+    .unwrap();
+    let value: Vec<OfferingRoyalty> = from_binary(&res).unwrap();
+    println!("offering royalties by contract: {:?}", value);
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Offering(OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId {
+            contract: HumanAddr::from("xxx"),
+            token_id: 2.to_string(),
+        }),
+    )
+    .unwrap();
+    let value: OfferingRoyalty = from_binary(&res).unwrap();
+    println!("offering royaltie by contract token id: {:?}", value);
+}
+
+#[test]
 fn withdraw_offering() {
     let mut deps = setup_contract();
 
@@ -131,7 +198,6 @@ fn withdraw_offering() {
                 .canonical_address(&HumanAddr::from("seller"))
                 .unwrap(),
             price: Uint128::from(1u64),
-            royalty: None,
         };
         offerings.push(offering);
     }

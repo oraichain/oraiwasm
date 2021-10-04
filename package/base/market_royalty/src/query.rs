@@ -34,6 +34,30 @@ pub enum OfferingQueryMsg {
         contract: HumanAddr,
         token_id: String,
     },
+    GetOfferingsRoyalty {
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
+    GetOfferingsRoyaltyByCurrentOwner {
+        current_owner: HumanAddr,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
+    GetOfferingsRoyaltyByContract {
+        contract: HumanAddr,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
+    GetOfferingRoyalty {
+        offering_id: u64,
+    },
+    GetOfferingRoyaltyByContractTokenId {
+        contract: HumanAddr,
+        token_id: String,
+    },
     GetContractInfo {},
 }
 
@@ -44,7 +68,6 @@ pub struct QueryOfferingsResult {
     pub price: Uint128,
     pub contract_addr: HumanAddr,
     pub seller: HumanAddr,
-    pub royalty_owner: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

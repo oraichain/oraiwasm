@@ -12,6 +12,7 @@ use crate::msg::SharedStatus;
 const CONFIG_KEY: &[u8] = b"config";
 const MEMBERS_KEY: &[u8] = b"members";
 const BEACONS_KEY: &[u8] = b"beacons";
+const BEACONS_EARLIEST_KEY: &[u8] = b"beacons_earliest";
 const OWNER_KEY: &[u8] = b"owner";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

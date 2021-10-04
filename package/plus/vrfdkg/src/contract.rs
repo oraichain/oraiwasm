@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use blsdkg::poly::{Commitment, Poly};
 use cosmwasm_std::{
-    attr, coins, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, InitResponse, MessageInfo, Order, StdResult,
+    attr, coins, from_binary, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps,
+    DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order, StdResult,
 };
 
 use blsdkg::{derive_randomness, hash_g2, PublicKeySet, PublicKeyShare, SignatureShare, SIG_SIZE};
@@ -83,9 +83,18 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             offset,
             order,
         } => to_binary(&query_members(deps, limit, offset, order)?)?,
-        QueryMsg::GetDealers {} => to_binary(&query_dealers(deps)?)?,
+        QueryMsg::GetDealers {
+            limit,
+            offset,
+            order,
+        } => to_binary(&query_dealers(deps, limit, offset, order)?)?,
         QueryMsg::LatestRound {} => to_binary(&query_latest(deps)?)?,
-        // QueryMsg::EarliestHandling {} => to_binary(&query_earliest(deps)?)?,
+        QueryMsg::GetRounds {
+            limit,
+            offset,
+            order,
+        } => to_binary(&query_rounds(deps, limit, offset, order)?)?,
+        QueryMsg::EarliestHandling {} => to_binary(&query_earliest(deps)?)?,
     };
     Ok(response)
 }
@@ -334,6 +343,7 @@ pub fn update_share_sig(
     let Config {
         fee: fee_val,
         threshold,
+        dealer,
         ..
     } = config_read(deps.storage).load()?;
 
@@ -389,7 +399,13 @@ pub fn update_share_sig(
     });
     // stop with threshold +1
     if share_data.sigs.len() as u16 > threshold {
-        let dealers = query_dealers(deps.as_ref())?;
+        let mut offset = Some(0);
+        let mut dealers = query_dealers(deps.as_ref(), None, offset, Some(1u8))?;
+        while dealers.len().lt(&(dealer as usize)) {
+            offset = Some(offset.unwrap() + 10);
+            let temp_dealers = query_dealers(deps.as_ref(), None, offset, Some(1u8))?;
+            dealers.extend(temp_dealers);
+        }
         // do aggregate
         let mut sum_commit = Poly::zero().commitment();
         for dealer in dealers {
@@ -474,9 +490,6 @@ pub fn request_random(
     // get next round and
     let round = match query_latest(deps.as_ref()) {
         Ok(v) => {
-            if v.combined_sig.is_none() {
-                return Err(ContractError::PendingRound { round: v.round });
-            }
             v.round + 1 // next round
         }
         Err(err) => {
@@ -543,14 +556,13 @@ fn query_member(deps: Deps, address: &str) -> Result<Member, ContractError> {
     Ok(member)
 }
 
-fn query_members(
-    deps: Deps,
+// explicit lifetime for better understanding
+fn get_query_params<'a>(
     limit: Option<u8>,
-    offset: Option<u8>,
+    offset_slice: &'a [u8],
     order: Option<u8>,
-) -> Result<Vec<Member>, ContractError> {
+) -> (Option<&'a [u8]>, Option<&'a [u8]>, Order, usize) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-
     let mut min: Option<&[u8]> = None;
     let mut max: Option<&[u8]> = None;
     let mut order_enum = Order::Ascending;
@@ -559,9 +571,6 @@ fn query_members(
             order_enum = Order::Descending;
         }
     };
-    let offset_bytes = offset.unwrap_or(0u8).to_be_bytes();
-    let offset_vec = offset_bytes.to_vec();
-    let offset_slice = offset_vec.as_slice();
 
     // if there is offset, assign to min or max
     let offset_value = Some(offset_slice);
@@ -569,7 +578,17 @@ fn query_members(
         Order::Ascending => min = offset_value,
         Order::Descending => max = offset_value,
     }
+    (min, max, order_enum, limit)
+}
 
+fn query_members(
+    deps: Deps,
+    limit: Option<u8>,
+    offset: Option<u8>,
+    order: Option<u8>,
+) -> Result<Vec<Member>, ContractError> {
+    let offset_bytes = offset.unwrap_or(0u8).to_be_bytes();
+    let (min, max, order_enum, limit) = get_query_params(limit, &offset_bytes, order);
     let members = members_storage_read(deps.storage)
         .range(min, max, order_enum)
         .take(limit)
@@ -578,9 +597,17 @@ fn query_members(
     Ok(members)
 }
 
-fn query_dealers(deps: Deps) -> Result<Vec<Member>, ContractError> {
+fn query_dealers(
+    deps: Deps,
+    limit: Option<u8>,
+    offset: Option<u8>,
+    order: Option<u8>,
+) -> Result<Vec<Member>, ContractError> {
+    let offset_bytes = offset.unwrap_or(0u8).to_be_bytes();
+    let (min, max, order_enum, limit) = get_query_params(limit, &offset_bytes, order);
     let mut members: Vec<Member> = members_storage_read(deps.storage)
-        .range(None, None, Order::Ascending)
+        .range(min, max, order_enum)
+        .take(limit)
         .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
         .collect();
 
@@ -609,5 +636,31 @@ fn query_latest(deps: Deps) -> Result<DistributedShareData, ContractError> {
     let mut iter = store.range(None, None, Order::Descending);
     let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
     let share_data: DistributedShareData = from_slice(value.as_slice())?;
+    Ok(share_data)
+}
+
+fn query_rounds(
+    deps: Deps,
+    limit: Option<u8>,
+    offset: Option<u8>,
+    order: Option<u8>,
+) -> Result<Vec<DistributedShareData>, ContractError> {
+    let store = beacons_storage_read(deps.storage);
+    let offset_bytes = offset.unwrap_or(0u8).to_be_bytes();
+    let (min, max, order_enum, limit) = get_query_params(limit, &offset_bytes, order);
+    let rounds: Vec<DistributedShareData> = store
+        .range(min, max, order_enum)
+        .take(limit)
+        .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
+        .collect();
+    Ok(rounds)
+}
+
+// TODO: add count object to count the current handling round
+fn query_earliest(deps: Deps) -> Result<DistributedShareData, ContractError> {
+    let store = beacons_storage_read(deps.storage);
+    let mut iter = store.range(None, None, Order::Ascending);
+    let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
+    let share_data: DistributedShareData = from_binary(&value.into())?;
     Ok(share_data)
 }

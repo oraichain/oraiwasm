@@ -86,6 +86,7 @@ pub struct UpdateContractMsg {
     pub denom: Option<String>,
     pub auction_duration: Option<Uint128>,
     pub step_price: Option<u64>,
+    pub governance: Option<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
