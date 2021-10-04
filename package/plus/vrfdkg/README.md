@@ -1,7 +1,3 @@
-## Build on Macos
-
-`CC="clang -m32" ./optimize.sh package/plus/vrfdkg`
-
 ## phrases:
 
 - a number of members act as dealers send commit and secret_row encrypted by node[m] public key and commit share
