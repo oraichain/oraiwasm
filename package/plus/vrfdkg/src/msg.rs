@@ -97,7 +97,7 @@ pub enum QueryMsg {
         offset: Option<u8>,
         order: Option<u8>,
     },
-    EarliestHandling {},
+    CurrentHandling {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

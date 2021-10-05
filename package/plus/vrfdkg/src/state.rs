@@ -10,9 +10,9 @@ use cosmwasm_storage::{
 use crate::msg::SharedStatus;
 
 const CONFIG_KEY: &[u8] = b"config";
+const ROUND_COUNT_KEY: &[u8] = b"round_count";
 const MEMBERS_KEY: &[u8] = b"members";
 const BEACONS_KEY: &[u8] = b"beacons";
-const BEACONS_EARLIEST_KEY: &[u8] = b"beacons_earliest";
 const OWNER_KEY: &[u8] = b"owner";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -39,6 +39,14 @@ pub fn config(storage: &mut dyn Storage) -> Singleton<Config> {
 
 pub fn config_read(storage: &dyn Storage) -> ReadonlySingleton<Config> {
     singleton_read(storage, CONFIG_KEY)
+}
+
+pub fn round_count(storage: &mut dyn Storage) -> Singleton<u64> {
+    singleton(storage, ROUND_COUNT_KEY)
+}
+
+pub fn round_count_read(storage: &dyn Storage) -> ReadonlySingleton<u64> {
+    singleton_read(storage, ROUND_COUNT_KEY)
 }
 
 pub fn beacons_storage(storage: &mut dyn Storage) -> PrefixedStorage {

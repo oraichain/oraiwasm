@@ -1,5 +1,5 @@
 use crate::{
-    contract::{handle, init, query},
+    contract::{handle, init, query, query_current},
     msg::{
         DistributedShareData, HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, ShareSigMsg,
         SharedDealerMsg, SharedRowMsg, SharedStatus,
@@ -275,7 +275,7 @@ fn request_round() {
     // next phase is wait for row
     assert_eq!(ret.status, SharedStatus::WaitForRequest);
 
-    for round in 1..=3 {
+    for _ in 1u64..=3u64 {
         let input = Binary::from_base64("aGVsbG8=").unwrap();
         // anyone request commit
         let info = mock_info("anyone", &vec![]);
@@ -283,13 +283,23 @@ fn request_round() {
             input: input.clone(),
         };
         let _res = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+    }
+
+    // query rounds and sign signatures
+    let mut current_round_result = query_current(deps.as_ref());
+    while current_round_result.is_ok() {
+        let current_round = query_current(deps.as_ref()).unwrap();
         // threshold is 2, so need 3,4,5 as honest member to contribute sig
         let contributors: Vec<&Member> = [2, 3, 4].iter().map(|i| &members[*i]).collect();
         for contributor in contributors {
             // now can share secret pubkey for contract to verify
             let sk = get_sk_key(contributor, &dealers);
-            let mut msg = input.to_vec();
-            msg.extend((round as u64).to_be_bytes().to_vec());
+            println!(
+                "msg after adding round: {}",
+                current_round.input.to_base64()
+            );
+            let mut msg = current_round.input.to_vec();
+            msg.extend(current_round.round.to_be_bytes().to_vec());
             let msg_hash = hash_g2(msg);
             let mut sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
             sig_bytes.copy_from_slice(&sk.sign_g2(msg_hash).to_bytes());
@@ -297,20 +307,33 @@ fn request_round() {
             let info = mock_info(contributor.address.clone(), &vec![]);
 
             let msg = HandleMsg::ShareSig {
-                share: ShareSigMsg { sig, round },
+                share: ShareSigMsg {
+                    sig,
+                    round: current_round.round,
+                },
             };
             handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+            // update to get next round
+            current_round_result = query_current(deps.as_ref());
         }
+    }
 
-        // now should query randomness successfully
-        let msg = QueryMsg::LatestRound {};
-        let latest_round: DistributedShareData =
-            from_binary(&query(deps.as_ref(), mock_env(), msg).unwrap()).unwrap();
+    // now should query randomness successfully
+    let msg = QueryMsg::GetRounds {
+        limit: None,
+        offset: None,
+        order: Some(1),
+    };
+    let latest_rounds: Vec<DistributedShareData> =
+        from_binary(&query(deps.as_ref(), mock_env(), msg).unwrap()).unwrap();
 
+    for latest_round in latest_rounds {
         // can re-verify from response
         println!(
-            "Latest round {} with randomess: {}",
+            "Latest round {} with input: {} and randomess: {}",
             latest_round.round,
+            latest_round.input.to_base64(),
             latest_round.randomness.unwrap().to_base64()
         );
     }

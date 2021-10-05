@@ -2,8 +2,8 @@ use std::collections::BTreeMap;
 
 use blsdkg::poly::{Commitment, Poly};
 use cosmwasm_std::{
-    attr, coins, from_binary, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps,
-    DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order, StdResult,
+    attr, coins, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    HandleResponse, InitResponse, MessageInfo, Order, StdResult, Storage,
 };
 
 use blsdkg::{derive_randomness, hash_g2, PublicKeySet, PublicKeyShare, SignatureShare, SIG_SIZE};
@@ -15,7 +15,7 @@ use crate::msg::{
 };
 use crate::state::{
     beacons_storage, beacons_storage_read, clear_store, config, config_read, members_storage,
-    members_storage_read, owner, owner_read, Config, Owner,
+    members_storage_read, owner, owner_read, round_count, round_count_read, Config, Owner,
 };
 
 // settings for pagination
@@ -50,7 +50,10 @@ pub fn init(
     })?;
 
     // store all members
-    store_members(deps, msg.members, false)?;
+    store_members(deps.storage, msg.members, false)?;
+
+    // init round count
+    round_count(deps.storage).save(&1u64)?;
 
     Ok(InitResponse::default())
 }
@@ -94,23 +97,23 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             offset,
             order,
         } => to_binary(&query_rounds(deps, limit, offset, order)?)?,
-        QueryMsg::EarliestHandling {} => to_binary(&query_earliest(deps)?)?,
+        QueryMsg::CurrentHandling {} => to_binary(&query_current(deps)?)?,
     };
     Ok(response)
 }
 
-fn store_members(deps: DepsMut, members: Vec<MemberMsg>, clear: bool) -> StdResult<()> {
+fn store_members(storage: &mut dyn Storage, members: Vec<MemberMsg>, clear: bool) -> StdResult<()> {
     // store all members by their addresses
 
     if clear {
         // ready to remove all old members before adding new
-        clear_store(members_storage(deps.storage));
+        clear_store(members_storage(storage));
     }
 
     // some hardcode for testing simulate
     let mut members = members.clone();
     members.sort_by(|a, b| a.address.cmp(&b.address));
-    let mut members_store = members_storage(deps.storage);
+    let mut members_store = members_storage(storage);
     for (i, msg) in members.iter().enumerate() {
         let member = Member {
             index: i as u16,
@@ -173,7 +176,7 @@ pub fn update_members(
     config_data.status = SharedStatus::WaitForDealer;
     config(deps.storage).save(&config_data)?;
 
-    store_members(deps, members, true)?;
+    store_members(deps.storage, members, true)?;
 
     Ok(HandleResponse::default())
 }
@@ -443,21 +446,23 @@ pub fn update_share_sig(
 
     // update back data
     beacons_storage(deps.storage).set(&round_key, &to_binary(&share_data)?);
+    // increment round count since this round has finished
+    round_count(deps.storage).save(&(share.round + 1))?;
 
     let mut response = HandleResponse::default();
     // send fund to member, by fund / threshold, the late member will not get paid
     if let Some(fee) = fee_val {
         if !fee.amount.is_zero() {
             // returns self * nom / denom
-            let paid_fee = coins(
-                fee.amount.multiply_ratio(1u128, threshold as u128).u128(),
-                fee.denom,
-            );
-            response.messages = vec![CosmosMsg::Bank(BankMsg::Send {
-                from_address: env.contract.address,
-                to_address: info.sender.clone(),
-                amount: paid_fee,
-            })];
+            let fee_amount = fee.amount.multiply_ratio(1u128, threshold as u128).u128();
+            if fee_amount > 0 {
+                let paid_fee = coins(fee_amount, fee.denom);
+                response.messages = vec![CosmosMsg::Bank(BankMsg::Send {
+                    from_address: env.contract.address,
+                    to_address: info.sender.clone(),
+                    amount: paid_fee,
+                })];
+            }
         }
     }
 
@@ -657,10 +662,7 @@ fn query_rounds(
 }
 
 // TODO: add count object to count the current handling round
-fn query_earliest(deps: Deps) -> Result<DistributedShareData, ContractError> {
-    let store = beacons_storage_read(deps.storage);
-    let mut iter = store.range(None, None, Order::Ascending);
-    let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
-    let share_data: DistributedShareData = from_binary(&value.into())?;
-    Ok(share_data)
+pub fn query_current(deps: Deps) -> Result<DistributedShareData, ContractError> {
+    let current = round_count_read(deps.storage).load()?;
+    Ok(query_get(deps, current)?)
 }
