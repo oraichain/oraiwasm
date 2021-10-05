@@ -9,6 +9,8 @@ pub enum ContractError {
     Unauthorized(String),
     #[error("Dealer must be greater than 0 and less than total member")]
     InvalidDealer {},
+    #[error("Threshold must be greater than 0 and less than total member")]
+    InvalidThreshold {},
     #[error("Round must be greater than 0: {round}")]
     InvalidRound { round: u64 },
     #[error("Signature is invalid")]

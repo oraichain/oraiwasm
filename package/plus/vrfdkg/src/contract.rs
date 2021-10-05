@@ -33,6 +33,9 @@ pub fn init(
     if dealer == 0 || dealer > total {
         return Err(ContractError::InvalidDealer {});
     }
+    if msg.threshold == 0 || msg.threshold > total {
+        return Err(ContractError::InvalidThreshold {});
+    }
     // init with a signature, pubkey and denom for bounty
     config(deps.storage).save(&Config {
         total,
@@ -73,6 +76,7 @@ pub fn handle(
         HandleMsg::UpdateFees { fee } => update_fees(deps, info, fee),
         HandleMsg::UpdateMembers { members } => update_members(deps, info, members),
         HandleMsg::RemoveMember { address } => remove_member(deps, info, address),
+        HandleMsg::ForceNextRound {} => force_next_round(deps, info),
     }
 }
 
@@ -193,13 +197,29 @@ pub fn update_threshold(
         ));
     }
     let mut config_data = config_read(deps.storage).load()?;
+    if threshold == 0 || threshold >= config_data.total {
+        return Err(ContractError::InvalidThreshold {});
+    }
     config_data.threshold = threshold;
     config_data.shared_dealer = 0;
     config_data.shared_row = 0;
     // reset everything, with dealer as size of vector
     config_data.status = SharedStatus::WaitForDealer;
+
+    let member_msg: Vec<MemberMsg> = members_storage_read(deps.storage)
+        .range(None, None, Order::Ascending)
+        .map(|(_key, value)| {
+            let Member {
+                pubkey, address, ..
+            } = from_slice(value.as_slice()).unwrap();
+            MemberMsg { pubkey, address }
+        })
+        .collect();
+
     // init with a signature, pubkey and denom for bounty
     config(deps.storage).save(&config_data)?;
+    //reset members
+    store_members(deps.storage, member_msg, true)?;
     Ok(HandleResponse::default())
 }
 
@@ -402,12 +422,17 @@ pub fn update_share_sig(
     });
     // stop with threshold +1
     if share_data.sigs.len() as u16 > threshold {
-        let mut offset = Some(0);
-        let mut dealers = query_dealers(deps.as_ref(), None, offset, Some(1u8))?;
+        let mut dealers = query_dealers(deps.as_ref(), None, None, Some(1u8))?;
         while dealers.len().lt(&(dealer as usize)) {
-            offset = Some(offset.unwrap() + 10);
-            let temp_dealers = query_dealers(deps.as_ref(), None, offset, Some(1u8))?;
-            dealers.extend(temp_dealers);
+            if let Some(dealer) = dealers.last() {
+                let temp_dealers = query_dealers(
+                    deps.as_ref(),
+                    None,
+                    Some(dealer.address.as_bytes().to_vec()),
+                    Some(1u8),
+                )?;
+                dealers.extend(temp_dealers);
+            }
         }
         // do aggregate
         let mut sum_commit = Poly::zero().commitment();
@@ -551,6 +576,17 @@ pub fn request_random(
     Ok(response)
 }
 
+pub fn force_next_round(deps: DepsMut, info: MessageInfo) -> Result<HandleResponse, ContractError> {
+    let owner = owner_read(deps.storage).load()?;
+    if info.sender.to_string().ne(&owner.owner) {
+        return Err(ContractError::Unauthorized(format!(
+            "Cannot force next round with sender: {:?}",
+            info.sender
+        )));
+    }
+    Ok(HandleResponse::default())
+}
+
 /// Query
 
 fn query_member(deps: Deps, address: &str) -> Result<Member, ContractError> {
@@ -589,10 +625,10 @@ fn get_query_params<'a>(
 fn query_members(
     deps: Deps,
     limit: Option<u8>,
-    offset: Option<u8>,
+    offset: Option<Vec<u8>>,
     order: Option<u8>,
 ) -> Result<Vec<Member>, ContractError> {
-    let offset_bytes = offset.unwrap_or(0u8).to_be_bytes();
+    let offset_bytes = offset.unwrap_or_default();
     let (min, max, order_enum, limit) = get_query_params(limit, &offset_bytes, order);
     let members = members_storage_read(deps.storage)
         .range(min, max, order_enum)
@@ -605,10 +641,10 @@ fn query_members(
 fn query_dealers(
     deps: Deps,
     limit: Option<u8>,
-    offset: Option<u8>,
+    offset: Option<Vec<u8>>,
     order: Option<u8>,
 ) -> Result<Vec<Member>, ContractError> {
-    let offset_bytes = offset.unwrap_or(0u8).to_be_bytes();
+    let offset_bytes = offset.unwrap_or_default();
     let (min, max, order_enum, limit) = get_query_params(limit, &offset_bytes, order);
     let mut members: Vec<Member> = members_storage_read(deps.storage)
         .range(min, max, order_enum)

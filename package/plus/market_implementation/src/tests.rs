@@ -639,7 +639,7 @@ fn claim_winner_happy_path() {
         );
         let bid_msg = HandleMsg::BidNft { auction_id: 1 };
         let mut bid_contract_env = contract_env.clone();
-        bid_contract_env.block.time_nanos = contract_env.block.time_nanos + 1000000000000u64; // > 15 at block start
+        bid_contract_env.block.height = contract_env.block.height + 15;
         let _res = manager
             .handle_with_env(bid_contract_env, bid_info.clone(), bid_msg)
             .unwrap();
@@ -651,7 +651,7 @@ fn claim_winner_happy_path() {
         let claim_info = mock_info("claimer", &coins(0, DENOM));
         let claim_msg = HandleMsg::ClaimWinner { auction_id: 1 };
         let mut claim_contract_env = contract_env.clone();
-        claim_contract_env.block.time_nanos = contract_env.block.time_nanos + 10000000000000u64; // > 100 at block end
+        claim_contract_env.block.height = contract_env.block.height + 100; // > 100 at block end
         let res = manager
             .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
             .unwrap();

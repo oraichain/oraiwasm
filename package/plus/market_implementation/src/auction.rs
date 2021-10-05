@@ -18,10 +18,7 @@ use std::ops::{Add, Mul, Sub};
 pub const AUCTION_STORAGE: &str = "auction";
 // const MAX_ROYALTY_PERCENT: u64 = 50;
 // pub const OFFERING_STORAGE: &str = "offering";
-
-pub fn convert_time(time_nano: u64) -> Uint128 {
-    return Uint128::from(time_nano);
-}
+pub const DEFAULT_AUCTION_BLOCK: u64 = 50000;
 
 /// update bidder, return previous price of previous bidder, update current price of current bidder
 pub fn try_bid_nft(
@@ -47,9 +44,11 @@ pub fn try_bid_nft(
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
     // check auction started or finished, both means auction not started anymore
-    let current_time = convert_time(env.block.time_nanos);
-    if off.start_timestamp.gt(&current_time) || off.end_timestamp.lt(&current_time) {
+    if off.start.gt(&env.block.height) {
         return Err(ContractError::AuctionNotStarted {});
+    }
+    if off.end.lt(&env.block.height) {
+        return Err(ContractError::AuctionHasEnded {});
     }
 
     // check if price already >= buyout price. If yes => wont allow to bid
@@ -140,7 +139,7 @@ pub fn try_claim_winner(
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
     // check is auction finished
-    if off.end_timestamp.gt(&convert_time(env.block.time_nanos)) {
+    if off.end.gt(&env.block.height) {
         if let Some(buyout_price) = off.buyout_price {
             if off.price.lt(&buyout_price) {
                 return Err(ContractError::AuctionNotFinished {});
@@ -288,17 +287,14 @@ pub fn handle_ask_auction(
         .unwrap_or(start_timestamp + auction_duration);
     // check if same token Id form same original contract is already on sale
     let contract_addr = deps.api.canonical_address(&info.sender)?;
+    // TODO: does asker need to pay fee for listing?
+    let start = msg.start.unwrap_or(env.block.height);
+    let end = msg.end.unwrap_or(start + DEFAULT_AUCTION_BLOCK);
 
     // verify start and end block, must start in the future
-    if start_timestamp.lt(&convert_time(env.block.time_nanos)) || end_timestamp.lt(&start_timestamp)
-    {
-        return Err(ContractError::InvalidBlockNumberArgument {
-            start_timestamp,
-            end_timestamp,
-        });
+    if start.lt(&env.block.height) || end.lt(&start) {
+        return Err(ContractError::InvalidBlockNumberArgument { start, end });
     }
-
-    // TODO: does asker need to pay fee for listing?
 
     // save Auction, waiting for finished
     let off = Auction {
@@ -308,8 +304,8 @@ pub fn handle_ask_auction(
         asker,
         price: msg.price,
         orig_price: msg.price,
-        start: msg.start.unwrap_or(env.block.height),
-        end: msg.end.unwrap_or(0u64),
+        start,
+        end: end,
         bidder: None,
         cancel_fee: msg.cancel_fee,
         buyout_price: msg.buyout_price,

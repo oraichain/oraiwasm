@@ -92,7 +92,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_round(deps: Deps, env: &Env, executor: &HumanAddr) -> StdResult<RoundInfo> {
+fn query_round(deps: Deps, _env: &Env, executor: &HumanAddr) -> StdResult<RoundInfo> {
     // same StdErr can use ?
     let round_opt = MAPPED_COUNT.may_load(deps.storage, &executor.as_bytes())?;
     if let Some(round) = round_opt {

@@ -45,6 +45,8 @@ pub enum ContractError {
 
     #[error("Auction is not started yet")]
     AuctionNotStarted {},
+    #[error("Auction has ended")]
+    AuctionHasEnded {},
 
     #[error("Auction has finished with price: {price}orai greater than or equal to buyout price {buyout_price}orai")]
     AuctionFinishedBuyOut {
@@ -55,11 +57,8 @@ pub enum ContractError {
     #[error("Auction is not finished yet")]
     AuctionNotFinished {},
 
-    #[error("The start {start_timestamp} and end {end_timestamp} are invalid")]
-    InvalidBlockNumberArgument {
-        start_timestamp: Uint128,
-        end_timestamp: Uint128,
-    },
+    #[error("The start {start} and end {end} are invalid")]
+    InvalidBlockNumberArgument { start: u64, end: u64 },
 
     #[error("Expected bidder: {bidder}, got: {sender}")]
     InvalidBidder { bidder: String, sender: String },

@@ -68,6 +68,7 @@ pub enum HandleMsg {
     UpdateFees { fee: Coin },
     UpdateMembers { members: Vec<MemberMsg> },
     RemoveMember { address: String },
+    ForceNextRound {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -82,13 +83,13 @@ pub enum QueryMsg {
     },
     GetMembers {
         limit: Option<u8>,
-        offset: Option<u8>,
+        offset: Option<Vec<u8>>,
         order: Option<u8>,
     },
     // suppose to return all
     GetDealers {
         limit: Option<u8>,
-        offset: Option<u8>,
+        offset: Option<Vec<u8>>,
         order: Option<u8>,
     },
     LatestRound {},

@@ -53,7 +53,7 @@ exports.queryWasm = async (cosmos, contract, input) => {
   const url = `/wasm/v1beta1/contract/${contract}/smart/${Buffer.from(
     JSON.stringify(input)
   ).toString('base64')}`;
-  console.log(`${cosmos.url}${url}`);
+  // console.log(`${cosmos.url}${url}`);
   const { data } = await cosmos.get(url);
   return data;
 };
@@ -81,7 +81,7 @@ const submit = async (cosmos, childKey, type, obj, { memo, fees, gas }) => {
       txBody,
       'BROADCAST_MODE_BLOCK',
       isNaN(fees) ? 0 : parseInt(fees),
-      isNaN(gas) ? 200000 : gas
+      isNaN(gas) ? 2000000 : gas
     );
     return response;
   } catch (ex) {
@@ -115,3 +115,7 @@ exports.delay = (timeout) =>
   new Promise((resolve) => {
     setTimeout(resolve, timeout);
   });
+
+exports.convertOffset = (offset) => {
+  return [...Buffer.from(offset)];
+};

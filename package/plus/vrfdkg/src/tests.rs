@@ -132,14 +132,14 @@ pub fn generate_bivars(
 
 // expr is variable, indent is function name
 macro_rules! init_dealer {
-    ($deps:expr, $addresses:expr, $dealer:expr) => {
-        init_dealer!($deps, $addresses, $dealer, false)
+    ($deps:expr, $addresses:expr, $dealer:expr, $threshold:expr) => {
+        init_dealer!($deps, $addresses, $dealer, $threshold, false)
     };
-    ($deps:expr, $addresses:expr, $dealer:expr, $sample:expr) => {
+    ($deps:expr, $addresses:expr, $dealer:expr, $threshold:expr, $sample:expr) => {
         // if using constant then comment this below line
         let (commits_list, rows_list) = match $sample {
             true => generate_sample_bivars(),
-            false => generate_bivars(THRESHOLD, NUM_NODE, $dealer),
+            false => generate_bivars($threshold, NUM_NODE, $dealer),
         };
         for i in 0..$dealer {
             let info = mock_info($addresses[i], &vec![]);
@@ -230,10 +230,21 @@ fn share_dealer() {
     deps.api.canonical_length = 54;
     let _res = initialization(deps.as_mut());
 
-    init_dealer!(deps, ADDRESSES, DEALER);
+    init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD);
 
     let ret: Config =
         from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::ContractInfo {}).unwrap()).unwrap();
+
+    // test query members
+    let query_members = QueryMsg::GetMembers {
+        limit: Some(5),
+        offset: Some(vec![]),
+        order: None,
+    };
+    let members: Vec<Member> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_members).unwrap()).unwrap();
+    println!("member len: {:?}", members.len());
+    println!("last member: {:?}", members.last().unwrap().address);
 
     // next phase is wait for row
     assert_eq!(ret.status, SharedStatus::WaitForRow);
@@ -245,7 +256,7 @@ fn request_round() {
     deps.api.canonical_length = 54;
     let _res = initialization(deps.as_mut());
 
-    init_dealer!(deps, ADDRESSES, DEALER);
+    init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD);
 
     let members: Vec<Member> = from_binary(
         &query(
@@ -336,5 +347,126 @@ fn request_round() {
             latest_round.input.to_base64(),
             latest_round.randomness.unwrap().to_base64()
         );
+    }
+}
+
+#[test]
+fn test_update_threshold() {
+    let mut deps = mock_dependencies(&[]);
+    deps.api.canonical_length = 54;
+    let _res = initialization(deps.as_mut());
+
+    init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD);
+
+    let members: Vec<Member> = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetMembers {
+                limit: Some(NUM_NODE as u8),
+                order: None,
+                offset: None,
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    let dealers: Vec<Member> = members
+        .iter()
+        .filter(|m| m.shared_dealer.is_some())
+        .cloned()
+        .collect();
+
+    init_row!(deps, members, dealers);
+
+    let ret: Config =
+        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::ContractInfo {}).unwrap()).unwrap();
+
+    // next phase is wait for row
+    assert_eq!(ret.status, SharedStatus::WaitForRequest);
+
+    for _ in 1u64..=3u64 {
+        let input = Binary::from_base64("aGVsbG8=").unwrap();
+        // anyone request commit
+        let info = mock_info("anyone", &vec![]);
+        let msg = HandleMsg::RequestRandom {
+            input: input.clone(),
+        };
+        let _res = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+    }
+
+    // query rounds and sign signatures
+    let mut current_round_result = query_current(deps.as_ref());
+    while current_round_result.is_ok() {
+        let current_round = query_current(deps.as_ref()).unwrap();
+        // threshold is 2, so need 3,4,5 as honest member to contribute sig
+        let contributors: Vec<&Member> = [2, 3, 4].iter().map(|i| &members[*i]).collect();
+        for contributor in contributors {
+            // now can share secret pubkey for contract to verify
+            let sk = get_sk_key(contributor, &dealers);
+            let mut msg = current_round.input.to_vec();
+            msg.extend(current_round.round.to_be_bytes().to_vec());
+            let msg_hash = hash_g2(msg);
+            let mut sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
+            sig_bytes.copy_from_slice(&sk.sign_g2(msg_hash).to_bytes());
+            let sig = Binary::from(sig_bytes);
+            let info = mock_info(contributor.address.clone(), &vec![]);
+
+            let msg = HandleMsg::ShareSig {
+                share: ShareSigMsg {
+                    sig,
+                    round: current_round.round,
+                },
+            };
+            handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+            // update to get next round
+            current_round_result = query_current(deps.as_ref());
+        }
+    }
+
+    // now should query randomness successfully
+    let msg = QueryMsg::GetRounds {
+        limit: None,
+        offset: None,
+        order: Some(1),
+    };
+    let latest_rounds: Vec<DistributedShareData> =
+        from_binary(&query(deps.as_ref(), mock_env(), msg).unwrap()).unwrap();
+
+    for latest_round in latest_rounds {
+        // can re-verify from response
+        println!(
+            "Latest round {} with input: {} and randomess: {}",
+            latest_round.round,
+            latest_round.input.to_base64(),
+            latest_round.randomness.unwrap().to_base64()
+        );
+    }
+
+    // update threshold
+    let threshold_msg = HandleMsg::UpdateThreshold { threshold: 4 };
+    handle(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("creator", &vec![]),
+        threshold_msg,
+    )
+    .unwrap();
+
+    // query members
+    // test query members
+    let query_members = QueryMsg::GetMembers {
+        limit: None,
+        offset: None,
+        order: None,
+    };
+    let members: Vec<Member> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_members).unwrap()).unwrap();
+    println!("after updating threshold members: {:?}", members);
+    for member in members {
+        assert_eq!(member.shared_row, None);
+        assert_eq!(member.shared_dealer, None);
     }
 }
