@@ -56,6 +56,13 @@ pub enum HandleMsg {
         token_ids: Vec<String>,
         new_marketplace: HumanAddr,
     },
+    // TEMP when need to migrate storage
+    // UpdateRoyalties {
+    //     royalty: Vec<Royalty>,
+    // },
+    // UpdateOfferingRoyalties {
+    //     royalty: Vec<OfferingRoyalty>,
+    // },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -1,10 +1,10 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
-    get_contract_token_id, get_contract_token_id_human, increment_offerings, offerings,
-    offerings_royalty, ContractInfo, CONTRACT_INFO,
+    get_contract_token_id, get_key_royalty, increment_offerings, offerings, offerings_royalty,
+    ContractInfo, CONTRACT_INFO,
 };
-use market_royalty::{OfferingHandleMsg, OfferingRoyalty};
+use market_royalty::{OfferingHandleMsg, OfferingRoyalty, OffsetMsg};
 use market_royalty::{OfferingQueryMsg, OfferingsResponse, QueryOfferingsResult};
 
 use cosmwasm_std::{
@@ -12,7 +12,7 @@ use cosmwasm_std::{
     Order, StdError, StdResult,
 };
 use cosmwasm_std::{HumanAddr, KV};
-use cw_storage_plus::Bound;
+use cw_storage_plus::{Bound, PkOwned};
 use market_royalty::Offering;
 use std::convert::TryInto;
 use std::usize;
@@ -205,7 +205,10 @@ pub fn try_update_offering_royalty(
 
     offerings_royalty().save(
         deps.storage,
-        &get_contract_token_id_human(&offering.contract_addr, &offering.token_id).0,
+        &get_key_royalty(
+            offering.contract_addr.as_bytes(),
+            offering.token_id.as_bytes(),
+        ),
         &offering,
     )?;
 
@@ -296,6 +299,36 @@ fn _get_range_params(
             Order::Ascending => min = offset_value,
             Order::Descending => max = offset_value,
         }
+    };
+    (limit, min, max, order_enum)
+}
+
+fn _get_range_params_offering_royalty(
+    limit: Option<u8>,
+    offset: Option<OffsetMsg>,
+    order: Option<u8>,
+) -> (usize, Option<Bound>, Option<Bound>, Order) {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let mut min: Option<Bound> = None;
+    let max: Option<Bound> = None;
+    let mut order_enum = Order::Ascending;
+    if let Some(num) = order {
+        if num == 2 {
+            order_enum = Order::Descending;
+        }
+    }
+
+    // if there is offset, assign to min or max
+    if let Some(offset) = offset {
+        let offset_value = Some(Bound::Exclusive(get_key_royalty(
+            offset.contract.as_bytes(),
+            offset.token_id.as_bytes(),
+        )));
+        // match order_enum {
+        //     Order::Ascending => min = offset_value,
+        //     Order::Descending => max = offset_value,
+        // }
+        min = offset_value;
     };
     (limit, min, max, order_enum)
 }
@@ -410,10 +443,10 @@ pub fn query_offering_by_contract_tokenid(
 pub fn query_offerings_royalty(
     deps: Deps,
     limit: Option<u8>,
-    offset: Option<u64>,
+    offset: Option<OffsetMsg>,
     order: Option<u8>,
 ) -> StdResult<Vec<OfferingRoyalty>> {
-    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let (limit, min, max, order_enum) = _get_range_params_offering_royalty(limit, offset, order);
 
     let res: StdResult<Vec<OfferingRoyalty>> = offerings_royalty()
         .range(deps.storage, min, max, order_enum)
@@ -428,10 +461,10 @@ pub fn query_offerings_royalty_by_current_owner(
     deps: Deps,
     current_owner: HumanAddr,
     limit: Option<u8>,
-    offset: Option<u64>,
+    offset: Option<OffsetMsg>,
     order: Option<u8>,
 ) -> StdResult<Vec<OfferingRoyalty>> {
-    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let (limit, min, max, order_enum) = _get_range_params_offering_royalty(limit, offset, order);
     let res: StdResult<Vec<OfferingRoyalty>> = offerings_royalty()
         .idx
         .current_owner
@@ -453,10 +486,10 @@ pub fn query_offerings_royalty_by_contract(
     deps: Deps,
     contract: HumanAddr,
     limit: Option<u8>,
-    offset: Option<u64>,
+    offset: Option<OffsetMsg>,
     order: Option<u8>,
 ) -> StdResult<Vec<OfferingRoyalty>> {
-    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let (limit, min, max, order_enum) = _get_range_params_offering_royalty(limit, offset, order);
     let res: StdResult<Vec<OfferingRoyalty>> = offerings_royalty()
         .idx
         .contract
@@ -480,7 +513,7 @@ pub fn query_offering_royalty_by_contract_tokenid(
 ) -> StdResult<OfferingRoyalty> {
     let offering = offerings_royalty().idx.contract_token_id.item(
         deps.storage,
-        get_contract_token_id_human(&contract, &token_id),
+        PkOwned(get_key_royalty(contract.as_bytes(), token_id.as_bytes())),
     )?;
     if let Some(offering_obj) = offering {
         Ok(offering_obj.1)

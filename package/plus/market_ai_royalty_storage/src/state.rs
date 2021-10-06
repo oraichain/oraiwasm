@@ -1,6 +1,7 @@
 use market_ai_royalty::Royalty;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use cosmwasm_std::HumanAddr;
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, PkOwned, UniqueIndex};
@@ -25,12 +26,12 @@ pub struct RoyaltyIndexes<'a> {
     pub unique_royalty: UniqueIndex<'a, PkOwned, Royalty>,
 }
 
-// contract nft + token id => unique id
-pub fn get_unique_royalty(contract: &HumanAddr, token_id: &str, creator: &HumanAddr) -> PkOwned {
-    let mut vec = contract.as_bytes().to_vec();
-    vec.extend(token_id.as_bytes());
-    vec.extend(creator.as_bytes());
-    PkOwned(vec)
+pub fn get_key_royalty<'a>(contract: &'a [u8], token_id: &'a [u8], creator: &'a [u8]) -> Vec<u8> {
+    let mut hasher = Sha256::new();
+    hasher.update(contract);
+    hasher.update(token_id);
+    hasher.update(creator);
+    hasher.finalize().to_vec()
 }
 
 impl<'a> IndexList<Royalty> for RoyaltyIndexes<'a> {
@@ -64,7 +65,13 @@ pub fn royalties_map<'a>() -> IndexedMap<'a, &'a [u8], Royalty, RoyaltyIndexes<'
             "royalties__owner",
         ),
         unique_royalty: UniqueIndex::new(
-            |o| get_unique_royalty(&o.contract_addr, &o.token_id, &o.creator),
+            |o| {
+                PkOwned(get_key_royalty(
+                    o.contract_addr.as_bytes(),
+                    o.token_id.as_bytes(),
+                    o.creator.as_bytes(),
+                ))
+            },
             "royalties_unique",
         ),
     };

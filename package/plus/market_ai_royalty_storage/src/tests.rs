@@ -144,8 +144,8 @@ fn update_ai_royalty() {
     println!("list royalties: {:?}", value);
 
     // first royalty should be 20, 2nd should be 40
-    assert_eq!(value[0].royalty, 20);
-    assert_eq!(value[1].royalty, 40);
+    assert_eq!(value[0].royalty, 40);
+    assert_eq!(value[1].royalty, 20);
 }
 
 #[test]
@@ -160,7 +160,7 @@ fn query_royalties() {
     let pref_msg = HandleMsg::UpdatePreference(1);
     handle(deps.as_mut(), mock_env(), provider_info.clone(), pref_msg).unwrap();
 
-    for i in 1u64..3u64 {
+    for i in 1u64..5u64 {
         let royalty = RoyaltyMsg {
             contract_addr: HumanAddr::from("xxx"),
             creator: HumanAddr::from(format!("provider{}", i)),
@@ -186,36 +186,40 @@ fn query_royalties() {
         from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
     println!("result using normal get royalty: {:?}", result);
 
-    // query royalties using token id
     query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
         token_id: "1".to_string(),
-        offset: None,
+        offset: Some(OffsetMsg {
+            contract: HumanAddr::from("xxx"),
+            token_id: "1".to_string(),
+            creator: HumanAddr::from("provider2"),
+        }),
         limit: None,
         order: Some(1),
     });
     let result: Vec<Royalty> =
         from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
     println!("result using token id: {:?}", result);
+    assert_eq!(result.len(), 2);
 
-    // query royalties using owner
-    query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyaltiesOwner {
-        owner: HumanAddr::from(format!("provider{}", 1)),
-        offset: None,
-        limit: None,
-        order: Some(1),
-    });
-    let result: Vec<Royalty> =
-        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
-    println!("result using owner: {:?}", result);
+    // // query royalties using owner
+    // query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyaltiesOwner {
+    //     owner: HumanAddr::from(format!("provider{}", 1)),
+    //     offset: None,
+    //     limit: None,
+    //     order: Some(1),
+    // });
+    // let result: Vec<Royalty> =
+    //     from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+    // println!("result using owner: {:?}", result);
 
-    query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalties {
-        offset: None,
-        limit: None,
-        order: Some(1),
-    });
-    let result: Vec<Royalty> =
-        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
-    println!("result using map: {:?}", result);
+    // query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalties {
+    //     offset: None,
+    //     limit: None,
+    //     order: Some(1),
+    // });
+    // let result: Vec<Royalty> =
+    //     from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+    // println!("result using map: {:?}", result);
 }
 
 #[test]

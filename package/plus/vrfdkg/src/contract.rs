@@ -584,6 +584,8 @@ pub fn force_next_round(deps: DepsMut, info: MessageInfo) -> Result<HandleRespon
             info.sender
         )));
     }
+    // increment round count since this round has finished
+    round_count(deps.storage).update(|round| Ok(round + 1) as StdResult<_>)?;
     Ok(HandleResponse::default())
 }
 

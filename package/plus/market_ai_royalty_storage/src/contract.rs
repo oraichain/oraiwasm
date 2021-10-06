@@ -1,13 +1,13 @@
 use crate::error::ContractError;
-use crate::state::{get_unique_royalty, royalties_map, ContractInfo, CONTRACT_INFO, PREFERENCES};
+use crate::state::{get_key_royalty, royalties_map, ContractInfo, CONTRACT_INFO, PREFERENCES};
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
     StdError, StdResult, KV,
 };
 use cosmwasm_std::{HumanAddr, Order};
-use cw_storage_plus::Bound;
+use cw_storage_plus::{Bound, PkOwned};
 use market_ai_royalty::{
-    sanitize_royalty, AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg,
+    sanitize_royalty, AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, OffsetMsg, Royalty, RoyaltyMsg,
 };
 
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
@@ -17,15 +17,6 @@ pub const DEFAULT_ROYALTY_PERCENT: u64 = 10;
 // settings for pagination
 const MAX_LIMIT: u8 = 50;
 const DEFAULT_LIMIT: u8 = 20;
-
-pub fn get_key_royalty<'a>(contract: &'a [u8], token_id: &'a [u8], creator: &'a [u8]) -> Vec<u8> {
-    let mut merge_vec = contract.to_vec();
-    let mut token_vec = token_id.to_vec();
-    let mut owner_vec = creator.to_vec();
-    token_vec.append(&mut owner_vec);
-    merge_vec.append(&mut token_vec);
-    return merge_vec;
-}
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -65,7 +56,7 @@ pub fn handle(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Msg(auction_query) => match auction_query {
+        QueryMsg::Msg(ai_royalty_query) => match ai_royalty_query {
             AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr,
                 token_id,
@@ -280,7 +271,11 @@ pub fn query_royalty(
         .unique_royalty
         .item(
             deps.storage,
-            get_unique_royalty(&contract_addr, &token_id, &creator),
+            PkOwned(get_key_royalty(
+                contract_addr.as_bytes(),
+                token_id.as_bytes(),
+                creator.as_bytes(),
+            )),
         )
         .transpose()
     {
@@ -293,7 +288,7 @@ pub fn query_royalty(
 
 fn _get_range_params(
     limit: Option<u8>,
-    offset: Option<u64>,
+    offset: Option<OffsetMsg>,
     order: Option<u8>,
 ) -> (usize, Option<Bound>, Option<Bound>, Order) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
@@ -308,7 +303,11 @@ fn _get_range_params(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        let offset_value = Some(Bound::Exclusive(get_key_royalty(
+            offset.contract.as_bytes(),
+            offset.token_id.as_bytes(),
+            offset.creator.as_bytes(),
+        )));
         // match order_enum {
         //     Order::Ascending => min = offset_value,
         //     Order::Descending => min = offset_value,
@@ -320,7 +319,7 @@ fn _get_range_params(
 
 pub fn query_royalties(
     deps: Deps,
-    offset: Option<u64>,
+    offset: Option<OffsetMsg>,
     limit: Option<u8>,
     order: Option<u8>,
 ) -> StdResult<Vec<Royalty>> {
@@ -336,10 +335,11 @@ pub fn query_royalties(
 pub fn query_royalties_by_token_id(
     deps: Deps,
     token_id: String,
-    offset: Option<u64>,
+    offset: Option<OffsetMsg>,
     limit: Option<u8>,
     order: Option<u8>,
 ) -> StdResult<Vec<Royalty>> {
+    // let (limit, min, max, order) = _get_range_params(limit, offset, order);
     let (limit, min, max, order) = _get_range_params(limit, offset, order);
     let royalties: StdResult<Vec<Royalty>> = royalties_map()
         .idx
@@ -355,7 +355,7 @@ pub fn query_royalties_by_token_id(
 pub fn query_royalties_by_creator(
     deps: Deps,
     creator: HumanAddr,
-    offset: Option<u64>,
+    offset: Option<OffsetMsg>,
     limit: Option<u8>,
     order: Option<u8>,
 ) -> StdResult<Vec<Royalty>> {
@@ -374,7 +374,7 @@ pub fn query_royalties_by_creator(
 pub fn query_royalties_map_by_contract(
     deps: Deps,
     creator: HumanAddr,
-    offset: Option<u64>,
+    offset: Option<OffsetMsg>,
     limit: Option<u8>,
     order: Option<u8>,
 ) -> StdResult<Vec<Royalty>> {

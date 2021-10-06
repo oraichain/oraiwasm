@@ -288,8 +288,24 @@ pub fn handle_ask_auction(
     // check if same token Id form same original contract is already on sale
     let contract_addr = deps.api.canonical_address(&info.sender)?;
     // TODO: does asker need to pay fee for listing?
-    let start = msg.start.unwrap_or(env.block.height);
-    let end = msg.end.unwrap_or(start + DEFAULT_AUCTION_BLOCK);
+    let start = msg
+        .start
+        .map(|mut start| {
+            if start.lt(&env.block.height) {
+                start = env.block.height;
+            }
+            start
+        })
+        .unwrap_or(env.block.height);
+    let end = msg
+        .end
+        .map(|mut end| {
+            if end.lt(&env.block.height) {
+                end = start + DEFAULT_AUCTION_BLOCK;
+            }
+            end
+        })
+        .unwrap_or(start + DEFAULT_AUCTION_BLOCK);
 
     // verify start and end block, must start in the future
     if start.lt(&env.block.height) || end.lt(&start) {
@@ -305,7 +321,7 @@ pub fn handle_ask_auction(
         price: msg.price,
         orig_price: msg.price,
         start,
-        end: end,
+        end,
         bidder: None,
         cancel_fee: msg.cancel_fee,
         buyout_price: msg.buyout_price,

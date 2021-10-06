@@ -96,6 +96,10 @@ pub fn handle(
             nft_contract_addr,
             new_marketplace,
         ),
+        // HandleMsg::UpdateRoyalties { royalty } => try_update_royalties(deps, info, env, royalty),
+        // HandleMsg::UpdateOfferingRoyalties { royalty } => {
+        //     try_update_offering_royalties(deps, info, env, royalty)
+        // }
     }
 }
 

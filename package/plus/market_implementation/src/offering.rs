@@ -469,3 +469,75 @@ pub fn get_offering_handle_msg(
     }
     .into())
 }
+
+// pub fn try_update_royalties(
+//     deps: DepsMut,
+//     info: MessageInfo,
+//     _env: Env,
+//     royalties: Vec<Royalty>,
+// ) -> Result<HandleResponse, ContractError> {
+//     let ContractInfo {
+//         creator,
+//         governance,
+//         ..
+//     } = CONTRACT_INFO.load(deps.storage)?;
+//     if info.sender.ne(&HumanAddr(creator.clone())) {
+//         return Err(ContractError::Unauthorized {
+//             sender: info.sender.to_string(),
+//         });
+//     };
+//     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+//     for royalty in royalties {
+//         // update creator as the caller of the mint tx
+//         cosmos_msgs.push(get_handle_msg(
+//             governance.as_str(),
+//             AI_ROYALTY_STORAGE,
+//             AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+//                 contract_addr: royalty.contract_addr,
+//                 token_id: royalty.token_id,
+//                 creator: royalty.creator,
+//                 creator_type: Some(royalty.creator_type),
+//                 royalty: Some(royalty.royalty),
+//             }),
+//         )?);
+//     }
+//     Ok(HandleResponse {
+//         messages: cosmos_msgs,
+//         attributes: vec![],
+//         data: None,
+//     })
+// }
+
+// pub fn try_update_offering_royalties(
+//     deps: DepsMut,
+//     info: MessageInfo,
+//     _env: Env,
+//     royalties: Vec<OfferingRoyalty>,
+// ) -> Result<HandleResponse, ContractError> {
+//     let ContractInfo {
+//         creator,
+//         governance,
+//         ..
+//     } = CONTRACT_INFO.load(deps.storage)?;
+//     if info.sender.ne(&HumanAddr(creator.clone())) {
+//         return Err(ContractError::Unauthorized {
+//             sender: info.sender.to_string(),
+//         });
+//     };
+//     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+//     for royalty in royalties {
+//         // update creator as the caller of the mint tx
+//         cosmos_msgs.push(get_offering_handle_msg(
+//             governance.clone(),
+//             OFFERING_STORAGE,
+//             OfferingHandleMsg::UpdateOfferingRoyalty {
+//                 offering: royalty.clone(),
+//             },
+//         )?);
+//     }
+//     Ok(HandleResponse {
+//         messages: cosmos_msgs,
+//         attributes: vec![],
+//         data: None,
+//     })
+// }

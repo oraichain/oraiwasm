@@ -14,6 +14,7 @@ use market_royalty::OfferingHandleMsg;
 use market_royalty::OfferingQueryMsg;
 use market_royalty::OfferingRoyalty;
 use market_royalty::OfferingsResponse;
+use market_royalty::OffsetMsg;
 
 const CREATOR: &str = "marketplace";
 const DENOM: &str = "MGK";
@@ -116,7 +117,7 @@ fn sort_offering_royalty() {
     let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
     let mut offerings: Vec<OfferingRoyalty> = vec![];
 
-    for i in 1u64..3u64 {
+    for i in 1u64..4u64 {
         let offering = OfferingRoyalty {
             contract_addr: HumanAddr::from("xxx"),
             token_id: i.to_string(),
@@ -154,13 +155,18 @@ fn sort_offering_royalty() {
         QueryMsg::Offering(OfferingQueryMsg::GetOfferingsRoyaltyByContract {
             contract: HumanAddr::from("xxx"),
             limit: None,
-            offset: None,
-            order: Some(Order::Ascending as u8),
+            offset: Some(OffsetMsg {
+                contract: HumanAddr::from("xxx"),
+                token_id: String::from("2"),
+            }),
+            order: None,
         }),
     )
     .unwrap();
     let value: Vec<OfferingRoyalty> = from_binary(&res).unwrap();
-    println!("offering royalties by contract: {:?}", value);
+    println!("offering royalties by contract: {:?}\n", value);
+
+    assert_eq!(value.len(), 2);
 
     let res = query(
         deps.as_ref(),
@@ -173,6 +179,19 @@ fn sort_offering_royalty() {
     .unwrap();
     let value: OfferingRoyalty = from_binary(&res).unwrap();
     println!("offering royaltie by contract token id: {:?}", value);
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Offering(OfferingQueryMsg::GetOfferingsRoyalty {
+            limit: None,
+            offset: None,
+            order: Some(Order::Ascending as u8),
+        }),
+    )
+    .unwrap();
+    let value: Vec<OfferingRoyalty> = from_binary(&res).unwrap();
+    println!("offering royalties: {:?}", value);
 }
 
 #[test]

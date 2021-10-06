@@ -35,19 +35,19 @@ pub enum OfferingQueryMsg {
         token_id: String,
     },
     GetOfferingsRoyalty {
-        offset: Option<u64>,
+        offset: Option<OffsetMsg>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetOfferingsRoyaltyByCurrentOwner {
         current_owner: HumanAddr,
-        offset: Option<u64>,
+        offset: Option<OffsetMsg>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetOfferingsRoyaltyByContract {
         contract: HumanAddr,
-        offset: Option<u64>,
+        offset: Option<OffsetMsg>,
         limit: Option<u8>,
         order: Option<u8>,
     },
@@ -73,4 +73,10 @@ pub struct QueryOfferingsResult {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OfferingsResponse {
     pub offerings: Vec<QueryOfferingsResult>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct OffsetMsg {
+    pub contract: HumanAddr,
+    pub token_id: String,
 }

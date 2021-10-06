@@ -1,6 +1,7 @@
 use market_royalty::{Offering, OfferingRoyalty};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use cosmwasm_std::{CanonicalAddr, HumanAddr, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
@@ -78,10 +79,11 @@ impl<'a> IndexList<OfferingRoyalty> for OfferingRoyaltyIndexes<'a> {
 }
 
 // contract nft + token id => unique id
-pub fn get_contract_token_id_human(contract: &HumanAddr, token_id: &str) -> PkOwned {
-    let mut vec = contract.as_bytes().to_vec();
-    vec.extend(token_id.as_bytes());
-    PkOwned(vec)
+pub fn get_key_royalty<'a>(contract: &'a [u8], token_id: &'a [u8]) -> Vec<u8> {
+    let mut hasher = Sha256::new();
+    hasher.update(contract);
+    hasher.update(token_id);
+    hasher.finalize().to_vec()
 }
 
 // this IndexedMap instance has a lifetime
@@ -99,7 +101,12 @@ pub fn offerings_royalty<'a>(
             "offerings_royalty_contract",
         ),
         contract_token_id: UniqueIndex::new(
-            |o| get_contract_token_id_human(&o.contract_addr, &o.token_id),
+            |o| {
+                PkOwned(get_key_royalty(
+                    o.contract_addr.as_bytes(),
+                    o.token_id.as_bytes(),
+                ))
+            },
             "offerings_royalty_id",
         ),
     };
