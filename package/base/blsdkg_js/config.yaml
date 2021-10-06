@@ -1,5 +1,6 @@
 url: http://testnet-lcd.orai.io
 chain_id: Oraichain-testnet
 denom: orai
-contract: orai1lmagdf0s64hr9ljrwc0f2g7agyg0drtzhzp7gj
+contract: orai13cnlus3x2644wjke6ktjrx0c9uns8a8mlm6c9v
+ping_contract: orai1p7sgvveegj8ljvlur6pdx9auvvqzzxzug9gce6
 interval: 10000

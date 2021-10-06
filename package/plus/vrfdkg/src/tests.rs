@@ -4,7 +4,7 @@ use crate::{
         DistributedShareData, HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, ShareSigMsg,
         SharedDealerMsg, SharedRowMsg, SharedStatus,
     },
-    state::Config,
+    state::{round_count, round_count_read, Config},
 };
 
 use blsdkg::{
@@ -16,7 +16,7 @@ use blsdkg::{
 use cosmwasm_std::{
     from_binary,
     testing::{mock_dependencies, mock_env, mock_info},
-    Binary, DepsMut, InitResponse,
+    Binary, DepsMut, HumanAddr, InitResponse,
 };
 use pairing::bls12_381::Fr;
 
@@ -185,7 +185,7 @@ macro_rules! init_row {
 }
 
 const NUM_NODE: usize = 5;
-const DEALER: usize = 3;
+const DEALER: usize = THRESHOLD + 1;
 const THRESHOLD: usize = 2;
 const ADDRESSES: [&str; NUM_NODE] = [
     "orai1rr8dmktw4zf9eqqwfpmr798qk6xkycgzqpgtk5",
@@ -238,13 +238,35 @@ fn share_dealer() {
     // test query members
     let query_members = QueryMsg::GetMembers {
         limit: Some(5),
-        offset: Some(vec![]),
+        offset: Some(HumanAddr::from(
+            "orai17zr98cwzfqdwh69r8v5nrktsalmgs5sawmngxz",
+        )),
         order: None,
     };
     let members: Vec<Member> =
         from_binary(&query(deps.as_ref(), mock_env(), query_members).unwrap()).unwrap();
     println!("member len: {:?}", members.len());
-    println!("last member: {:?}", members.last().unwrap().address);
+    assert_eq!(members.len(), 3);
+    println!("last member: {:?}", members[2].address);
+
+    // test query dealers
+
+    let query_dealers = QueryMsg::GetDealers {
+        limit: Some(5),
+        offset: Some(HumanAddr::from(
+            "orai14v5m0leuxa7dseuekps3rkf7f3rcc84kzqys87",
+        )),
+        order: None,
+    };
+    let dealers: Vec<Member> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_dealers).unwrap()).unwrap();
+    println!("dealer len: {:?}", dealers.len());
+    assert_eq!(dealers.len(), 2);
+    println!("last dealer: {:?}", dealers[0].address);
+    assert_eq!(
+        String::from("orai14v5m0leuxa7dseuekps3rkf7f3rcc84kzqys87"),
+        dealers[0].address
+    );
 
     // next phase is wait for row
     assert_eq!(ret.status, SharedStatus::WaitForRow);
@@ -427,23 +449,35 @@ fn test_update_threshold() {
     }
 
     // now should query randomness successfully
+    // let msg = QueryMsg::GetRounds {
+    //     limit: None,
+    //     offset: None,
+    //     order: Some(1),
+    // };
+    // let latest_rounds: Vec<DistributedShareData> =
+    //     from_binary(&query(deps.as_ref(), mock_env(), msg).unwrap()).unwrap();
+
+    // for latest_round in latest_rounds {
+    //     // can re-verify from response
+    //     println!(
+    //         "Latest round {} with input: {} and randomess: {}",
+    //         latest_round.round,
+    //         latest_round.input.to_base64(),
+    //         latest_round.randomness.unwrap().to_base64()
+    //     );
+    // }
+
+    // test get rounds
+    // now should query randomness successfully
     let msg = QueryMsg::GetRounds {
         limit: None,
-        offset: None,
-        order: Some(1),
+        offset: Some(2),
+        order: None,
     };
     let latest_rounds: Vec<DistributedShareData> =
         from_binary(&query(deps.as_ref(), mock_env(), msg).unwrap()).unwrap();
-
-    for latest_round in latest_rounds {
-        // can re-verify from response
-        println!(
-            "Latest round {} with input: {} and randomess: {}",
-            latest_round.round,
-            latest_round.input.to_base64(),
-            latest_round.randomness.unwrap().to_base64()
-        );
-    }
+    // assert_eq!(latest_rounds.len(), 1);
+    assert_eq!(latest_rounds.len(), 2);
 
     // update threshold
     let threshold_msg = HandleMsg::UpdateThreshold { threshold: 4 };
@@ -464,9 +498,61 @@ fn test_update_threshold() {
     };
     let members: Vec<Member> =
         from_binary(&query(deps.as_ref(), mock_env(), query_members).unwrap()).unwrap();
-    println!("after updating threshold members: {:?}", members);
+    // println!("after updating threshold members: {:?}", members);
     for member in members {
         assert_eq!(member.shared_row, None);
         assert_eq!(member.shared_dealer, None);
     }
+
+    // init dealer again and start new rounds
+    init_dealer!(deps, ADDRESSES, DEALER, 4);
+
+    let members: Vec<Member> = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetMembers {
+                limit: Some(NUM_NODE as u8),
+                order: None,
+                offset: None,
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    let dealers: Vec<Member> = members
+        .iter()
+        .filter(|m| m.shared_dealer.is_some())
+        .cloned()
+        .collect();
+
+    init_row!(deps, members, dealers);
+
+    let ret: Config =
+        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::ContractInfo {}).unwrap()).unwrap();
+
+    // next phase is wait for row
+    assert_eq!(ret.status, SharedStatus::WaitForRequest);
+}
+
+#[test]
+fn force_next_round() {
+    let mut deps = mock_dependencies(&[]);
+    let _res = initialization(deps.as_mut());
+    round_count(deps.as_mut().storage).save(&10).unwrap();
+
+    // update round
+    let round_msg = HandleMsg::ForceNextRound {};
+    handle(
+        deps.as_mut(),
+        mock_env(),
+        mock_info("creator", &vec![]),
+        round_msg,
+    )
+    .unwrap();
+
+    let current_round: u64 = round_count_read(deps.as_ref().storage).load().unwrap();
+    println!("current round: {:?}", current_round);
+    assert_eq!(current_round, 11);
 }

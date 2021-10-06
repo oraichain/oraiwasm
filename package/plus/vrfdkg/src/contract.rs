@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use blsdkg::poly::{Commitment, Poly};
 use cosmwasm_std::{
     attr, coins, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, InitResponse, MessageInfo, Order, StdResult, Storage,
+    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult, Storage,
 };
 
 use blsdkg::{derive_randomness, hash_g2, PublicKeySet, PublicKeyShare, SignatureShare, SIG_SIZE};
@@ -428,7 +428,7 @@ pub fn update_share_sig(
                 let temp_dealers = query_dealers(
                     deps.as_ref(),
                     None,
-                    Some(dealer.address.as_bytes().to_vec()),
+                    Some(HumanAddr(dealer.address.clone())),
                     Some(1u8),
                 )?;
                 dealers.extend(temp_dealers);
@@ -466,13 +466,13 @@ pub fn update_share_sig(
         if verifed {
             let randomness = derive_randomness(&combined_sig);
             share_data.randomness = Some(Binary::from(randomness));
+            // increment round count since this round has finished and verified
+            round_count(deps.storage).save(&(share.round + 1))?;
         }
     }
 
     // update back data
     beacons_storage(deps.storage).set(&round_key, &to_binary(&share_data)?);
-    // increment round count since this round has finished
-    round_count(deps.storage).save(&(share.round + 1))?;
 
     let mut response = HandleResponse::default();
     // send fund to member, by fund / threshold, the late member will not get paid
@@ -627,11 +627,11 @@ fn get_query_params<'a>(
 fn query_members(
     deps: Deps,
     limit: Option<u8>,
-    offset: Option<Vec<u8>>,
+    offset: Option<HumanAddr>,
     order: Option<u8>,
 ) -> Result<Vec<Member>, ContractError> {
-    let offset_bytes = offset.unwrap_or_default();
-    let (min, max, order_enum, limit) = get_query_params(limit, &offset_bytes, order);
+    let offset_human = offset.unwrap_or_default();
+    let (min, max, order_enum, limit) = get_query_params(limit, offset_human.as_bytes(), order);
     let members = members_storage_read(deps.storage)
         .range(min, max, order_enum)
         .take(limit)
@@ -643,11 +643,11 @@ fn query_members(
 fn query_dealers(
     deps: Deps,
     limit: Option<u8>,
-    offset: Option<Vec<u8>>,
+    offset: Option<HumanAddr>,
     order: Option<u8>,
 ) -> Result<Vec<Member>, ContractError> {
-    let offset_bytes = offset.unwrap_or_default();
-    let (min, max, order_enum, limit) = get_query_params(limit, &offset_bytes, order);
+    let offset_human = offset.unwrap_or_default();
+    let (min, max, order_enum, limit) = get_query_params(limit, offset_human.as_bytes(), order);
     let mut members: Vec<Member> = members_storage_read(deps.storage)
         .range(min, max, order_enum)
         .take(limit)
@@ -685,17 +685,18 @@ fn query_latest(deps: Deps) -> Result<DistributedShareData, ContractError> {
 fn query_rounds(
     deps: Deps,
     limit: Option<u8>,
-    offset: Option<u8>,
+    offset: Option<u64>,
     order: Option<u8>,
 ) -> Result<Vec<DistributedShareData>, ContractError> {
     let store = beacons_storage_read(deps.storage);
-    let offset_bytes = offset.unwrap_or(0u8).to_be_bytes();
+    let offset_bytes = offset.unwrap_or(0u64).to_be_bytes();
     let (min, max, order_enum, limit) = get_query_params(limit, &offset_bytes, order);
     let rounds: Vec<DistributedShareData> = store
         .range(min, max, order_enum)
         .take(limit)
         .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
         .collect();
+    println!("rounds: {:?}", rounds[0].round);
     Ok(rounds)
 }
 

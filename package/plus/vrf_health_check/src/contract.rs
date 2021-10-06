@@ -15,9 +15,11 @@ const DEFAULT_ROUND_JUMP: u64 = 300;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, _: InitMsg) -> StdResult<InitResponse> {
+pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, init: InitMsg) -> StdResult<InitResponse> {
     let state = State {
         owner: info.sender.clone(),
+        round_jump: DEFAULT_ROUND_JUMP,
+        members: init.members,
     };
 
     // save owner
@@ -34,15 +36,22 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::ChangeOwner(owner) => change_owner(deps, info, owner),
+        HandleMsg::ChangeState {
+            owner,
+            round_jump,
+            members,
+        } => change_state(deps, info, owner, round_jump, members),
         HandleMsg::Ping {} => add_ping(deps, info, env),
+        HandleMsg::ResetCount {} => reset_count(deps, info),
     }
 }
 
-pub fn change_owner(
+pub fn change_state(
     deps: DepsMut,
     info: MessageInfo,
-    owner: HumanAddr,
+    owner: Option<HumanAddr>,
+    round_jump: Option<u64>,
+    members: Option<Vec<HumanAddr>>,
 ) -> Result<HandleResponse, ContractError> {
     let mut state = query_state(deps.as_ref())?;
     if info.sender != state.owner {
@@ -50,11 +59,42 @@ pub fn change_owner(
     }
 
     // update owner
-    state.owner = owner;
+    if let Some(owner) = owner {
+        state.owner = owner;
+    }
+    if let Some(round_jump) = round_jump {
+        state.round_jump = round_jump;
+    }
+    if let Some(members) = members {
+        state.members = members;
+    }
     config(deps.storage).save(&state)?;
 
     Ok(HandleResponse {
-        attributes: vec![attr("action", "change_owner"), attr("caller", info.sender)],
+        attributes: vec![attr("action", "change_state"), attr("caller", info.sender)],
+        ..HandleResponse::default()
+    })
+}
+
+pub fn reset_count(deps: DepsMut, info: MessageInfo) -> Result<HandleResponse, ContractError> {
+    let state = query_state(deps.as_ref())?;
+    if info.sender != state.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut offset = Some(HumanAddr::from(""));
+    while query_rounds(deps.as_ref(), None, offset.clone(), None)?.len() > 0 {
+        let temp_round = query_rounds(deps.as_ref(), None, offset.clone(), None)?;
+        for round in temp_round.clone() {
+            MAPPED_COUNT.remove(deps.storage, round.executor.as_bytes());
+        }
+        if let Some(round) = temp_round.last() {
+            offset = Some(round.executor.clone());
+        }
+    }
+
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "reset_count"), attr("caller", info.sender)],
         ..HandleResponse::default()
     })
 }
@@ -65,8 +105,19 @@ pub fn add_ping(
     env: Env,
 ) -> Result<HandleResponse, ContractError> {
     let mut round_info = query_round(deps.as_ref(), &env, &info.sender)?;
+    let State {
+        round_jump,
+        members,
+        ..
+    } = query_state(deps.as_ref())?;
+
+    // only included members can submit ping
+    if !members.contains(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
     // if add ping too soon & it's not the initial case (case where no one has the first round info) => error
-    if env.block.height.sub(round_info.height) < DEFAULT_ROUND_JUMP && round_info.height.ne(&0u64) {
+    if env.block.height.sub(round_info.height) < round_jump && round_info.height.ne(&0u64) {
         return Err(ContractError::PingTooEarly {});
     }
 
@@ -112,22 +163,22 @@ fn query_state(deps: Deps) -> StdResult<State> {
 fn query_rounds(
     deps: Deps,
     limit: Option<u8>,
-    offset: Option<u64>,
+    offset: Option<HumanAddr>,
     order: Option<u8>,
 ) -> StdResult<Vec<QueryRoundsResponse>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min: Option<Bound> = None;
     let max: Option<Bound> = None;
-    let mut order_enum = Order::Descending;
+    let mut order_enum = Order::Ascending;
     if let Some(num) = order {
-        if num == 1 {
-            order_enum = Order::Ascending;
+        if num == 2 {
+            order_enum = Order::Descending;
         }
     }
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        let offset_value = Some(Bound::Exclusive(offset.as_bytes().to_vec()));
         // match order_enum {
         //     Order::Ascending => min = offset_value,
         //     Order::Descending => max = offset_value,

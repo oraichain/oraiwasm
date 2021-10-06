@@ -117,5 +117,6 @@ exports.delay = (timeout) =>
   });
 
 exports.convertOffset = (offset) => {
-  return [...Buffer.from(offset)];
+  // return [...Buffer.from(offset)];
+  return offset;
 };

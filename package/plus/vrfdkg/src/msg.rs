@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Coin};
+use cosmwasm_std::{Binary, Coin, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -83,19 +83,19 @@ pub enum QueryMsg {
     },
     GetMembers {
         limit: Option<u8>,
-        offset: Option<Vec<u8>>,
+        offset: Option<HumanAddr>,
         order: Option<u8>,
     },
     // suppose to return all
     GetDealers {
         limit: Option<u8>,
-        offset: Option<Vec<u8>>,
+        offset: Option<HumanAddr>,
         order: Option<u8>,
     },
     LatestRound {},
     GetRounds {
         limit: Option<u8>,
-        offset: Option<u8>,
+        offset: Option<u64>,
         order: Option<u8>,
     },
     CurrentHandling {},

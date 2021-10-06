@@ -43,6 +43,8 @@ pub fn try_bid_nft(
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
+    let token_id_event = off.token_id.clone();
+
     // check auction started or finished, both means auction not started anymore
     if off.start.gt(&env.block.height) {
         return Err(ContractError::AuctionNotStarted {});
@@ -110,6 +112,7 @@ pub fn try_bid_nft(
             attr("action", "bid_nft"),
             attr("bidder", info.sender),
             attr("auction_id", auction_id),
+            attr("token_id", token_id_event),
         ],
         data: None,
     })

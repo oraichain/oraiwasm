@@ -9,6 +9,8 @@ pub static CONFIG_KEY: &[u8] = b"config";
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub owner: HumanAddr,
+    pub round_jump: u64,
+    pub members: Vec<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

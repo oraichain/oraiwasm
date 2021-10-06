@@ -13,7 +13,15 @@ const OWNER: &str = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3d";
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, "orai"));
     deps.api.canonical_length = 54;
-    let msg = InitMsg {};
+    let msg = InitMsg {
+        members: vec![
+            HumanAddr::from("1"),
+            HumanAddr::from("2"),
+            HumanAddr::from("3"),
+            HumanAddr::from("4"),
+            HumanAddr::from("5"),
+        ],
+    };
     let info = mock_info(OWNER, &[]);
     let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -25,7 +33,7 @@ fn proper_initialization() {
     let mut deps = setup_contract();
 
     // init ping
-    for i in 0..22 {
+    for i in 1..5 {
         let msg = HandleMsg::Ping {};
         let info = mock_info(i.to_string(), &[]);
         handle(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -33,18 +41,19 @@ fn proper_initialization() {
 
     // query ping
     let query_ping = QueryMsg::GetRounds {
-        offset: Some(0),
+        offset: Some(HumanAddr::from("2")),
         limit: Some(30),
         order: None,
     };
     let query_result: Vec<QueryRoundsResponse> =
         from_binary(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
-    for result in query_result {
+    for result in query_result.clone() {
         println!("result: {:?}", result);
     }
+    assert_eq!(query_result.len(), 2);
 
     // update ping
-    for i in 0..10 {
+    for i in 1..4 {
         let msg = HandleMsg::Ping {};
         let info = mock_info(i.to_string(), &[]);
         handle(
@@ -66,7 +75,7 @@ fn proper_initialization() {
 
     // query ping
     let query_ping = QueryMsg::GetRounds {
-        offset: Some(0),
+        offset: None,
         limit: Some(30),
         order: None,
     };
@@ -77,6 +86,23 @@ fn proper_initialization() {
     for result in query_result {
         println!("result: {:?}", result);
     }
+
+    // test reset round
+    let reset_msg = HandleMsg::ResetCount {};
+    handle(deps.as_mut(), mock_env(), mock_info(OWNER, &[]), reset_msg).unwrap();
+
+    // query again to verify all the rounds have been terminated
+    // query ping
+    let query_ping = QueryMsg::GetRounds {
+        offset: None,
+        limit: Some(30),
+        order: None,
+    };
+    println!("Query ping 3rd time");
+    println!();
+    let query_result: Vec<QueryRoundsResponse> =
+        from_binary(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
+    assert_eq!(query_result.len(), 0);
 }
 
 #[test]
@@ -84,7 +110,7 @@ fn update_ping_too_soon() {
     let mut deps = setup_contract();
 
     // init ping
-    for i in 0..22 {
+    for i in 1..5 {
         let msg = HandleMsg::Ping {};
         let info = mock_info(i.to_string(), &[]);
         handle(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -92,7 +118,7 @@ fn update_ping_too_soon() {
 
     // query ping
     let query_ping = QueryMsg::GetRounds {
-        offset: Some(0),
+        offset: None,
         limit: Some(30),
         order: None,
     };
@@ -103,7 +129,7 @@ fn update_ping_too_soon() {
     }
 
     // update ping
-    for i in 0..10 {
+    for i in 1..4 {
         let msg = HandleMsg::Ping {};
         let info = mock_info(i.to_string(), &[]);
         assert!(matches!(
@@ -127,7 +153,7 @@ fn update_ping_too_soon() {
 
     // query ping
     let query_ping = QueryMsg::GetRounds {
-        offset: Some(0),
+        offset: None,
         limit: Some(30),
         order: None,
     };
@@ -145,7 +171,11 @@ fn change_owner() {
     let mut deps = setup_contract();
 
     // unauthorized change owner
-    let msg = HandleMsg::ChangeOwner(HumanAddr("new owner".to_string()));
+    let msg = HandleMsg::ChangeState {
+        owner: Some(HumanAddr("new owner".to_string())),
+        round_jump: None,
+        members: None,
+    };
     let info = mock_info(HumanAddr("someone".to_string()), &[]);
     assert!(matches!(
         handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()),

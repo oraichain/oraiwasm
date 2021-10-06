@@ -63,6 +63,7 @@ const getMembers = async (total) => {
     members = members.concat(tempMembers);
     offset = convertOffset(members[members.length - 1].address);
   } while (members.length < total);
+  members = [...new Set(members)];
   return members;
 };
 
@@ -89,7 +90,7 @@ const getDealers = async (total) => {
     dealers = dealers.concat(tempDealers);
     offset = convertOffset(dealers[dealers.length - 1].address);
   } while (dealers.length < total);
-
+  dealers = [...new Set(dealers)];
   return dealers;
 };
 
@@ -233,8 +234,29 @@ const requestRandom = async (input) => {
   console.log(response);
 };
 
-runInterval(config.interval);
-// run();
-// requestRandom(Buffer.from('hello').toString('base64'));
+const ping = async () => {
 
-// TODO: Add ping
+  const response = await executeWasm(
+    cosmos,
+    childKey,
+    config.ping_contract,
+    {
+      ping: {},
+    },
+    { gas: 2000000 }
+  );
+  console.log(response);
+}
+
+// run interval to ping, default is 5000ms block confirmed
+const addPing = async (interval = 5000) => {
+  while (true) {
+    await ping();
+    await delay(interval);
+  }
+};
+
+runInterval(config.interval);
+addPing(env.PING_INTERVAL);
+
+// TODO: add try catch and improve logs
