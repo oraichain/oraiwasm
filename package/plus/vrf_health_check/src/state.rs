@@ -11,6 +11,8 @@ pub struct State {
     pub owner: HumanAddr,
     pub round_jump: u64,
     pub members: Vec<HumanAddr>,
+    pub prev_checkpoint: u64,
+    pub cur_checkpoint: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

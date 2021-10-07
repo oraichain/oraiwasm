@@ -833,7 +833,7 @@ fn test_royalties() {
                         token_id: String::from("SellableNFT"),
                         offset: None,
                         limit: None,
-                        order: Some(1),
+                        order: None,
                     },
                 ))
                 .unwrap(),

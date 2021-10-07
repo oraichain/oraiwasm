@@ -1,5 +1,7 @@
 use crate::error::ContractError;
-use crate::state::{get_key_royalty, royalties_map, ContractInfo, CONTRACT_INFO, PREFERENCES};
+use crate::state::{
+    get_contract_token_id, get_key_royalty, royalties_map, ContractInfo, CONTRACT_INFO, PREFERENCES,
+};
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
     StdError, StdResult, KV,
@@ -95,6 +97,20 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 limit,
                 order,
             )?),
+            AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
+                contract_addr,
+                token_id,
+                offset,
+                limit,
+                order,
+            } => to_binary(&query_royalties_map_by_contract_token_id(
+                deps,
+                contract_addr,
+                token_id,
+                offset,
+                limit,
+                order,
+            )?),
             AiRoyaltyQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
         },
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
@@ -133,23 +149,23 @@ pub fn try_update_royalty(
     } = CONTRACT_INFO.load(deps.storage)?;
 
     // QUESTION: should we let ai.creator edit royalty for a token id?
-    if governance.ne(&info.sender) && royalty.creator.ne(&info.sender) {
+    if governance.ne(&info.sender) {
         return Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
         });
     };
-    let royalty_data = query_royalty(
-        deps.as_ref(),
-        royalty.contract_addr.clone(),
-        royalty.token_id.clone(),
-        info.sender.clone(),
-    );
-    // if error then not found, if
-    if royalty_data.is_err() && royalty.creator.eq(&info.sender) {
-        return Err(ContractError::Forbidden {
-            sender: info.sender.to_string(),
-        });
-    }
+    // let royalty_data = query_royalty(
+    //     deps.as_ref(),
+    //     royalty.contract_addr.clone(),
+    //     royalty.token_id.clone(),
+    //     info.sender.clone(),
+    // );
+    // // if error then not found, if
+    // if royalty_data.is_err() {
+    //     return Err(ContractError::Forbidden {
+    //         sender: info.sender.to_string(),
+    //     });
+    // }
 
     let final_royalty;
     if let Some(msg_royalty) = royalty.royalty {
@@ -373,7 +389,7 @@ pub fn query_royalties_by_creator(
 
 pub fn query_royalties_map_by_contract(
     deps: Deps,
-    creator: HumanAddr,
+    contract_addr: HumanAddr,
     offset: Option<OffsetMsg>,
     limit: Option<u8>,
     order: Option<u8>,
@@ -382,7 +398,33 @@ pub fn query_royalties_map_by_contract(
     let royalties: StdResult<Vec<Royalty>> = royalties_map()
         .idx
         .contract_addr
-        .items(deps.storage, creator.as_bytes(), min, max, order)
+        .items(deps.storage, contract_addr.as_bytes(), min, max, order)
+        .take(limit)
+        .map(|kv_item| parse_royalty(kv_item))
+        .collect();
+
+    Ok(royalties?)
+}
+
+pub fn query_royalties_map_by_contract_token_id(
+    deps: Deps,
+    contract: HumanAddr,
+    token_id: String,
+    offset: Option<OffsetMsg>,
+    limit: Option<u8>,
+    order: Option<u8>,
+) -> StdResult<Vec<Royalty>> {
+    let (limit, min, max, order) = _get_range_params(limit, offset, order);
+    let royalties: StdResult<Vec<Royalty>> = royalties_map()
+        .idx
+        .contract_token_id
+        .items(
+            deps.storage,
+            &get_contract_token_id(contract.as_bytes(), token_id.as_bytes()),
+            min,
+            max,
+            order,
+        )
         .take(limit)
         .map(|kv_item| parse_royalty(kv_item))
         .collect();

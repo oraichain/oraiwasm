@@ -69,6 +69,9 @@ pub enum ContractError {
     #[error("There is an error while collecting the offering royalty")]
     InvalidGetOfferingRoyalty {},
 
+    #[error("There is an error while collecting the ai royalty")]
+    InvalidGetCreatorRoyalty {},
+
     #[error("There is an error while collecting the list royalties of a token id: {token_id}")]
     InvalidGetRoyaltiesTokenId { token_id: String },
 

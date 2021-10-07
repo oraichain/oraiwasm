@@ -15,11 +15,13 @@ const DEFAULT_ROUND_JUMP: u64 = 300;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, init: InitMsg) -> StdResult<InitResponse> {
+pub fn init(deps: DepsMut, env: Env, info: MessageInfo, init: InitMsg) -> StdResult<InitResponse> {
     let state = State {
         owner: info.sender.clone(),
         round_jump: DEFAULT_ROUND_JUMP,
         members: init.members,
+        prev_checkpoint: env.block.height,
+        cur_checkpoint: env.block.height,
     };
 
     // save owner
@@ -40,7 +42,17 @@ pub fn handle(
             owner,
             round_jump,
             members,
-        } => change_state(deps, info, owner, round_jump, members),
+            prev_checkpoint,
+            cur_checkpoint,
+        } => change_state(
+            deps,
+            info,
+            owner,
+            round_jump,
+            prev_checkpoint,
+            cur_checkpoint,
+            members,
+        ),
         HandleMsg::Ping {} => add_ping(deps, info, env),
         HandleMsg::ResetCount {} => reset_count(deps, info),
     }
@@ -51,6 +63,8 @@ pub fn change_state(
     info: MessageInfo,
     owner: Option<HumanAddr>,
     round_jump: Option<u64>,
+    prev_checkpoint: Option<u64>,
+    cur_checkpoint: Option<u64>,
     members: Option<Vec<HumanAddr>>,
 ) -> Result<HandleResponse, ContractError> {
     let mut state = query_state(deps.as_ref())?;
@@ -65,13 +79,26 @@ pub fn change_state(
     if let Some(round_jump) = round_jump {
         state.round_jump = round_jump;
     }
+    if let Some(prev_checkpoint) = prev_checkpoint {
+        state.prev_checkpoint = prev_checkpoint;
+    }
+    if let Some(cur_checkpoint) = cur_checkpoint {
+        state.cur_checkpoint = cur_checkpoint;
+    }
     if let Some(members) = members {
         state.members = members;
     }
+
     config(deps.storage).save(&state)?;
+    let info_sender = info.sender.clone();
+
+    // if there's checkpoint => reset count
+    if prev_checkpoint.is_some() && cur_checkpoint.is_some() {
+        reset_count(deps, info)?;
+    }
 
     Ok(HandleResponse {
-        attributes: vec![attr("action", "change_state"), attr("caller", info.sender)],
+        attributes: vec![attr("action", "change_state"), attr("caller", info_sender)],
         ..HandleResponse::default()
     })
 }

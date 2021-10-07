@@ -175,6 +175,8 @@ fn change_owner() {
         owner: Some(HumanAddr("new owner".to_string())),
         round_jump: None,
         members: None,
+        prev_checkpoint: None,
+        cur_checkpoint: None,
     };
     let info = mock_info(HumanAddr("someone".to_string()), &[]);
     assert!(matches!(

@@ -362,7 +362,7 @@ pub fn handle_sell_nft(
 
     let offering = Offering {
         id: None,
-        token_id: rcv_msg.token_id,
+        token_id: rcv_msg.token_id.clone(),
         contract_addr: deps.api.canonical_address(&info.sender)?,
         seller: deps.api.canonical_address(&rcv_msg.sender)?,
         price: msg.off_price,
@@ -380,12 +380,30 @@ pub fn handle_sell_nft(
 
     // update offering royalty result
     cosmos_msgs.push(get_offering_handle_msg(
-        governance,
+        governance.clone(),
         OFFERING_STORAGE,
         OfferingHandleMsg::UpdateOfferingRoyalty {
             offering: offering_royalty_result.clone(),
         },
     )?);
+
+    // TEMP: auto add royalty creator default for old nft (if that nft does not have royalty creator)
+    // let royalty_result = get_royalties(deps.as_ref(), rcv_msg.token_id.as_str()).ok();
+    // if let Some(royalties) = royalty_result {
+    //     if royalties.len() == 0 {
+    //         cosmos_msgs.push(get_handle_msg(
+    //             governance.as_str(),
+    //             AI_ROYALTY_STORAGE,
+    //             AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+    //                 contract_addr: info.sender.clone(),
+    //                 token_id: rcv_msg.token_id,
+    //                 creator: rcv_msg.sender.clone(),
+    //                 creator_type: Some(String::from(CREATOR_NAME)),
+    //                 royalty: Some(3),
+    //             }),
+    //         )?);
+    //     }
+    // }
 
     Ok(HandleResponse {
         messages: cosmos_msgs,

@@ -35,6 +35,13 @@ pub enum AiRoyaltyQueryMsg {
         limit: Option<u8>,
         order: Option<u8>,
     },
+    GetRoyaltiesContractTokenId {
+        contract_addr: HumanAddr,
+        token_id: String,
+        offset: Option<OffsetMsg>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
     GetContractInfo {},
 }
 
