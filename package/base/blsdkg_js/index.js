@@ -219,7 +219,11 @@ const processRequest = async (skShare) => {
 // run interval, default is 5000ms block confirmed
 const runInterval = async (interval = 5000) => {
   while (true) {
-    await run();
+    try {
+      await run();
+    } catch (error) {
+      console.log("error while handling the vrf: ", error);
+    }
     await delay(interval);
   }
 };
@@ -259,7 +263,11 @@ const ping = async () => {
 // run interval to ping, default is 5000ms block confirmed
 const addPing = async (interval = 5000) => {
   while (true) {
-    await ping();
+    try {
+      await ping();
+    } catch (error) {
+      console.log("error while adding ping: ", error);
+    }
     await delay(interval);
   }
 };
