@@ -184,7 +184,7 @@ const processRequest = async (skShare) => {
   });
 
   if (!roundInfo) {
-    return console.log("there is no round");
+    return console.log("there is no round to process");
   }
 
   if (roundInfo.combined_sig) {
@@ -272,6 +272,7 @@ const addPing = async (interval = 5000) => {
   }
 };
 
+console.log("Oraichain VRF, version 3.0");
 runInterval(config.interval);
 addPing(env.PING_INTERVAL);
 
