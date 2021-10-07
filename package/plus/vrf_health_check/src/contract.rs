@@ -1,7 +1,7 @@
 use std::ops::Sub;
 
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, QueryRoundsResponse};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, QueryRoundResponse, QuerySingleRoundResponse};
 use crate::state::{config, config_read, RoundInfo, State, MAPPED_COUNT};
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
@@ -104,12 +104,12 @@ pub fn add_ping(
     info: MessageInfo,
     env: Env,
 ) -> Result<HandleResponse, ContractError> {
-    let mut round_info = query_round(deps.as_ref(), &env, &info.sender)?;
-    let State {
+    let QuerySingleRoundResponse {
+        mut round_info,
         round_jump,
-        members,
         ..
-    } = query_state(deps.as_ref())?;
+    } = query_round(deps.as_ref(), &env, &info.sender)?;
+    let State { members, .. } = query_state(deps.as_ref())?;
 
     // only included members can submit ping
     if !members.contains(&info.sender) {
@@ -143,16 +143,25 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn query_round(deps: Deps, _env: &Env, executor: &HumanAddr) -> StdResult<RoundInfo> {
+fn query_round(deps: Deps, env: &Env, executor: &HumanAddr) -> StdResult<QuerySingleRoundResponse> {
     // same StdErr can use ?
+    let State { round_jump, .. } = query_state(deps)?;
     let round_opt = MAPPED_COUNT.may_load(deps.storage, &executor.as_bytes())?;
     if let Some(round) = round_opt {
-        return Ok(round);
+        return Ok(QuerySingleRoundResponse {
+            round_info: round,
+            round_jump,
+            current_height: env.block.height,
+        });
     }
     // if no round exist then return default round info (first round)
-    Ok(RoundInfo {
-        round: 0,
-        height: 0,
+    Ok(QuerySingleRoundResponse {
+        round_info: RoundInfo {
+            round: 0,
+            height: 0,
+        },
+        round_jump,
+        current_height: env.block.height,
     })
 }
 
@@ -165,7 +174,7 @@ fn query_rounds(
     limit: Option<u8>,
     offset: Option<HumanAddr>,
     order: Option<u8>,
-) -> StdResult<Vec<QueryRoundsResponse>> {
+) -> StdResult<Vec<QueryRoundResponse>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min: Option<Bound> = None;
     let max: Option<Bound> = None;
@@ -186,12 +195,12 @@ fn query_rounds(
         min = offset_value;
     };
 
-    let counts: StdResult<Vec<QueryRoundsResponse>> = MAPPED_COUNT
+    let counts: StdResult<Vec<QueryRoundResponse>> = MAPPED_COUNT
         .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| {
             kv_item.and_then(|(k, v)| {
-                Ok(QueryRoundsResponse {
+                Ok(QueryRoundResponse {
                     executor: HumanAddr::from(String::from_utf8(k)?),
                     round_info: v,
                 })

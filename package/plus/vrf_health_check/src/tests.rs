@@ -45,7 +45,7 @@ fn proper_initialization() {
         limit: Some(30),
         order: None,
     };
-    let query_result: Vec<QueryRoundsResponse> =
+    let query_result: Vec<QueryRoundResponse> =
         from_binary(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
     for result in query_result.clone() {
         println!("result: {:?}", result);
@@ -81,7 +81,7 @@ fn proper_initialization() {
     };
     println!("Query ping 2nd time");
     println!();
-    let query_result: Vec<QueryRoundsResponse> =
+    let query_result: Vec<QueryRoundResponse> =
         from_binary(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
     for result in query_result {
         println!("result: {:?}", result);
@@ -100,7 +100,7 @@ fn proper_initialization() {
     };
     println!("Query ping 3rd time");
     println!();
-    let query_result: Vec<QueryRoundsResponse> =
+    let query_result: Vec<QueryRoundResponse> =
         from_binary(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
     assert_eq!(query_result.len(), 0);
 }
@@ -122,7 +122,7 @@ fn update_ping_too_soon() {
         limit: Some(30),
         order: None,
     };
-    let query_result: Vec<QueryRoundsResponse> =
+    let query_result: Vec<QueryRoundResponse> =
         from_binary(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
     for result in query_result {
         println!("result: {:?}", result);
@@ -159,7 +159,7 @@ fn update_ping_too_soon() {
     };
     println!("Query ping 2nd time");
     println!();
-    let query_result: Vec<QueryRoundsResponse> =
+    let query_result: Vec<QueryRoundResponse> =
         from_binary(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
     for result in query_result {
         println!("result: {:?}", result);

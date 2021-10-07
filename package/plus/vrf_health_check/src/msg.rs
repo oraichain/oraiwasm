@@ -35,7 +35,15 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct QueryRoundsResponse {
+pub struct QueryRoundResponse {
     pub executor: HumanAddr,
     pub round_info: RoundInfo,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct QuerySingleRoundResponse {
+    pub round_info: RoundInfo,
+    pub round_jump: u64,
+    pub current_height: u64,
 }

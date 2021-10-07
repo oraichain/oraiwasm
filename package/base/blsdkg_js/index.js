@@ -236,16 +236,24 @@ const requestRandom = async (input) => {
 
 const ping = async () => {
 
-  const response = await executeWasm(
-    cosmos,
-    childKey,
-    config.ping_contract,
-    {
-      ping: {},
-    },
-    { gas: 2000000 }
-  );
-  console.log(response);
+  // collect info about round and round jump, ok to ping => ping
+  const round = await queryWasm(cosmos, config.ping_contract, {
+    get_round: address
+  });
+  // valid case
+  if ((round.current_height - round.round_info.height >= round.round_jump) || round.round_info.height === 0) {
+    console.log("ready to ping");
+    const response = await executeWasm(
+      cosmos,
+      childKey,
+      config.ping_contract,
+      {
+        ping: {},
+      },
+      { gas: 2000000 }
+    );
+    console.log(response);
+  }
 }
 
 // run interval to ping, default is 5000ms block confirmed

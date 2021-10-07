@@ -378,10 +378,7 @@ pub fn update_share_sig(
 
     // if too late, unauthorized to add more signature
     if share_data.sigs.len() > threshold as usize {
-        return Err(ContractError::Unauthorized(format!(
-            "{} can not sign more because all neccessary signatures are collected",
-            info.sender
-        )));
+        return Ok(HandleResponse::default());
     }
 
     if share_data
