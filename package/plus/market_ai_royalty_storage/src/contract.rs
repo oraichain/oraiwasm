@@ -50,8 +50,8 @@ pub fn handle(
         HandleMsg::Msg(royalty_handle) => match royalty_handle {
             AiRoyaltyHandleMsg::UpdateRoyalty(royalty) => try_update_royalty(deps, info, royalty),
             AiRoyaltyHandleMsg::RemoveRoyalty(royalty) => try_remove_royalty(deps, info, royalty),
+            AiRoyaltyHandleMsg::UpdatePreference(pref) => try_update_preference(deps, info, pref),
         },
-        HandleMsg::UpdatePreference(pref) => try_update_preference(deps, info, pref),
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
 }
@@ -64,6 +64,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 token_id,
                 creator,
             } => to_binary(&query_royalty(deps, contract_addr, token_id, creator)?),
+            AiRoyaltyQueryMsg::GetPreference { creator } => {
+                to_binary(&query_preference(deps, creator)?)
+            }
             AiRoyaltyQueryMsg::GetRoyalties {
                 offset,
                 limit,
@@ -274,6 +277,10 @@ pub fn try_update_info(
 
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
+}
+
+pub fn query_preference(deps: Deps, creator: HumanAddr) -> StdResult<u64> {
+    PREFERENCES.load(deps.storage, creator.as_bytes())
 }
 
 pub fn query_royalty(

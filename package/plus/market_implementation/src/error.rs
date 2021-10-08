@@ -69,6 +69,9 @@ pub enum ContractError {
     #[error("There is an error while collecting the offering royalty")]
     InvalidGetOfferingRoyalty {},
 
+    #[error("There is an error while collecting the first level royalty")]
+    InvalidGetFirstLvRoyalty {},
+
     #[error("There is an error while collecting the ai royalty")]
     InvalidGetCreatorRoyalty {},
 

@@ -31,7 +31,7 @@ fn update_ai_royalty() {
     let provider_info = mock_info("provider1", &vec![coin(50, DENOM)]);
     let mut royalties: Vec<RoyaltyMsg> = vec![];
 
-    let pref_msg = HandleMsg::UpdatePreference(1);
+    let pref_msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdatePreference(1));
     handle(deps.as_mut(), mock_env(), provider_info.clone(), pref_msg).unwrap();
 
     for i in 1u64..3u64 {
@@ -106,7 +106,7 @@ fn update_ai_royalty() {
         royalty: None,
     };
     let mut msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdateRoyalty(royalty_msg.clone()));
-    let pref_msg_sec = HandleMsg::UpdatePreference(20);
+    let pref_msg_sec = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdatePreference(20));
     handle(
         deps.as_mut(),
         mock_env(),
@@ -156,7 +156,7 @@ fn query_royalties() {
     let provider_info = mock_info("provider1", &vec![coin(50, DENOM)]);
     let mut royalties: Vec<RoyaltyMsg> = vec![];
 
-    let pref_msg = HandleMsg::UpdatePreference(1);
+    let pref_msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdatePreference(1));
     handle(deps.as_mut(), mock_env(), provider_info.clone(), pref_msg).unwrap();
 
     for i in 1u64..5u64 {
@@ -294,4 +294,23 @@ fn remove_ai_royalty() {
         println!("res: {:?}", res);
         assert!(matches!(res, _err));
     }
+}
+
+#[test]
+fn query_preference() {
+    let mut deps = setup_contract();
+
+    let provider_info = mock_info("provider1", &vec![coin(50, DENOM)]);
+
+    let pref_msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdatePreference(1));
+    handle(deps.as_mut(), mock_env(), provider_info.clone(), pref_msg).unwrap();
+
+    // query pref
+    let query_preference_msg = QueryMsg::Msg(AiRoyaltyQueryMsg::GetPreference {
+        creator: HumanAddr::from("provider1"),
+    });
+    let pref: u64 =
+        from_binary(&query(deps.as_ref(), mock_env(), query_preference_msg).unwrap()).unwrap();
+    println!("pref: {}", pref);
+    assert_eq!(pref, 1);
 }

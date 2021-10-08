@@ -1,4 +1,5 @@
-use crate::contract::get_storage_addr;
+use crate::ai_royalty::query_first_lv_royalty;
+use crate::contract::{get_handle_msg, get_storage_addr, FIRST_LV_ROYALTY_STORAGE};
 use crate::error::ContractError;
 use crate::msg::{AskNftMsg, ProxyHandleMsg, ProxyQueryMsg};
 // use crate::offering::OFFERING_STORAGE;
@@ -11,7 +12,9 @@ use cosmwasm_std::{
 };
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{query_proxy, StorageHandleMsg};
+use market_ai_royalty::sanitize_royalty;
 use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, QueryAuctionsResult};
+use market_first_lv_royalty::{FirstLvRoyalty, FirstLvRoyaltyHandleMsg};
 // use market_royalty::OfferingQueryMsg;
 use std::ops::{Add, Mul, Sub};
 
@@ -39,7 +42,8 @@ pub fn try_bid_nft(
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id }),
+            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id })
+                as &ProxyQueryMsg,
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
@@ -70,9 +74,14 @@ pub fn try_bid_nft(
         // find the desired coin to process
         if let Some(sent_fund) = info.sent_funds.iter().find(|fund| fund.denom.eq(&denom)) {
             let off_price = &off.price;
+            // in case fraction is too small, we fix it to 1uorai
+            let mut step_price = step_price;
+            if step_price == 0 {
+                step_price = 1u64;
+            }
             if sent_fund
                 .amount
-                .lt(&off_price.add(&off.price.mul(Decimal::percent(step_price))))
+                .lt(&off_price.add(&Uint128::from(step_price)))
             {
                 return Err(ContractError::InsufficientFunds {});
             }
@@ -137,7 +146,8 @@ pub fn try_claim_winner(
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id }),
+            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id })
+                as &ProxyQueryMsg,
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
@@ -189,6 +199,42 @@ pub fn try_claim_winner(
                 }
             }
         }
+
+        let mut first_lv_royalty = query_first_lv_royalty(
+            deps.as_ref(),
+            governance.as_str(),
+            deps.api.human_address(&off.contract_addr)?.as_str(),
+            off.token_id.as_str(),
+        )?;
+
+        // payout for the previous owner
+        if first_lv_royalty.previous_owner.is_some() && first_lv_royalty.prev_royalty.is_some() {
+            let owner_amount = off
+                .price
+                .mul(Decimal::percent(first_lv_royalty.prev_royalty.unwrap()));
+            if owner_amount.gt(&Uint128::from(0u128)) {
+                fund_amount = fund_amount.sub(owner_amount)?;
+                cosmos_msgs.push(
+                    BankMsg::Send {
+                        from_address: env.contract.address.clone(),
+                        to_address: first_lv_royalty.previous_owner.unwrap(),
+                        amount: coins(owner_amount.u128(), &denom),
+                    }
+                    .into(),
+                );
+            }
+        }
+
+        // update offering royalty result, current royalty info now turns to prev
+        first_lv_royalty.prev_royalty = first_lv_royalty.cur_royalty;
+        first_lv_royalty.previous_owner = Some(first_lv_royalty.current_owner.clone());
+        cosmos_msgs.push(get_handle_msg(
+            governance.as_str(),
+            FIRST_LV_ROYALTY_STORAGE,
+            FirstLvRoyaltyHandleMsg::UpdateFirstLvRoyalty {
+                first_lv_royalty: first_lv_royalty.clone(),
+            },
+        )?);
 
         // send fund the asker
         fund_amount = fund_amount.mul(Decimal::permille(1000 - fee));
@@ -260,6 +306,7 @@ pub fn handle_ask_auction(
         auction_duration,
         step_price,
         governance,
+        max_royalty,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
@@ -271,7 +318,7 @@ pub fn handle_ask_auction(
             &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionByContractTokenId {
                 contract: info.sender.clone(),
                 token_id: rcv_msg.token_id.clone(),
-            }),
+            }) as &ProxyQueryMsg,
         )
         .ok();
 
@@ -333,13 +380,46 @@ pub fn handle_ask_auction(
         step_price: msg.step_price.unwrap_or(step_price),
     };
 
+    // add first level royalty
+    let royalty = Some(sanitize_royalty(
+        msg.royalty.unwrap_or(0),
+        max_royalty,
+        "royalty",
+    )?);
+
+    let mut first_lv_royalty = query_first_lv_royalty(
+        deps.as_ref(),
+        governance.as_str(),
+        info.sender.as_str(),
+        rcv_msg.token_id.as_str(),
+    )
+    .unwrap_or(FirstLvRoyalty {
+        token_id: rcv_msg.token_id.clone(),
+        contract_addr: info.sender.clone(),
+        previous_owner: None,
+        current_owner: rcv_msg.sender.clone(),
+        prev_royalty: None,
+        cur_royalty: royalty,
+    });
+    println!("first level royalty: {:?}", first_lv_royalty);
+    first_lv_royalty.current_owner = rcv_msg.sender.clone();
+    first_lv_royalty.cur_royalty = royalty;
+
     // add new auctions
     let mut cosmos_msgs = vec![];
     // push save message to auction_storage
     cosmos_msgs.push(get_auction_handle_msg(
-        governance,
+        governance.clone(),
         AUCTION_STORAGE,
         AuctionHandleMsg::UpdateAuction { auction: off },
+    )?);
+
+    cosmos_msgs.push(get_handle_msg(
+        governance.as_str(),
+        FIRST_LV_ROYALTY_STORAGE,
+        FirstLvRoyaltyHandleMsg::UpdateFirstLvRoyalty {
+            first_lv_royalty: first_lv_royalty.clone(),
+        },
     )?);
 
     Ok(HandleResponse {
@@ -371,7 +451,8 @@ pub fn try_cancel_bid(
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id }),
+            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id })
+                as &ProxyQueryMsg,
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
@@ -464,7 +545,8 @@ pub fn try_emergency_cancel_auction(
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id }),
+            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id })
+                as &ProxyQueryMsg,
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
@@ -550,6 +632,6 @@ pub fn query_auction(deps: Deps, msg: AuctionQueryMsg) -> StdResult<Binary> {
     query_proxy(
         deps,
         get_storage_addr(deps, contract_info.governance, AUCTION_STORAGE)?,
-        to_binary(&ProxyQueryMsg::Auction(msg))?,
+        to_binary(&ProxyQueryMsg::Auction(msg) as &ProxyQueryMsg)?,
     )
 }

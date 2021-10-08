@@ -1,3 +1,4 @@
+use crate::ai_royalty::{add_msg_royalty, AI_ROYALTY_STORAGE};
 use crate::contract::{get_handle_msg, get_storage_addr, CREATOR_NAME};
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg, SellNft};
@@ -18,36 +19,7 @@ use market_royalty::{
 use std::ops::{Mul, Sub};
 
 pub const OFFERING_STORAGE: &str = "offering_v1.1";
-pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
-
-pub fn add_msg_royalty(
-    sender: &str,
-    governance: &str,
-    msg: RoyaltyMsg,
-) -> StdResult<Vec<CosmosMsg>> {
-    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
-    // update ai royalty provider
-    cosmos_msgs.push(get_handle_msg(
-        governance,
-        AI_ROYALTY_STORAGE,
-        AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
-            royalty: None,
-            ..msg.clone()
-        }),
-    )?);
-
-    // update creator as the caller of the mint tx
-    cosmos_msgs.push(get_handle_msg(
-        governance,
-        AI_ROYALTY_STORAGE,
-        AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
-            creator: HumanAddr(sender.to_string()),
-            creator_type: Some(String::from(CREATOR_NAME)),
-            ..msg
-        }),
-    )?);
-    Ok(cosmos_msgs)
-}
+pub const OFFERING_STORAGE_TEMP: &str = "offering_temp";
 
 pub fn try_handle_mint(
     deps: DepsMut,
@@ -117,15 +89,6 @@ pub fn try_buy(
             let fee_amount = off.price.mul(Decimal::permille(contract_info.fee));
             // Rust will automatically floor down the value to 0 if amount is too small => error
             seller_amount = seller_amount.sub(fee_amount)?;
-            // // comment this line because it is redundant, no need to pay the creator immediately since we have the withdraw funds function
-            // cosmos_msgs.push(
-            //     BankMsg::Send {
-            //         from_address: env.contract.address.clone(),
-            //         to_address: HumanAddr::from(contract_info.creator),
-            //         amount: coins(fee_amount.u128(), &contract_info.denom),
-            //     }
-            //     .into(),
-            // );
 
             // pay for creator, ai provider and others
             if let Ok(royalties) = get_royalties(deps.as_ref(), &off.token_id) {
@@ -154,7 +117,7 @@ pub fn try_buy(
                             contract: deps.api.human_address(&off.contract_addr)?,
                             token_id: off.token_id.clone(),
                         },
-                    ),
+                    ) as &ProxyQueryMsg,
                 )
                 .map_err(|_| ContractError::InvalidGetOfferingRoyalty {})?;
 
@@ -327,7 +290,7 @@ pub fn handle_sell_nft(
             &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingByContractTokenId {
                 contract: info.sender.clone(),
                 token_id: rcv_msg.token_id.clone(),
-            }),
+            }) as &ProxyQueryMsg,
         )
         .map_err(|_| ContractError::InvalidGetOffering {});
     if offering_result.is_ok() {
@@ -346,7 +309,7 @@ pub fn handle_sell_nft(
             &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId {
                 contract: info.sender.clone(),
                 token_id: rcv_msg.token_id.clone(),
-            }),
+            }) as &ProxyQueryMsg,
         )
         .map_err(|_| ContractError::InvalidGetOfferingRoyalty {})
         .unwrap_or(OfferingRoyalty {
@@ -388,22 +351,22 @@ pub fn handle_sell_nft(
     )?);
 
     // TEMP: auto add royalty creator default for old nft (if that nft does not have royalty creator)
-    // let royalty_result = get_royalties(deps.as_ref(), rcv_msg.token_id.as_str()).ok();
-    // if let Some(royalties) = royalty_result {
-    //     if royalties.len() == 0 {
-    //         cosmos_msgs.push(get_handle_msg(
-    //             governance.as_str(),
-    //             AI_ROYALTY_STORAGE,
-    //             AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
-    //                 contract_addr: info.sender.clone(),
-    //                 token_id: rcv_msg.token_id,
-    //                 creator: rcv_msg.sender.clone(),
-    //                 creator_type: Some(String::from(CREATOR_NAME)),
-    //                 royalty: Some(3),
-    //             }),
-    //         )?);
-    //     }
-    // }
+    let royalty_result = get_royalties(deps.as_ref(), rcv_msg.token_id.as_str()).ok();
+    if let Some(royalties) = royalty_result {
+        if royalties.len() == 0 {
+            cosmos_msgs.push(get_handle_msg(
+                governance.as_str(),
+                AI_ROYALTY_STORAGE,
+                AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+                    contract_addr: info.sender.clone(),
+                    token_id: rcv_msg.token_id,
+                    creator: rcv_msg.sender.clone(),
+                    creator_type: Some(String::from(CREATOR_NAME)),
+                    royalty: Some(5),
+                }),
+            )?);
+        }
+    }
 
     Ok(HandleResponse {
         messages: cosmos_msgs,
@@ -429,7 +392,7 @@ pub fn query_offering(deps: Deps, msg: OfferingQueryMsg) -> StdResult<Binary> {
     query_proxy(
         deps,
         get_storage_addr(deps, contract_info.governance, OFFERING_STORAGE)?,
-        to_binary(&ProxyQueryMsg::Offering(msg))?,
+        to_binary(&ProxyQueryMsg::Offering(msg) as &ProxyQueryMsg)?,
     )
 }
 
@@ -488,74 +451,36 @@ pub fn get_offering_handle_msg(
     .into())
 }
 
-// pub fn try_update_royalties(
-//     deps: DepsMut,
-//     info: MessageInfo,
-//     _env: Env,
-//     royalties: Vec<Royalty>,
-// ) -> Result<HandleResponse, ContractError> {
-//     let ContractInfo {
-//         creator,
-//         governance,
-//         ..
-//     } = CONTRACT_INFO.load(deps.storage)?;
-//     if info.sender.ne(&HumanAddr(creator.clone())) {
-//         return Err(ContractError::Unauthorized {
-//             sender: info.sender.to_string(),
-//         });
-//     };
-//     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
-//     for royalty in royalties {
-//         // update creator as the caller of the mint tx
-//         cosmos_msgs.push(get_handle_msg(
-//             governance.as_str(),
-//             AI_ROYALTY_STORAGE,
-//             AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
-//                 contract_addr: royalty.contract_addr,
-//                 token_id: royalty.token_id,
-//                 creator: royalty.creator,
-//                 creator_type: Some(royalty.creator_type),
-//                 royalty: Some(royalty.royalty),
-//             }),
-//         )?);
-//     }
-//     Ok(HandleResponse {
-//         messages: cosmos_msgs,
-//         attributes: vec![],
-//         data: None,
-//     })
-// }
-
-// pub fn try_update_offering_royalties(
-//     deps: DepsMut,
-//     info: MessageInfo,
-//     _env: Env,
-//     royalties: Vec<OfferingRoyalty>,
-// ) -> Result<HandleResponse, ContractError> {
-//     let ContractInfo {
-//         creator,
-//         governance,
-//         ..
-//     } = CONTRACT_INFO.load(deps.storage)?;
-//     if info.sender.ne(&HumanAddr(creator.clone())) {
-//         return Err(ContractError::Unauthorized {
-//             sender: info.sender.to_string(),
-//         });
-//     };
-//     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
-//     for royalty in royalties {
-//         // update creator as the caller of the mint tx
-//         cosmos_msgs.push(get_offering_handle_msg(
-//             governance.clone(),
-//             OFFERING_STORAGE,
-//             OfferingHandleMsg::UpdateOfferingRoyalty {
-//                 offering: royalty.clone(),
-//             },
-//         )?);
-//     }
-//     Ok(HandleResponse {
-//         messages: cosmos_msgs,
-//         attributes: vec![],
-//         data: None,
-//     })
-// }
+pub fn try_update_offering_royalties(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    royalties: Vec<OfferingRoyalty>,
+) -> Result<HandleResponse, ContractError> {
+    let ContractInfo {
+        creator,
+        governance,
+        ..
+    } = CONTRACT_INFO.load(deps.storage)?;
+    if info.sender.ne(&HumanAddr(creator.clone())) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    };
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+    for royalty in royalties {
+        // update creator as the caller of the mint tx
+        cosmos_msgs.push(get_offering_handle_msg(
+            governance.clone(),
+            OFFERING_STORAGE_TEMP,
+            OfferingHandleMsg::UpdateOfferingRoyalty {
+                offering: royalty.clone(),
+            },
+        )?);
+    }
+    Ok(HandleResponse {
+        messages: cosmos_msgs,
+        attributes: vec![],
+        data: None,
+    })
+}

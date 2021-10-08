@@ -12,7 +12,6 @@ pub struct RoyaltyMsg {
     pub creator_type: Option<String>,
     pub royalty: Option<u64>,
 }
-
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Royalty {
     pub contract_addr: HumanAddr,
@@ -58,4 +57,5 @@ pub enum AiRoyaltyHandleMsg {
     // this allow implementation contract to update the storage
     UpdateRoyalty(RoyaltyMsg),
     RemoveRoyalty(RoyaltyMsg),
+    UpdatePreference(u64),
 }

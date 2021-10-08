@@ -1,7 +1,8 @@
 use cosmwasm_std::HumanAddr;
-use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use market_first_lv_royalty::{FirstLvRoyaltyHandleMsg, FirstLvRoyaltyQueryMsg};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
@@ -11,7 +12,7 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    Msg(AiRoyaltyHandleMsg),
+    Msg(FirstLvRoyaltyHandleMsg),
     // other implementation
     UpdateInfo(UpdateContractMsg),
 }
@@ -20,13 +21,12 @@ pub enum HandleMsg {
 pub struct UpdateContractMsg {
     pub governance: Option<HumanAddr>,
     pub creator: Option<HumanAddr>,
-    pub default_royalty: Option<u64>,
-    pub max_royalty: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    Msg(AiRoyaltyQueryMsg),
+    // GetFirstLvRoyaltys returns a list of all FirstLvRoyaltys
+    Msg(FirstLvRoyaltyQueryMsg),
     GetContractInfo {},
 }

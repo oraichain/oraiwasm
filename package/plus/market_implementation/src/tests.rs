@@ -1,3 +1,5 @@
+use crate::ai_royalty::query_first_lv_royalty;
+use crate::auction::DEFAULT_AUCTION_BLOCK;
 use crate::contract::{handle, init, query};
 use crate::error::ContractError;
 use crate::msg::*;
@@ -9,7 +11,9 @@ use cosmwasm_std::{
     SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
 };
 
-use market_ai_royalty::{AiRoyaltyQueryMsg, MintIntermediate, MintMsg, MintStruct, Royalty};
+use market_ai_royalty::{
+    AiRoyaltyQueryMsg, MintIntermediate, MintMsg, MintStruct, Royalty, RoyaltyMsg,
+};
 use market_auction::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_auction::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
 use market_royalty::{OfferingQueryMsg, OfferingRoyalty, OfferingsResponse, QueryOfferingsResult};
@@ -25,11 +29,13 @@ const HUB_ADDR: &str = "hub_addr";
 const AUCTION_ADDR: &str = "auction_addr";
 const OFFERING_ADDR: &str = "offering_addr";
 const AI_ROYALTY_ADDR: &str = "ai_royalty_addr";
+const FIRST_LV_ROYALTY_ADDR: &str = "first_lv_royalty_addr";
 const CONTRACT_NAME: &str = "Auction Marketplace";
 const DENOM: &str = "orai";
 pub const AUCTION_STORAGE: &str = "auction";
 pub const OFFERING_STORAGE: &str = "offering_v1.1";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
+pub const FIRST_LV_ROYALTY_STORAGE: &str = "first_lv_royalty";
 
 static mut _DATA: *const DepsManager = 0 as *const DepsManager;
 struct DepsManager {
@@ -38,6 +44,7 @@ struct DepsManager {
     offering: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     auction: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     ai_royalty: OwnedDeps<MockStorage, MockApi, MockQuerier>,
+    first_lv_royalty: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     // main deps
     deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
 }
@@ -71,6 +78,10 @@ impl DepsManager {
                     (
                         AI_ROYALTY_STORAGE.to_string(),
                         HumanAddr::from(AI_ROYALTY_ADDR),
+                    ),
+                    (
+                        FIRST_LV_ROYALTY_STORAGE.to_string(),
+                        HumanAddr::from(FIRST_LV_ROYALTY_ADDR),
                     ),
                 ],
                 implementations: vec![HumanAddr::from(MARKET_ADDR)],
@@ -112,6 +123,21 @@ impl DepsManager {
         )
         .unwrap();
 
+        let mut first_lv_royalty = mock_dependencies(
+            HumanAddr::from(FIRST_LV_ROYALTY_ADDR),
+            &[],
+            Self::query_wasm,
+        );
+        let _res = market_first_level_royalty_storage::contract::init(
+            first_lv_royalty.as_mut(),
+            mock_env(FIRST_LV_ROYALTY_ADDR),
+            info.clone(),
+            market_first_level_royalty_storage::msg::InitMsg {
+                governance: HumanAddr::from(HUB_ADDR),
+            },
+        )
+        .unwrap();
+
         let mut deps = mock_dependencies(
             HumanAddr::from(MARKET_ADDR),
             &coins(100000, DENOM),
@@ -138,6 +164,7 @@ impl DepsManager {
             auction,
             ai_royalty,
             deps,
+            first_lv_royalty,
         }
     }
 
@@ -172,6 +199,13 @@ impl DepsManager {
                     .ok(),
                     AI_ROYALTY_ADDR => market_ai_royalty_storage::contract::handle(
                         self.ai_royalty.as_mut(),
+                        mock_env(HUB_ADDR),
+                        mock_info(HUB_ADDR, &[]),
+                        from_slice(msg).unwrap(),
+                    )
+                    .ok(),
+                    FIRST_LV_ROYALTY_ADDR => market_first_level_royalty_storage::contract::handle(
+                        self.first_lv_royalty.as_mut(),
                         mock_env(HUB_ADDR),
                         mock_info(HUB_ADDR, &[]),
                         from_slice(msg).unwrap(),
@@ -237,6 +271,14 @@ impl DepsManager {
                             from_slice(msg).unwrap(),
                         )
                         .unwrap_or_default(),
+                        FIRST_LV_ROYALTY_ADDR => {
+                            market_first_level_royalty_storage::contract::query(
+                                manager.first_lv_royalty.as_ref(),
+                                mock_env(FIRST_LV_ROYALTY_ADDR),
+                                from_slice(msg).unwrap(),
+                            )
+                            .unwrap_or_default()
+                        }
                         OFFERING_ADDR => market_offering_storage::contract::query(
                             manager.offering.as_ref(),
                             mock_env(OFFERING_ADDR),
@@ -273,6 +315,7 @@ fn sell_auction_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
+            royalty: None,
         };
 
         let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
@@ -300,6 +343,142 @@ fn sell_auction_happy_path() {
         )
         .unwrap();
         println!("{:?}", result);
+    }
+}
+
+#[test]
+fn test_royalty_auction_happy_path() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        let contract_env = mock_env(MARKET_ADDR);
+
+        // beneficiary can release it
+        let info = mock_info("anyone", &coins(2, DENOM));
+
+        let sell_msg = AskNftMsg {
+            price: Uint128(50),
+            cancel_fee: Some(10),
+            start: Some(contract_env.block.height + 15),
+            end: Some(contract_env.block.height + 100),
+            buyout_price: Some(Uint128(1000)),
+            start_timestamp: None,
+            end_timestamp: None,
+            step_price: None,
+            royalty: Some(10),
+        };
+
+        println!("msg :{}", to_binary(&sell_msg).unwrap());
+
+        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+            sender: HumanAddr::from("asker"),
+            token_id: String::from("BiddableNFT"),
+            msg: to_binary(&sell_msg).ok(),
+        });
+        let _res = manager.handle(info, msg).unwrap();
+
+        // bid auction
+        let bid_info = mock_info(
+            "bidder",
+            &coins(sell_msg.price.add(Uint128::from(10u64)).u128(), DENOM),
+        );
+        let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+        let mut bid_contract_env = contract_env.clone();
+        bid_contract_env.block.height = contract_env.block.height + 15;
+        let _res = manager
+            .handle_with_env(bid_contract_env, bid_info.clone(), bid_msg)
+            .unwrap();
+
+        // now claim winner after expired
+        let claim_info = mock_info("anyone", &coins(0, DENOM));
+        let claim_msg = HandleMsg::ClaimWinner { auction_id: 1 };
+        let mut claim_contract_env = contract_env.clone();
+        claim_contract_env.block.height = contract_env.block.height + 100; // > 100 at block end
+        let res = manager
+            .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
+            .unwrap();
+        let attributes = &res.last().unwrap().attributes;
+        let attr = attributes
+            .iter()
+            .find(|attr| attr.key.eq("token_id"))
+            .unwrap();
+        assert_eq!(attr.value, "BiddableNFT");
+        println!("{:?}", attributes);
+
+        // sell again and check id
+        let sell_msg = AskNftMsg {
+            price: Uint128(100),
+            cancel_fee: Some(10),
+            start: None,
+            end: None,
+            buyout_price: None,
+            start_timestamp: None,
+            end_timestamp: None,
+            step_price: None,
+            royalty: None,
+        };
+
+        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+            sender: HumanAddr::from("bidder"),
+            token_id: String::from("BiddableNFT"),
+            msg: to_binary(&sell_msg).ok(),
+        });
+
+        let _ret = manager.handle(claim_info.clone(), msg.clone()).unwrap();
+
+        let result: AuctionsResponse = from_binary(
+            &manager
+                .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctions {
+                    options: PagingOptions {
+                        offset: Some(0),
+                        limit: Some(3),
+                        order: Some(Order::Ascending as u8),
+                    },
+                }))
+                .unwrap(),
+        )
+        .unwrap();
+        println!("List auctions: {:?}", result);
+
+        let first_lv_royalty = query_first_lv_royalty(
+            manager.deps.as_ref(),
+            HUB_ADDR,
+            "anyone",
+            String::from("BiddableNFT").as_str(),
+        )
+        .unwrap();
+        println!("first level royalty: {:?}", first_lv_royalty);
+
+        // claim nft again to verify the auction royalty
+        let claim_info = mock_info("anyone", &coins(0, DENOM));
+        let claim_msg = HandleMsg::ClaimWinner { auction_id: 2 };
+        let mut claim_contract_env = contract_env.clone();
+        claim_contract_env.block.height = contract_env.block.height + DEFAULT_AUCTION_BLOCK; // > 100 at block end
+        let results = manager
+            .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
+            .unwrap();
+        for result in results {
+            for message in result.clone().messages {
+                if let CosmosMsg::Bank(msg) = message {
+                    match msg {
+                        cosmwasm_std::BankMsg::Send {
+                            from_address: _,
+                            to_address,
+                            amount,
+                        } => {
+                            let amount = amount[0].amount;
+                            if to_address.eq(&first_lv_royalty.previous_owner.clone().unwrap()) {
+                                assert_eq!(
+                                    sell_msg.price.mul(Decimal::percent(
+                                        first_lv_royalty.prev_royalty.unwrap()
+                                    )),
+                                    amount
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -356,6 +535,7 @@ fn cancel_auction_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
+            royalty: None,
         };
 
         let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
@@ -372,11 +552,7 @@ fn cancel_auction_happy_path() {
             &coins(
                 sell_msg
                     .price
-                    .add(
-                        sell_msg
-                            .price
-                            .mul(Decimal::percent(contract_info.step_price)),
-                    )
+                    .add(Uint128::from(contract_info.step_price))
                     .u128(),
                 DENOM,
             ),
@@ -421,6 +597,7 @@ fn cancel_auction_unhappy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
+            royalty: None,
         };
 
         println!("msg :{}", to_binary(&sell_msg).unwrap());
@@ -440,11 +617,7 @@ fn cancel_auction_unhappy_path() {
             &coins(
                 sell_msg
                     .price
-                    .add(
-                        sell_msg
-                            .price
-                            .mul(Decimal::percent(contract_info.step_price)),
-                    )
+                    .add(sell_msg.price.add(Uint128::from(contract_info.step_price)))
                     .u128(),
                 DENOM,
             ),
@@ -480,6 +653,7 @@ fn cancel_bid_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
+            royalty: None,
         };
 
         println!("msg :{}", to_binary(&sell_msg).unwrap());
@@ -499,11 +673,7 @@ fn cancel_bid_happy_path() {
             &coins(
                 sell_msg
                     .price
-                    .add(
-                        sell_msg
-                            .price
-                            .mul(Decimal::percent(contract_info.step_price)),
-                    )
+                    .add(Uint128::from(contract_info.step_price))
                     .u128(),
                 DENOM,
             ),
@@ -547,6 +717,7 @@ fn cancel_bid_unhappy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
+            royalty: None,
         };
 
         println!("msg :{}", to_binary(&sell_msg).unwrap());
@@ -566,11 +737,7 @@ fn cancel_bid_unhappy_path() {
             &coins(
                 sell_msg
                     .price
-                    .add(
-                        sell_msg
-                            .price
-                            .mul(Decimal::percent(contract_info.step_price)),
-                    )
+                    .add(Uint128::from(contract_info.step_price))
                     .u128(),
                 DENOM,
             ),
@@ -611,6 +778,7 @@ fn claim_winner_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
+            royalty: None,
         };
 
         println!("msg :{}", to_binary(&sell_msg).unwrap());
@@ -628,18 +796,26 @@ fn claim_winner_happy_path() {
             &coins(
                 sell_msg
                     .price
-                    .add(
-                        sell_msg
-                            .price
-                            .mul(Decimal::percent(contract_info.step_price)),
-                    )
+                    .add(Uint128::from(contract_info.step_price))
                     .u128(),
                 DENOM,
             ),
         );
+
         let bid_msg = HandleMsg::BidNft { auction_id: 1 };
         let mut bid_contract_env = contract_env.clone();
         bid_contract_env.block.height = contract_env.block.height + 15;
+
+        // insufficient funds when bid
+        assert!(matches!(
+            manager.handle_with_env(
+                bid_contract_env.clone(),
+                mock_info("bidder", &coins(sell_msg.price.u128(), DENOM)),
+                bid_msg.clone()
+            ),
+            Err(ContractError::InsufficientFunds {})
+        ));
+
         let _res = manager
             .handle_with_env(bid_contract_env, bid_info.clone(), bid_msg)
             .unwrap();
@@ -673,6 +849,7 @@ fn claim_winner_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
+            royalty: None,
         };
 
         let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
@@ -1203,5 +1380,64 @@ fn test_migrate() {
                 }
             }
         }
+    }
+}
+
+#[test]
+fn test_update_decay_royalty() {
+    unsafe {
+        let manager = DepsManager::get_new();
+
+        // try mint nft to get royalty for provider
+        let creator_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from("offering"),
+            creator: HumanAddr::from("provider"),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    token_id: String::from("SellableNFT"),
+                    owner: HumanAddr::from("provider"),
+                    name: String::from("asbv"),
+                    description: None,
+                    image: String::from("baxv"),
+                },
+            },
+            creator_type: String::from("sacx"),
+            royalty: Some(40),
+        });
+
+        manager.handle(creator_info.clone(), mint_msg).unwrap();
+
+        let mut royalty_msg = RoyaltyMsg {
+            contract_addr: HumanAddr::from("offering"),
+            token_id: String::from("SellableNFT"),
+            creator: HumanAddr::from("somebody"),
+            creator_type: None,
+            royalty: Some(10),
+        };
+
+        // update creator royalty
+        let update_msg = HandleMsg::UpdateCreatorRoyalty(royalty_msg.clone());
+        manager
+            .handle(creator_info.clone(), update_msg.clone())
+            .unwrap();
+
+        // try to update royalty 20 now will only be 10
+        royalty_msg.royalty = Some(20);
+        manager.handle(creator_info.clone(), update_msg).unwrap();
+
+        // query creator royalty
+        let royalty: Royalty = from_binary(
+            &manager
+                .query(QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
+                    contract_addr: HumanAddr::from("offering"),
+                    token_id: String::from("SellableNFT"),
+                    creator: HumanAddr::from("creator"),
+                }))
+                .unwrap(),
+        )
+        .unwrap();
+        println!("new royalty: {:?}", royalty);
+        assert_eq!(royalty.royalty, 10);
     }
 }

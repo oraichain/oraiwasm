@@ -56,7 +56,7 @@ pub fn init(
     store_members(deps.storage, msg.members, false)?;
 
     // init round count
-    round_count(deps.storage).save(&1u64)?;
+    round_count(deps.storage).save(&0u64)?;
 
     Ok(InitResponse::default())
 }

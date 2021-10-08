@@ -1,7 +1,7 @@
 use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
 use cw721::Cw721ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
-use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg};
+use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg, RoyaltyMsg};
 use market_auction::{AuctionHandleMsg, AuctionQueryMsg};
 use market_royalty::{OfferingHandleMsg, OfferingQueryMsg};
 use schemars::JsonSchema;
@@ -56,6 +56,7 @@ pub enum HandleMsg {
         token_ids: Vec<String>,
         new_marketplace: HumanAddr,
     },
+    UpdateCreatorRoyalty(RoyaltyMsg),
     // TEMP when need to migrate storage
     // UpdateRoyalties {
     //     royalty: Vec<Royalty>,
@@ -76,6 +77,7 @@ pub struct AskNftMsg {
     pub end_timestamp: Option<Uint128>,
     pub buyout_price: Option<Uint128>,
     pub step_price: Option<u64>,
+    pub royalty: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -108,11 +110,14 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ProxyQueryMsg {
+pub enum ProxyQueryMsg<T = Empty>
+where
+    T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
+{
     // GetOfferings returns a list of all offerings
     Auction(AuctionQueryMsg),
     Offering(OfferingQueryMsg),
-    Msg(AiRoyaltyQueryMsg),
+    Msg(T),
     Storage(StorageQueryMsg),
 }
 
@@ -126,5 +131,6 @@ where
     Auction(AuctionHandleMsg),
     Offering(OfferingHandleMsg),
     Msg(T),
+    // update preference for ai royalty creator & provider
     Storage(StorageHandleMsg),
 }

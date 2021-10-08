@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::ai_royalty::try_update_royalty_creator;
+// use crate::ai_royalty::try_update_royalties;
 use crate::auction::{
     handle_ask_auction, query_auction, try_bid_nft, try_cancel_bid, try_claim_winner,
     try_emergency_cancel_auction,
@@ -29,6 +31,7 @@ use serde::Serialize;
 pub const MAX_ROYALTY_PERCENT: u64 = 50;
 pub const MAX_FEE_PERMILLE: u64 = 100;
 pub const CREATOR_NAME: &str = "creator";
+pub const FIRST_LV_ROYALTY_STORAGE: &str = "first_lv_royalty";
 
 fn sanitize_fee(fee: u64, limit: u64, name: &str) -> Result<u64, ContractError> {
     if fee > limit {
@@ -96,10 +99,12 @@ pub fn handle(
             nft_contract_addr,
             new_marketplace,
         ),
-        // HandleMsg::UpdateRoyalties { royalty } => try_update_royalties(deps, info, env, royalty),
-        // HandleMsg::UpdateOfferingRoyalties { royalty } => {
-        //     try_update_offering_royalties(deps, info, env, royalty)
-        // }
+        HandleMsg::UpdateCreatorRoyalty(royalty_msg) => {
+            try_update_royalty_creator(deps, info, royalty_msg)
+        } // HandleMsg::UpdateRoyalties { royalty } => try_update_royalties(deps, info, env, royalty),
+          // HandleMsg::UpdateOfferingRoyalties { royalty } => {
+          //     try_update_offering_royalties(deps, info, env, royalty)
+          // }
     }
 }
 
@@ -254,7 +259,7 @@ pub fn get_storage_addr(deps: Deps, contract: HumanAddr, name: &str) -> StdResul
         contract,
         &ProxyQueryMsg::Storage(StorageQueryMsg::QueryStorageAddr {
             name: name.to_string(),
-        }),
+        }) as &ProxyQueryMsg,
     )
 }
 
