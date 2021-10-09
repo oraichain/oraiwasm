@@ -3,6 +3,7 @@ use cw721::Cw721ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg, RoyaltyMsg};
 use market_auction::{AuctionHandleMsg, AuctionQueryMsg};
+use market_first_lv_royalty::FirstLvRoyaltyQueryMsg;
 use market_royalty::{OfferingHandleMsg, OfferingQueryMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -106,6 +107,7 @@ pub enum QueryMsg {
     Auction(AuctionQueryMsg),
     Offering(OfferingQueryMsg),
     AiRoyalty(AiRoyaltyQueryMsg),
+    FirstLvRoyalty(FirstLvRoyaltyQueryMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

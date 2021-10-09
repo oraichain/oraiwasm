@@ -28,14 +28,16 @@ pub fn init(
     info: MessageInfo,
     msg: InitMsg,
 ) -> Result<InitResponse, ContractError> {
-    let dealer = msg.dealer.unwrap_or(msg.threshold + 1);
     let total = msg.members.len() as u16;
-    if dealer == 0 || dealer > total {
-        return Err(ContractError::InvalidDealer {});
-    }
     if msg.threshold == 0 || msg.threshold > total {
         return Err(ContractError::InvalidThreshold {});
     }
+
+    let dealer = msg.dealer.unwrap_or(msg.threshold + 1);
+    if dealer == 0 || dealer > total {
+        return Err(ContractError::InvalidDealer {});
+    }
+
     // init with a signature, pubkey and denom for bounty
     config(deps.storage).save(&Config {
         total,
@@ -128,7 +130,7 @@ fn store_members(storage: &mut dyn Storage, members: Vec<MemberMsg>, clear: bool
             shared_dealer: None,
         };
 
-        members_store.set(&member.address.as_bytes(), &to_binary(&member)?);
+        members_store.set(member.address.as_bytes(), &to_binary(&member)?);
     }
     Ok(())
 }
@@ -151,7 +153,7 @@ pub fn remove_member(
     let mut member = query_member(deps.as_ref(), &address)?;
     member.deleted = true;
     let msg = to_binary(&member)?;
-    members_storage(deps.storage).set(&address.as_bytes(), &msg);
+    members_storage(deps.storage).set(address.as_bytes(), &msg);
     Ok(HandleResponse::default())
 }
 
@@ -289,7 +291,7 @@ pub fn share_dealer(
     // update shared dealer
     member.shared_dealer = Some(share);
     // save member
-    members_storage(deps.storage).set(&member.address.as_bytes(), &to_binary(&member)?);
+    members_storage(deps.storage).set(member.address.as_bytes(), &to_binary(&member)?);
 
     config_data.shared_dealer += 1;
     if config_data.shared_dealer >= config_data.dealer {
@@ -331,7 +333,7 @@ pub fn share_row(
     member.shared_row = Some(share);
 
     // save member
-    members_storage(deps.storage).set(&member.address.as_bytes(), &to_binary(&member)?);
+    members_storage(deps.storage).set(member.address.as_bytes(), &to_binary(&member)?);
 
     // increase shared_row
     config_data.shared_row += 1;
@@ -590,7 +592,7 @@ pub fn force_next_round(deps: DepsMut, info: MessageInfo) -> Result<HandleRespon
 
 fn query_member(deps: Deps, address: &str) -> Result<Member, ContractError> {
     let value = members_storage_read(deps.storage)
-        .get(&address.as_bytes())
+        .get(address.as_bytes())
         .ok_or(ContractError::NoMember {})?;
     let member = from_slice(value.as_slice())?;
     Ok(member)

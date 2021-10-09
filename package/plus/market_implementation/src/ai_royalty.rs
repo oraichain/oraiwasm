@@ -52,6 +52,15 @@ pub fn query_ai_royalty(deps: Deps, msg: AiRoyaltyQueryMsg) -> StdResult<Binary>
     )
 }
 
+pub fn query_first_level_royalty(deps: Deps, msg: FirstLvRoyaltyQueryMsg) -> StdResult<Binary> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+    query_proxy(
+        deps,
+        get_storage_addr(deps, contract_info.governance, FIRST_LV_ROYALTY_STORAGE)?,
+        to_binary(&ProxyQueryMsg::Msg(msg))?,
+    )
+}
+
 pub fn get_royalties(deps: Deps, token_id: &str) -> Result<Vec<Royalty>, ContractError> {
     let royalties: Vec<Royalty> = from_binary(&query_ai_royalty(
         deps,
@@ -135,19 +144,23 @@ pub fn query_first_lv_royalty(
     governance: &str,
     contract: &str,
     token_id: &str,
+    current_owner: &str,
 ) -> Result<FirstLvRoyalty, ContractError> {
     let first_lv_royalty: FirstLvRoyalty = deps
         .querier
         .query_wasm_smart(
             get_storage_addr(deps, HumanAddr::from(governance), FIRST_LV_ROYALTY_STORAGE)?,
-            &ProxyQueryMsg::Msg(FirstLvRoyaltyQueryMsg::GetFirstLvRoyaltyByContractTokenId {
+            &ProxyQueryMsg::Msg(FirstLvRoyaltyQueryMsg::GetFirstLvRoyalty {
                 contract: HumanAddr::from(contract),
                 token_id: token_id.to_string(),
+                current_owner: HumanAddr::from(current_owner),
             }) as &ProxyQueryMsg<FirstLvRoyaltyQueryMsg>,
         )
         .map_err(|_| ContractError::InvalidGetFirstLvRoyalty {})?;
     Ok(first_lv_royalty)
 }
+
+// TODO: also update preferences for them
 
 pub fn try_update_royalties(
     deps: DepsMut,
@@ -182,7 +195,7 @@ pub fn try_update_royalties(
     }
     Ok(HandleResponse {
         messages: cosmos_msgs,
-        attributes: vec![],
+        attributes: vec![attr("action", "update_creator_royalties")],
         data: None,
     })
 }

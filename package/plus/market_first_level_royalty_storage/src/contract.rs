@@ -1,6 +1,8 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
-use crate::state::{first_lv_royalties, get_key_royalty, ContractInfo, CONTRACT_INFO};
+use crate::state::{
+    first_lv_royalties, get_contract_token_id, get_key_royalty, ContractInfo, CONTRACT_INFO,
+};
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order,
     StdError, StdResult,
@@ -48,7 +50,10 @@ pub fn handle(
             FirstLvRoyaltyHandleMsg::RemoveFirstLvRoyalty {
                 contract_addr,
                 token_id,
-            } => try_delete_first_lv_royalty(deps, info, env, contract_addr, token_id),
+                current_owner,
+            } => {
+                try_delete_first_lv_royalty(deps, info, env, contract_addr, token_id, current_owner)
+            }
         },
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
@@ -83,11 +88,25 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 offset,
                 order,
             )?),
-            FirstLvRoyaltyQueryMsg::GetFirstLvRoyaltyByContractTokenId { contract, token_id } => {
-                to_binary(&query_offering_royalty_by_contract_tokenid(
-                    deps, contract, token_id,
-                )?)
-            }
+            FirstLvRoyaltyQueryMsg::GetFirstLvRoyaltiesByContractTokenId {
+                contract,
+                token_id,
+                limit,
+                offset,
+                order,
+            } => to_binary(&query_first_lv_royalties_by_contract_tokenid(
+                deps, contract, token_id, limit, offset, order,
+            )?),
+            FirstLvRoyaltyQueryMsg::GetFirstLvRoyalty {
+                contract,
+                token_id,
+                current_owner,
+            } => to_binary(&query_first_lv_royalty(
+                deps,
+                contract,
+                token_id,
+                current_owner,
+            )?),
             FirstLvRoyaltyQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
         },
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
@@ -98,7 +117,7 @@ pub fn try_update_first_lv_royalty(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
-    offering: FirstLvRoyalty,
+    first_lv_royalty: FirstLvRoyalty,
 ) -> Result<HandleResponse, ContractError> {
     // must check the sender is implementation contract
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
@@ -112,16 +131,17 @@ pub fn try_update_first_lv_royalty(
     first_lv_royalties().save(
         deps.storage,
         &get_key_royalty(
-            offering.contract_addr.as_bytes(),
-            offering.token_id.as_bytes(),
+            first_lv_royalty.contract_addr.as_bytes(),
+            first_lv_royalty.token_id.as_bytes(),
+            first_lv_royalty.current_owner.as_bytes(),
         ),
-        &offering,
+        &first_lv_royalty,
     )?;
 
     return Ok(HandleResponse {
         messages: vec![],
         attributes: vec![attr("action", "update_offering_royalty")],
-        data: to_binary(&offering).ok(),
+        data: to_binary(&first_lv_royalty).ok(),
     });
 }
 
@@ -131,6 +151,7 @@ pub fn try_delete_first_lv_royalty(
     _env: Env,
     contract_addr: HumanAddr,
     token_id: String,
+    current_owner: HumanAddr,
 ) -> Result<HandleResponse, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if contract_info.governance.ne(&info.sender) {
@@ -139,10 +160,14 @@ pub fn try_delete_first_lv_royalty(
         });
     }
 
-    // remove offering
+    // remove first_lv_royalty
     first_lv_royalties().remove(
         deps.storage,
-        &get_key_royalty(contract_addr.as_bytes(), token_id.as_bytes()),
+        &get_key_royalty(
+            contract_addr.as_bytes(),
+            token_id.as_bytes(),
+            current_owner.as_bytes(),
+        ),
     )?;
 
     return Ok(HandleResponse {
@@ -183,7 +208,7 @@ pub fn try_update_info(
 
 // ============================== Query Handlers ==============================
 
-fn _get_range_params_offering_royalty(
+fn _get_range_params_first_lv_royalty(
     limit: Option<u8>,
     offset: Option<OffsetMsg>,
     order: Option<u8>,
@@ -203,6 +228,7 @@ fn _get_range_params_offering_royalty(
         let offset_value = Some(Bound::Exclusive(get_key_royalty(
             offset.contract.as_bytes(),
             offset.token_id.as_bytes(),
+            offset.current_owner.as_bytes(),
         )));
         // match order_enum {
         //     Order::Ascending => min = offset_value,
@@ -219,7 +245,7 @@ pub fn query_first_lv_royalties(
     offset: Option<OffsetMsg>,
     order: Option<u8>,
 ) -> StdResult<Vec<FirstLvRoyalty>> {
-    let (limit, min, max, order_enum) = _get_range_params_offering_royalty(limit, offset, order);
+    let (limit, min, max, order_enum) = _get_range_params_first_lv_royalty(limit, offset, order);
 
     let res: StdResult<Vec<FirstLvRoyalty>> = first_lv_royalties()
         .range(deps.storage, min, max, order_enum)
@@ -237,7 +263,7 @@ pub fn query_first_lv_royalties_by_current_owner(
     offset: Option<OffsetMsg>,
     order: Option<u8>,
 ) -> StdResult<Vec<FirstLvRoyalty>> {
-    let (limit, min, max, order_enum) = _get_range_params_offering_royalty(limit, offset, order);
+    let (limit, min, max, order_enum) = _get_range_params_first_lv_royalty(limit, offset, order);
     let res: StdResult<Vec<FirstLvRoyalty>> = first_lv_royalties()
         .idx
         .current_owner
@@ -262,7 +288,7 @@ pub fn query_first_lv_royalties_by_contract(
     offset: Option<OffsetMsg>,
     order: Option<u8>,
 ) -> StdResult<Vec<FirstLvRoyalty>> {
-    let (limit, min, max, order_enum) = _get_range_params_offering_royalty(limit, offset, order);
+    let (limit, min, max, order_enum) = _get_range_params_first_lv_royalty(limit, offset, order);
     let res: StdResult<Vec<FirstLvRoyalty>> = first_lv_royalties()
         .idx
         .contract
@@ -274,19 +300,50 @@ pub fn query_first_lv_royalties_by_contract(
     Ok(res?)
 }
 
-pub fn query_offering_royalty_by_contract_tokenid(
+pub fn query_first_lv_royalties_by_contract_tokenid(
     deps: Deps,
     contract: HumanAddr,
     token_id: String,
+    limit: Option<u8>,
+    offset: Option<OffsetMsg>,
+    order: Option<u8>,
+) -> StdResult<Vec<FirstLvRoyalty>> {
+    let (limit, min, max, order_enum) = _get_range_params_first_lv_royalty(limit, offset, order);
+    let res: StdResult<Vec<FirstLvRoyalty>> = first_lv_royalties()
+        .idx
+        .contract_token_id
+        .items(
+            deps.storage,
+            &get_contract_token_id(&contract, &token_id),
+            min,
+            max,
+            order_enum,
+        )
+        .take(limit)
+        .map(|kv_item| parse_first_lv_royalty(kv_item))
+        .collect();
+
+    Ok(res?)
+}
+
+pub fn query_first_lv_royalty(
+    deps: Deps,
+    contract: HumanAddr,
+    token_id: String,
+    current_owner: HumanAddr,
 ) -> StdResult<FirstLvRoyalty> {
-    let offering = first_lv_royalties().idx.contract_token_id.item(
+    let first_lv_royalty = first_lv_royalties().idx.unique_royalty.item(
         deps.storage,
-        PkOwned(get_key_royalty(contract.as_bytes(), token_id.as_bytes())),
+        PkOwned(get_key_royalty(
+            contract.as_bytes(),
+            token_id.as_bytes(),
+            current_owner.as_bytes(),
+        )),
     )?;
-    if let Some(offering_obj) = offering {
-        Ok(offering_obj.1)
+    if let Some(first_lv) = first_lv_royalty {
+        Ok(first_lv.1)
     } else {
-        Err(StdError::generic_err("Offering royalty not found"))
+        Err(StdError::generic_err("First level royalty not found"))
     }
 }
 

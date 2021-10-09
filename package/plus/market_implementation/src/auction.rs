@@ -3,7 +3,7 @@ use crate::contract::{get_handle_msg, get_storage_addr, FIRST_LV_ROYALTY_STORAGE
 use crate::error::ContractError;
 use crate::msg::{AskNftMsg, ProxyHandleMsg, ProxyQueryMsg};
 // use crate::offering::OFFERING_STORAGE;
-use crate::offering::get_royalties;
+use crate::ai_royalty::get_royalties;
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
@@ -31,10 +31,7 @@ pub fn try_bid_nft(
     auction_id: u64,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
-        denom,
-        step_price,
-        governance,
-        ..
+        denom, governance, ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if auction exists, when return StdError => it will show EOF while parsing a JSON value.
@@ -75,13 +72,9 @@ pub fn try_bid_nft(
         if let Some(sent_fund) = info.sent_funds.iter().find(|fund| fund.denom.eq(&denom)) {
             let off_price = &off.price;
             // in case fraction is too small, we fix it to 1uorai
-            let mut step_price = step_price;
-            if step_price == 0 {
-                step_price = 1u64;
-            }
             if sent_fund
                 .amount
-                .lt(&off_price.add(&Uint128::from(step_price)))
+                .lt(&off_price.add(&Uint128::from(off.step_price)))
             {
                 return Err(ContractError::InsufficientFunds {});
             }
@@ -172,7 +165,7 @@ pub fn try_claim_winner(
             WasmMsg::Execute {
                 contract_addr: deps.api.human_address(&off.contract_addr)?,
                 msg: to_binary(&Cw721HandleMsg::TransferNft {
-                    recipient: bidder_addr,
+                    recipient: bidder_addr.clone(),
                     token_id: off.token_id.clone(),
                 })?,
                 send: vec![],
@@ -205,6 +198,7 @@ pub fn try_claim_winner(
             governance.as_str(),
             deps.api.human_address(&off.contract_addr)?.as_str(),
             off.token_id.as_str(),
+            asker_addr.as_str(),
         )?;
 
         // payout for the previous owner
@@ -228,6 +222,7 @@ pub fn try_claim_winner(
         // update offering royalty result, current royalty info now turns to prev
         first_lv_royalty.prev_royalty = first_lv_royalty.cur_royalty;
         first_lv_royalty.previous_owner = Some(first_lv_royalty.current_owner.clone());
+        first_lv_royalty.current_owner = bidder_addr; // new owner will become the bidder
         cosmos_msgs.push(get_handle_msg(
             governance.as_str(),
             FIRST_LV_ROYALTY_STORAGE,
@@ -392,6 +387,7 @@ pub fn handle_ask_auction(
         governance.as_str(),
         info.sender.as_str(),
         rcv_msg.token_id.as_str(),
+        rcv_msg.sender.as_str(),
     )
     .unwrap_or(FirstLvRoyalty {
         token_id: rcv_msg.token_id.clone(),
@@ -401,8 +397,6 @@ pub fn handle_ask_auction(
         prev_royalty: None,
         cur_royalty: royalty,
     });
-    println!("first level royalty: {:?}", first_lv_royalty);
-    first_lv_royalty.current_owner = rcv_msg.sender.clone();
     first_lv_royalty.cur_royalty = royalty;
 
     // add new auctions

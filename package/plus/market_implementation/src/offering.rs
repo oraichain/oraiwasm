@@ -1,4 +1,4 @@
-use crate::ai_royalty::{add_msg_royalty, AI_ROYALTY_STORAGE};
+use crate::ai_royalty::{add_msg_royalty, get_royalties, AI_ROYALTY_STORAGE};
 use crate::contract::{get_handle_msg, get_storage_addr, CREATOR_NAME};
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg, SellNft};
@@ -10,9 +10,7 @@ use cosmwasm_std::{
 };
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{query_proxy, StorageHandleMsg};
-use market_ai_royalty::{
-    sanitize_royalty, AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, MintMsg, Royalty, RoyaltyMsg,
-};
+use market_ai_royalty::{sanitize_royalty, AiRoyaltyHandleMsg, MintMsg, RoyaltyMsg};
 use market_royalty::{
     Offering, OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty, QueryOfferingsResult,
 };
@@ -396,15 +394,6 @@ pub fn query_offering(deps: Deps, msg: OfferingQueryMsg) -> StdResult<Binary> {
     )
 }
 
-pub fn query_ai_royalty(deps: Deps, msg: AiRoyaltyQueryMsg) -> StdResult<Binary> {
-    let contract_info = CONTRACT_INFO.load(deps.storage)?;
-    query_proxy(
-        deps,
-        get_storage_addr(deps, contract_info.governance, AI_ROYALTY_STORAGE)?,
-        to_binary(&ProxyQueryMsg::Msg(msg))?,
-    )
-}
-
 fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError> {
     let offering: Offering = from_binary(&query_offering(
         deps,
@@ -412,22 +401,6 @@ fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError>
     )?)
     .map_err(|_| ContractError::InvalidGetOffering {})?;
     Ok(offering)
-}
-
-pub fn get_royalties(deps: Deps, token_id: &str) -> Result<Vec<Royalty>, ContractError> {
-    let royalties: Vec<Royalty> = from_binary(&query_ai_royalty(
-        deps,
-        AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
-            token_id: token_id.to_string(),
-            offset: None,
-            limit: None,
-            order: Some(1),
-        },
-    )?)
-    .map_err(|_| ContractError::InvalidGetRoyaltiesTokenId {
-        token_id: token_id.to_string(),
-    })?;
-    Ok(royalties)
 }
 
 pub fn get_offering_handle_msg(
@@ -480,7 +453,7 @@ pub fn try_update_offering_royalties(
     }
     Ok(HandleResponse {
         messages: cosmos_msgs,
-        attributes: vec![],
+        attributes: vec![attr("action", "update_offering_royalties")],
         data: None,
     })
 }

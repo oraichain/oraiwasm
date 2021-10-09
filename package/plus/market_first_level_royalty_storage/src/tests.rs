@@ -90,7 +90,8 @@ fn sort_first_lv_royalty() {
             limit: None,
             offset: Some(OffsetMsg {
                 contract: HumanAddr::from("xxx"),
-                token_id: String::from("2"),
+                token_id: String::from("1"),
+                current_owner: "seller1".into(),
             }),
             order: None,
         }),
@@ -104,14 +105,20 @@ fn sort_first_lv_royalty() {
     let res = query(
         deps.as_ref(),
         mock_env(),
-        QueryMsg::Msg(FirstLvRoyaltyQueryMsg::GetFirstLvRoyaltyByContractTokenId {
-            contract: HumanAddr::from("xxx"),
-            token_id: 2.to_string(),
-        }),
+        QueryMsg::Msg(
+            FirstLvRoyaltyQueryMsg::GetFirstLvRoyaltiesByContractTokenId {
+                contract: HumanAddr::from("xxx"),
+                token_id: 2.to_string(),
+                limit: None,
+                offset: None,
+                order: None,
+            },
+        ),
     )
     .unwrap();
-    let value: FirstLvRoyalty = from_binary(&res).unwrap();
-    println!("first_lv royaltie by contract token id: {:?}", value);
+    let value: Vec<FirstLvRoyalty> = from_binary(&res).unwrap();
+    println!("first_lv royalties by contract token id: {:?}\n", value);
+    assert_eq!(value.len(), 1);
 
     let res = query(
         deps.as_ref(),
@@ -125,6 +132,23 @@ fn sort_first_lv_royalty() {
     .unwrap();
     let value: Vec<FirstLvRoyalty> = from_binary(&res).unwrap();
     println!("first_lv royalties: {:?}", value);
+    assert_eq!(value.len(), 3);
+
+    // get unique royalty
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Msg(FirstLvRoyaltyQueryMsg::GetFirstLvRoyalty {
+            contract: HumanAddr::from("xxx"),
+            token_id: 2.to_string(),
+            current_owner: "seller2".into(),
+        }),
+    )
+    .unwrap();
+    let value: FirstLvRoyalty = from_binary(&res).unwrap();
+    println!("first_lv royalty: {:?}", value);
+    assert_eq!(value.current_owner, HumanAddr::from("seller2"));
+    assert_eq!(value.token_id, String::from("2"));
 }
 
 #[test]

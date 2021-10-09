@@ -1,4 +1,3 @@
-use crate::ai_royalty::query_first_lv_royalty;
 use crate::auction::DEFAULT_AUCTION_BLOCK;
 use crate::contract::{handle, init, query};
 use crate::error::ContractError;
@@ -16,6 +15,7 @@ use market_ai_royalty::{
 };
 use market_auction::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_auction::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
+use market_first_lv_royalty::{FirstLvRoyalty, FirstLvRoyaltyQueryMsg};
 use market_royalty::{OfferingQueryMsg, OfferingRoyalty, OfferingsResponse, QueryOfferingsResult};
 use std::mem::transmute;
 use std::ops::{Add, Mul};
@@ -149,7 +149,7 @@ impl DepsManager {
             denom: DENOM.into(),
             fee: 1, // 0.1%
             auction_duration: Uint128::from(10000000000000u64),
-            step_price: 10,
+            step_price: 1,
             // creator can update storage contract
             governance: HumanAddr::from(HUB_ADDR),
             max_royalty: 50,
@@ -425,6 +425,17 @@ fn test_royalty_auction_happy_path() {
 
         let _ret = manager.handle(claim_info.clone(), msg.clone()).unwrap();
 
+        // bid to claim winner
+        let bid_msg = HandleMsg::BidNft { auction_id: 2 };
+        let bid_contract_env = contract_env.clone();
+        let _res = manager
+            .handle_with_env(
+                bid_contract_env,
+                mock_info("bidder1", &coins(101, DENOM)),
+                bid_msg,
+            )
+            .unwrap();
+
         let result: AuctionsResponse = from_binary(
             &manager
                 .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctions {
@@ -439,15 +450,20 @@ fn test_royalty_auction_happy_path() {
         .unwrap();
         println!("List auctions: {:?}", result);
 
-        let first_lv_royalty = query_first_lv_royalty(
-            manager.deps.as_ref(),
-            HUB_ADDR,
-            "anyone",
-            String::from("BiddableNFT").as_str(),
+        let first_lv_royalty: FirstLvRoyalty = from_binary(
+            &manager
+                .query(QueryMsg::FirstLvRoyalty(
+                    FirstLvRoyaltyQueryMsg::GetFirstLvRoyalty {
+                        contract: HumanAddr::from("anyone"),
+                        token_id: String::from("BiddableNFT"),
+                        current_owner: HumanAddr::from("bidder"),
+                    },
+                ))
+                .unwrap(),
         )
         .unwrap();
         println!("first level royalty: {:?}", first_lv_royalty);
-
+        let mut flag = 0;
         // claim nft again to verify the auction royalty
         let claim_info = mock_info("anyone", &coins(0, DENOM));
         let claim_msg = HandleMsg::ClaimWinner { auction_id: 2 };
@@ -466,7 +482,10 @@ fn test_royalty_auction_happy_path() {
                             amount,
                         } => {
                             let amount = amount[0].amount;
+                            println!("to address: {}\n", to_address);
                             if to_address.eq(&first_lv_royalty.previous_owner.clone().unwrap()) {
+                                flag = 1;
+                                println!("in here ready to pay for prev owner");
                                 assert_eq!(
                                     sell_msg.price.mul(Decimal::percent(
                                         first_lv_royalty.prev_royalty.unwrap()
@@ -479,6 +498,7 @@ fn test_royalty_auction_happy_path() {
                 }
             }
         }
+        assert_eq!(flag, 1);
     }
 }
 
@@ -996,7 +1016,6 @@ fn test_royalties() {
                 .unwrap(),
         )
         .unwrap();
-        println!("offerings royalties before final buy: {:?}", result_royalty);
 
         let results = manager.handle(info_buy, buy_msg).unwrap();
         let mut total_payment = Uint128::from(0u128);
@@ -1022,7 +1041,7 @@ fn test_royalties() {
         // placeholders to verify royalties
         let mut to_addrs: Vec<HumanAddr> = vec![];
         let mut amounts: Vec<Uint128> = vec![];
-
+        let mut flag = 0;
         let contract_info: ContractInfo =
             from_binary(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
         for result in results {
@@ -1030,11 +1049,10 @@ fn test_royalties() {
                 if let CosmosMsg::Bank(msg) = message {
                     match msg {
                         cosmwasm_std::BankMsg::Send {
-                            from_address,
+                            from_address: _,
                             to_address,
                             amount,
                         } => {
-                            println!("from address: {}", from_address);
                             println!("to address: {}", to_address);
                             println!("amount: {:?}", amount);
                             let amount = amount[0].amount;
@@ -1043,8 +1061,10 @@ fn test_royalties() {
                             // check royalty sent to seller
                             if to_address.eq(&offering.clone().seller) {
                                 total_payment = total_payment + amount;
+                                flag += 1;
                             }
                             if to_address.eq(&result_royalty.previous_owner.clone().unwrap()) {
+                                println!("ready to pay for previous owner\n");
                                 assert_eq!(
                                     offering.price.mul(Decimal::percent(
                                         result_royalty.prev_royalty.unwrap()
@@ -1052,6 +1072,7 @@ fn test_royalties() {
                                     amount
                                 );
                                 total_payment = total_payment + amount;
+                                flag += 1;
                             }
 
                             if to_address.eq(&HumanAddr::from(contract_info.creator.as_str())) {
@@ -1066,6 +1087,8 @@ fn test_royalties() {
                 }
             }
         }
+
+        assert_eq!(flag, 2);
 
         // increment royalty to total payment
         for royalty in royalties {

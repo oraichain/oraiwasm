@@ -1,15 +1,13 @@
 use std::fmt;
 
-use crate::ai_royalty::try_update_royalty_creator;
+use crate::ai_royalty::{query_ai_royalty, query_first_level_royalty, try_update_royalty_creator};
 // use crate::ai_royalty::try_update_royalties;
 use crate::auction::{
     handle_ask_auction, query_auction, try_bid_nft, try_cancel_bid, try_claim_winner,
     try_emergency_cancel_auction,
 };
 
-use crate::offering::{
-    handle_sell_nft, query_ai_royalty, query_offering, try_buy, try_handle_mint, try_withdraw,
-};
+use crate::offering::{handle_sell_nft, query_offering, try_buy, try_handle_mint, try_withdraw};
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -116,6 +114,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Auction(auction_msg) => query_auction(deps, auction_msg),
         QueryMsg::Offering(offering_msg) => query_offering(deps, offering_msg),
         QueryMsg::AiRoyalty(ai_royalty_msg) => query_ai_royalty(deps, ai_royalty_msg),
+        QueryMsg::FirstLvRoyalty(first_lv_msg) => query_first_level_royalty(deps, first_lv_msg),
     }
 }
 
