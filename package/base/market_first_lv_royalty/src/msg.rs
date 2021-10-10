@@ -23,7 +23,6 @@ pub enum FirstLvRoyaltyHandleMsg {
     RemoveFirstLvRoyalty {
         contract_addr: HumanAddr,
         token_id: String,
-        current_owner: HumanAddr,
     },
 }
 

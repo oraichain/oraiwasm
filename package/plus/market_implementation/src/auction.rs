@@ -198,7 +198,6 @@ pub fn try_claim_winner(
             governance.as_str(),
             deps.api.human_address(&off.contract_addr)?.as_str(),
             off.token_id.as_str(),
-            asker_addr.as_str(),
         )?;
 
         // payout for the previous owner
@@ -387,7 +386,6 @@ pub fn handle_ask_auction(
         governance.as_str(),
         info.sender.as_str(),
         rcv_msg.token_id.as_str(),
-        rcv_msg.sender.as_str(),
     )
     .unwrap_or(FirstLvRoyalty {
         token_id: rcv_msg.token_id.clone(),

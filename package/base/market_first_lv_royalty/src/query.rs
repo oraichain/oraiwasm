@@ -24,17 +24,9 @@ pub enum FirstLvRoyaltyQueryMsg {
         limit: Option<u8>,
         order: Option<u8>,
     },
-    GetFirstLvRoyaltiesByContractTokenId {
-        contract: HumanAddr,
-        token_id: String,
-        offset: Option<OffsetMsg>,
-        limit: Option<u8>,
-        order: Option<u8>,
-    },
     GetFirstLvRoyalty {
         contract: HumanAddr,
         token_id: String,
-        current_owner: HumanAddr,
     },
     GetContractInfo {},
 }
@@ -57,5 +49,4 @@ pub struct FirstLvsResponse {
 pub struct OffsetMsg {
     pub contract: HumanAddr,
     pub token_id: String,
-    pub current_owner: HumanAddr,
 }

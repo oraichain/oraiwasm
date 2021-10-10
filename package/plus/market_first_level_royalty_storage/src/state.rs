@@ -17,40 +17,23 @@ pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("marketplace_info");
 pub struct FirstLvRoyaltyIndexes<'a> {
     pub current_owner: MultiIndex<'a, FirstLvRoyalty>,
     pub contract: MultiIndex<'a, FirstLvRoyalty>,
-    pub contract_token_id: MultiIndex<'a, FirstLvRoyalty>,
     pub unique_royalty: UniqueIndex<'a, PkOwned, FirstLvRoyalty>,
 }
 
 impl<'a> IndexList<FirstLvRoyalty> for FirstLvRoyaltyIndexes<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<FirstLvRoyalty>> + '_> {
-        let v: Vec<&dyn Index<FirstLvRoyalty>> = vec![
-            &self.current_owner,
-            &self.contract,
-            &self.contract_token_id,
-            &self.unique_royalty,
-        ];
+        let v: Vec<&dyn Index<FirstLvRoyalty>> =
+            vec![&self.current_owner, &self.contract, &self.unique_royalty];
         Box::new(v.into_iter())
     }
 }
 
 // contract nft + token id => unique id
-pub fn get_key_royalty<'a>(
-    contract: &'a [u8],
-    token_id: &'a [u8],
-    current_owner: &'a [u8],
-) -> Vec<u8> {
+pub fn get_key_royalty<'a>(contract: &'a [u8], token_id: &'a [u8]) -> Vec<u8> {
     let mut hasher = Sha256::new();
     hasher.update(contract);
     hasher.update(token_id);
-    hasher.update(current_owner);
     hasher.finalize().to_vec()
-}
-
-// contract nft + token id => unique id
-pub fn get_contract_token_id(contract: &HumanAddr, token_id: &str) -> Vec<u8> {
-    let mut vec = contract.as_bytes().to_vec();
-    vec.extend(token_id.as_bytes());
-    vec
 }
 
 // this IndexedMap instance has a lifetime
@@ -67,17 +50,11 @@ pub fn first_lv_royalties<'a>(
             "first_lv_royalties",
             "first_lv_royalty_contract",
         ),
-        contract_token_id: MultiIndex::new(
-            |o| get_contract_token_id(&o.contract_addr, &o.token_id),
-            "first_lv_royalties",
-            "first_lv_royalty_contract_token_id",
-        ),
         unique_royalty: UniqueIndex::new(
             |o| {
                 PkOwned(get_key_royalty(
                     o.contract_addr.as_bytes(),
                     o.token_id.as_bytes(),
-                    o.current_owner.as_bytes(),
                 ))
             },
             "first_lv_royalty",

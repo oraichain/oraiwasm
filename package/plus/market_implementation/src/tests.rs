@@ -456,7 +456,6 @@ fn test_royalty_auction_happy_path() {
                     FirstLvRoyaltyQueryMsg::GetFirstLvRoyalty {
                         contract: HumanAddr::from("anyone"),
                         token_id: String::from("BiddableNFT"),
-                        current_owner: HumanAddr::from("bidder"),
                     },
                 ))
                 .unwrap(),
