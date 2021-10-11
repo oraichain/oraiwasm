@@ -1,6 +1,7 @@
 const hkdf = require('futoin-hkdf');
 const { createCipheriv, createDecipheriv, randomBytes } = require('crypto');
 const secp256k1 = require('secp256k1');
+const dotenv = require("dotenv");
 const Cosmos = require('@oraichain/cosmosjs').default;
 
 const message = Cosmos.message;
@@ -8,6 +9,12 @@ const message = Cosmos.message;
 const AES_IV_LENGTH = 16;
 const AES_TAG_LENGTH = 16;
 const AES_IV_PLUS_TAG_LENGTH = AES_IV_LENGTH + AES_TAG_LENGTH;
+
+const env = dotenv.config({
+  path: `.env${process.env.NODE_ENV ? "." + process.env.NODE_ENV : ""}`,
+}).parsed;
+
+exports.env = env;
 
 const multiply = (pub, priv) => {
   const ret = Buffer.from(secp256k1.publicKeyTweakMul(pub, priv, false));
@@ -58,7 +65,8 @@ exports.queryWasm = async (cosmos, contract, input) => {
   return data;
 };
 
-const submit = async (cosmos, childKey, type, obj, { memo, fees, gas }) => {
+const submit = async (cosmos, childKey, type, obj, { memo, fees = env.FEES, gas = env.GAS }) => {
+  console.log("gas: ", gas);
   const paths = type.split('.');
   let childMessage = message;
   for (let p of paths) childMessage = childMessage[p];

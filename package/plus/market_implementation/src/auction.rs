@@ -1,9 +1,9 @@
-use crate::ai_royalty::query_first_lv_royalty;
-use crate::contract::{get_handle_msg, get_storage_addr, FIRST_LV_ROYALTY_STORAGE};
+use crate::contract::get_storage_addr;
 use crate::error::ContractError;
 use crate::msg::{AskNftMsg, ProxyHandleMsg, ProxyQueryMsg};
 // use crate::offering::OFFERING_STORAGE;
 use crate::ai_royalty::get_royalties;
+use crate::offering::{get_offering_handle_msg, OFFERING_STORAGE};
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
@@ -14,7 +14,7 @@ use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{query_proxy, StorageHandleMsg};
 use market_ai_royalty::sanitize_royalty;
 use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, QueryAuctionsResult};
-use market_first_lv_royalty::{FirstLvRoyalty, FirstLvRoyaltyHandleMsg};
+use market_royalty::{OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty};
 // use market_royalty::OfferingQueryMsg;
 use std::ops::{Add, Mul, Sub};
 
@@ -80,7 +80,7 @@ pub fn try_bid_nft(
                 if let Some(buyout_price) = off.buyout_price {
                     // if there's buyout, the funds must be equal to the buyout price
                     if sent_fund.amount != buyout_price {
-                        return Err(ContractError::InvalidSentFundAmount {});
+                        return Err(ContractError::InsufficientFunds {});
                     }
                 } else {
                     return Err(ContractError::InsufficientFunds {});
@@ -201,24 +201,28 @@ pub fn try_claim_winner(
             }
         }
 
-        let mut first_lv_royalty = query_first_lv_royalty(
-            deps.as_ref(),
-            governance.as_str(),
-            deps.api.human_address(&off.contract_addr)?.as_str(),
-            off.token_id.as_str(),
-        )?;
+        let mut offering_royalty: OfferingRoyalty = deps
+            .querier
+            .query_wasm_smart(
+                get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
+                &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId {
+                    contract: deps.api.human_address(&off.contract_addr)?,
+                    token_id: off.token_id.clone(),
+                }) as &ProxyQueryMsg,
+            )
+            .map_err(|_| ContractError::InvalidGetOfferingRoyalty {})?;
 
         // payout for the previous owner
-        if first_lv_royalty.previous_owner.is_some() && first_lv_royalty.prev_royalty.is_some() {
+        if offering_royalty.previous_owner.is_some() && offering_royalty.prev_royalty.is_some() {
             let owner_amount = off
                 .price
-                .mul(Decimal::percent(first_lv_royalty.prev_royalty.unwrap()));
+                .mul(Decimal::percent(offering_royalty.prev_royalty.unwrap()));
             if owner_amount.gt(&Uint128::from(0u128)) {
                 fund_amount = fund_amount.sub(owner_amount)?;
                 cosmos_msgs.push(
                     BankMsg::Send {
                         from_address: env.contract.address.clone(),
-                        to_address: first_lv_royalty.previous_owner.unwrap(),
+                        to_address: offering_royalty.previous_owner.unwrap(),
                         amount: coins(owner_amount.u128(), &denom),
                     }
                     .into(),
@@ -227,14 +231,14 @@ pub fn try_claim_winner(
         }
 
         // update offering royalty result, current royalty info now turns to prev
-        first_lv_royalty.prev_royalty = first_lv_royalty.cur_royalty;
-        first_lv_royalty.previous_owner = Some(first_lv_royalty.current_owner.clone());
-        first_lv_royalty.current_owner = bidder_addr; // new owner will become the bidder
-        cosmos_msgs.push(get_handle_msg(
-            governance.as_str(),
-            FIRST_LV_ROYALTY_STORAGE,
-            FirstLvRoyaltyHandleMsg::UpdateFirstLvRoyalty {
-                first_lv_royalty: first_lv_royalty.clone(),
+        offering_royalty.prev_royalty = offering_royalty.cur_royalty;
+        offering_royalty.previous_owner = Some(offering_royalty.current_owner.clone());
+        offering_royalty.current_owner = bidder_addr; // new owner will become the bidder
+        cosmos_msgs.push(get_offering_handle_msg(
+            governance.clone(),
+            OFFERING_STORAGE,
+            OfferingHandleMsg::UpdateOfferingRoyalty {
+                offering: offering_royalty.clone(),
             },
         )?);
 
@@ -389,21 +393,25 @@ pub fn handle_ask_auction(
         "royalty",
     )?);
 
-    let mut first_lv_royalty = query_first_lv_royalty(
-        deps.as_ref(),
-        governance.as_str(),
-        info.sender.as_str(),
-        rcv_msg.token_id.as_str(),
-    )
-    .unwrap_or(FirstLvRoyalty {
-        token_id: rcv_msg.token_id.clone(),
-        contract_addr: info.sender.clone(),
-        previous_owner: None,
-        current_owner: rcv_msg.sender.clone(),
-        prev_royalty: None,
-        cur_royalty: royalty,
-    });
-    first_lv_royalty.cur_royalty = royalty;
+    let mut offering_royalty_result: OfferingRoyalty = deps
+        .querier
+        .query_wasm_smart(
+            get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
+            &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId {
+                contract: info.sender.clone(),
+                token_id: rcv_msg.token_id.clone(),
+            }) as &ProxyQueryMsg,
+        )
+        .map_err(|_| ContractError::InvalidGetOfferingRoyalty {})
+        .unwrap_or(OfferingRoyalty {
+            token_id: rcv_msg.token_id.clone(),
+            contract_addr: info.sender.clone(),
+            previous_owner: None,
+            current_owner: rcv_msg.sender.clone(),
+            prev_royalty: None,
+            cur_royalty: royalty,
+        });
+    offering_royalty_result.current_owner = rcv_msg.sender.clone();
 
     // add new auctions
     let mut cosmos_msgs = vec![];
@@ -414,11 +422,11 @@ pub fn handle_ask_auction(
         AuctionHandleMsg::UpdateAuction { auction: off },
     )?);
 
-    cosmos_msgs.push(get_handle_msg(
-        governance.as_str(),
-        FIRST_LV_ROYALTY_STORAGE,
-        FirstLvRoyaltyHandleMsg::UpdateFirstLvRoyalty {
-            first_lv_royalty: first_lv_royalty.clone(),
+    cosmos_msgs.push(get_offering_handle_msg(
+        governance.clone(),
+        OFFERING_STORAGE,
+        OfferingHandleMsg::UpdateOfferingRoyalty {
+            offering: offering_royalty_result.clone(),
         },
     )?);
 

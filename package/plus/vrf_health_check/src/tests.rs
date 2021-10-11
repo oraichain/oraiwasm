@@ -1,11 +1,11 @@
 use crate::contract::*;
 use crate::error::ContractError;
 use crate::msg::*;
-use crate::state::State;
+use crate::state::{Member, State};
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
-use cosmwasm_std::{coins, from_binary, BlockInfo, OwnedDeps};
+use cosmwasm_std::{coins, from_binary, Binary, BlockInfo, OwnedDeps};
 use cosmwasm_std::{Env, HumanAddr};
 
 const OWNER: &str = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3d";
@@ -15,11 +15,26 @@ fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     deps.api.canonical_length = 54;
     let msg = InitMsg {
         members: vec![
-            HumanAddr::from("1"),
-            HumanAddr::from("2"),
-            HumanAddr::from("3"),
-            HumanAddr::from("4"),
-            HumanAddr::from("5"),
+            Member {
+                address: HumanAddr::from("1"),
+                pubkey: Binary::from_base64("eyJ2ZXJpZnlfcm91bmQiOjF9").unwrap(),
+            },
+            Member {
+                address: HumanAddr::from("2"),
+                pubkey: Binary::from_base64("eyJ2ZXJpZnlfcm91bmQiOjF9").unwrap(),
+            },
+            Member {
+                address: HumanAddr::from("3"),
+                pubkey: Binary::from_base64("eyJ2ZXJpZnlfcm91bmQiOjF9").unwrap(),
+            },
+            Member {
+                address: HumanAddr::from("4"),
+                pubkey: Binary::from_base64("eyJ2ZXJpZnlfcm91bmQiOjF9").unwrap(),
+            },
+            Member {
+                address: HumanAddr::from("5"),
+                pubkey: Binary::from_base64("eyJ2ZXJpZnlfcm91bmQiOjF9").unwrap(),
+            },
         ],
     };
     let info = mock_info(OWNER, &[]);

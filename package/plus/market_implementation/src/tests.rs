@@ -15,7 +15,6 @@ use market_ai_royalty::{
 };
 use market_auction::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_auction::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
-use market_first_lv_royalty::{FirstLvRoyalty, FirstLvRoyaltyQueryMsg};
 use market_royalty::{OfferingQueryMsg, OfferingRoyalty, OfferingsResponse, QueryOfferingsResult};
 use std::mem::transmute;
 use std::ops::{Add, Mul};
@@ -450,10 +449,10 @@ fn test_royalty_auction_happy_path() {
         .unwrap();
         println!("List auctions: {:?}", result);
 
-        let first_lv_royalty: FirstLvRoyalty = from_binary(
+        let result_royalty: OfferingRoyalty = from_binary(
             &manager
-                .query(QueryMsg::FirstLvRoyalty(
-                    FirstLvRoyaltyQueryMsg::GetFirstLvRoyalty {
+                .query(QueryMsg::Offering(
+                    OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId {
                         contract: HumanAddr::from("anyone"),
                         token_id: String::from("BiddableNFT"),
                     },
@@ -461,7 +460,7 @@ fn test_royalty_auction_happy_path() {
                 .unwrap(),
         )
         .unwrap();
-        println!("first level royalty: {:?}", first_lv_royalty);
+        println!("first level royalty: {:?}", result_royalty);
         let mut flag = 0;
         // claim nft again to verify the auction royalty
         let claim_info = mock_info("anyone", &coins(0, DENOM));
@@ -482,12 +481,12 @@ fn test_royalty_auction_happy_path() {
                         } => {
                             let amount = amount[0].amount;
                             println!("to address: {}\n", to_address);
-                            if to_address.eq(&first_lv_royalty.previous_owner.clone().unwrap()) {
+                            if to_address.eq(&result_royalty.previous_owner.clone().unwrap()) {
                                 flag = 1;
                                 println!("in here ready to pay for prev owner");
                                 assert_eq!(
                                     sell_msg.price.mul(Decimal::percent(
-                                        first_lv_royalty.prev_royalty.unwrap()
+                                        result_royalty.prev_royalty.unwrap()
                                     )),
                                     amount
                                 );

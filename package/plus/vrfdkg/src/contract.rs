@@ -61,7 +61,7 @@ pub fn init(
     store_members(deps.storage, msg.members, false)?;
 
     // init round count
-    round_count(deps.storage).save(&0u64)?;
+    round_count(deps.storage).save(&1u64)?;
 
     Ok(InitResponse::default())
 }
@@ -408,8 +408,7 @@ pub fn update_share_sig(
     let sig =
         SignatureShare::from_bytes(sig_bytes).map_err(|_op| ContractError::InvalidSignature {})?;
 
-    let mut msg = share_data.input.to_vec();
-    msg.extend(&round_key);
+    let msg = get_input(share_data.input.as_slice(), &round_key);
     let hash_on_curve = hash_g2(msg);
 
     // if the signature is invalid
@@ -554,9 +553,6 @@ pub fn request_random(
     })?;
 
     beacons_storage(deps.storage).set(&round.to_be_bytes(), &msg);
-    if round.eq(&1u64) {
-        round_count(deps.storage).save(&1u64)?;
-    }
 
     // return the round
     let response = HandleResponse {

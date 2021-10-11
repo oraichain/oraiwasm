@@ -363,13 +363,12 @@ fn request_round() {
 
     for latest_round in latest_rounds {
         // can re-verify from response
-        // println!(
-        //     "Latest round {} with input: {} and randomess: {}",
-        //     latest_round.round,
-        //     latest_round.input.to_base64(),
-        //     latest_round.randomness.unwrap().to_base64()
-        // );
-        println!("latest round: {:?}", latest_round);
+        println!(
+            "Latest round {} with input: {} and randomess: {}",
+            latest_round.round,
+            latest_round.input.to_base64(),
+            latest_round.randomness.unwrap().to_base64()
+        );
     }
 
     // verify rounds

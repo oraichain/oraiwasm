@@ -1,15 +1,10 @@
 const fs = require("fs");
 const path = require("path");
 const YAML = require("yaml");
-const dotenv = require("dotenv");
 const Cosmos = require("@oraichain/cosmosjs").default;
 const blsdkgJs = require("./pkg/blsdkg_js");
 
-const { queryWasm, executeWasm, encrypt, decrypt, delay, convertOffset } = require("./utils");
-
-const env = dotenv.config({
-  path: `.env${process.env.NODE_ENV ? "." + process.env.NODE_ENV : ""}`,
-}).parsed;
+const { queryWasm, executeWasm, encrypt, decrypt, delay, convertOffset, env } = require("./utils");
 
 const config = YAML.parse(fs.readFileSync(path.join(__dirname, "config.yaml")).toString());
 const message = Cosmos.message;
@@ -39,7 +34,7 @@ const run = async () => {
       }
       if (status === "WaitForRow") {
         if (currentMember.shared_row) {
-          return console.log("we are done row sharing");
+          return console.log("we are done row sharing, currently waiting for others to move on to the next phase");
         }
         return await processRow(skShare);
       }
@@ -113,7 +108,7 @@ const processDealer = async (threshold, total) => {
   }
 
   if (currentMember.shared_dealer) {
-    return console.log("we are done dealer sharing");
+    return console.log("we are done dealer sharing, currently waiting for others to move on to the next phase");
   }
 
   commits[0] = commits[0].toString("base64");
@@ -191,6 +186,10 @@ const processRequest = async (skShare) => {
     return console.log("Round has been done with randomness", roundInfo.randomness);
   }
 
+  if (roundInfo.sigs.find(sig => sig.sender === address)) {
+    return console.log("You have successfully submitted your signature share, currently waiting for others to submit to finish the round");
+  }
+
   // otherwise add the sig contribution from skShare
   const sig = skShare.sign_g2(Buffer.from(roundInfo.input, "base64"), BigInt(roundInfo.round));
 
@@ -211,7 +210,7 @@ const processRequest = async (skShare) => {
         share,
       },
     },
-    { gas: 20000000 }
+    { fees: env.SHARE_SIG_FEES, gas: env.SHARE_SIG_GAS }
   );
   console.log(response);
 };
@@ -254,7 +253,6 @@ const ping = async () => {
       {
         ping: {},
       },
-      { gas: 2000000 }
     );
     console.log(response);
   }
@@ -274,6 +272,6 @@ const addPing = async (interval = 5000) => {
 
 console.log("Oraichain VRF, version 3.0");
 runInterval(config.interval);
-addPing(env.PING_INTERVAL);
+addPing(config.ping_interval);
 
 // TODO: add try catch and improve logs

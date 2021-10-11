@@ -2,7 +2,7 @@ use std::ops::Sub;
 
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, QueryRoundResponse, QuerySingleRoundResponse};
-use crate::state::{config, config_read, RoundInfo, State, MAPPED_COUNT};
+use crate::state::{config, config_read, Member, RoundInfo, State, MAPPED_COUNT};
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
     MessageInfo, Order, StdResult,
@@ -65,7 +65,7 @@ pub fn change_state(
     round_jump: Option<u64>,
     prev_checkpoint: Option<u64>,
     cur_checkpoint: Option<u64>,
-    members: Option<Vec<HumanAddr>>,
+    members: Option<Vec<Member>>,
 ) -> Result<HandleResponse, ContractError> {
     let mut state = query_state(deps.as_ref())?;
     if info.sender != state.owner {
@@ -139,7 +139,11 @@ pub fn add_ping(
     let State { members, .. } = query_state(deps.as_ref())?;
 
     // only included members can submit ping
-    if !members.contains(&info.sender) {
+    if members
+        .iter()
+        .find(|mem| mem.address.eq(&info.sender))
+        .is_none()
+    {
         return Err(ContractError::Unauthorized {});
     }
 
