@@ -6,7 +6,8 @@
     "email": "tu@orai.io"
   },
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "build": "babel index.js --out-file dist/vrf-runner.js && babel utils.js --out-file dist/utils.js && pkg --compress Brotli dist/vrf-runner.js"
   },
   "version": "0.0.2",
   "description": "distributed key generation in JS",
@@ -15,5 +16,13 @@
     "futoin-hkdf": "^1.4.2",
     "@oraichain/cosmosjs": "^0.0.70",
     "yaml": "^1.10.2"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.14.5",
+    "@babel/core": "^7.13.8",
+    "pkg": "^5.3.0"
+  },
+  "pkg": {
+    "assets": "dist/pkg/*"
   }
 }
