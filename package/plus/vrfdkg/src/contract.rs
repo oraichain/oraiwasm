@@ -158,7 +158,9 @@ pub fn remove_member(
     member.deleted = true;
     let msg = to_binary(&member)?;
     members_storage(deps.storage).set(address.as_bytes(), &msg);
-    Ok(HandleResponse::default())
+    let mut response = HandleResponse::default();
+    response.attributes = vec![attr("action", "remove_member")];
+    Ok(response)
 }
 
 pub fn update_members(
@@ -188,7 +190,9 @@ pub fn update_members(
 
     store_members(deps.storage, members, true)?;
 
-    Ok(HandleResponse::default())
+    let mut response = HandleResponse::default();
+    response.attributes = vec![attr("action", "update_members")];
+    Ok(response)
 }
 
 pub fn update_threshold(
@@ -226,7 +230,9 @@ pub fn update_threshold(
     config(deps.storage).save(&config_data)?;
     //reset members
     store_members(deps.storage, member_msg, true)?;
-    Ok(HandleResponse::default())
+    let mut response = HandleResponse::default();
+    response.attributes = vec![attr("action", "update_threshold")];
+    Ok(response)
 }
 
 pub fn update_fees(
@@ -244,7 +250,9 @@ pub fn update_fees(
     config_data.fee = Some(fee);
     // init with a signature, pubkey and denom for bounty
     config(deps.storage).save(&config_data)?;
-    Ok(HandleResponse::default())
+    let mut response = HandleResponse::default();
+    response.attributes = vec![attr("action", "update_fees")];
+    Ok(response)
 }
 
 fn query_and_check(deps: Deps, address: &str) -> Result<Member, ContractError> {
