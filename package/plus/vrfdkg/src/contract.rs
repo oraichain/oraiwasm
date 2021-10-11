@@ -6,7 +6,10 @@ use cosmwasm_std::{
     HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult, Storage,
 };
 
-use blsdkg::{derive_randomness, hash_g2, PublicKeySet, PublicKeyShare, SignatureShare, SIG_SIZE};
+use blsdkg::{
+    derive_randomness, hash_g2, PublicKey, PublicKeySet, PublicKeyShare, Signature, SignatureShare,
+    PK_SIZE, SIG_SIZE,
+};
 
 use crate::errors::ContractError;
 use crate::msg::{
@@ -104,6 +107,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             order,
         } => to_binary(&query_rounds(deps, limit, offset, order)?)?,
         QueryMsg::CurrentHandling {} => to_binary(&query_current(deps)?)?,
+        QueryMsg::VerifyRound(round) => to_binary(&verify_round(deps, round)?)?,
     };
     Ok(response)
 }
@@ -421,18 +425,7 @@ pub fn update_share_sig(
     });
     // stop with threshold +1
     if share_data.sigs.len() as u16 > threshold {
-        let mut dealers = query_dealers(deps.as_ref(), None, None, Some(1u8))?;
-        while dealers.len().lt(&(dealer as usize)) {
-            if let Some(dealer) = dealers.last() {
-                let temp_dealers = query_dealers(
-                    deps.as_ref(),
-                    None,
-                    Some(HumanAddr(dealer.address.clone())),
-                    Some(1u8),
-                )?;
-                dealers.extend(temp_dealers);
-            }
-        }
+        let dealers = get_all_dealers(deps.as_ref(), dealer)?;
         // do aggregate
         let mut sum_commit = Poly::zero().commitment();
         for dealer in dealers {
@@ -561,6 +554,9 @@ pub fn request_random(
     })?;
 
     beacons_storage(deps.storage).set(&round.to_be_bytes(), &msg);
+    if round.eq(&1u64) {
+        round_count(deps.storage).save(&1u64)?;
+    }
 
     // return the round
     let response = HandleResponse {
@@ -703,4 +699,49 @@ fn query_rounds(
 pub fn query_current(deps: Deps) -> Result<DistributedShareData, ContractError> {
     let current = round_count_read(deps.storage).load()?;
     Ok(query_get(deps, current)?)
+}
+
+fn get_input(input: &[u8], round: &[u8]) -> Vec<u8> {
+    let mut final_input = input.to_vec();
+    final_input.extend(round);
+    final_input
+}
+
+fn get_all_dealers(deps: Deps, num_dealer: u16) -> Result<Vec<Member>, ContractError> {
+    let mut dealers = query_dealers(deps, None, None, Some(1u8))?;
+    while dealers.len().lt(&(num_dealer as usize)) {
+        if let Some(dealer) = dealers.last() {
+            let temp_dealers = query_dealers(
+                deps,
+                None,
+                Some(HumanAddr(dealer.address.clone())),
+                Some(1u8),
+            )?;
+            dealers.extend(temp_dealers);
+        }
+    }
+    return Ok(dealers);
+}
+
+fn verify_round(deps: Deps, round: u64) -> Result<bool, ContractError> {
+    let share_data = query_get(deps, round)?;
+    let msg = get_input(share_data.input.as_slice(), &round.to_be_bytes());
+    let hash_on_curve = hash_g2(msg);
+    if let Some(combined_pubkey_bin) = share_data.combined_pubkey {
+        if let Some(combined_sig_bin) = share_data.combined_sig {
+            let mut sig_bytes: [u8; SIG_SIZE] = [0; SIG_SIZE];
+            sig_bytes.copy_from_slice(&combined_sig_bin.as_slice());
+            let mut pub_bytes: [u8; PK_SIZE] = [0; PK_SIZE];
+            pub_bytes.copy_from_slice(&combined_pubkey_bin.as_slice());
+            let combined_sig =
+                Signature::from_bytes(sig_bytes).map_err(|_| ContractError::InvalidSignature {})?;
+            let combined_pubkey: PublicKey = PublicKey::from_bytes(pub_bytes)
+                .map_err(|_| ContractError::InvalidPublicKeyShare {})?;
+            let verifed = combined_pubkey.verify_g2(&combined_sig, hash_on_curve);
+            return Ok(verifed);
+        } else {
+            return Ok(false);
+        }
+    }
+    Ok(false)
 }

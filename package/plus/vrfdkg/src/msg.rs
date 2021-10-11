@@ -99,6 +99,7 @@ pub enum QueryMsg {
         order: Option<u8>,
     },
     CurrentHandling {},
+    VerifyRound(u64),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

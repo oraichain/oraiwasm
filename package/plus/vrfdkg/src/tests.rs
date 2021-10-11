@@ -363,12 +363,22 @@ fn request_round() {
 
     for latest_round in latest_rounds {
         // can re-verify from response
-        println!(
-            "Latest round {} with input: {} and randomess: {}",
-            latest_round.round,
-            latest_round.input.to_base64(),
-            latest_round.randomness.unwrap().to_base64()
-        );
+        // println!(
+        //     "Latest round {} with input: {} and randomess: {}",
+        //     latest_round.round,
+        //     latest_round.input.to_base64(),
+        //     latest_round.randomness.unwrap().to_base64()
+        // );
+        println!("latest round: {:?}", latest_round);
+    }
+
+    // verify rounds
+    for i in 1u64..3u64 {
+        let verify_msg = QueryMsg::VerifyRound(i);
+        let verified: bool =
+            from_binary(&query(deps.as_ref(), mock_env(), verify_msg.clone()).unwrap()).unwrap();
+        println!("is round : {:?} verified? : {:?}", i, verified);
+        assert_eq!(verified, true);
     }
 }
 
