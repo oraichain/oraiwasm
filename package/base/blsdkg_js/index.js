@@ -6,7 +6,7 @@ const blsdkgJs = require("./pkg/blsdkg_js");
 
 const { queryWasm, executeWasm, encrypt, decrypt, delay, convertOffset, env } = require("./utils");
 
-const config = YAML.parse(fs.readFileSync("config.yaml").toString());
+const config = YAML.parse(fs.readFileSync(process.env.TESTNET ? "config-testnet.yaml" : "config.yaml").toString());
 const message = Cosmos.message;
 const cosmos = new Cosmos(config.url, config.chain_id);
 cosmos.setBech32MainPrefix(config.denom || "orai");
