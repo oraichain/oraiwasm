@@ -139,6 +139,7 @@ pub fn try_claim_winner(
         fee,
         denom,
         governance,
+        decimal_point,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
@@ -186,7 +187,9 @@ pub fn try_claim_winner(
         // pay for creator, ai provider and others
         if let Ok(royalties) = get_royalties(deps.as_ref(), &off.token_id) {
             for royalty in royalties {
-                let provider_amount = off.price.mul(Decimal::percent(royalty.royalty));
+                let provider_amount = off
+                    .price
+                    .mul(Decimal::from_ratio(royalty.royalty, decimal_point));
                 if provider_amount.gt(&Uint128::from(0u128)) {
                     fund_amount = fund_amount.sub(provider_amount)?;
                     cosmos_msgs.push(
@@ -214,9 +217,10 @@ pub fn try_claim_winner(
 
         // payout for the previous owner
         if offering_royalty.previous_owner.is_some() && offering_royalty.prev_royalty.is_some() {
-            let owner_amount = off
-                .price
-                .mul(Decimal::percent(offering_royalty.prev_royalty.unwrap()));
+            let owner_amount = off.price.mul(Decimal::from_ratio(
+                offering_royalty.prev_royalty.unwrap(),
+                decimal_point,
+            ));
             if owner_amount.gt(&Uint128::from(0u128)) {
                 fund_amount = fund_amount.sub(owner_amount)?;
                 cosmos_msgs.push(

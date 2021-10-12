@@ -24,9 +24,11 @@ cosmos.setBech32MainPrefix(config.denom || 'orai');
 const childKey = cosmos.getChildKey(env.MNEMONIC);
 
 const address = cosmos.getAddress(childKey);
+console.log('address: ', address);
+console.log('public key: ', childKey.publicKey.toString('base64'));
 let skShare = null;
 let currentMember = null;
-let members = [];
+let members = null;
 const run = async () => {
   const { status, threshold, total } = await queryWasm(
     cosmos,
@@ -36,32 +38,37 @@ const run = async () => {
     }
   );
 
+  // first time or WaitForRequest
+  if (status !== 'WaitForRequest' || !members) {
+    members = await getMembers(total);
+    // check wherther we has done sharing ?
+    currentMember = members.find((m) => !m.deleted && m.address === address);
+    if (!currentMember) {
+      return console.log('we are not in the group');
+    }
+  }
+
   switch (status) {
     case 'WaitForDealer':
       // re-init data
-      skShare = null;
-      members = await getMembers(total);
-      // check wherther we has done sharing ?
-      currentMember = members.find((m) => !m.deleted && m.address === address);
-      if (!currentMember) {
-        return console.log('we are not in the group');
-      }
       return await processDealer(members, threshold, total);
     case 'WaitForRow':
     case 'WaitForRequest':
-      // currentMember maybe deleted at contract side, so we need to retrieve it
-      currentMember = await getMember(address);
       if (!currentMember) {
         return console.log('we are not in the group');
       }
       // skShare is changed only when members are updated
-      skShare = skShare || (await getSkShare(members));
+      skShare = await getSkShare(members);
       if (!skShare) {
         return console.log('row share is invalid');
       }
       if (status === 'WaitForRow') {
-        // update shared pubkey for contract to verify sig
-        return await processRow(skShare);
+        if (!currentMember.shared_row) {
+          // update shared pubkey for contract to verify sig
+          await processRow(skShare);
+          members = null;
+        }
+        return;
       }
       // default process each request
       return await processRequest(skShare);
@@ -72,35 +79,25 @@ const run = async () => {
 
 // TODO: assume members are small, for big one should get 10 by 10
 const getMembers = async (total) => {
-  let oldOffset = convertOffset('');
+  let offset = convertOffset('');
   let members = [];
   do {
     const tempMembers = await queryWasm(cosmos, config.contract, {
       get_members: {
-        offset: offset,
+        offset,
         limit: 5
       }
     });
     members = members.concat(tempMembers);
-    const offset = convertOffset(members[members.length - 1].address);
+    offset = convertOffset(members[members.length - 1].address);
     members = members.filter(
       (v, i, a) => a.findIndex((t) => t.address === v.address) === i
     );
     // if no more data, we also need to break
-    if (oldOffset === offset) break;
-    oldOffset = offset;
+    // if (oldOffset === offset) break;
+    // oldOffset = offset;
   } while (members.length < total);
   return members;
-};
-
-const getMember = async (address) => {
-  const member = await queryWasm(cosmos, config.contract, {
-    get_member: {
-      address
-    }
-  });
-
-  return member.deleted ? undefined : member;
 };
 
 // TODO: handle get batch dealers when list is large
@@ -117,7 +114,7 @@ const processDealer = async (members, threshold, total) => {
   const commits = bibars.get_commits().map(Buffer.from);
   const rows = bibars.get_rows().map(Buffer.from);
 
-  console.log('member length: ', members);
+  console.log('member length: ', members.length);
   if (members.length !== total) {
     return console.log(
       'Member length is not full, should not deal shares for others'
@@ -190,33 +187,22 @@ const getSkShare = async (members) => {
     commits.push(commit);
     rows.push(row);
   }
-
   const skShare = blsdkgJs.get_sk_share(rows, commits);
 
   return skShare;
 };
 
 const processRow = async (skShare) => {
-  if (currentMember.shared_row) {
-    return console.log(
-      'we are done row sharing, currently waiting for processing rounds'
-    );
-  }
   // we update public key share for smart contract to verify and keeps this skShare to sign message for each round
   const pkShare = Buffer.from(skShare.get_pk()).toString('base64');
   // finaly share the dealer
-  try {
-    const response = await executeWasm(cosmos, childKey, config.contract, {
-      share_row: {
-        share: {
-          pk_share: pkShare
-        }
-      }
-    });
-    console.log(response);
-  } catch (error) {
-    console.log('Error while processing row: ', error);
-  }
+
+  const response = await executeWasm(cosmos, childKey, config.contract, {
+    share_row: {
+      share: { pk_share: pkShare }
+    }
+  });
+  console.log(response);
 };
 
 const processRequest = async (skShare) => {
@@ -231,12 +217,12 @@ const processRequest = async (skShare) => {
     return console.log('there is no round to process');
   }
 
-  if (roundInfo.combined_sig) {
-    return console.log(
-      'Round has been done with randomness',
-      roundInfo.randomness
-    );
-  }
+  // if (roundInfo.combined_sig) {
+  //   return console.log(
+  //     'Round has been done with randomness',
+  //     roundInfo.randomness
+  //   );
+  // }
 
   if (roundInfo.sigs.find((sig) => sig.sender === address)) {
     return console.log(
@@ -326,6 +312,6 @@ const addPing = async (interval = 5000) => {
 
 console.log('Oraichain VRF, version 3.0');
 runInterval(config.interval);
-addPing(config.ping_interval);
+// addPing(config.ping_interval);
 
 // TODO: add try catch and improve logs

@@ -26,7 +26,8 @@ use market_ai_royalty::sanitize_royalty;
 use schemars::JsonSchema;
 use serde::Serialize;
 
-pub const MAX_ROYALTY_PERCENT: u64 = 50;
+pub const MAX_ROYALTY_PERCENT: u64 = 1_000_000_000;
+pub const MAX_DECIMAL_POINT: u64 = 1_000_000_000;
 pub const MAX_FEE_PERMILLE: u64 = 100;
 pub const CREATOR_NAME: &str = "creator";
 pub const FIRST_LV_ROYALTY_STORAGE: &str = "first_lv_royalty";
@@ -57,6 +58,7 @@ pub fn init(
         step_price: msg.step_price,
         governance: msg.governance,
         max_royalty: sanitize_royalty(msg.max_royalty, MAX_ROYALTY_PERCENT, "max_royalty")?,
+        decimal_point: MAX_DECIMAL_POINT,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -176,6 +178,9 @@ pub fn try_update_info(
         }
         if let Some(governance) = msg.governance {
             contract_info.governance = governance;
+        }
+        if let Some(decimal_point) = msg.decimal_point {
+            contract_info.decimal_point = decimal_point;
         }
         Ok(contract_info)
     })?;

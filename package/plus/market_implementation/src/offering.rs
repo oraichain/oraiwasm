@@ -61,7 +61,11 @@ pub fn try_buy(
     env: Env,
     offering_id: u64,
 ) -> Result<HandleResponse, ContractError> {
-    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+    let ContractInfo {
+        governance,
+        decimal_point,
+        ..
+    } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
     let off: Offering = get_offering(deps.as_ref(), offering_id)?;
@@ -91,7 +95,9 @@ pub fn try_buy(
             // pay for creator, ai provider and others
             if let Ok(royalties) = get_royalties(deps.as_ref(), &off.token_id) {
                 for royalty in royalties {
-                    let provider_amount = off.price.mul(Decimal::percent(royalty.royalty));
+                    let provider_amount = off
+                        .price
+                        .mul(Decimal::from_ratio(royalty.royalty, decimal_point));
                     if provider_amount.gt(&Uint128::from(0u128)) {
                         seller_amount = seller_amount.sub(provider_amount)?;
                         cosmos_msgs.push(
@@ -123,8 +129,9 @@ pub fn try_buy(
             if offering_royalty_result.previous_owner.is_some()
                 && offering_royalty_result.prev_royalty.is_some()
             {
-                let owner_amount = off.price.mul(Decimal::percent(
+                let owner_amount = off.price.mul(Decimal::from_ratio(
                     offering_royalty_result.prev_royalty.unwrap(),
+                    decimal_point,
                 ));
                 if owner_amount.gt(&Uint128::from(0u128)) {
                     seller_amount = seller_amount.sub(owner_amount)?;

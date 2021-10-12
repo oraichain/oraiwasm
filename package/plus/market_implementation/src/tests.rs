@@ -1,5 +1,5 @@
 use crate::auction::DEFAULT_AUCTION_BLOCK;
-use crate::contract::{handle, init, query};
+use crate::contract::{handle, init, query, MAX_DECIMAL_POINT, MAX_ROYALTY_PERCENT};
 use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::ContractInfo;
@@ -35,6 +35,7 @@ pub const AUCTION_STORAGE: &str = "auction";
 pub const OFFERING_STORAGE: &str = "offering_v1.1";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 pub const FIRST_LV_ROYALTY_STORAGE: &str = "first_lv_royalty";
+pub const DECIMAL: u64 = MAX_DECIMAL_POINT / 100;
 
 static mut _DATA: *const DepsManager = 0 as *const DepsManager;
 struct DepsManager {
@@ -122,6 +123,23 @@ impl DepsManager {
         )
         .unwrap();
 
+        // update maximum royalty to MAX_ROYALTY_PERCENT
+        let update_info = market_ai_royalty_storage::msg::HandleMsg::UpdateInfo(
+            market_ai_royalty_storage::msg::UpdateContractMsg {
+                governance: None,
+                creator: None,
+                default_royalty: None,
+                max_royalty: Some(MAX_ROYALTY_PERCENT),
+            },
+        );
+        market_ai_royalty_storage::contract::handle(
+            ai_royalty.as_mut(),
+            mock_env(CREATOR),
+            mock_info(CREATOR, &[]),
+            update_info,
+        )
+        .unwrap();
+
         let mut first_lv_royalty = mock_dependencies(
             HumanAddr::from(FIRST_LV_ROYALTY_ADDR),
             &[],
@@ -151,7 +169,7 @@ impl DepsManager {
             step_price: 1,
             // creator can update storage contract
             governance: HumanAddr::from(HUB_ADDR),
-            max_royalty: 50,
+            max_royalty: MAX_ROYALTY_PERCENT,
         };
         let info = mock_info(CREATOR, &[]);
         let _res = init(deps.as_mut(), mock_env(MARKET_ADDR), info.clone(), msg).unwrap();
@@ -363,7 +381,7 @@ fn test_royalty_auction_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            royalty: Some(10),
+            royalty: Some(10 * DECIMAL),
         };
 
         println!("msg :{}", to_binary(&sell_msg).unwrap());
@@ -485,8 +503,9 @@ fn test_royalty_auction_happy_path() {
                                 flag = 1;
                                 println!("in here ready to pay for prev owner");
                                 assert_eq!(
-                                    sell_msg.price.mul(Decimal::percent(
-                                        result_royalty.prev_royalty.unwrap()
+                                    sell_msg.price.mul(Decimal::from_ratio(
+                                        result_royalty.prev_royalty.unwrap(),
+                                        MAX_DECIMAL_POINT
                                     )),
                                     amount
                                 );
@@ -515,6 +534,7 @@ fn update_info_test() {
             auction_duration: None,
             step_price: None,
             governance: None,
+            decimal_point: None,
         };
         let update_info_msg = HandleMsg::UpdateInfo(update_info);
 
@@ -916,7 +936,7 @@ fn test_royalties() {
                 },
             },
             creator_type: String::from("sacx"),
-            royalty: Some(40),
+            royalty: Some(40 * DECIMAL),
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -929,7 +949,7 @@ fn test_royalties() {
             token_id: String::from("SellableNFT"),
             msg: to_binary(&SellNft {
                 off_price: Uint128(50),
-                royalty: Some(10),
+                royalty: Some(10 * DECIMAL),
             })
             .ok(),
         });
@@ -957,7 +977,7 @@ fn test_royalties() {
             token_id: String::from("SellableNFT"),
             msg: to_binary(&SellNft {
                 off_price: Uint128(70),
-                royalty: Some(40),
+                royalty: Some(40 * DECIMAL),
             })
             .ok(),
         });
@@ -986,7 +1006,7 @@ fn test_royalties() {
             token_id: String::from("SellableNFT"),
             msg: to_binary(&SellNft {
                 off_price: Uint128(90),
-                royalty: Some(10),
+                royalty: Some(10 * DECIMAL),
             })
             .ok(),
         });
@@ -1064,8 +1084,9 @@ fn test_royalties() {
                             if to_address.eq(&result_royalty.previous_owner.clone().unwrap()) {
                                 println!("ready to pay for previous owner\n");
                                 assert_eq!(
-                                    offering.price.mul(Decimal::percent(
-                                        result_royalty.prev_royalty.unwrap()
+                                    offering.price.mul(Decimal::from_ratio(
+                                        result_royalty.prev_royalty.unwrap(),
+                                        MAX_DECIMAL_POINT
                                     )),
                                     amount
                                 );
@@ -1094,7 +1115,9 @@ fn test_royalties() {
             if let Some(index) = index {
                 let amount = amounts[index];
                 assert_eq!(
-                    offering.price.mul(Decimal::percent(royalty.royalty)),
+                    offering
+                        .price
+                        .mul(Decimal::from_ratio(royalty.royalty, MAX_DECIMAL_POINT)),
                     amount
                 );
                 total_payment = total_payment + amount;
@@ -1127,7 +1150,7 @@ fn withdraw_offering() {
 
         let sell_msg = SellNft {
             off_price: Uint128(50),
-            royalty: Some(10),
+            royalty: Some(10 * DECIMAL),
         };
 
         println!("msg :{}", to_binary(&sell_msg).unwrap());
@@ -1192,7 +1215,7 @@ fn admin_withdraw_offering() {
 
         let sell_msg = SellNft {
             off_price: Uint128(50),
-            royalty: Some(10),
+            royalty: Some(10 * DECIMAL),
         };
 
         println!("msg :{}", to_binary(&sell_msg).unwrap());
@@ -1251,7 +1274,7 @@ fn test_sell_nft_unhappy() {
 
         let sell_msg = SellNft {
             off_price: Uint128(50),
-            royalty: Some(10),
+            royalty: Some(10 * DECIMAL),
         };
 
         println!("msg :{}", to_binary(&sell_msg).unwrap());
@@ -1289,10 +1312,10 @@ fn test_buy_nft_unhappy() {
 
         let sell_msg = SellNft {
             off_price: Uint128(50),
-            royalty: Some(10),
+            royalty: Some(10 * DECIMAL),
         };
 
-        println!("msg :{}", to_binary(&sell_msg).unwrap());
+        println!("msg :{:?}", sell_msg);
 
         let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
             sender: HumanAddr::from("seller"),
@@ -1336,7 +1359,7 @@ fn test_migrate() {
                 },
             },
             creator_type: String::from("sacx"),
-            royalty: Some(40),
+            royalty: Some(40 * DECIMAL),
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -1349,7 +1372,7 @@ fn test_migrate() {
             token_id: String::from("SellableNFT"),
             msg: to_binary(&SellNft {
                 off_price: Uint128(50),
-                royalty: Some(10),
+                royalty: Some(10 * DECIMAL),
             })
             .ok(),
         });
@@ -1424,17 +1447,29 @@ fn test_update_decay_royalty() {
                 },
             },
             creator_type: String::from("sacx"),
-            royalty: Some(40),
+            royalty: Some(40 * DECIMAL),
         });
 
         manager.handle(creator_info.clone(), mint_msg).unwrap();
+
+        let royalties: Vec<Royalty> = from_binary(
+            &manager
+                .query(QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalties {
+                    offset: None,
+                    limit: None,
+                    order: None,
+                }))
+                .unwrap(),
+        )
+        .unwrap();
+        println!("royalties: {:?}", royalties);
 
         let mut royalty_msg = RoyaltyMsg {
             contract_addr: HumanAddr::from("offering"),
             token_id: String::from("SellableNFT"),
             creator: HumanAddr::from("somebody"),
             creator_type: None,
-            royalty: Some(10),
+            royalty: Some(10 * DECIMAL),
         };
 
         // update creator royalty
@@ -1444,7 +1479,7 @@ fn test_update_decay_royalty() {
             .unwrap();
 
         // try to update royalty 20 now will only be 10
-        royalty_msg.royalty = Some(20);
+        royalty_msg.royalty = Some(20 * DECIMAL);
         manager.handle(creator_info.clone(), update_msg).unwrap();
 
         // query creator royalty
@@ -1459,6 +1494,6 @@ fn test_update_decay_royalty() {
         )
         .unwrap();
         println!("new royalty: {:?}", royalty);
-        assert_eq!(royalty.royalty, 10);
+        assert_eq!(royalty.royalty, 10 * DECIMAL);
     }
 }

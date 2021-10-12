@@ -17,6 +17,7 @@ pub struct ContractInfo {
     pub step_price: u64,
     pub governance: HumanAddr,
     pub max_royalty: u64,
+    pub decimal_point: u64,
 }
 
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("contract_info");

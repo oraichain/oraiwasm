@@ -23,7 +23,7 @@ use crate::state::{
 
 // settings for pagination
 const MAX_LIMIT: u8 = 30;
-const DEFAULT_LIMIT: u8 = 10;
+const DEFAULT_LIMIT: u8 = 5;
 
 pub fn init(
     deps: DepsMut,
