@@ -47,6 +47,7 @@ const run = async () => {
       return console.log('we are not in the group');
     }
   }
+  console.log("status: ", status);
 
   switch (status) {
     case 'WaitForDealer':
@@ -67,6 +68,8 @@ const run = async () => {
           // update shared pubkey for contract to verify sig
           await processRow(skShare);
           members = null;
+        } else {
+          console.log('Finished sharing row. Currently waiting for all members to share row');
         }
         return;
       }
@@ -312,6 +315,6 @@ const addPing = async (interval = 5000) => {
 
 console.log('Oraichain VRF, version 3.0');
 runInterval(config.interval);
-// addPing(config.ping_interval);
+addPing(config.ping_interval);
 
 // TODO: add try catch and improve logs
