@@ -77,10 +77,8 @@ pub fn handle(
         HandleMsg::ShareRow { share } => share_row(deps, info, share),
         HandleMsg::ShareSig { share } => update_share_sig(deps, env, info, share),
         HandleMsg::RequestRandom { input } => request_random(deps, info, input),
-        HandleMsg::UpdateThreshold { threshold } => update_threshold(deps, info, threshold),
         HandleMsg::UpdateFees { fee } => update_fees(deps, info, fee),
-        HandleMsg::UpdateMembers { members } => update_members(deps, info, members),
-        HandleMsg::RemoveMember { address } => remove_member(deps, info, address),
+        HandleMsg::Reset { threshold, members } => reset(deps, info, threshold, members),
         HandleMsg::ForceNextRound {} => force_next_round(deps, info),
     }
 }
@@ -95,11 +93,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             offset,
             order,
         } => to_binary(&query_members(deps, limit, offset, order)?)?,
-        QueryMsg::GetDealers {
-            limit,
-            offset,
-            order,
-        } => to_binary(&query_dealers(deps, limit, offset, order)?)?,
         QueryMsg::LatestRound {} => to_binary(&query_latest(deps)?)?,
         QueryMsg::GetRounds {
             limit,
@@ -141,32 +134,11 @@ fn store_members(storage: &mut dyn Storage, members: Vec<MemberMsg>, clear: bool
 
 /// Handler
 
-// remove member mark member as inactive, why update members require reinit the whole process
-pub fn remove_member(
+pub fn reset(
     deps: DepsMut,
     info: MessageInfo,
-    address: String,
-) -> Result<HandleResponse, ContractError> {
-    let owner = owner_read(deps.storage).load()?;
-    if !owner.owner.eq(info.sender.as_str()) {
-        return Err(ContractError::Unauthorized(
-            "Not an owner to update members".to_string(),
-        ));
-    }
-
-    let mut member = query_member(deps.as_ref(), &address)?;
-    member.deleted = true;
-    let msg = to_binary(&member)?;
-    members_storage(deps.storage).set(address.as_bytes(), &msg);
-    let mut response = HandleResponse::default();
-    response.attributes = vec![attr("action", "remove_member")];
-    Ok(response)
-}
-
-pub fn update_members(
-    deps: DepsMut,
-    info: MessageInfo,
-    members: Vec<MemberMsg>,
+    threshold: Option<u16>,
+    members: Option<Vec<MemberMsg>>,
 ) -> Result<HandleResponse, ContractError> {
     let owner = owner_read(deps.storage).load()?;
     if !owner.owner.eq(info.sender.as_str()) {
@@ -176,62 +148,43 @@ pub fn update_members(
     }
 
     let mut config_data = config_read(deps.storage).load()?;
-    let total = members.len() as u16;
-    if config_data.dealer > total || config_data.threshold > total {
-        return Err(ContractError::InvalidDealer {});
-    }
+    let members_msg = match members {
+        Some(msgs) => {
+            let total = msgs.len() as u16;
+            if config_data.dealer > total || config_data.threshold > total {
+                return Err(ContractError::InvalidDealer {});
+            }
+            // reset everything
+            config_data.total = total;
+            msgs
+        }
+        None => {
+            let members_result = get_all_members(deps.as_ref())?;
+            let msgs: Vec<MemberMsg> = members_result
+                .iter()
+                .map(|member| MemberMsg {
+                    address: member.address.to_owned(),
+                    pubkey: member.pubkey.to_owned(),
+                })
+                .collect();
+            msgs
+        }
+    };
+    // update members
+    store_members(deps.storage, members_msg, true)?;
 
-    // reset everything
-    config_data.total = total;
+    if let Some(threshold) = threshold {
+        config_data.threshold = threshold;
+        config_data.dealer = threshold + 1;
+    };
+
     config_data.shared_dealer = 0;
     config_data.shared_row = 0;
     config_data.status = SharedStatus::WaitForDealer;
     config(deps.storage).save(&config_data)?;
-
-    store_members(deps.storage, members, true)?;
 
     let mut response = HandleResponse::default();
     response.attributes = vec![attr("action", "update_members")];
-    Ok(response)
-}
-
-pub fn update_threshold(
-    deps: DepsMut,
-    info: MessageInfo,
-    threshold: u16,
-) -> Result<HandleResponse, ContractError> {
-    let owner = owner_read(deps.storage).load()?;
-    if !owner.owner.eq(info.sender.as_str()) {
-        return Err(ContractError::Unauthorized(
-            "Not an owner to update members".to_string(),
-        ));
-    }
-    let mut config_data = config_read(deps.storage).load()?;
-    if threshold == 0 || threshold >= config_data.total {
-        return Err(ContractError::InvalidThreshold {});
-    }
-    config_data.threshold = threshold;
-    config_data.shared_dealer = 0;
-    config_data.shared_row = 0;
-    // reset everything, with dealer as size of vector
-    config_data.status = SharedStatus::WaitForDealer;
-
-    let member_msg: Vec<MemberMsg> = members_storage_read(deps.storage)
-        .range(None, None, Order::Ascending)
-        .map(|(_key, value)| {
-            let Member {
-                pubkey, address, ..
-            } = from_slice(value.as_slice()).unwrap();
-            MemberMsg { pubkey, address }
-        })
-        .collect();
-
-    // init with a signature, pubkey and denom for bounty
-    config(deps.storage).save(&config_data)?;
-    //reset members
-    store_members(deps.storage, member_msg, true)?;
-    let mut response = HandleResponse::default();
-    response.attributes = vec![attr("action", "update_threshold")];
     Ok(response)
 }
 
@@ -380,7 +333,6 @@ pub fn update_share_sig(
     let Config {
         fee: fee_val,
         threshold,
-        dealer,
         ..
     } = config_read(deps.storage).load()?;
 
@@ -432,7 +384,7 @@ pub fn update_share_sig(
     });
     // stop with threshold +1
     if share_data.sigs.len() as u16 > threshold {
-        let dealers = get_all_dealers(deps.as_ref(), dealer)?;
+        let dealers = get_all_dealers(deps.as_ref())?;
         // do aggregate
         let mut sum_commit = Poly::zero().commitment();
         for dealer in dealers {
@@ -639,26 +591,6 @@ fn query_members(
     Ok(members)
 }
 
-fn query_dealers(
-    deps: Deps,
-    limit: Option<u8>,
-    offset: Option<HumanAddr>,
-    order: Option<u8>,
-) -> Result<Vec<Member>, ContractError> {
-    let offset_human = offset.unwrap_or_default();
-    let (min, max, order_enum, limit) = get_query_params(limit, offset_human.as_bytes(), order);
-    let mut members: Vec<Member> = members_storage_read(deps.storage)
-        .range(min, max, order_enum)
-        .take(limit)
-        .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
-        .collect();
-
-    // into_iter() will move old vector into new vector without cloning
-    members.retain(|m| m.shared_dealer.is_some());
-
-    Ok(members)
-}
-
 fn query_contract_info(deps: Deps) -> Result<Config, ContractError> {
     let config_val: Config = config_read(deps.storage).load()?;
     Ok(config_val)
@@ -711,20 +643,21 @@ fn get_input(input: &[u8], round: &[u8]) -> Vec<u8> {
     final_input
 }
 
-fn get_all_dealers(deps: Deps, num_dealer: u16) -> Result<Vec<Member>, ContractError> {
-    let mut dealers = query_dealers(deps, None, None, Some(1u8))?;
-    while dealers.len().lt(&(num_dealer as usize)) {
-        if let Some(dealer) = dealers.last() {
-            let temp_dealers = query_dealers(
-                deps,
-                None,
-                Some(HumanAddr(dealer.address.clone())),
-                Some(1u8),
-            )?;
-            dealers.extend(temp_dealers);
-        }
-    }
-    return Ok(dealers);
+pub fn get_all_dealers(deps: Deps) -> Result<Vec<Member>, ContractError> {
+    let mut members: Vec<Member> = members_storage_read(deps.storage)
+        .range(None, None, Order::Ascending)
+        .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
+        .collect();
+    members.retain(|m| m.shared_dealer.is_some());
+    return Ok(members);
+}
+
+pub fn get_all_members(deps: Deps) -> Result<Vec<Member>, ContractError> {
+    let members: Vec<Member> = members_storage_read(deps.storage)
+        .range(None, None, Order::Ascending)
+        .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
+        .collect();
+    return Ok(members);
 }
 
 fn verify_round(deps: Deps, round: u64) -> Result<bool, ContractError> {

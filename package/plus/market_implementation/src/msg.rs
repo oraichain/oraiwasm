@@ -89,6 +89,12 @@ pub struct SellNft {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct GiftNft {
+    pub recipient: HumanAddr,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateContractMsg {
     pub name: Option<String>,
     pub creator: Option<String>,

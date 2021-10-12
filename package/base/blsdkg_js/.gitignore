@@ -3,3 +3,4 @@ node_modules
 dist/
 vrf-runner*
 .env
+.env.*

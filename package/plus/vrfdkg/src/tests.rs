@@ -1,5 +1,5 @@
 use crate::{
-    contract::{handle, init, query, query_current},
+    contract::{get_all_members, handle, init, query, query_current},
     msg::{
         DistributedShareData, HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, ShareSigMsg,
         SharedDealerMsg, SharedRowMsg, SharedStatus,
@@ -249,24 +249,24 @@ fn share_dealer() {
     assert_eq!(members.len(), 3);
     println!("last member: {:?}", members[2].address);
 
-    // test query dealers
+    // test query all dealers
 
-    let query_dealers = QueryMsg::GetDealers {
-        limit: Some(5),
-        offset: Some(HumanAddr::from(
-            "orai14v5m0leuxa7dseuekps3rkf7f3rcc84kzqys87",
-        )),
-        order: None,
-    };
-    let dealers: Vec<Member> =
-        from_binary(&query(deps.as_ref(), mock_env(), query_dealers).unwrap()).unwrap();
-    println!("dealer len: {:?}", dealers.len());
-    assert_eq!(dealers.len(), 2);
-    println!("last dealer: {:?}", dealers[0].address);
-    assert_eq!(
-        String::from("orai14v5m0leuxa7dseuekps3rkf7f3rcc84kzqys87"),
-        dealers[0].address
-    );
+    // let query_dealers = QueryMsg::GetDealers {
+    //     limit: Some(5),
+    //     offset: Some(HumanAddr::from(
+    //         "orai14v5m0leuxa7dseuekps3rkf7f3rcc84kzqys87",
+    //     )),
+    //     order: None,
+    // };
+    // let dealers: Vec<Member> =
+    //     from_binary(&query(deps.as_ref(), mock_env(), query_dealers).unwrap()).unwrap();
+    // println!("dealer len: {:?}", dealers.len());
+    // assert_eq!(dealers.len(), 2);
+    // println!("last dealer: {:?}", dealers[0].address);
+    // assert_eq!(
+    //     String::from("orai14v5m0leuxa7dseuekps3rkf7f3rcc84kzqys87"),
+    //     dealers[0].address
+    // );
 
     // next phase is wait for row
     assert_eq!(ret.status, SharedStatus::WaitForRow);
@@ -382,10 +382,15 @@ fn request_round() {
 }
 
 #[test]
-fn test_update_threshold() {
+fn test_reset() {
     let mut deps = mock_dependencies(&[]);
     deps.api.canonical_length = 54;
     let _res = initialization(deps.as_mut());
+
+    let config: Config =
+        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::ContractInfo {}).unwrap()).unwrap();
+
+    println!("initial config: {:?}", config);
 
     init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD);
 
@@ -489,7 +494,10 @@ fn test_update_threshold() {
     assert_eq!(latest_rounds.len(), 2);
 
     // update threshold
-    let threshold_msg = HandleMsg::UpdateThreshold { threshold: 4 };
+    let threshold_msg = HandleMsg::Reset {
+        threshold: Some(4),
+        members: None,
+    };
     handle(
         deps.as_mut(),
         mock_env(),
@@ -498,43 +506,36 @@ fn test_update_threshold() {
     )
     .unwrap();
 
-    // query members
-    // test query members
-    let query_members = QueryMsg::GetMembers {
-        limit: None,
-        offset: None,
-        order: None,
-    };
-    let members: Vec<Member> =
-        from_binary(&query(deps.as_ref(), mock_env(), query_members).unwrap()).unwrap();
+    let members: Vec<Member> = get_all_members(deps.as_ref()).unwrap();
+    println!("members: {:?}\n", members);
     // println!("after updating threshold members: {:?}", members);
     for member in members {
         assert_eq!(member.shared_row, None);
         assert_eq!(member.shared_dealer, None);
     }
 
-    // init dealer again and start new rounds
-    init_dealer!(deps, ADDRESSES, DEALER, 4);
+    let config: Config =
+        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::ContractInfo {}).unwrap()).unwrap();
 
-    let members: Vec<Member> = from_binary(
-        &query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::GetMembers {
-                limit: Some(NUM_NODE as u8),
-                order: None,
-                offset: None,
-            },
-        )
-        .unwrap(),
-    )
-    .unwrap();
+    println!("new config: {:?}", config);
+    // init dealer again and start new rounds
+    init_dealer!(
+        deps,
+        ADDRESSES,
+        config.dealer as usize,
+        config.total as usize
+    );
+
+    let members: Vec<Member> = get_all_members(deps.as_ref()).unwrap();
+    println!("members: {:?}\n", members.len());
 
     let dealers: Vec<Member> = members
         .iter()
         .filter(|m| m.shared_dealer.is_some())
         .cloned()
         .collect();
+
+    println!("dealers: {:?}", dealers.len());
 
     init_row!(deps, members, dealers);
 

@@ -11,7 +11,7 @@ use crate::offering::{handle_sell_nft, query_offering, try_buy, try_handle_mint,
 
 use crate::error::ContractError;
 use crate::msg::{
-    AskNftMsg, HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellNft,
+    AskNftMsg, GiftNft, HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellNft,
     UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
@@ -201,6 +201,9 @@ pub fn try_receive_nft(
         if let Ok(sell_msg) = from_binary::<SellNft>(&msg) {
             return handle_sell_nft(deps, info, sell_msg, rcv_msg);
         }
+        if let Ok(gift_msg) = from_binary::<GiftNft>(&msg) {
+            return handle_gift_nft(info, gift_msg, rcv_msg);
+        }
     }
     Err(ContractError::NoData {})
 }
@@ -243,6 +246,39 @@ pub fn try_migrate(
             attr("nft_contract_addr", nft_contract_addr),
             attr("token_ids", format!("{:?}", token_ids)),
             attr("new_marketplace", new_marketplace),
+        ],
+        data: None,
+    })
+}
+
+pub fn handle_gift_nft(
+    info: MessageInfo,
+    gift_msg: GiftNft,
+    rcv_msg: Cw721ReceiveMsg,
+) -> Result<HandleResponse, ContractError> {
+    let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
+    // check if token_id is currently sold by the requesting address
+    // transfer token back to original owner
+    let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+        recipient: gift_msg.recipient.clone(),
+        token_id: rcv_msg.token_id.clone(),
+    };
+
+    let exec_cw721_transfer = WasmMsg::Execute {
+        contract_addr: info.sender.clone(),
+        msg: to_binary(&transfer_cw721_msg)?,
+        send: vec![],
+    }
+    .into();
+    cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
+    Ok(HandleResponse {
+        messages: cw721_transfer_cosmos_msg,
+        attributes: vec![
+            attr("action", "send_gift_nft"),
+            attr("nft_contract_addr", info.sender),
+            attr("token_id", format!("{:?}", rcv_msg.token_id)),
+            attr("sender", rcv_msg.sender),
+            attr("recipient", gift_msg.recipient),
         ],
         data: None,
     })

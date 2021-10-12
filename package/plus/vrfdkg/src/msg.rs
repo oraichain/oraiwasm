@@ -60,14 +60,25 @@ pub struct ShareSigMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    ShareDealer { share: SharedDealerMsg },
-    ShareRow { share: SharedRowMsg },
-    RequestRandom { input: Binary },
-    ShareSig { share: ShareSigMsg },
-    UpdateThreshold { threshold: u16 },
-    UpdateFees { fee: Coin },
-    UpdateMembers { members: Vec<MemberMsg> },
-    RemoveMember { address: String },
+    ShareDealer {
+        share: SharedDealerMsg,
+    },
+    ShareRow {
+        share: SharedRowMsg,
+    },
+    RequestRandom {
+        input: Binary,
+    },
+    ShareSig {
+        share: ShareSigMsg,
+    },
+    UpdateFees {
+        fee: Coin,
+    },
+    Reset {
+        threshold: Option<u16>,
+        members: Option<Vec<MemberMsg>>,
+    },
     ForceNextRound {},
 }
 
@@ -82,12 +93,6 @@ pub enum QueryMsg {
         address: String,
     },
     GetMembers {
-        limit: Option<u8>,
-        offset: Option<HumanAddr>,
-        order: Option<u8>,
-    },
-    // suppose to return all
-    GetDealers {
         limit: Option<u8>,
         offset: Option<HumanAddr>,
         order: Option<u8>,
