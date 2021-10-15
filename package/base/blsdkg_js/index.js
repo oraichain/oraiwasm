@@ -322,6 +322,6 @@ const addPing = async (interval = 5000) => {
 
 console.log('Oraichain VRF, version 3.0');
 runInterval(config.interval);
-// addPing(config.ping_interval);
+addPing(config.ping_interval);
 
 // TODO: add try catch and improve logs
