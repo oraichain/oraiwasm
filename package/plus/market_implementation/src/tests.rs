@@ -317,6 +317,12 @@ impl DepsManager {
 }
 
 #[test]
+fn test() {
+    let a = 2;
+    println!("a{}", a);
+}
+
+#[test]
 fn sell_auction_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
@@ -535,6 +541,7 @@ fn update_info_test() {
             step_price: None,
             governance: None,
             decimal_point: None,
+            max_royalty: Some(1000),
         };
         let update_info_msg = HandleMsg::UpdateInfo(update_info);
 
@@ -553,6 +560,8 @@ fn update_info_test() {
         let query_info = QueryMsg::GetContractInfo {};
         let res_info: ContractInfo = from_binary(&manager.query(query_info).unwrap()).unwrap();
         assert_eq!(res_info.governance.as_str(), HUB_ADDR);
+
+        assert_eq!(res_info.max_royalty, 1000);
     }
 }
 
@@ -1495,5 +1504,85 @@ fn test_update_decay_royalty() {
         .unwrap();
         println!("new royalty: {:?}", royalty);
         assert_eq!(royalty.royalty, 10 * DECIMAL);
+    }
+}
+
+#[test]
+fn test_send_gift() {
+    unsafe {
+        let manager = DepsManager::get_new();
+
+        // try mint nft to get royalty for provider
+        let creator_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mut mint = MintMsg {
+            contract_addr: HumanAddr::from("offering"),
+            creator: HumanAddr::from("provider"),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    token_id: String::from("providerNFT"),
+                    owner: HumanAddr::from("provider"),
+                    name: String::from("asbv"),
+                    description: None,
+                    image: String::from("baxv"),
+                },
+            },
+            creator_type: String::from("sacx"),
+            royalty: Some(40 * DECIMAL),
+        };
+        let mint_msg = HandleMsg::MintNft(mint.clone());
+
+        manager.handle(creator_info.clone(), mint_msg).unwrap();
+        mint.mint.mint.owner = HumanAddr::from("provider1");
+        mint.mint.mint.token_id = String::from("provider1NFT");
+        let mint_msg = HandleMsg::MintNft(mint);
+        manager.handle(creator_info.clone(), mint_msg).unwrap();
+
+        // handle send gift
+        let gift_msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+            sender: HumanAddr::from("provider"),
+            token_id: String::from("providerNFT"),
+            msg: to_binary(&GiftNft {
+                recipient: HumanAddr::from("provider1"),
+            })
+            .ok(),
+        });
+
+        let info = mock_info("offering", &coins(2, DENOM));
+        manager.handle(info.clone(), gift_msg).unwrap();
+
+        // if can sell => legit
+        // beneficiary can release it
+
+        let sell_msg = SellNft {
+            off_price: Uint128(50),
+            royalty: Some(10 * DECIMAL),
+        };
+
+        // unauthorized case
+        let _ = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+            sender: HumanAddr::from("provider"),
+            token_id: String::from("providerNFT"),
+            msg: to_binary(&sell_msg).ok(),
+        });
+        // assert_eq!(manager.handle(info.clone(), msg).is_err(),);
+
+        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
+            sender: HumanAddr::from("provider1"),
+            token_id: String::from("providerNFT"),
+            msg: to_binary(&sell_msg).ok(),
+        });
+        manager.handle(info.clone(), msg).unwrap();
+        // query offering
+        let offerings: OfferingsResponse = from_binary(
+            &manager
+                .query(QueryMsg::Offering(OfferingQueryMsg::GetOfferings {
+                    offset: None,
+                    limit: None,
+                    order: None,
+                }))
+                .unwrap(),
+        )
+        .unwrap();
+        println!("offerings: {:?}", offerings);
     }
 }

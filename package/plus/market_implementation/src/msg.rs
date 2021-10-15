@@ -1,7 +1,7 @@
 use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
 use cw721::Cw721ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
-use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg, RoyaltyMsg};
+use market_ai_royalty::{AiRoyaltyQueryMsg, MintMsg, Royalty, RoyaltyMsg};
 use market_auction::{AuctionHandleMsg, AuctionQueryMsg};
 use market_first_lv_royalty::FirstLvRoyaltyQueryMsg;
 use market_royalty::{OfferingHandleMsg, OfferingQueryMsg};
@@ -59,9 +59,9 @@ pub enum HandleMsg {
     },
     UpdateCreatorRoyalty(RoyaltyMsg),
     // TEMP when need to migrate storage
-    // UpdateRoyalties {
-    //     royalty: Vec<Royalty>,
-    // },
+    UpdateRoyalties {
+        royalty: Vec<Royalty>,
+    },
     // UpdateOfferingRoyalties {
     //     royalty: Vec<OfferingRoyalty>,
     // },
@@ -104,6 +104,7 @@ pub struct UpdateContractMsg {
     pub step_price: Option<u64>,
     pub governance: Option<HumanAddr>,
     pub decimal_point: Option<u64>,
+    pub max_royalty: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

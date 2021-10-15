@@ -41,7 +41,6 @@ const run = async () => {
   // first time or WaitForRequest
   if (status !== 'WaitForRequest' || !members) {
     members = await getMembers(total);
-    console.log("total: ", members);
     // check wherther we has done sharing ?
     currentMember = members.find((m) => !m.deleted && m.address === address);
     if (!currentMember) {
@@ -86,22 +85,21 @@ const getMembers = async (total) => {
   let offset = convertOffset('');
   let members = [];
   do {
-    const tempMembers = await queryWasm(cosmos, config.contract, {
+    let tempMembers = await queryWasm(cosmos, config.contract, {
       get_members: {
         offset,
-        limit: 2
+        limit: 5
       }
     });
-    if (!tempMembers || tempMembers.code || tempMembers.length === 0) continue;
     members = members.concat(tempMembers);
     offset = convertOffset(members[members.length - 1].address);
+    // throw "some error";
     members = members.filter(
       (v, i, a) => a.findIndex((t) => t.address === v.address) === i
     );
     // if no more data, we also need to break
     // if (oldOffset === offset) break;
     // oldOffset = offset;
-    console.log("members: ", members);
   } while (members.length < total);
   return members;
 };
@@ -170,11 +168,8 @@ const processDealer = async (members, threshold, total) => {
   console.log(response);
 };
 
-const getSkShare = async (members, dealer) => {
+const getSkShare = async (members, totalDealer) => {
   const dealers = await getDealers(members);
-  if (dealers.length !== dealer) {
-    return console.log("The number of dealers is not valid, cannot verify Sk share");
-  }
   const commits = [];
   const rows = [];
   for (const dealer of dealers) {

@@ -371,7 +371,6 @@ pub fn query_royalties_by_token_id(
         .take(limit)
         .map(|kv_item| parse_royalty(kv_item))
         .collect();
-
     Ok(royalties?)
 }
 

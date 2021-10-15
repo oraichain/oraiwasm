@@ -14,7 +14,11 @@ let array = [
 ];
 
 for (let i = 0; i < 10; i++) {
-    const ls = spawn('node', ['index.js'], {
+    let fileName = 'index.js';
+    // if (i > 2) {
+    //     fileName = 'index-error.js'
+    // }
+    const ls = spawn('node', [fileName], {
         env: Object.assign(process.env, { NODE_ENV: array[i], TESTNET: true }),
         cwd: process.cwd()
     });

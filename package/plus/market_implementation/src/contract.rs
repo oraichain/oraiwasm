@@ -1,6 +1,8 @@
 use std::fmt;
 
-use crate::ai_royalty::{query_ai_royalty, query_first_level_royalty, try_update_royalty_creator};
+use crate::ai_royalty::{
+    query_ai_royalty, query_first_level_royalty, try_update_royalties, try_update_royalty_creator,
+};
 // use crate::ai_royalty::try_update_royalties;
 use crate::auction::{
     handle_ask_auction, query_auction, try_bid_nft, try_cancel_bid, try_claim_winner,
@@ -101,10 +103,11 @@ pub fn handle(
         ),
         HandleMsg::UpdateCreatorRoyalty(royalty_msg) => {
             try_update_royalty_creator(deps, info, royalty_msg)
-        } // HandleMsg::UpdateRoyalties { royalty } => try_update_royalties(deps, info, env, royalty),
-          // HandleMsg::UpdateOfferingRoyalties { royalty } => {
-          //     try_update_offering_royalties(deps, info, env, royalty)
-          // }
+        }
+        HandleMsg::UpdateRoyalties { royalty } => try_update_royalties(deps, info, env, royalty),
+        // HandleMsg::UpdateOfferingRoyalties { royalty } => {
+        //     try_update_offering_royalties(deps, info, env, royalty)
+        // }
     }
 }
 
@@ -181,6 +184,9 @@ pub fn try_update_info(
         }
         if let Some(decimal_point) = msg.decimal_point {
             contract_info.decimal_point = decimal_point;
+        }
+        if let Some(max_royalty) = msg.max_royalty {
+            contract_info.max_royalty = max_royalty;
         }
         Ok(contract_info)
     })?;
@@ -262,8 +268,6 @@ pub fn handle_gift_nft(
     rcv_msg: Cw721ReceiveMsg,
 ) -> Result<HandleResponse, ContractError> {
     let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
-    // check if token_id is currently sold by the requesting address
-    // transfer token back to original owner
     let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
         recipient: gift_msg.recipient.clone(),
         token_id: rcv_msg.token_id.clone(),
