@@ -88,6 +88,7 @@ pub struct UpdateContractMsg {
     pub governance: Option<HumanAddr>,
     pub max_royalty: Option<u64>,
     pub expired_block: Option<u64>,
+    pub decimal_point: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -5,12 +5,12 @@ use crate::contract::{
 use crate::error::ContractError;
 use crate::msg::{ProxyQueryMsg, SellNft};
 use crate::state::{ContractInfo, CONTRACT_INFO};
-use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
-use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
+use cosmwasm_std::{HumanAddr, StdError};
+use cw1155::{Cw1155ExecuteMsg, Cw1155QueryMsg, Cw1155ReceiveMsg, TokenInfoResponse};
 use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_datahub::{DataHubHandleMsg, DataHubQueryMsg, MintMsg, Offering};
 use std::ops::{Mul, Sub};
@@ -49,6 +49,22 @@ pub fn try_handle_mint(
     info: MessageInfo,
     msg: MintMsg,
 ) -> Result<HandleResponse, ContractError> {
+    // query nft. If exist => cannot mint anymore
+    let token_info: Result<TokenInfoResponse, ContractError> = deps
+        .querier
+        .query_wasm_smart(
+            msg.contract_addr.clone(),
+            &Cw1155QueryMsg::TokenInfo {
+                token_id: msg.mint.mint.token_id.clone(),
+            },
+        )
+        .map_err(|err| ContractError::Std(err));
+    if token_info.is_ok() {
+        return Err(ContractError::Std(StdError::generic_err(
+            "token id has already been claimed. Cannot mint anymore",
+        )));
+    }
+
     let mint_msg = WasmMsg::Execute {
         contract_addr: msg.contract_addr.clone(),
         msg: to_binary(&msg.mint)?,
@@ -85,7 +101,11 @@ pub fn try_buy(
     env: Env,
     offering_id: u64,
 ) -> Result<HandleResponse, ContractError> {
-    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+    let ContractInfo {
+        governance,
+        decimal_point,
+        ..
+    } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
     let off: Offering = get_offering(deps.as_ref(), offering_id)?;
@@ -128,7 +148,8 @@ pub fn try_buy(
                 println!("Ready to pay for the creator and provider");
                 for royalty in royalties {
                     // royalty = total price * royalty percentage
-                    let creator_amount = price.mul(Decimal::percent(royalty.royalty));
+                    let creator_amount =
+                        price.mul(Decimal::from_ratio(royalty.royalty, decimal_point));
                     if creator_amount.gt(&Uint128::from(0u128)) {
                         seller_amount = seller_amount.sub(creator_amount)?;
                         cosmos_msgs.push(

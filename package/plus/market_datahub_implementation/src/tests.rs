@@ -6,8 +6,8 @@ use crate::state::ContractInfo;
 use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
     coin, coins, from_binary, from_slice, to_binary, Binary, ContractResult, CosmosMsg, Decimal,
-    HandleResponse, HumanAddr, MessageInfo, OwnedDeps, QuerierResult, StdResult, SystemError,
-    SystemResult, Uint128, WasmMsg, WasmQuery,
+    HandleResponse, HumanAddr, MessageInfo, OwnedDeps, QuerierResult, StdError, StdResult,
+    SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg, RequestAnnotate};
 use market::mock::{mock_dependencies, mock_env, MockQuerier};
@@ -259,6 +259,7 @@ fn update_info_test() {
             governance: None,
             max_royalty: None,
             expired_block: None,
+            decimal_point: None,
         };
         let update_info_msg = HandleMsg::UpdateInfo(update_info);
 
@@ -1170,5 +1171,40 @@ fn test_migrate() {
                 }
             }
         }
+    }
+}
+
+#[test]
+fn test_mint() {
+    unsafe {
+        let manager = DepsManager::get_new();
+
+        let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from("offering"),
+            creator: HumanAddr::from("provider"),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    to: String::from("provider"),
+                    value: Uint128::from(50u64),
+                    token_id: String::from("SellableNFT"),
+                },
+            },
+            creator_type: String::from("cxacx"),
+            royalty: None,
+        });
+        manager
+            .handle(provider_info.clone(), mint_msg.clone())
+            .unwrap();
+
+        let msg: String = String::from("token id has already been claimed. Cannot mint anymore");
+        let err = StdError::GenericErr { msg };
+        let _contract_err = ContractError::Std(err);
+
+        // mint again and we shall get an error
+        assert!(matches!(
+            manager.handle(provider_info.clone(), mint_msg.clone()),
+            _contract_err
+        ))
     }
 }

@@ -317,12 +317,6 @@ impl DepsManager {
 }
 
 #[test]
-fn test() {
-    let a = 2;
-    println!("a{}", a);
-}
-
-#[test]
 fn sell_auction_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
