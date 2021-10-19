@@ -13,3 +13,5 @@ pub const APPROVES: Map<(&[u8], &[u8]), Expiration> = Map::new("approves");
 /// An entry for token_id must exist as long as there's tokens in circulation.
 pub const TOKENS: Map<&[u8], String> = Map::new("tokens");
 pub const OWNER: Item<HumanAddr> = Item::new("owner");
+/// (token_id) -> creator
+pub const CREATORS: Map<&[u8], HumanAddr> = Map::new("creators");
