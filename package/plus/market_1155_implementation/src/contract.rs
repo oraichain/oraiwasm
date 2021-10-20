@@ -1,4 +1,6 @@
-use crate::offering::{handle_sell_nft, try_burn, try_buy, try_handle_mint, try_withdraw};
+use crate::offering::{
+    handle_sell_nft, try_burn, try_buy, try_change_creator, try_handle_mint, try_withdraw,
+};
 use std::fmt;
 
 use crate::error::ContractError;
@@ -77,6 +79,11 @@ pub fn handle(
             token_id,
             value,
         } => try_burn(deps, info, env, contract_addr, token_id, value),
+        HandleMsg::ChangeCreator {
+            contract_addr,
+            token_id,
+            to,
+        } => try_change_creator(deps, info, env, contract_addr, token_id, to),
         HandleMsg::MigrateVersion {
             nft_contract_addr,
             token_infos,

@@ -60,9 +60,6 @@ pub enum Cw1155QueryMsg {
         start_after: Option<String>,
         limit: Option<u32>,
     },
-    Creator {
-        token_id: TokenId,
-    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

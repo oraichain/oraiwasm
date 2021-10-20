@@ -9,7 +9,7 @@ use cosmwasm_std::{
     HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, StdError};
-use cw1155::{Cw1155ExecuteMsg, Cw1155QueryMsg, Cw1155ReceiveMsg};
+use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
 use market_1155::{MarketHandleMsg, MarketQueryMsg, MintMsg, Offering};
 use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use std::ops::{Mul, Sub};
@@ -48,18 +48,20 @@ pub fn try_handle_mint(
     info: MessageInfo,
     mut msg: MintMsg,
 ) -> Result<HandleResponse, ContractError> {
-    // query nft. If exist => cannot mint anymore
-    let creator_result: Option<HumanAddr> = deps
-        .querier
-        .query_wasm_smart(
-            msg.contract_addr.clone(),
-            &Cw1155QueryMsg::Creator {
-                token_id: msg.mint.mint.token_id.clone(),
-            },
-        )
-        .ok();
-    if let Some(creator) = creator_result {
-        if creator.ne(&info.sender) {
+    // query nft royalties. If exist => check, only creator can continue minting
+    let royalty_result = get_royalties(
+        deps.as_ref(),
+        msg.contract_addr.as_str(),
+        msg.mint.mint.token_id.as_str(),
+    )
+    .ok();
+    if let Some(royalties) = royalty_result {
+        if royalties.len() > 0
+            && royalties
+                .iter()
+                .find(|royalty| royalty.creator.eq(&info.sender))
+                .is_none()
+        {
             return Err(ContractError::Std(StdError::generic_err(
                 "You're not the creator of the nft, cannot mint",
             )));
@@ -138,7 +140,9 @@ pub fn try_buy(
             // Rust will automatically floor down the value to 0 if amount is too small => error
             seller_amount = seller_amount.sub(fee_amount)?;
             // pay for creator, ai provider and others
-            if let Ok(royalties) = get_royalties(deps.as_ref(), &off.token_id) {
+            if let Ok(royalties) =
+                get_royalties(deps.as_ref(), off.contract_addr.as_str(), &off.token_id)
+            {
                 for royalty in royalties {
                     // royalty = total price * royalty percentage
                     let creator_amount =
@@ -305,6 +309,52 @@ pub fn try_burn(
     });
 }
 
+pub fn try_change_creator(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    contract_addr: HumanAddr,
+    token_id: String,
+    to: String,
+) -> Result<HandleResponse, ContractError> {
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+
+    // query royalty to get current royalty
+    let royalty = get_royalty(
+        deps.as_ref(),
+        contract_addr.as_str(),
+        token_id.as_str(),
+        info.sender.as_str(),
+    )?;
+
+    // update creator royalty
+    cosmos_msgs.push(get_handle_msg(
+        governance.as_str(),
+        AI_ROYALTY_STORAGE,
+        AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+            contract_addr: contract_addr.clone(),
+            token_id: token_id.clone(),
+            creator: HumanAddr::from(to.as_str()),
+            creator_type: Some(royalty.creator_type),
+            royalty: Some(royalty.royalty),
+        }),
+    )?);
+
+    return Ok(HandleResponse {
+        messages: cosmos_msgs,
+        attributes: vec![
+            attr("action", "change_creator_nft"),
+            attr("from", info.sender),
+            attr("contract_addr", contract_addr),
+            attr("token_id", token_id),
+            attr("to", to),
+        ],
+        data: None,
+    });
+}
+
 pub fn handle_sell_nft(
     deps: DepsMut,
     info: MessageInfo,
@@ -353,13 +403,18 @@ fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError>
     Ok(offering)
 }
 
-fn get_royalties(deps: Deps, token_id: &str) -> Result<Vec<Royalty>, ContractError> {
+fn get_royalties(
+    deps: Deps,
+    contract_addr: &str,
+    token_id: &str,
+) -> Result<Vec<Royalty>, ContractError> {
     let royalties: Vec<Royalty> = from_binary(&query_ai_royalty(
         deps,
-        AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
+        AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
+            contract_addr: HumanAddr::from(contract_addr),
             token_id: token_id.to_string(),
             offset: None,
-            limit: None,
+            limit: Some(30),
             order: Some(1),
         },
     )?)
@@ -367,4 +422,22 @@ fn get_royalties(deps: Deps, token_id: &str) -> Result<Vec<Royalty>, ContractErr
         token_id: token_id.to_string(),
     })?;
     Ok(royalties)
+}
+
+fn get_royalty(
+    deps: Deps,
+    contract_addr: &str,
+    token_id: &str,
+    creator: &str,
+) -> Result<Royalty, ContractError> {
+    let royalty: Royalty = from_binary(&query_ai_royalty(
+        deps,
+        AiRoyaltyQueryMsg::GetRoyalty {
+            contract_addr: HumanAddr::from(contract_addr),
+            token_id: token_id.to_string(),
+            creator: HumanAddr::from(creator),
+        },
+    )?)
+    .map_err(|_| ContractError::Std(StdError::generic_err("Invalid get unique royalty")))?;
+    Ok(royalty)
 }

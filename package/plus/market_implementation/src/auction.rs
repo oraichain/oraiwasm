@@ -165,6 +165,7 @@ pub fn try_claim_winner(
     }
 
     let asker_addr = deps.api.human_address(&off.asker)?;
+    let contract_addr = deps.api.human_address(&off.contract_addr)?;
     let mut cosmos_msgs = vec![];
     if let Some(bidder) = off.bidder {
         let bidder_addr = deps.api.human_address(&bidder)?;
@@ -185,7 +186,7 @@ pub fn try_claim_winner(
         let mut fund_amount = off.price;
 
         // pay for creator, ai provider and others
-        if let Ok(royalties) = get_royalties(deps.as_ref(), &off.token_id) {
+        if let Ok(royalties) = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id) {
             for royalty in royalties {
                 let provider_amount = off
                     .price
@@ -292,7 +293,7 @@ pub fn try_claim_winner(
         data: None,
     };
 
-    let royalties = get_royalties(deps.as_ref(), &off.token_id)
+    let royalties = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id)
         .ok()
         .unwrap_or(vec![]);
     for royalty in royalties {

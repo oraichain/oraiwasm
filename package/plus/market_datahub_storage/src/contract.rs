@@ -1,8 +1,8 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::state::{
-    annotations, get_contract_token_id, increment_annotations, increment_offerings, offerings,
-    ContractInfo, CONTRACT_INFO,
+    annotations, get_contract_token_id, get_unique_key, increment_annotations, increment_offerings,
+    offerings, ContractInfo, CONTRACT_INFO,
 };
 use market_datahub::{Annotation, DataHubHandleMsg, DataHubQueryMsg, Offering};
 
@@ -83,9 +83,20 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             DataHubQueryMsg::GetOffering { offering_id } => {
                 to_binary(&query_offering(deps, offering_id)?)
             }
-            DataHubQueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
-                &query_offering_by_contract_tokenid(deps, contract, token_id)?,
-            ),
+            DataHubQueryMsg::GetOfferingsByContractTokenId {
+                contract,
+                token_id,
+                limit,
+                offset,
+                order,
+            } => to_binary(&query_offerings_by_contract_token_id(
+                deps, contract, token_id, limit, offset, order,
+            )?),
+            DataHubQueryMsg::GetUniqueOffering {
+                contract,
+                token_id,
+                owner,
+            } => to_binary(&query_unique_offering(deps, contract, token_id, owner)?),
             DataHubQueryMsg::GetAnnotations {
                 limit,
                 offset,
@@ -337,20 +348,47 @@ pub fn query_offerings_by_contract(
     Ok(offerings_result?)
 }
 
+pub fn query_offerings_by_contract_token_id(
+    deps: Deps,
+    contract: HumanAddr,
+    token_id: String,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<Vec<Offering>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let offerings_result: StdResult<Vec<Offering>> = offerings()
+        .idx
+        .contract_token_id
+        .items(
+            deps.storage,
+            &get_contract_token_id(&contract, &token_id),
+            min,
+            max,
+            order_enum,
+        )
+        .take(limit)
+        .map(|kv_item| parse_offering(kv_item))
+        .collect();
+
+    Ok(offerings_result?)
+}
+
 pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<Offering> {
     let off = offerings().load(deps.storage, &offering_id.to_be_bytes())?;
     Ok(off)
 }
 
-pub fn query_offering_by_contract_tokenid(
+pub fn query_unique_offering(
     deps: Deps,
     contract: HumanAddr,
     token_id: String,
+    owner: HumanAddr,
 ) -> StdResult<Offering> {
     let offering = offerings()
         .idx
-        .contract_token_id
-        .item(deps.storage, get_contract_token_id(&contract, &token_id))?;
+        .unique_offering
+        .item(deps.storage, get_unique_key(&contract, &token_id, &owner))?;
     if let Some(offering_obj) = offering {
         let off = offering_obj.1;
         Ok(off)
@@ -441,7 +479,7 @@ pub fn query_annotations_by_contract_tokenid(
         .contract_token_id
         .items(
             deps.storage,
-            get_contract_token_id(&contract, &token_id).0.as_slice(),
+            get_contract_token_id(&contract, &token_id).as_slice(),
             min,
             max,
             order_enum,

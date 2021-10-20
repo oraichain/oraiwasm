@@ -1,7 +1,8 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::state::{
-    get_unique_offering, increment_offerings, offerings, ContractInfo, CONTRACT_INFO,
+    get_contract_token_id, get_unique_offering, increment_offerings, offerings, ContractInfo,
+    CONTRACT_INFO,
 };
 use market_1155::{MarketHandleMsg, MarketQueryMsg, Offering};
 
@@ -75,6 +76,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 order,
             } => to_binary(&query_offerings_by_contract(
                 deps, contract, limit, offset, order,
+            )?),
+            MarketQueryMsg::GetOfferingsByContractTokenId {
+                contract,
+                token_id,
+                limit,
+                offset,
+                order,
+            } => to_binary(&query_offerings_by_contract_token_id(
+                deps, contract, token_id, limit, offset, order,
             )?),
             MarketQueryMsg::GetOffering { offering_id } => {
                 to_binary(&query_offering(deps, offering_id)?)
@@ -228,6 +238,32 @@ pub fn query_offerings_by_contract(
         .idx
         .contract
         .items(deps.storage, contract.as_bytes(), min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| parse_offering(kv_item))
+        .collect();
+
+    Ok(offerings_result?)
+}
+
+pub fn query_offerings_by_contract_token_id(
+    deps: Deps,
+    contract: HumanAddr,
+    token_id: String,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<Vec<Offering>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let offerings_result: StdResult<Vec<Offering>> = offerings()
+        .idx
+        .contract_token_id
+        .items(
+            deps.storage,
+            &get_contract_token_id(&contract, &token_id),
+            min,
+            max,
+            order_enum,
+        )
         .take(limit)
         .map(|kv_item| parse_offering(kv_item))
         .collect();

@@ -112,9 +112,26 @@ fn sort_offering() {
     let res = query(
         deps.as_ref(),
         mock_env(),
-        QueryMsg::Msg(DataHubQueryMsg::GetOfferingByContractTokenId {
+        QueryMsg::Msg(DataHubQueryMsg::GetOfferingsByContractTokenId {
             token_id: 1.to_string(),
             contract: HumanAddr::from("xxx"),
+            limit: None,
+            offset: None,
+            order: Some(1),
+        }),
+    )
+    .unwrap();
+    let value: Vec<Offering> = from_binary(&res).unwrap();
+    assert_eq!(value.len(), 1);
+
+    // query by contract token id
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Msg(DataHubQueryMsg::GetUniqueOffering {
+            token_id: 1.to_string(),
+            contract: HumanAddr::from("xxx"),
+            owner: HumanAddr::from("seller"),
         }),
     )
     .unwrap();

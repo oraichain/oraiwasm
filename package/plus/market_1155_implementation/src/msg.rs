@@ -40,6 +40,11 @@ pub enum HandleMsg {
         token_id: String,
         value: Uint128,
     },
+    ChangeCreator {
+        contract_addr: HumanAddr,
+        token_id: String,
+        to: String,
+    },
     MigrateVersion {
         nft_contract_addr: HumanAddr,
         token_infos: Vec<(String, Uint128)>,

@@ -29,13 +29,18 @@ pub fn increment_offerings(storage: &mut dyn Storage) -> StdResult<u64> {
 pub struct OfferingIndexes<'a> {
     pub seller: MultiIndex<'a, Offering>,
     pub contract: MultiIndex<'a, Offering>,
+    pub contract_token_id: MultiIndex<'a, Offering>,
     pub unique_offering: UniqueIndex<'a, PkOwned, Offering>,
 }
 
 impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Offering>> + '_> {
-        let v: Vec<&dyn Index<Offering>> =
-            vec![&self.seller, &self.contract, &self.unique_offering];
+        let v: Vec<&dyn Index<Offering>> = vec![
+            &self.seller,
+            &self.contract,
+            &self.contract_token_id,
+            &self.unique_offering,
+        ];
         Box::new(v.into_iter())
     }
 }
@@ -46,6 +51,13 @@ pub fn get_unique_offering(contract: &HumanAddr, token_id: &str, seller: &str) -
     vec.extend(token_id.as_bytes());
     vec.extend(seller.as_bytes());
     PkOwned(vec)
+}
+
+// contract nft + token id => unique id
+pub fn get_contract_token_id(contract: &HumanAddr, token_id: &str) -> Vec<u8> {
+    let mut vec = contract.as_bytes().to_vec();
+    vec.extend(token_id.as_bytes());
+    vec
 }
 
 // this IndexedMap instance has a lifetime
@@ -60,6 +72,11 @@ pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>
             |o| o.contract_addr.as_bytes().to_vec(),
             "offerings",
             "offerings__contract",
+        ),
+        contract_token_id: MultiIndex::new(
+            |o| get_contract_token_id(&o.contract_addr, &o.token_id),
+            "offerings",
+            "offerings__contract__tokenid",
         ),
         unique_offering: UniqueIndex::new(
             |o| get_unique_offering(&o.contract_addr, &o.token_id, &o.seller),

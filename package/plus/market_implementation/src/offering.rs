@@ -70,6 +70,7 @@ pub fn try_buy(
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
     let off: Offering = get_offering(deps.as_ref(), offering_id)?;
     let seller_addr = deps.api.human_address(&off.seller)?;
+    let contract_addr = deps.api.human_address(&off.contract_addr)?;
 
     let mut cosmos_msgs = vec![];
     // check for enough coins, if has price then payout to all participants
@@ -93,7 +94,9 @@ pub fn try_buy(
             seller_amount = seller_amount.sub(fee_amount)?;
 
             // pay for creator, ai provider and others
-            if let Ok(royalties) = get_royalties(deps.as_ref(), &off.token_id) {
+            if let Ok(royalties) =
+                get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id)
+            {
                 for royalty in royalties {
                     let provider_amount = off
                         .price
@@ -209,7 +212,7 @@ pub fn try_buy(
         ],
         data: None,
     };
-    let royalties = get_royalties(deps.as_ref(), &off.token_id)
+    let royalties = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id)
         .ok()
         .unwrap_or(vec![]);
     for royalty in royalties {
@@ -356,7 +359,12 @@ pub fn handle_sell_nft(
     )?);
 
     // TEMP: auto add royalty creator default for old nft (if that nft does not have royalty creator)
-    let royalty_result = get_royalties(deps.as_ref(), rcv_msg.token_id.as_str()).ok();
+    let royalty_result = get_royalties(
+        deps.as_ref(),
+        info.sender.as_str(),
+        rcv_msg.token_id.as_str(),
+    )
+    .ok();
     if let Some(royalties) = royalty_result {
         if royalties.len() == 0 {
             cosmos_msgs.push(get_handle_msg(

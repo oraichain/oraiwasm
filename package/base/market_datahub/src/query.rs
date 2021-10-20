@@ -27,9 +27,17 @@ pub enum DataHubQueryMsg {
     GetOffering {
         offering_id: u64,
     },
-    GetOfferingByContractTokenId {
+    GetOfferingsByContractTokenId {
         contract: HumanAddr,
         token_id: String,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
+    GetUniqueOffering {
+        contract: HumanAddr,
+        token_id: String,
+        owner: HumanAddr,
     },
     GetAnnotations {
         offset: Option<u64>,

@@ -24,6 +24,13 @@ pub enum MarketQueryMsg {
         limit: Option<u8>,
         order: Option<u8>,
     },
+    GetOfferingsByContractTokenId {
+        contract: HumanAddr,
+        token_id: String,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
     GetOffering {
         offering_id: u64,
     },

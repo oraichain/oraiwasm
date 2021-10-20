@@ -144,21 +144,21 @@ impl DepsManager {
                 let result = match contract_addr.as_str() {
                     HUB_ADDR => market_hub::contract::handle(
                         self.hub.as_mut(),
-                        mock_env(MARKET_ADDR),
+                        mock_env(HUB_ADDR),
                         mock_info(MARKET_ADDR, &[]),
                         from_slice(msg).unwrap(),
                     )
                     .ok(),
                     OFFERING_ADDR => market_1155_storage::contract::handle(
                         self.offering.as_mut(),
-                        mock_env(HUB_ADDR),
+                        mock_env(OFFERING_ADDR),
                         mock_info(HUB_ADDR, &[]),
                         from_slice(msg).unwrap(),
                     )
                     .ok(),
                     AI_ROYALTY_ADDR => market_ai_royalty_storage::contract::handle(
                         self.ai_royalty.as_mut(),
-                        mock_env(HUB_ADDR),
+                        mock_env(AI_ROYALTY_ADDR),
                         mock_info(HUB_ADDR, &[]),
                         from_slice(msg).unwrap(),
                     )
@@ -287,7 +287,7 @@ fn test_royalties() {
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = HandleMsg::MintNft(MintMsg {
-            contract_addr: HumanAddr::from("offering"),
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -380,7 +380,8 @@ fn test_royalties() {
         let royalties: Vec<Royalty> = from_binary(
             &manager
                 .query(QueryMsg::AiRoyalty(
-                    AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
+                    AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
+                        contract_addr: HumanAddr::from(OW_1155_ADDR),
                         token_id: String::from("SellableNFT"),
                         offset: None,
                         limit: None,
@@ -731,12 +732,42 @@ fn test_burn() {
             .handle(provider_info.clone(), mint_msg.clone())
             .unwrap();
 
-        // need to approve to burn, since sender is not marketplace
+        // need to approve to burn, since sender is marketplace
         let approve_msg = Cw1155ExecuteMsg::ApproveAll {
             operator: String::from(MARKET_ADDR),
             expires: None,
         };
 
+        // non-approve case => fail
+        // burn nft
+        let burn_msg = HandleMsg::BurnNft {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            token_id: String::from("SellableNFT"),
+            value: Uint128::from(25u64),
+        };
+
+        // burn
+        manager
+            .handle(provider_info.clone(), burn_msg.clone())
+            .unwrap();
+
+        // query balance
+        let balance: BalanceResponse = from_binary(
+            &ow1155::contract::query(
+                manager.ow1155.as_ref(),
+                mock_env(OW_1155_ADDR),
+                Cw1155QueryMsg::Balance {
+                    owner: String::from("creator"),
+                    token_id: String::from("SellableNFT"),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(balance.balance, Uint128::from(50u64));
+
+        // valid case
         // approve for marketplace
         ow1155::contract::handle(
             manager.ow1155.as_mut(),
@@ -773,5 +804,130 @@ fn test_burn() {
         .unwrap();
 
         assert_eq!(balance.balance, Uint128::from(25u64));
+    }
+}
+
+#[test]
+fn test_change_creator_happy() {
+    unsafe {
+        let manager = DepsManager::get_new();
+
+        let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint = MintMsg {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            creator: HumanAddr::from("creator"),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    to: String::from("provider"),
+                    value: Uint128::from(50u64),
+                    token_id: String::from("SellableNFT"),
+                },
+            },
+            creator_type: String::from("cxacx"),
+            royalty: None,
+        };
+        let mint_msg = HandleMsg::MintNft(mint.clone());
+        manager
+            .handle(provider_info.clone(), mint_msg.clone())
+            .unwrap();
+
+        // query royalty creator, query current creator in cw1155
+        let royalty: Royalty = from_binary(
+            &manager
+                .query(QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
+                    contract_addr: HumanAddr::from(OW_1155_ADDR),
+                    token_id: String::from("SellableNFT"),
+                    creator: HumanAddr::from("creator"),
+                }))
+                .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(royalty.royalty, 10u64);
+
+        // change creator nft
+        let burn_msg = HandleMsg::ChangeCreator {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            token_id: String::from("SellableNFT"),
+            to: String::from("someone"),
+        };
+
+        // change creator nft
+        manager
+            .handle(provider_info.clone(), burn_msg.clone())
+            .unwrap();
+
+        // query again the data and compare
+        // query royalty creator, query current creator in cw1155
+        let royalty: Royalty = from_binary(
+            &manager
+                .query(QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
+                    contract_addr: HumanAddr::from(OW_1155_ADDR),
+                    token_id: String::from("SellableNFT"),
+                    creator: HumanAddr::from("someone"),
+                }))
+                .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(royalty.royalty, 10u64);
+
+        dbg!(royalty);
+    }
+}
+
+#[test]
+fn test_change_creator_unhappy() {
+    unsafe {
+        let manager = DepsManager::get_new();
+
+        let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint = MintMsg {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            creator: HumanAddr::from("creator"),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    to: String::from("provider"),
+                    value: Uint128::from(50u64),
+                    token_id: String::from("SellableNFT"),
+                },
+            },
+            creator_type: String::from("cxacx"),
+            royalty: None,
+        };
+        let mint_msg = HandleMsg::MintNft(mint.clone());
+        manager
+            .handle(provider_info.clone(), mint_msg.clone())
+            .unwrap();
+
+        // change creator nft
+        let burn_msg = HandleMsg::ChangeCreator {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            token_id: String::from("SellableNFT"),
+            to: String::from("someone"),
+        };
+
+        // change creator nft
+        assert!(matches!(manager.handle(
+            mock_info("hacker", &vec![coin(50, DENOM)]),
+            burn_msg.clone()
+        )));
+
+        // query again the data and compare
+        // query royalty creator, query current creator in cw1155
+        let royalty: Royalty = from_binary(
+            &manager
+                .query(QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
+                    contract_addr: HumanAddr::from(OW_1155_ADDR),
+                    token_id: String::from("SellableNFT"),
+                    creator: HumanAddr::from("someone"),
+                }))
+                .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(royalty.royalty, 10u64);
+
+        dbg!(royalty);
     }
 }

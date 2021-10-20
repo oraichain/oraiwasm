@@ -10,7 +10,7 @@ use cosmwasm_std::{
     HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, StdError};
-use cw1155::{Cw1155ExecuteMsg, Cw1155QueryMsg, Cw1155ReceiveMsg};
+use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
 use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_datahub::{DataHubHandleMsg, DataHubQueryMsg, MintMsg, Offering};
 use std::ops::{Mul, Sub};
@@ -50,17 +50,19 @@ pub fn try_handle_mint(
     mut msg: MintMsg,
 ) -> Result<HandleResponse, ContractError> {
     // query nft. If exist => cannot mint anymore
-    let creator_result: Option<HumanAddr> = deps
-        .querier
-        .query_wasm_smart(
-            msg.contract_addr.clone(),
-            &Cw1155QueryMsg::Creator {
-                token_id: msg.mint.mint.token_id.clone(),
-            },
-        )
-        .ok();
-    if let Some(creator) = creator_result {
-        if creator.ne(&info.sender) {
+    let royalty_result = get_royalties(
+        deps.as_ref(),
+        msg.contract_addr.as_str(),
+        msg.mint.mint.token_id.as_str(),
+    )
+    .ok();
+    if let Some(royalties) = royalty_result {
+        if royalties.len() > 0
+            && royalties
+                .iter()
+                .find(|royalty| royalty.creator.eq(&info.sender))
+                .is_none()
+        {
             return Err(ContractError::Std(StdError::generic_err(
                 "You're not the creator of the nft, cannot mint",
             )));
@@ -148,7 +150,9 @@ pub fn try_buy(
             //     .into(),
             // );
             // pay for creator, ai provider and others
-            if let Ok(royalties) = get_royalties(deps.as_ref(), &off.token_id) {
+            if let Ok(royalties) =
+                get_royalties(deps.as_ref(), off.contract_addr.as_str(), &off.token_id)
+            {
                 println!("Ready to pay for the creator and provider");
                 for royalty in royalties {
                     // royalty = total price * royalty percentage
@@ -295,9 +299,10 @@ pub fn handle_sell_nft(
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), DATAHUB_STORAGE)?,
-            &ProxyQueryMsg::Msg(DataHubQueryMsg::GetOfferingByContractTokenId {
+            &ProxyQueryMsg::Msg(DataHubQueryMsg::GetUniqueOffering {
                 contract: info.sender.clone(),
                 token_id: rcv_msg.token_id.clone(),
+                owner: HumanAddr::from(rcv_msg.operator.as_str()),
             }),
         )
         .map_err(|_| ContractError::InvalidGetOffering {});
@@ -345,10 +350,15 @@ fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError>
     Ok(offering)
 }
 
-fn get_royalties(deps: Deps, token_id: &str) -> Result<Vec<Royalty>, ContractError> {
+fn get_royalties(
+    deps: Deps,
+    contract_addr: &str,
+    token_id: &str,
+) -> Result<Vec<Royalty>, ContractError> {
     let royalties: Vec<Royalty> = from_binary(&query_ai_royalty(
         deps,
-        AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
+        AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
+            contract_addr: HumanAddr::from(contract_addr),
             token_id: token_id.to_string(),
             offset: None,
             limit: None,

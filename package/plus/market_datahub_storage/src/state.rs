@@ -29,22 +29,34 @@ pub fn increment_offerings(storage: &mut dyn Storage) -> StdResult<u64> {
 pub struct OfferingIndexes<'a> {
     pub seller: MultiIndex<'a, Offering>,
     pub contract: MultiIndex<'a, Offering>,
-    pub contract_token_id: UniqueIndex<'a, PkOwned, Offering>,
+    pub contract_token_id: MultiIndex<'a, Offering>,
+    pub unique_offering: UniqueIndex<'a, PkOwned, Offering>,
 }
 
 impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Offering>> + '_> {
-        let v: Vec<&dyn Index<Offering>> =
-            vec![&self.seller, &self.contract, &self.contract_token_id];
+        let v: Vec<&dyn Index<Offering>> = vec![
+            &self.seller,
+            &self.contract,
+            &self.unique_offering,
+            &self.contract_token_id,
+        ];
         Box::new(v.into_iter())
     }
 }
 
-// contract nft + token id => unique id
-pub fn get_contract_token_id(contract: &HumanAddr, token_id: &str) -> PkOwned {
+// contract nft + token id + owner => unique id
+pub fn get_unique_key(contract: &HumanAddr, token_id: &str, owner: &str) -> PkOwned {
     let mut vec = contract.as_bytes().to_vec();
     vec.extend(token_id.as_bytes());
+    vec.extend(owner.as_bytes());
     PkOwned(vec)
+}
+
+pub fn get_contract_token_id(contract: &HumanAddr, token_id: &str) -> Vec<u8> {
+    let mut vec = contract.as_bytes().to_vec();
+    vec.extend(token_id.as_bytes());
+    vec
 }
 
 // this IndexedMap instance has a lifetime
@@ -60,8 +72,13 @@ pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>
             "offerings",
             "offerings__contract",
         ),
-        contract_token_id: UniqueIndex::new(
+        contract_token_id: MultiIndex::new(
             |o| get_contract_token_id(&o.contract_addr, &o.token_id),
+            "offerings",
+            "offerings__contract",
+        ),
+        unique_offering: UniqueIndex::new(
+            |o| get_unique_key(&o.contract_addr, &o.token_id, &o.seller),
             "request__id",
         ),
     };
@@ -101,7 +118,7 @@ pub fn annotations<'a>() -> IndexedMap<'a, &'a [u8], Annotation, AnnotationIndex
             "annotations__contract",
         ),
         contract_token_id: MultiIndex::new(
-            |o| get_contract_token_id(&o.contract_addr, &o.token_id).0,
+            |o| get_contract_token_id(&o.contract_addr, &o.token_id),
             "annotations",
             "annotations__contract__tokenid",
         ),

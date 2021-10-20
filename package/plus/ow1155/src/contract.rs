@@ -13,7 +13,7 @@ use cw1155::{
 
 use crate::error::{ContractError, DivideByZeroError, OverflowError, OverflowOperation};
 use crate::msg::InstantiateMsg;
-use crate::state::{APPROVES, BALANCES, CREATORS, MINTER, OWNER, TOKENS};
+use crate::state::{APPROVES, BALANCES, MINTER, OWNER, TOKENS};
 
 const DEFAULT_LIMIT: u32 = 10;
 const MAX_LIMIT: u32 = 30;
@@ -281,14 +281,6 @@ pub fn execute_mint(
         return Err(ContractError::Unauthorized {});
     }
 
-    // if there's no creator for this nft yet => we set. only creator can mint more
-    if CREATORS
-        .may_load(deps.storage, token_id.as_bytes())?
-        .is_none()
-    {
-        CREATORS.save(deps.storage, token_id.as_bytes(), &to_addr)?;
-    }
-
     let mut rsp = HandleResponse::default();
 
     let event = execute_transfer_inner(&mut deps, None, Some(&to_addr), &token_id, amount)?;
@@ -327,11 +319,6 @@ pub fn execute_burn(
     } = env;
 
     let from_addr = HumanAddr(from);
-
-    println!("burn from: {}", from_addr);
-    println!("burn amount: {}", amount);
-    println!("info sender: {}", info.sender);
-
     // whoever can transfer these tokens can burn
     guard_can_approve(deps.as_ref(), &env, &from_addr, &info.sender)?;
 
@@ -559,7 +546,6 @@ pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
         Cw1155QueryMsg::AllTokens { start_after, limit } => {
             to_binary(&query_all_tokens(deps, start_after, limit)?)
         }
-        Cw1155QueryMsg::Creator { token_id } => to_binary(&query_creator(deps, token_id)?),
     }
 }
 
@@ -627,8 +613,4 @@ fn query_all_tokens(
         .map(|item| item.map(|(k, _)| String::from_utf8(k).unwrap()))
         .collect::<StdResult<_>>()?;
     Ok(TokensResponse { tokens })
-}
-
-fn query_creator(deps: Deps, token_id: TokenId) -> StdResult<HumanAddr> {
-    Ok(CREATORS.load(deps.storage, token_id.as_bytes())?)
 }
