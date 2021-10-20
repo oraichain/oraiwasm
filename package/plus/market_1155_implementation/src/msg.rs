@@ -1,7 +1,6 @@
 use std::fmt;
 
 use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
-use cw1155::Cw1155ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_1155::{MarketQueryMsg, MintMsg};
 use market_ai_royalty::AiRoyaltyQueryMsg;
@@ -20,7 +19,7 @@ pub struct InitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     // Ask an NFT for a minimum price, must pay fee for auction maketplace
-    Receive(Cw1155ReceiveMsg),
+    SellNft(SellNft),
 
     // withdraw funds from auction marketplace to the owner wallet
     WithdrawFunds {
@@ -32,6 +31,7 @@ pub enum HandleMsg {
     },
     BuyNft {
         offering_id: u64,
+        amount: Uint128,
     },
     /// Mint a new NFT, can only be called by the contract minter
     MintNft(MintMsg),
@@ -44,11 +44,6 @@ pub enum HandleMsg {
         contract_addr: HumanAddr,
         token_id: String,
         to: String,
-    },
-    MigrateVersion {
-        nft_contract_addr: HumanAddr,
-        token_infos: Vec<(String, Uint128)>,
-        new_marketplace: HumanAddr,
     },
 }
 
@@ -69,7 +64,9 @@ pub struct AskNftMsg {
 #[serde(rename_all = "snake_case")]
 pub struct SellNft {
     pub per_price: Uint128,
-    pub royalty: Option<u64>,
+    pub contract_addr: HumanAddr,
+    pub token_id: String,
+    pub amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -89,7 +86,7 @@ pub struct UpdateContractMsg {
 pub enum QueryMsg {
     // Auction info must be queried from auction contract
     GetContractInfo {},
-    DataHub(MarketQueryMsg),
+    MarketStorage(MarketQueryMsg),
     AiRoyalty(AiRoyaltyQueryMsg),
 }
 

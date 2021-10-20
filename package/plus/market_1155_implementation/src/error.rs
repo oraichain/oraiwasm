@@ -16,6 +16,9 @@ pub enum ContractError {
     #[error("Insufficient funds")]
     InsufficientFunds {},
 
+    #[error("Insufficient copies to buy")]
+    InsufficientAmount {},
+
     #[error("Cannot find creator of the given token")]
     CannotFindCreator {},
 
@@ -64,8 +67,8 @@ pub enum ContractError {
     #[error("Token Id from the original contract has never been sold. It has no royalty yet")]
     TokenNeverBeenSold {},
 
-    #[error("Token already been sold")]
-    TokenOnSale {},
+    #[error("Token already been sold by address: {seller}")]
+    TokenOnSale { seller: String },
 
     #[error("Invalid amount & royalty to update royalty")]
     InvalidRoyaltyArgument {},
