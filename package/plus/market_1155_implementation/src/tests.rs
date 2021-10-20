@@ -1,4 +1,4 @@
-use crate::contract::{handle, init, query};
+use crate::contract::{handle, init, query, MAX_ROYALTY_PERCENT};
 use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::ContractInfo;
@@ -104,6 +104,23 @@ impl DepsManager {
             market_ai_royalty_storage::msg::InitMsg {
                 governance: HumanAddr::from(HUB_ADDR),
             },
+        )
+        .unwrap();
+
+        // update maximum royalty to MAX_ROYALTY_PERCENT
+        let update_info = market_ai_royalty_storage::msg::HandleMsg::UpdateInfo(
+            market_ai_royalty_storage::msg::UpdateContractMsg {
+                governance: None,
+                creator: None,
+                default_royalty: None,
+                max_royalty: Some(MAX_ROYALTY_PERCENT),
+            },
+        );
+        market_ai_royalty_storage::contract::handle(
+            ai_royalty.as_mut(),
+            mock_env(CREATOR),
+            mock_info(CREATOR, &[]),
+            update_info,
         )
         .unwrap();
 
@@ -311,7 +328,7 @@ fn test_royalties() {
                 },
             },
             creator_type: String::from("cxacx"),
-            royalty: None,
+            royalty: Some(10000000),
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -442,7 +459,10 @@ fn test_royalties() {
             let index = to_addrs.iter().position(|op| op.eq(&royalty.creator));
             if let Some(index) = index {
                 let amount = amounts[index];
-                assert_eq!(price.mul(Decimal::percent(royalty.royalty)), amount);
+                assert_eq!(
+                    price.mul(Decimal::from_ratio(royalty.royalty, MAX_ROYALTY_PERCENT)),
+                    amount
+                );
                 total_payment = total_payment + amount;
             }
         }
