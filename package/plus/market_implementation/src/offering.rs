@@ -375,7 +375,7 @@ pub fn handle_sell_nft(
                     token_id: rcv_msg.token_id,
                     creator: rcv_msg.sender.clone(),
                     creator_type: Some(String::from(CREATOR_NAME)),
-                    royalty: Some(5),
+                    royalty: Some(50000000),
                 }),
             )?);
         }

@@ -20,11 +20,13 @@ const CREATOR: &str = "owner";
 const MARKET_ADDR: &str = "market_addr";
 const HUB_ADDR: &str = "hub_addr";
 const OFFERING_ADDR: &str = "offering_addr";
+const AUCTION_ADDR: &str = "auction_addr";
 const AI_ROYALTY_ADDR: &str = "ai_royalty_addr";
 const OW_1155_ADDR: &str = "1155_addr";
 const CONTRACT_NAME: &str = "Auction Marketplace";
 const DENOM: &str = "orai";
 pub const STORAGE_1155: &str = "1155_storage";
+pub const AUCTION_STORAGE: &str = "auction_extend";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 
 static mut _DATA: *const DepsManager = 0 as *const DepsManager;
@@ -34,6 +36,7 @@ struct DepsManager {
     offering: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     ow1155: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     ai_royalty: OwnedDeps<MockStorage, MockApi, MockQuerier>,
+    auction: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     // main deps
     deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
 }
@@ -62,7 +65,8 @@ impl DepsManager {
                 admins: vec![HumanAddr::from(CREATOR)],
                 mutable: true,
                 storages: vec![
-                    (STORAGE_1155.to_string(), HumanAddr::from(OFFERING_ADDR)),
+                    (STORAGE_1155.to_string(), HumanAddr::from(OW_1155_ADDR)),
+                    (AUCTION_STORAGE.to_string(), HumanAddr::from(AUCTION_ADDR)),
                     (
                         AI_ROYALTY_STORAGE.to_string(),
                         HumanAddr::from(AI_ROYALTY_ADDR),
@@ -107,6 +111,17 @@ impl DepsManager {
         )
         .unwrap();
 
+        let mut auction = mock_dependencies(HumanAddr::from(AUCTION_ADDR), &[], Self::query_wasm);
+        let _res = market_auction_extend_storage::contract::init(
+            auction.as_mut(),
+            mock_env(AUCTION_ADDR),
+            info.clone(),
+            market_auction_extend_storage::msg::InitMsg {
+                governance: HumanAddr::from(HUB_ADDR),
+            },
+        )
+        .unwrap();
+
         // update maximum royalty to MAX_ROYALTY_PERCENT
         let update_info = market_ai_royalty_storage::msg::HandleMsg::UpdateInfo(
             market_ai_royalty_storage::msg::UpdateContractMsg {
@@ -136,7 +151,8 @@ impl DepsManager {
             fee: 1, // 0.1%
             // creator can update storage contract
             governance: HumanAddr::from(HUB_ADDR),
-            max_royalty: 20,
+            auction_duration: Uint128::from(10000000000000u64),
+            step_price: 1,
         };
 
         let _res = init(deps.as_mut(), mock_env(MARKET_ADDR), info.clone(), msg).unwrap();
@@ -147,6 +163,7 @@ impl DepsManager {
             offering,
             ow1155,
             ai_royalty,
+            auction,
             deps,
         }
     }
@@ -176,6 +193,13 @@ impl DepsManager {
                     AI_ROYALTY_ADDR => market_ai_royalty_storage::contract::handle(
                         self.ai_royalty.as_mut(),
                         mock_env(AI_ROYALTY_ADDR),
+                        mock_info(HUB_ADDR, &[]),
+                        from_slice(msg).unwrap(),
+                    )
+                    .ok(),
+                    AUCTION_ADDR => market_auction_extend_storage::contract::handle(
+                        self.auction.as_mut(),
+                        mock_env(AUCTION_ADDR),
                         mock_info(HUB_ADDR, &[]),
                         from_slice(msg).unwrap(),
                     )
@@ -238,6 +262,12 @@ impl DepsManager {
                             from_slice(&msg).unwrap(),
                         )
                         .unwrap_or_default(),
+                        AUCTION_ADDR => market_auction_extend_storage::contract::query(
+                            manager.auction.as_ref(),
+                            mock_env(AUCTION_ADDR),
+                            from_slice(&msg).unwrap(),
+                        )
+                        .unwrap_or_default(),
                         OW_1155_ADDR => ow1155::contract::query(
                             manager.ow1155.as_ref(),
                             mock_env(OW_1155_ADDR),
@@ -271,7 +301,6 @@ fn update_info_test() {
             // 2.5% free
             fee: Some(5),
             governance: None,
-            max_royalty: None,
             expired_block: None,
             decimal_point: None,
         };
@@ -295,6 +324,26 @@ fn update_info_test() {
     }
 }
 
+// gotta approve the marketplace to call some handle messages
+fn handle_approve(manager: &mut DepsManager) {
+    let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+
+    // need to approve to burn, since sender is marketplace
+    let approve_msg = Cw1155ExecuteMsg::ApproveAll {
+        operator: String::from(MARKET_ADDR),
+        expires: None,
+    };
+    ow1155::contract::handle(
+        manager.ow1155.as_mut(),
+        mock_env(OW_1155_ADDR),
+        provider_info,
+        approve_msg,
+    )
+    .unwrap();
+}
+
+// TODO: write auction test cases
+
 // test royalty
 
 #[test]
@@ -304,18 +353,7 @@ fn test_royalties() {
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
 
-        // need to approve to burn, since sender is marketplace
-        let approve_msg = Cw1155ExecuteMsg::ApproveAll {
-            operator: String::from(MARKET_ADDR),
-            expires: None,
-        };
-        ow1155::contract::handle(
-            manager.ow1155.as_mut(),
-            mock_env(OW_1155_ADDR),
-            mock_info("creator", &vec![coin(50, DENOM)]),
-            approve_msg,
-        )
-        .unwrap();
+        handle_approve(manager);
 
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
@@ -478,18 +516,7 @@ fn test_sell_nft_unhappy() {
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
 
-        // need to approve to burn, since sender is marketplace
-        let approve_msg = Cw1155ExecuteMsg::ApproveAll {
-            operator: String::from(MARKET_ADDR),
-            expires: None,
-        };
-        ow1155::contract::handle(
-            manager.ow1155.as_mut(),
-            mock_env(OW_1155_ADDR),
-            mock_info("creator", &vec![coin(50, DENOM)]),
-            approve_msg,
-        )
-        .unwrap();
+        handle_approve(manager);
 
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
@@ -645,18 +672,7 @@ fn test_buy_nft_unhappy() {
     unsafe {
         let manager = DepsManager::get_new();
 
-        // need to approve to burn, since sender is marketplace
-        let approve_msg = Cw1155ExecuteMsg::ApproveAll {
-            operator: String::from(MARKET_ADDR),
-            expires: None,
-        };
-        ow1155::contract::handle(
-            manager.ow1155.as_mut(),
-            mock_env(OW_1155_ADDR),
-            mock_info("creator", &vec![coin(50, DENOM)]),
-            approve_msg,
-        )
-        .unwrap();
+        handle_approve(manager);
 
         let buy_msg = HandleMsg::BuyNft {
             offering_id: 1,
@@ -793,12 +809,6 @@ fn test_burn() {
             .handle(provider_info.clone(), mint_msg.clone())
             .unwrap();
 
-        // need to approve to burn, since sender is marketplace
-        let approve_msg = Cw1155ExecuteMsg::ApproveAll {
-            operator: String::from(MARKET_ADDR),
-            expires: None,
-        };
-
         // non-approve case => fail
         // burn nft
         let burn_msg = HandleMsg::BurnNft {
@@ -811,6 +821,8 @@ fn test_burn() {
         manager
             .handle(provider_info.clone(), burn_msg.clone())
             .unwrap();
+
+        handle_approve(manager);
 
         // query balance
         let balance: BalanceResponse = from_binary(
@@ -827,16 +839,6 @@ fn test_burn() {
         .unwrap();
 
         assert_eq!(balance.balance, Uint128::from(50u64));
-
-        // valid case
-        // approve for marketplace
-        ow1155::contract::handle(
-            manager.ow1155.as_mut(),
-            mock_env(OW_1155_ADDR),
-            mock_info("creator", &vec![coin(50, DENOM)]),
-            approve_msg,
-        )
-        .unwrap();
 
         // burn nft
         let burn_msg = HandleMsg::BurnNft {

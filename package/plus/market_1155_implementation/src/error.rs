@@ -1,4 +1,4 @@
-use cosmwasm_std::StdError;
+use cosmwasm_std::{StdError, Uint128};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -55,11 +55,8 @@ pub enum ContractError {
     #[error("There is an error while collecting the offering")]
     InvalidGetOffering {},
 
-    #[error("There is an error while collecting the annotation")]
-    InvalidGetAnnotation {},
-
-    #[error("The requester has not deposited funds into the annotation request yet. You will not receive rewards if you submit")]
-    AnnotationNoFunds {},
+    #[error("There is an error while collecting the auction")]
+    InvalidGetAuction {},
 
     #[error("There is an error while collecting the list royalties of a token id: {token_id}")]
     InvalidGetRoyaltiesTokenId { token_id: String },
@@ -75,6 +72,29 @@ pub enum ContractError {
 
     #[error("Not the creator of the token. Cannot create royalty")]
     NotTokenCreator {},
+
+    #[error("Auction is not found")]
+    AuctionNotFound {},
+
+    #[error("Auction is not started yet")]
+    AuctionNotStarted {},
+    #[error("Auction has ended")]
+    AuctionHasEnded {},
+
+    #[error("Auction has finished with price: {price}orai greater than or equal to buyout price {buyout_price}orai")]
+    AuctionFinishedBuyOut {
+        price: Uint128,
+        buyout_price: Uint128,
+    },
+
+    #[error("Auction is not finished yet")]
+    AuctionNotFinished {},
+
+    #[error("The start {start} and end {end} are invalid")]
+    InvalidBlockNumberArgument { start: u64, end: u64 },
+
+    #[error("Expected bidder: {bidder}, got: {sender}")]
+    InvalidBidder { bidder: String, sender: String },
 }
 
 impl Into<String> for ContractError {

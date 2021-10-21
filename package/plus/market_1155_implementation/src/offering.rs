@@ -1,5 +1,6 @@
 use crate::contract::{
-    get_handle_msg, query_ai_royalty, query_storage, AI_ROYALTY_STORAGE, CREATOR_NAME, STORAGE_1155,
+    get_handle_msg, get_royalties, get_royalty, query_storage, verify_nft, AI_ROYALTY_STORAGE,
+    CREATOR_NAME, STORAGE_1155,
 };
 use crate::error::ContractError;
 use crate::msg::SellNft;
@@ -9,9 +10,9 @@ use cosmwasm_std::{
     HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, StdError};
-use cw1155::{BalanceResponse, Cw1155ExecuteMsg, Cw1155QueryMsg};
+use cw1155::Cw1155ExecuteMsg;
 use market_1155::{MarketHandleMsg, MarketQueryMsg, MintMsg, Offering};
-use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
+use market_ai_royalty::{AiRoyaltyHandleMsg, RoyaltyMsg};
 use std::ops::{Mul, Sub};
 
 pub fn add_msg_royalty(
@@ -364,41 +365,14 @@ pub fn try_sell_nft(
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
-    // get unique offering. Dont allow a seller to sell when he's already selling
-    let offering: Option<Offering> = from_binary(&query_storage(
+    // get unique offering. Dont allow a seller to sell when he's already selling or on auction
+    let _ = verify_nft(
         deps.as_ref(),
-        MarketQueryMsg::GetUniqueOffering {
-            contract: msg.contract_addr.clone(),
-            token_id: msg.token_id.clone(),
-            seller: info.sender.clone(),
-        },
-    )?)
-    .map_err(|_| ContractError::InvalidGetOffering {})
-    .ok();
-    if offering.is_some() {
-        return Err(ContractError::TokenOnSale {
-            seller: info.sender.clone().to_string(),
-        });
-    }
-
-    // query amount from 1155 nft. Dont allow sell if exceed value
-    let balance: BalanceResponse = deps
-        .querier
-        .query_wasm_smart(
-            msg.contract_addr.as_str(),
-            &Cw1155QueryMsg::Balance {
-                owner: info.sender.to_string(),
-                token_id: msg.token_id.clone(),
-            },
-        )
-        .map_err(|_op| {
-            ContractError::Std(StdError::generic_err(
-                "Invalid getting balance of the owner's nft",
-            ))
-        })?;
-    if msg.amount.gt(&balance.balance) {
-        return Err(ContractError::InsufficientAmount {});
-    }
+        msg.contract_addr.as_str(),
+        msg.token_id.as_str(),
+        info.sender.as_str(),
+        Some(msg.amount),
+    )?;
 
     let offering = Offering {
         id: None,
@@ -438,43 +412,4 @@ fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError>
     )?)
     .map_err(|_| ContractError::InvalidGetOffering {})?;
     Ok(offering)
-}
-
-fn get_royalties(
-    deps: Deps,
-    contract_addr: &str,
-    token_id: &str,
-) -> Result<Vec<Royalty>, ContractError> {
-    let royalties: Vec<Royalty> = from_binary(&query_ai_royalty(
-        deps,
-        AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
-            contract_addr: HumanAddr::from(contract_addr),
-            token_id: token_id.to_string(),
-            offset: None,
-            limit: Some(30),
-            order: Some(1),
-        },
-    )?)
-    .map_err(|_| ContractError::InvalidGetRoyaltiesTokenId {
-        token_id: token_id.to_string(),
-    })?;
-    Ok(royalties)
-}
-
-fn get_royalty(
-    deps: Deps,
-    contract_addr: &str,
-    token_id: &str,
-    creator: &str,
-) -> Result<Royalty, ContractError> {
-    let royalty: Royalty = from_binary(&query_ai_royalty(
-        deps,
-        AiRoyaltyQueryMsg::GetRoyalty {
-            contract_addr: HumanAddr::from(contract_addr),
-            token_id: token_id.to_string(),
-            creator: HumanAddr::from(creator),
-        },
-    )?)
-    .map_err(|_| ContractError::Std(StdError::generic_err("Invalid get unique royalty")))?;
-    Ok(royalty)
 }

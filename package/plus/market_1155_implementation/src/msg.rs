@@ -4,6 +4,7 @@ use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_1155::{MarketQueryMsg, MintMsg};
 use market_ai_royalty::AiRoyaltyQueryMsg;
+use market_auction_extend::{AuctionHandleMsg, AuctionQueryMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -12,7 +13,8 @@ pub struct InitMsg {
     pub fee: u64,
     pub denom: String,
     pub governance: HumanAddr,
-    pub max_royalty: u64,
+    pub auction_duration: Uint128,
+    pub step_price: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -49,14 +51,17 @@ pub enum HandleMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AskNftMsg {
-    pub price: Uint128,
+    pub per_price: Uint128,
+    pub amount: Uint128,
+    pub contract_addr: HumanAddr,
+    pub token_id: String,
     // in permille
     pub cancel_fee: Option<u64>,
     pub start: Option<u64>,
     pub end: Option<u64>,
     pub start_timestamp: Option<Uint128>,
     pub end_timestamp: Option<Uint128>,
-    pub buyout_price: Option<Uint128>,
+    pub buyout_per_price: Option<Uint128>,
     pub step_price: Option<u64>,
 }
 
@@ -76,7 +81,6 @@ pub struct UpdateContractMsg {
     pub fee: Option<u64>,
     pub denom: Option<String>,
     pub governance: Option<HumanAddr>,
-    pub max_royalty: Option<u64>,
     pub expired_block: Option<u64>,
     pub decimal_point: Option<u64>,
 }
@@ -88,6 +92,7 @@ pub enum QueryMsg {
     GetContractInfo {},
     MarketStorage(MarketQueryMsg),
     AiRoyalty(AiRoyaltyQueryMsg),
+    Auction(AuctionQueryMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -98,6 +103,7 @@ where
 {
     Msg(T),
     Storage(StorageQueryMsg),
+    Auction(AuctionQueryMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -107,6 +113,7 @@ where
     T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
 {
     // GetOfferings returns a list of all offerings
+    Auction(AuctionHandleMsg),
     Msg(T),
     Storage(StorageHandleMsg),
 }
