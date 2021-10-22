@@ -38,12 +38,6 @@ fn check_transfers() {
     let user1 = String::from("user1");
     let user2 = String::from("user2");
 
-    let userx = String::from("userx");
-    let co_owner1 = String::from("co1");
-    let co_owner2 = String::from("co2");
-
-    let co_owners = vec![co_owner1.clone(), co_owner2.clone()];
-
     let mut deps = mock_dependencies(&[]);
     let msg = InstantiateMsg {
         minter: minter.clone(),
