@@ -62,8 +62,9 @@ pub fn handle(
             to,
             token_id,
             value,
+            co_owners,
             msg,
-        } => execute_mint(env, to, token_id, value, msg),
+        } => execute_mint(env, to, token_id, value, co_owners, msg),
         Cw1155ExecuteMsg::BatchMint { to, batch, msg } => execute_batch_mint(env, to, batch, msg),
         Cw1155ExecuteMsg::Burn {
             from,
@@ -271,6 +272,7 @@ pub fn execute_mint(
     to: String,
     token_id: TokenId,
     amount: Uint128,
+    co_owners: Option<Vec<String>>,
     msg: Option<Binary>,
 ) -> Result<HandleResponse, ContractError> {
     let ExecuteEnv { mut deps, info, .. } = env;
@@ -285,6 +287,15 @@ pub fn execute_mint(
 
     let event = execute_transfer_inner(&mut deps, None, Some(&to_addr), &token_id, amount)?;
     event.add_attributes(&mut rsp);
+
+    if let Some(co_owner_addrs) = co_owners {
+        for owner_addr in co_owner_addrs.iter() {
+            let to_owner_addr = HumanAddr(owner_addr.clone());
+            execute_transfer_inner(&mut deps, None, Some(&to_owner_addr), &token_id, amount)?;
+        }
+        rsp.attributes
+            .push(attr("to_co_owners", co_owner_addrs.join("; ")));
+    }
 
     if let Some(msg) = msg {
         rsp.messages = vec![Cw1155ReceiveMsg {

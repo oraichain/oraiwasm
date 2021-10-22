@@ -36,6 +36,7 @@ pub enum Cw1155ExecuteMsg {
         to: String,
         token_id: TokenId,
         value: Uint128,
+        co_owners: Option<Vec<String>>,
         /// `None` means don't call the receiver interface
         msg: Option<Binary>,
     },

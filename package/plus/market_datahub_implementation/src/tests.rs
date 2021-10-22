@@ -17,6 +17,7 @@ use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_datahub::{
     Annotation, DataHubQueryMsg, MintIntermediate, MintMsg, MintStruct, Offering,
 };
+
 use std::mem::transmute;
 use std::ops::Mul;
 use std::ptr::null;
@@ -299,6 +300,7 @@ fn test_royalties() {
                     to: String::from("provider"),
                     value: Uint128::from(50u64),
                     token_id: String::from("SellableNFT"),
+                    co_owners: None,
                 },
             },
             creator_type: String::from("cxacx"),
@@ -609,6 +611,7 @@ fn test_request_annotations_happy_path() {
                     to: String::from("creator"),
                     value: Uint128::from(50u64),
                     token_id: String::from("SellableNFT"),
+                    co_owners: None,
                 },
             },
             creator_type: String::from("cxacx"),
@@ -1100,6 +1103,7 @@ fn test_migrate() {
                     to: String::from("creator"),
                     value: Uint128::from(50u64),
                     token_id: String::from("SellableNFT"),
+                    co_owners: None,
                 },
             },
             creator_type: String::from("cxacx"),
@@ -1180,6 +1184,7 @@ fn test_migrate() {
 fn test_mint() {
     unsafe {
         let manager = DepsManager::get_new();
+        let co_owners = vec!["a1".to_string(), "a2".to_string()];
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mut mint = MintMsg {
@@ -1190,6 +1195,7 @@ fn test_mint() {
                     to: String::from("provider"),
                     value: Uint128::from(50u64),
                     token_id: String::from("SellableNFT"),
+                    co_owners: None,
                 },
             },
             creator_type: String::from("cxacx"),
@@ -1237,5 +1243,48 @@ fn test_mint() {
         .unwrap();
 
         assert_eq!(balance.balance, Uint128::from(100u64));
+
+        // mint with co owners
+        mint.mint.mint.to = String::from("creator");
+        mint.mint.mint.co_owners = Some(co_owners.clone());
+
+        mint_msg = HandleMsg::MintNft(mint.clone());
+        manager
+            .handle(provider_info.clone(), mint_msg.clone())
+            .unwrap();
+
+        // query balance
+        let balance2: BalanceResponse = from_binary(
+            &ow1155::contract::query(
+                manager.ow1155.as_ref(),
+                mock_env(OW_1155_ADDR),
+                Cw1155QueryMsg::Balance {
+                    owner: String::from("creator"),
+                    token_id: String::from("SellableNFT"),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(balance2.balance, Uint128::from(150u64));
+
+        for addr in co_owners.into_iter() {
+            // query balance
+            let balance: BalanceResponse = from_binary(
+                &ow1155::contract::query(
+                    manager.ow1155.as_ref(),
+                    mock_env(OW_1155_ADDR),
+                    Cw1155QueryMsg::Balance {
+                        owner: addr,
+                        token_id: String::from("SellableNFT"),
+                    },
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+            assert_eq!(balance.balance, Uint128::from(50u64));
+        }
     }
 }

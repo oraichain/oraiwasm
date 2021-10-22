@@ -35,6 +35,7 @@ pub struct MintStruct {
     pub to: String,
     pub token_id: String,
     pub value: Uint128,
+    pub co_owner: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
