@@ -1,4 +1,7 @@
-use crate::auction::AUCTION_STORAGE;
+use crate::auction::{
+    handle_ask_auction, try_bid_nft, try_cancel_bid, try_claim_winner,
+    try_emergency_cancel_auction, AUCTION_STORAGE,
+};
 use crate::offering::{
     try_burn, try_buy, try_change_creator, try_handle_mint, try_sell_nft, try_withdraw,
 };
@@ -83,6 +86,14 @@ pub fn handle(
             token_id,
             value,
         } => try_burn(deps, info, env, contract_addr, token_id, value),
+        HandleMsg::BidNft { auction_id } => try_bid_nft(deps, info, env, auction_id),
+        HandleMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
+        // HandleMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
+        HandleMsg::EmergencyCancelAuction { auction_id } => {
+            try_emergency_cancel_auction(deps, info, env, auction_id)
+        }
+        HandleMsg::AskAuctionNft(msg) => handle_ask_auction(deps, info, env, msg),
+        HandleMsg::CancelBid { auction_id } => try_cancel_bid(deps, info, env, auction_id),
         HandleMsg::ChangeCreator {
             contract_addr,
             token_id,

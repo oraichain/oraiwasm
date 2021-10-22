@@ -289,6 +289,7 @@ pub fn try_claim_winner(
             attr("token_id", off.token_id.clone()),
             attr("auction_id", auction_id),
             attr("total_price", off.price),
+            attr("royalty", true),
         ],
         data: None,
     };

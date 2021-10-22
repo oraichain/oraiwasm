@@ -46,7 +46,7 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::Auction(auction_handle) => match auction_handle {
+        HandleMsg::Msg(auction_handle) => match auction_handle {
             AuctionHandleMsg::UpdateAuction { auction } => {
                 try_update_auction(deps, info, env, auction)
             }
@@ -145,7 +145,7 @@ pub fn try_update_info(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         // implement Query Auction from market base
-        QueryMsg::Auction(auction_query) => match auction_query {
+        QueryMsg::Msg(auction_query) => match auction_query {
             AuctionQueryMsg::GetAuctions { options } => to_binary(&query_auctions(deps, &options)?),
             AuctionQueryMsg::GetAuctionsByBidder { bidder, options } => {
                 to_binary(&query_auctions_by_bidder(deps, bidder, &options)?)

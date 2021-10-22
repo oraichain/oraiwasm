@@ -15,21 +15,40 @@ use market_1155::{MarketHandleMsg, MarketQueryMsg, MintMsg, Offering};
 use market_ai_royalty::{AiRoyaltyHandleMsg, RoyaltyMsg};
 use std::ops::{Mul, Sub};
 
-pub fn add_msg_royalty(
-    sender: &str,
-    governance: &str,
-    msg: RoyaltyMsg,
-) -> StdResult<Vec<CosmosMsg>> {
+pub fn add_msg_royalty(sender: &str, governance: &str, msg: MintMsg) -> StdResult<Vec<CosmosMsg>> {
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+    let royalty_msg = RoyaltyMsg {
+        contract_addr: msg.contract_addr,
+        token_id: msg.mint.mint.token_id,
+        creator: msg.creator,
+        creator_type: Some(msg.creator_type),
+        royalty: msg.royalty,
+    };
     // update ai royalty provider
     cosmos_msgs.push(get_handle_msg(
         governance,
         AI_ROYALTY_STORAGE,
         AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
             royalty: None,
-            ..msg.clone()
+            ..royalty_msg.clone()
         }),
     )?);
+
+    // providers are the list that the minter wants to share royalty with
+    if let Some(providers) = msg.providers {
+        for provider in providers {
+            cosmos_msgs.push(get_handle_msg(
+                governance,
+                AI_ROYALTY_STORAGE,
+                AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+                    creator: provider.address,
+                    creator_type: provider.creator_tpye,
+                    royalty: provider.royalty,
+                    ..royalty_msg.clone()
+                }),
+            )?);
+        }
+    }
 
     // update creator as the caller of the mint tx
     cosmos_msgs.push(get_handle_msg(
@@ -38,7 +57,7 @@ pub fn add_msg_royalty(
         AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
             creator: HumanAddr(sender.to_string()),
             creator_type: Some(String::from(CREATOR_NAME)),
-            ..msg
+            ..royalty_msg
         }),
     )?);
     Ok(cosmos_msgs)
@@ -79,22 +98,12 @@ pub fn try_handle_mint(
     .into();
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
-    let mut cosmos_msgs = add_msg_royalty(
-        info.sender.as_str(),
-        &governance,
-        RoyaltyMsg {
-            contract_addr: msg.contract_addr,
-            token_id: msg.mint.mint.token_id,
-            creator: msg.creator,
-            creator_type: Some(msg.creator_type),
-            royalty: msg.royalty,
-        },
-    )?;
+    let mut cosmos_msgs = add_msg_royalty(info.sender.as_str(), &governance, msg)?;
     cosmos_msgs.push(mint_msg);
 
     let response = HandleResponse {
         messages: cosmos_msgs,
-        attributes: vec![attr("action", "mint_nft"), attr("invoker", info.sender)],
+        attributes: vec![attr("action", "mint_nft"), attr("minter", info.sender)],
         data: None,
     };
 
@@ -232,6 +241,7 @@ pub fn try_buy(
             attr("offering_id", offering_id),
             attr("per_price", off.per_price),
             attr("amount", amount),
+            attr("royalty", true),
         ],
         data: None,
     })

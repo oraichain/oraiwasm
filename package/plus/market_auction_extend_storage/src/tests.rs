@@ -60,7 +60,7 @@ fn sort_auction() {
             bidder: None,
             amount: Uint128(10),
         };
-        let msg = HandleMsg::Auction(AuctionHandleMsg::UpdateAuction { auction });
+        let msg = HandleMsg::Msg(AuctionHandleMsg::UpdateAuction { auction });
         let _res = handle(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
     }
 
@@ -84,14 +84,14 @@ fn sort_auction() {
         bidder: None,
         amount: Uint128(10),
     };
-    let msg = HandleMsg::Auction(AuctionHandleMsg::UpdateAuction { auction });
+    let msg = HandleMsg::Msg(AuctionHandleMsg::UpdateAuction { auction });
     let _res = handle(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
 
     // Auction should be listed
     let res = query(
         deps.as_ref(),
         contract_env.clone(),
-        QueryMsg::Auction(AuctionQueryMsg::GetAuctionsByAsker {
+        QueryMsg::Msg(AuctionQueryMsg::GetAuctionsByAsker {
             asker: "asker".into(),
             options: PagingOptions {
                 limit: Some(100),
@@ -110,7 +110,7 @@ fn sort_auction() {
     let res = query(
         deps.as_ref(),
         contract_env.clone(),
-        QueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id: 1 }),
+        QueryMsg::Msg(AuctionQueryMsg::GetAuction { auction_id: 1 }),
     )
     .unwrap();
     let value: QueryAuctionsResult = from_binary(&res).unwrap();
@@ -120,7 +120,7 @@ fn sort_auction() {
     let res = query(
         deps.as_ref(),
         contract_env.clone(),
-        QueryMsg::Auction(AuctionQueryMsg::GetUniqueAuction {
+        QueryMsg::Msg(AuctionQueryMsg::GetUniqueAuction {
             contract: HumanAddr::from("contract_addr"),
             token_id: "2".to_string(),
             asker: HumanAddr::from("asker"),
@@ -135,7 +135,7 @@ fn sort_auction() {
     let res = query(
         deps.as_ref(),
         contract_env.clone(),
-        QueryMsg::Auction(AuctionQueryMsg::GetAuctionsByContractTokenId {
+        QueryMsg::Msg(AuctionQueryMsg::GetAuctionsByContractTokenId {
             contract: HumanAddr::from("contract_addr"),
             token_id: "2".into(),
             options: PagingOptions {
