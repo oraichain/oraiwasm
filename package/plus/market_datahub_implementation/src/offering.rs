@@ -68,6 +68,24 @@ pub fn try_handle_mint(
             )));
         }
     }
+
+    let mut co_owner_mint_msg: Vec<CosmosMsg> = vec![];
+
+    if let Some(co_owner_addr) = msg.co_owners {
+        for owner_addr in co_owner_addr.into_iter() {
+            let mut mint_msg = msg.mint.clone();
+            mint_msg.mint.to = owner_addr;
+
+            let message = WasmMsg::Execute {
+                contract_addr: msg.contract_addr.clone(),
+                msg: to_binary(&mint_msg)?,
+                send: vec![],
+            }
+            .into();
+            co_owner_mint_msg.push(message);
+        }
+    }
+
     // force to_addr when mint to info sender
     msg.mint.mint.to = info.sender.to_string();
 
@@ -77,6 +95,7 @@ pub fn try_handle_mint(
         send: vec![],
     }
     .into();
+
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
     let mut cosmos_msgs = add_msg_royalty(
@@ -91,6 +110,7 @@ pub fn try_handle_mint(
         },
     )?;
     cosmos_msgs.push(mint_msg);
+    cosmos_msgs.append(&mut co_owner_mint_msg);
 
     let response = HandleResponse {
         messages: cosmos_msgs,

@@ -3,7 +3,7 @@ use std::fmt;
 use crate::annotation::{
     handle_deposit_annotation, handle_request_annotation, handle_submit_annotation,
     try_approve_annotation, try_update_annotation_annotators,
-    try_withdraw as try_withdraw_annotation,
+    try_withdraw as try_withdraw_annotation, try_withdraw_submit_annotation,
 };
 use crate::offering::{handle_sell_nft, try_buy, try_handle_mint, try_withdraw};
 
@@ -80,6 +80,9 @@ pub fn handle(
         HandleMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
         HandleMsg::SubmitAnnotation { annotation_id } => {
             handle_submit_annotation(deps, info, annotation_id)
+        }
+        HandleMsg::WithdrawSubmitAnnotation { annotation_id } => {
+            try_withdraw_submit_annotation(deps, info, annotation_id)
         }
         HandleMsg::DepositAnnotation { annotation_id } => {
             handle_deposit_annotation(deps, info, annotation_id)

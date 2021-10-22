@@ -33,6 +33,7 @@ pub struct MintMsg {
     pub creator: HumanAddr,
     pub creator_type: String,
     pub royalty: Option<u64>,
+    pub co_owners: Option<Vec<String>>,
     pub mint: MintIntermediate,
 }
 
@@ -48,7 +49,6 @@ pub struct MintStruct {
     pub to: String,
     pub token_id: String,
     pub value: Uint128,
-    pub co_owners: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

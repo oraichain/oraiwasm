@@ -56,7 +56,6 @@ fn check_transfers() {
         to: user1.clone(),
         token_id: token1.clone(),
         value: 1u64.into(),
-        co_owners: None,
         msg: None,
     };
     assert!(matches!(
@@ -103,65 +102,6 @@ fn check_transfers() {
             }
         ),
     );
-
-    // mint with co-owners
-    let with_coowners_mint_msg = Cw1155ExecuteMsg::Mint {
-        to: userx.clone(),
-        token_id: token1.clone(),
-        value: 1u64.into(),
-        co_owners: Some(co_owners.clone()),
-        msg: None,
-    };
-
-    assert_eq!(
-        handle(
-            deps.as_mut(),
-            mock_env(),
-            mock_info(HumanAddr(minter.clone()), &[]),
-            with_coowners_mint_msg
-        )
-        .unwrap(),
-        HandleResponse {
-            attributes: vec![
-                attr("action", "transfer"),
-                attr("token_id", &token1),
-                attr("amount", 1u64),
-                attr("to", &userx),
-                attr("to_co_owners", co_owners.join("; "))
-            ],
-            ..HandleResponse::default()
-        }
-    );
-
-    assert_eq!(
-        to_binary(&BalanceResponse {
-            balance: 1u64.into()
-        }),
-        query(
-            deps.as_ref(),
-            mock_env(),
-            Cw1155QueryMsg::Balance {
-                owner: userx.clone(),
-                token_id: token1.clone(),
-            }
-        ),
-    );
-
-    for owner_addr in co_owners.iter() {
-        assert_eq!(
-            to_binary(&BalanceResponse {
-                balance: 1u64.into()
-            }),
-            query(
-                deps.as_ref(),
-                mock_env(),
-                Cw1155QueryMsg::Balance {
-                    owner: owner_addr.clone(),
-                    token_id: token1.clone(),
-                }
-            ),
-        );
-    }
 
     let transfer_msg = Cw1155ExecuteMsg::SendFrom {
         from: user1.clone(),
@@ -467,7 +407,6 @@ fn check_send_contract() {
             to: user1.clone(),
             token_id: token2.clone(),
             value: 1u64.into(),
-            co_owners: None,
             msg: None,
         },
     )
@@ -483,7 +422,6 @@ fn check_send_contract() {
                 to: receiver.clone(),
                 token_id: token1.clone(),
                 value: 1u64.into(),
-                co_owners: None,
                 msg: Some(dummy_msg.clone()),
             },
         )
@@ -689,7 +627,6 @@ fn approval_expires() {
             to: user1.clone(),
             token_id: token1,
             value: 1u64.into(),
-            co_owners: None,
             msg: None,
         },
     )
@@ -763,7 +700,6 @@ fn mint_overflow() {
             to: user1.clone(),
             token_id: token1.clone(),
             value: u128::MAX.into(),
-            co_owners: None,
             msg: None,
         },
     )
@@ -778,7 +714,6 @@ fn mint_overflow() {
                 to: user1,
                 token_id: token1,
                 value: 1u64.into(),
-                co_owners: None,
                 msg: None,
             },
         ),

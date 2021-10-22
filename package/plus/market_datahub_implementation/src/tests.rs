@@ -295,12 +295,12 @@ fn test_royalties() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from("offering"),
             creator: HumanAddr::from("provider"),
+            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
                     value: Uint128::from(50u64),
                     token_id: String::from("SellableNFT"),
-                    co_owners: None,
                 },
             },
             creator_type: String::from("cxacx"),
@@ -606,12 +606,12 @@ fn test_request_annotations_happy_path() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
+            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("creator"),
                     value: Uint128::from(50u64),
                     token_id: String::from("SellableNFT"),
-                    co_owners: None,
                 },
             },
             creator_type: String::from("cxacx"),
@@ -875,15 +875,23 @@ fn test_submit_annotations() {
         // submit annotation
         let submit_info = mock_info("annotator", &coins(900, DENOM));
         let submit_msg = HandleMsg::SubmitAnnotation { annotation_id: 1 };
-        manager.handle(submit_info, submit_msg).unwrap();
+        manager.handle(submit_info.clone(), submit_msg).unwrap();
 
         // query check annotator
         let annotation_query =
             QueryMsg::DataHub(DataHubQueryMsg::GetAnnotation { annotation_id: 1 });
         let annotation: Annotation =
-            from_binary(&manager.query(annotation_query).unwrap()).unwrap();
+            from_binary(&manager.query(annotation_query.clone()).unwrap()).unwrap();
         assert_eq!(annotation.annotators.len(), 1);
         assert_eq!(annotation.annotators[0], HumanAddr::from("annotator"));
+
+        //test withdraw submit annotation
+
+        let withdraw_msg = HandleMsg::WithdrawSubmitAnnotation { annotation_id: 1 };
+        manager.handle(submit_info, withdraw_msg).unwrap();
+        let annotation_after_withdraw_submit: Annotation =
+            from_binary(&manager.query(annotation_query).unwrap()).unwrap();
+        assert_eq!(annotation_after_withdraw_submit.annotators.len(), 0);
     }
 }
 
@@ -1098,12 +1106,12 @@ fn test_migrate() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
+            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("creator"),
                     value: Uint128::from(50u64),
                     token_id: String::from("SellableNFT"),
-                    co_owners: None,
                 },
             },
             creator_type: String::from("cxacx"),
@@ -1190,12 +1198,12 @@ fn test_mint() {
         let mut mint = MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("creator"),
+            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
                     value: Uint128::from(50u64),
                     token_id: String::from("SellableNFT"),
-                    co_owners: None,
                 },
             },
             creator_type: String::from("cxacx"),
@@ -1245,15 +1253,12 @@ fn test_mint() {
         assert_eq!(balance.balance, Uint128::from(100u64));
 
         // mint with co owners
-        mint.mint.mint.to = String::from("creator");
-        mint.mint.mint.co_owners = Some(co_owners.clone());
-
+        mint.co_owners = Some(co_owners.clone());
         mint_msg = HandleMsg::MintNft(mint.clone());
         manager
             .handle(provider_info.clone(), mint_msg.clone())
             .unwrap();
 
-        // query balance
         let balance2: BalanceResponse = from_binary(
             &ow1155::contract::query(
                 manager.ow1155.as_ref(),
@@ -1269,14 +1274,13 @@ fn test_mint() {
 
         assert_eq!(balance2.balance, Uint128::from(150u64));
 
-        for addr in co_owners.into_iter() {
-            // query balance
+        for owner_addr in co_owners {
             let balance: BalanceResponse = from_binary(
                 &ow1155::contract::query(
                     manager.ow1155.as_ref(),
                     mock_env(OW_1155_ADDR),
                     Cw1155QueryMsg::Balance {
-                        owner: addr,
+                        owner: owner_addr,
                         token_id: String::from("SellableNFT"),
                     },
                 )

@@ -44,6 +44,9 @@ pub enum HandleMsg {
     SubmitAnnotation {
         annotation_id: u64,
     },
+    WithdrawSubmitAnnotation {
+        annotation_id: u64,
+    },
     UpdateAnnotationAnnotators {
         annotation_id: u64,
         annotators: Vec<HumanAddr>,

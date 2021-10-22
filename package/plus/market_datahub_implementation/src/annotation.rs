@@ -165,6 +165,46 @@ pub fn handle_submit_annotation(
     })
 }
 
+pub fn try_withdraw_submit_annotation(
+    deps: DepsMut,
+    info: MessageInfo,
+    annotation_id: u64,
+) -> Result<HandleResponse, ContractError> {
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+
+    let mut annotation: Annotation = get_annotation(deps.as_ref(), annotation_id)?;
+    let mut annotators = annotation.annotators;
+
+    let index = annotators.iter().position(|x| *x == info.sender);
+
+    if let Some(i) = index {
+        annotators.remove(i);
+    } else {
+        return Err(ContractError::AnnotatorNotFound {});
+    }
+
+    annotation.annotators = annotators;
+
+    let mut cosmos_msg = vec![];
+
+    cosmos_msg.push(get_handle_msg(
+        governance.as_str(),
+        DATAHUB_STORAGE,
+        DataHubHandleMsg::UpdateAnnotation {
+            annotation: annotation.clone(),
+        },
+    )?);
+
+    Ok(HandleResponse {
+        messages: cosmos_msg,
+        attributes: vec![
+            attr("action", "withdraw_annotation"),
+            attr("annotator", info.sender),
+        ],
+        data: None,
+    })
+}
+
 pub fn handle_deposit_annotation(
     deps: DepsMut,
     info: MessageInfo,
