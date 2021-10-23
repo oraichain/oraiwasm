@@ -576,11 +576,13 @@ fn cancel_bid_unhappy_path() {
         };
 
         let msg = HandleMsg::AskAuctionNft(sell_msg);
-        let _res = manager.handle(info, msg).unwrap();
-        // bid auction
-        let bid_info = mock_info("bidder", &coins(5000000, DENOM));
-        let bid_msg = HandleMsg::BidNft { auction_id: 1 };
-        let _res = manager.handle(bid_info, bid_msg).unwrap();
+        let _res = manager.handle(info.clone(), msg).unwrap();
+
+        // auction not found cancel bid
+        assert!(matches!(
+            manager.handle(info, HandleMsg::CancelBid { auction_id: 2 }),
+            Err(ContractError::AuctionNotFound {})
+        ));
 
         let hacker_info = mock_info("hacker", &coins(2, DENOM));
         let cancel_bid_msg = HandleMsg::CancelBid { auction_id: 1 };
@@ -700,108 +702,83 @@ fn claim_winner_happy_path() {
     }
 }
 
-// #[test]
-// fn claim_winner_unhappy_path() {
-//     unsafe {
-//         let manager = DepsManager::get_new();
-//         let contract_env = mock_env(MARKET_ADDR);
-//         handle_approve(manager);
-//         // beneficiary can release it
-//         let info = mock_info("asker", &coins(2, DENOM));
+#[test]
+fn claim_winner_unhappy_path() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        let contract_env = mock_env(MARKET_ADDR);
+        handle_approve(manager);
+        // beneficiary can release it
+        let info = mock_info("asker", &coins(2, DENOM));
 
-//         let sell_msg = AskNftMsg {
-//             per_price: Uint128(5),
-//             cancel_fee: Some(10),
-//             start: Some(contract_env.block.height + 15),
-//             end: Some(contract_env.block.height + 100),
-//             buyout_per_price: Some(Uint128(10)),
-//             start_timestamp: None,
-//             end_timestamp: None,
-//             step_price: None,
-//             amount: Uint128(10),
-//             contract_addr: HumanAddr::from(OW_1155_ADDR),
-//             token_id: String::from("BiddableNFT"),
-//         };
+        let sell_msg = AskNftMsg {
+            per_price: Uint128(5),
+            cancel_fee: Some(10),
+            start: Some(contract_env.block.height + 15),
+            end: Some(contract_env.block.height + 100),
+            buyout_per_price: Some(Uint128(50)),
+            start_timestamp: None,
+            end_timestamp: None,
+            step_price: None,
+            amount: Uint128(10),
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            token_id: String::from("BiddableNFT"),
+        };
 
-//         let msg = HandleMsg::AskAuctionNft(sell_msg.clone());
-//         let _res = manager.handle(info, msg).unwrap();
+        let msg = HandleMsg::AskAuctionNft(sell_msg.clone());
+        let _res = manager.handle(info, msg).unwrap();
 
-//         // bid auction
-//         let bid_info = mock_info("bidder", &coins(50000000, DENOM));
+        // bid auction
+        let bid_info = mock_info("bidder", &coins(51, DENOM));
 
-//         // auction not found case
-//         let bid_msg = HandleMsg::BidNft { auction_id: 1 };
-//         let mut bid_contract_env = contract_env.clone();
-//         bid_contract_env.block.height = contract_env.block.height + 15;
+        let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+        let mut bid_contract_env = contract_env.clone();
+        bid_contract_env.block.height = contract_env.block.height + 15;
 
-//         let _res = manager
-//             .handle_with_env(bid_contract_env, bid_info.clone(), bid_msg)
-//             .unwrap();
+        let _res = manager
+            .handle_with_env(bid_contract_env, bid_info.clone(), bid_msg)
+            .unwrap();
 
-//         // now claim winner after expired
-//         let claim_info = mock_info("claimer", &coins(0, DENOM));
-//         let claim_msg = HandleMsg::ClaimWinner { auction_id: 1 };
-//         let mut claim_contract_env = contract_env.clone();
-//         claim_contract_env.block.height = contract_env.block.height + 100; // > 100 at block end
+        // now claim winner after expired
+        let claim_msg = HandleMsg::ClaimWinner { auction_id: 1 };
+        let mut claim_contract_env = contract_env.clone();
 
-//         // auction not finished case
-//         assert!(matches!(
-//             manager.handle_with_env(
-//                 claim_contract_env.clone(),
-//                 mock_info(
-//                     "bidder",
-//                     &coins(
-//                         calculate_price(sell_msg.per_price, sell_msg.amount).u128(),
-//                         DENOM
-//                     )
-//                 ),
-//                 HandleMsg::ClaimWinner { auction_id: 2 }
-//             ),
-//             Err(ContractError::AuctionNotFound {})
-//         ));
+        // auction not found case
+        assert!(matches!(
+            manager.handle_with_env(
+                claim_contract_env.clone(),
+                mock_info(
+                    "bidder",
+                    &coins(
+                        calculate_price(sell_msg.per_price, sell_msg.amount).u128(),
+                        DENOM
+                    )
+                ),
+                HandleMsg::ClaimWinner { auction_id: 2 }
+            ),
+            Err(ContractError::AuctionNotFound {})
+        ));
 
-//         // auction not finished case
+        // auction not finished case when end block is greater than current height
+        // not finished case with buyout price > price
+        assert!(matches!(
+            manager.handle_with_env(
+                claim_contract_env.clone(),
+                mock_info(
+                    "bidder",
+                    &coins(
+                        calculate_price(sell_msg.per_price, sell_msg.amount).u128(),
+                        DENOM
+                    )
+                ),
+                claim_msg.clone(),
+            ),
+            Err(ContractError::AuctionNotFinished {})
+        ));
+    }
+}
 
-//         // correct case
-//         let _res = manager
-//             .handle_with_env(claim_contract_env.clone(), claim_info.clone(), claim_msg)
-//             .unwrap();
-
-//         let sell_msg = AskNftMsg {
-//             per_price: Uint128(5),
-//             cancel_fee: Some(10),
-//             start: None,
-//             end: None,
-//             buyout_per_price: None,
-//             start_timestamp: None,
-//             end_timestamp: None,
-//             step_price: None,
-//             amount: Uint128(10),
-//             contract_addr: HumanAddr::from(OW_1155_ADDR),
-//             token_id: String::from("BiddableNFT"),
-//         };
-//         let msg = HandleMsg::AskAuctionNft(sell_msg);
-
-//         let _ret = manager.handle(bid_info.clone(), msg.clone()).unwrap();
-
-//         let result: AuctionsResponse = from_binary(
-//             &manager
-//                 .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctions {
-//                     options: PagingOptions {
-//                         offset: None,
-//                         limit: None,
-//                         order: Some(1),
-//                     },
-//                 }))
-//                 .unwrap(),
-//         )
-//         .unwrap();
-//         println!("{:?}", result);
-//         assert_eq!(result.items.len(), 1);
-//         assert_eq!(result.items.last().unwrap().asker, bid_info.sender);
-//         assert_eq!(result.items.last().unwrap().amount, Uint128::from(10u64));
-//     }
-// }
+// TODO: add test cases for bid nft
 
 #[test]
 fn update_info_test() {

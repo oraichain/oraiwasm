@@ -157,12 +157,10 @@ pub fn try_buy(
             if let Ok(royalties) =
                 get_royalties(deps.as_ref(), off.contract_addr.as_str(), &off.token_id)
             {
-                println!("royalties in buy: {:?}\n", royalties);
                 for royalty in royalties {
                     // royalty = total price * royalty percentage
                     let creator_amount =
                         price.mul(Decimal::from_ratio(royalty.royalty, decimal_point));
-                    println!("creator amount: {:?}\n", creator_amount);
                     if creator_amount.gt(&Uint128::from(0u128)) {
                         seller_amount = seller_amount.sub(creator_amount)?;
                         cosmos_msgs.push(

@@ -53,7 +53,7 @@ pub fn try_bid_nft(
     // check if price already >= buyout price. If yes => wont allow to bid
     if let Some(buyout_per_price) = off.buyout_per_price {
         let buyout_price = calculate_price(buyout_per_price, off.amount);
-        if off_price.ge(&buyout_per_price) {
+        if off_price.ge(&buyout_price) {
             return Err(ContractError::AuctionFinishedBuyOut {
                 price: off_price,
                 buyout_price,
@@ -226,7 +226,7 @@ pub fn try_claim_winner(
         AUCTION_STORAGE,
         AuctionHandleMsg::RemoveAuction { id: auction_id },
     )?);
-    let mut handle_response = HandleResponse {
+    let handle_response = HandleResponse {
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "claim_winner"),
@@ -239,15 +239,15 @@ pub fn try_claim_winner(
         data: None,
     };
 
-    let royalties = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id)
-        .ok()
-        .unwrap_or(vec![]);
-    for royalty in royalties {
-        handle_response.attributes.push(attr(
-            format!("royalty_{}", royalty.creator),
-            royalty.royalty,
-        ));
-    }
+    // let royalties = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id)
+    //     .ok()
+    //     .unwrap_or(vec![]);
+    // for royalty in royalties {
+    //     handle_response.attributes.push(attr(
+    //         format!("royalty_{}", royalty.creator),
+    //         royalty.royalty,
+    //     ));
+    // }
 
     Ok(handle_response)
 }
