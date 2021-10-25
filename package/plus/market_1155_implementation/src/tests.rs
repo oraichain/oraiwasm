@@ -1160,29 +1160,28 @@ fn test_sell_nft_unhappy() {
 
         handle_approve(manager);
 
-        let mint_msg = HandleMsg::MintNft(MintMsg {
+        // beneficiary can release it
+        let msg = HandleMsg::SellNft(SellNft {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
-            creator: HumanAddr::from("provider"),
-            mint: MintIntermediate {
-                mint: MintStruct {
-                    to: String::from("provider"),
-                    value: Uint128::from(50u64),
-                    token_id: String::from("SellableNFT"),
-                },
-            },
-            creator_type: String::from("cxacx"),
-            royalty: Some(10000000),
+            per_price: Uint128(50),
+            token_id: String::from("SellableNFT"),
+            amount: Uint128::from(10000000000000u64),
         });
 
-        manager.handle(provider_info.clone(), mint_msg).unwrap();
+        // insufficient amount case creator
+        assert!(matches!(
+            manager.handle(provider_info.clone(), msg.clone()),
+            Err(ContractError::InsufficientAmount {})
+        ));
 
-        // beneficiary can release it
         let msg = HandleMsg::SellNft(SellNft {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             per_price: Uint128(50),
             token_id: String::from("SellableNFT"),
             amount: Uint128::from(10u64),
         });
+
+        // successful case
         manager.handle(provider_info.clone(), msg.clone()).unwrap();
 
         // failed selling because it is already on sale by the same person
@@ -1191,37 +1190,56 @@ fn test_sell_nft_unhappy() {
             Err(ContractError::TokenOnSale { .. })
         ));
 
-        // a person buys a portion of it, then sell => can sell
-        let buy_msg = HandleMsg::BuyNft {
-            offering_id: 1,
-            amount: Uint128::from(5u64),
-        };
-        let info_buy = mock_info("buyer", &coins(500, DENOM));
-
-        manager.handle(info_buy.clone(), buy_msg).unwrap();
-
-        // try sell with buyer
-        let msg = HandleMsg::SellNft(SellNft {
+        let mut ask_msg = AskNftMsg {
+            per_price: Uint128(5),
+            cancel_fee: Some(10),
+            start: None,
+            end: None,
+            buyout_per_price: None,
+            start_timestamp: None,
+            end_timestamp: None,
+            step_price: None,
+            amount: Uint128(10000000000),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
-            per_price: Uint128(50),
             token_id: String::from("SellableNFT"),
-            amount: Uint128::from(5u64),
-        });
-        manager.handle(info_buy.clone(), msg.clone()).unwrap();
+        };
+        // fail when trying to create an auction
+        let mut auction_msg = HandleMsg::AskAuctionNft(ask_msg.clone());
+        assert!(matches!(
+            manager.handle(provider_info.clone(), auction_msg.clone()),
+            Err(ContractError::TokenOnSale { .. })
+        ));
 
-        // query offerings
-        let result: Vec<Offering> = from_binary(
-            &manager
-                .query(QueryMsg::MarketStorage(MarketQueryMsg::GetOfferings {
-                    offset: None,
-                    limit: None,
-                    order: None,
-                }))
-                .unwrap(),
-        )
-        .unwrap();
-        println!("result {:?}", result);
-        assert_eq!(result.len(), 2);
+        // withdraw to test token on auction fail case
+        let withdraw_msg = HandleMsg::WithdrawNft { offering_id: 1 };
+        manager.handle(provider_info.clone(), withdraw_msg).unwrap();
+
+        // put on auction
+
+        // insufficient token amount case
+        assert!(matches!(
+            manager.handle(provider_info.clone(), auction_msg.clone()),
+            Err(ContractError::InsufficientAmount {})
+        ));
+
+        // success case
+        ask_msg.amount = Uint128::from(10u64);
+        auction_msg = HandleMsg::AskAuctionNft(ask_msg.clone());
+        manager
+            .handle(provider_info.clone(), auction_msg.clone())
+            .unwrap();
+
+        // sell will fail because already on auction
+        assert!(matches!(
+            manager.handle(provider_info.clone(), msg.clone()),
+            Err(ContractError::TokenOnAuction { .. })
+        ));
+
+        // auction also will fail because already on auction
+        assert!(matches!(
+            manager.handle(provider_info.clone(), auction_msg.clone()),
+            Err(ContractError::TokenOnAuction { .. })
+        ));
     }
 }
 

@@ -299,7 +299,6 @@ pub fn verify_nft(
             seller: HumanAddr::from(owner),
         },
     )?)
-    .map_err(|_| ContractError::InvalidGetOffering {})
     .ok();
     if offering.is_some() {
         return Err(ContractError::TokenOnSale {
