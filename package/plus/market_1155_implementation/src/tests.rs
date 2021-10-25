@@ -1024,7 +1024,7 @@ fn test_royalties() {
 
         // latest offering seller as seller
         let offering_bin_first = manager
-            .query(QueryMsg::MarketStorage(MarketQueryMsg::GetOffering {
+            .query(QueryMsg::Offering(MarketQueryMsg::GetOffering {
                 offering_id: 1,
             }))
             .unwrap();
@@ -1034,7 +1034,7 @@ fn test_royalties() {
 
         let result: Vec<Offering> = from_binary(
             &manager
-                .query(QueryMsg::MarketStorage(MarketQueryMsg::GetOfferings {
+                .query(QueryMsg::Offering(MarketQueryMsg::GetOfferings {
                     offset: None,
                     limit: None,
                     order: None,
@@ -1063,7 +1063,7 @@ fn test_royalties() {
 
         // latest offering seller as seller
         let offering_bin = manager
-            .query(QueryMsg::MarketStorage(MarketQueryMsg::GetOffering {
+            .query(QueryMsg::Offering(MarketQueryMsg::GetOffering {
                 offering_id: 2,
             }))
             .unwrap();
@@ -1287,7 +1287,7 @@ fn withdraw_offering() {
         // Offering should be listed
         let res: Vec<Offering> = from_binary(
             &manager
-                .query(QueryMsg::MarketStorage(MarketQueryMsg::GetOfferings {
+                .query(QueryMsg::Offering(MarketQueryMsg::GetOfferings {
                     offset: None,
                     limit: None,
                     order: None,
@@ -1315,7 +1315,7 @@ fn withdraw_offering() {
         // Offering should be removed
         let res2: Vec<Offering> = from_binary(
             &manager
-                .query(QueryMsg::MarketStorage(MarketQueryMsg::GetOfferings {
+                .query(QueryMsg::Offering(MarketQueryMsg::GetOfferings {
                     offset: None,
                     limit: None,
                     order: None,

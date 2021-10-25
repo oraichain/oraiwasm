@@ -1,13 +1,13 @@
-use crate::contract::{get_royalties, get_storage_addr, query_auction, verify_nft};
+use crate::contract::{get_royalties, get_storage_addr, query_storage, verify_nft};
 use crate::error::ContractError;
 use crate::msg::{AskNftMsg, ProxyHandleMsg, ProxyQueryMsg};
 // use crate::offering::OFFERING_STORAGE;
 use crate::state::{ContractInfo, CONTRACT_INFO};
+use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, coins, to_binary, BankMsg, CosmosMsg, Decimal, DepsMut, Env, HandleResponse, MessageInfo,
     StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{from_binary, HumanAddr};
 use cw1155::Cw1155ExecuteMsg;
 use market::StorageHandleMsg;
 use market_auction_extend::{Auction, AuctionHandleMsg, AuctionQueryMsg};
@@ -267,6 +267,7 @@ pub fn handle_ask_auction(
 
     let _ = verify_nft(
         deps.as_ref(),
+        governance.as_str(),
         msg.contract_addr.as_str(),
         msg.token_id.as_str(),
         info.sender.as_str(),
@@ -454,10 +455,11 @@ pub fn try_emergency_cancel_auction(
     } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if auction exists
-    let off: Auction = from_binary(&query_auction(
+    let off: Auction = query_storage(
         deps.as_ref(),
+        AUCTION_STORAGE,
         AuctionQueryMsg::GetAuctionRaw { auction_id },
-    )?)?;
+    )?;
 
     if info.sender.to_string().ne(&creator) {
         return Err(ContractError::Unauthorized {

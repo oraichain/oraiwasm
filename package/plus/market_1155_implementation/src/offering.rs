@@ -6,8 +6,8 @@ use crate::error::ContractError;
 use crate::msg::SellNft;
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
+    attr, coins, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse,
+    MessageInfo, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, StdError};
 use cw1155::Cw1155ExecuteMsg;
@@ -376,6 +376,7 @@ pub fn try_sell_nft(
     // get unique offering. Dont allow a seller to sell when he's already selling or on auction
     let _ = verify_nft(
         deps.as_ref(),
+        governance.as_str(),
         msg.contract_addr.as_str(),
         msg.token_id.as_str(),
         info.sender.as_str(),
@@ -414,10 +415,11 @@ pub fn try_sell_nft(
 }
 
 fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError> {
-    let offering: Offering = from_binary(&query_storage(
+    let offering: Offering = query_storage(
         deps,
+        STORAGE_1155,
         MarketQueryMsg::GetOffering { offering_id },
-    )?)
+    )
     .map_err(|_| ContractError::InvalidGetOffering {})?;
     Ok(offering)
 }

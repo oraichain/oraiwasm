@@ -1,9 +1,9 @@
 use cosmwasm_std::{
-    to_vec, Binary, CanonicalAddr, ContractResult, Deps, Empty, HumanAddr, QueryRequest, StdError,
-    StdResult, SystemResult, WasmQuery,
+    from_binary, to_vec, Binary, CanonicalAddr, ContractResult, Deps, Empty, HumanAddr,
+    QueryRequest, StdError, StdResult, SystemResult, WasmQuery,
 };
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
 pub struct AdminList {
@@ -62,6 +62,34 @@ impl Registry {
             return Some(self.storages.remove(index));
         }
         None
+    }
+}
+
+pub fn query_proxy_generic<T: DeserializeOwned>(
+    deps: Deps,
+    addr: HumanAddr,
+    msg: Binary,
+) -> StdResult<T> {
+    let request: QueryRequest<Empty> = WasmQuery::Smart {
+        contract_addr: addr,
+        msg,
+    }
+    .into();
+
+    let raw = to_vec(&request).map_err(|serialize_err| {
+        StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
+    })?;
+
+    match deps.querier.raw_query(&raw) {
+        SystemResult::Err(system_err) => Err(StdError::generic_err(format!(
+            "Querier system error: {}",
+            system_err
+        ))),
+        SystemResult::Ok(ContractResult::Err(contract_err)) => Err(StdError::generic_err(format!(
+            "Querier contract error: {}",
+            contract_err
+        ))),
+        SystemResult::Ok(ContractResult::Ok(value)) => from_binary(&value),
     }
 }
 

@@ -103,7 +103,7 @@ pub struct UpdateContractMsg {
 pub enum QueryMsg {
     // Auction info must be queried from auction contract
     GetContractInfo {},
-    MarketStorage(MarketQueryMsg),
+    Offering(MarketQueryMsg),
     AiRoyalty(AiRoyaltyQueryMsg),
     Auction(AuctionQueryMsg),
 }
