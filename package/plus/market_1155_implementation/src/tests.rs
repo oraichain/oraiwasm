@@ -13,7 +13,9 @@ use cw1155::{BalanceResponse, Cw1155ExecuteMsg, Cw1155QueryMsg};
 use market::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_1155::{MarketQueryMsg, MintIntermediate, MintMsg, MintStruct, Offering};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
-use market_auction_extend::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
+use market_auction_extend::{
+    AuctionQueryMsg, AuctionsResponse, PagingOptions, QueryAuctionsResult,
+};
 use std::mem::transmute;
 use std::ops::Mul;
 use std::ptr::null;
@@ -342,7 +344,6 @@ fn handle_approve(manager: &mut DepsManager) {
             },
             creator_type: String::from("cxacx"),
             royalty: Some(10000000),
-            providers: None,
         });
 
         manager
@@ -741,7 +742,7 @@ fn claim_winner_unhappy_path() {
 
         // now claim winner after expired
         let claim_msg = HandleMsg::ClaimWinner { auction_id: 1 };
-        let mut claim_contract_env = contract_env.clone();
+        let claim_contract_env = contract_env.clone();
 
         // auction not found case
         assert!(matches!(
@@ -779,6 +780,173 @@ fn claim_winner_unhappy_path() {
 }
 
 // TODO: add test cases for bid nft
+
+#[test]
+fn test_bid_nft_happy_path() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        let contract_env = mock_env(MARKET_ADDR);
+        handle_approve(manager);
+
+        let info = mock_info("asker", &coins(2, DENOM));
+
+        let sell_msg = AskNftMsg {
+            per_price: Uint128(5),
+            cancel_fee: Some(10),
+            start: Some(contract_env.block.height + 15),
+            end: Some(contract_env.block.height + 100),
+            buyout_per_price: Some(Uint128(1000)),
+            start_timestamp: None,
+            end_timestamp: None,
+            step_price: None,
+            amount: Uint128(10),
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            token_id: String::from("BiddableNFT"),
+        };
+
+        let msg = HandleMsg::AskAuctionNft(sell_msg.clone());
+        let _res = manager.handle(info, msg).unwrap();
+
+        // bid auction
+        let bid_info = mock_info("bidder", &coins(50000000, DENOM));
+
+        let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+        let mut bid_contract_env = contract_env.clone();
+        bid_contract_env.block.height = contract_env.block.height + 15;
+
+        let _res = manager
+            .handle_with_env(bid_contract_env, bid_info.clone(), bid_msg)
+            .unwrap();
+
+        // query auction to check bidder
+        let auction_query_msg = QueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id: 1 });
+        let result: QueryAuctionsResult =
+            from_binary(&manager.query(auction_query_msg).unwrap()).unwrap();
+        assert_eq!(result.bidder.unwrap(), HumanAddr::from("bidder"));
+    }
+}
+
+#[test]
+fn test_bid_nft_unhappy_path() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        let contract_env = mock_env(MARKET_ADDR);
+        handle_approve(manager);
+
+        let info = mock_info("asker", &coins(2, DENOM));
+
+        let mut sell_msg = AskNftMsg {
+            per_price: Uint128(5),
+            cancel_fee: Some(10),
+            start: Some(contract_env.block.height + 15),
+            end: Some(contract_env.block.height + 100),
+            buyout_per_price: Some(Uint128(10)),
+            start_timestamp: None,
+            end_timestamp: None,
+            step_price: Some(50000000),
+            amount: Uint128(10),
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            token_id: String::from("BiddableNFT"),
+        };
+
+        let msg = HandleMsg::AskAuctionNft(sell_msg.clone());
+        manager.handle(info.clone(), msg.clone()).unwrap();
+
+        // bid auction
+        let bid_info = mock_info("bidder", &coins(50, DENOM));
+        let mut bid_contract_env = contract_env.clone();
+        // auction not found case
+        assert!(matches!(
+            manager.handle_with_env(
+                bid_contract_env.clone(),
+                bid_info.clone(),
+                HandleMsg::BidNft { auction_id: 2 }
+            ),
+            Err(ContractError::AuctionNotFound {})
+        ));
+
+        // auction not started case
+        assert!(matches!(
+            manager.handle_with_env(
+                bid_contract_env.clone(),
+                bid_info.clone(),
+                HandleMsg::BidNft { auction_id: 1 }
+            ),
+            Err(ContractError::AuctionNotStarted {})
+        ));
+
+        // bid has ended
+        bid_contract_env.block.height = contract_env.block.height + 101;
+        assert!(matches!(
+            manager.handle_with_env(
+                bid_contract_env.clone(),
+                bid_info.clone(),
+                HandleMsg::BidNft { auction_id: 1 }
+            ),
+            Err(ContractError::AuctionHasEnded {})
+        ));
+        // reset block height to start bidding
+        bid_contract_env.block.height = contract_env.block.height + 15;
+
+        let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+        bid_contract_env.block.height = contract_env.block.height + 15;
+
+        // invalid denom case
+        assert!(matches!(
+            manager.handle_with_env(
+                bid_contract_env.clone(),
+                mock_info("bidder", &coins(500, "wrong denom")),
+                bid_msg.clone(),
+            ),
+            Err(ContractError::InvalidDenomAmount {})
+        ));
+
+        // bid insufficient funds in case has buyout per price smaller
+        assert!(matches!(
+            manager.handle_with_env(
+                bid_contract_env.clone(),
+                mock_info("bidder", &coins(90, DENOM)),
+                bid_msg.clone(),
+            ),
+            Err(ContractError::InsufficientFunds {})
+        ));
+
+        // insufficient funds case when there's no buyout price
+        sell_msg.buyout_per_price = None;
+        // sell another nft
+        manager
+            .handle(mock_info("provider", &coins(2, DENOM)), msg.clone())
+            .unwrap();
+
+        assert!(matches!(
+            manager.handle_with_env(
+                bid_contract_env.clone(),
+                mock_info("bidder", &coins(50, DENOM)),
+                HandleMsg::BidNft { auction_id: 2 },
+            ),
+            Err(ContractError::InsufficientFunds {})
+        ));
+
+        // bid high price to get auction finished buyout
+        let _res = manager
+            .handle_with_env(
+                bid_contract_env.clone(),
+                mock_info("bidder", &coins(100, DENOM)),
+                bid_msg.clone(),
+            )
+            .unwrap();
+
+        // auction finished buyout case
+        assert!(matches!(
+            manager.handle_with_env(
+                bid_contract_env.clone(),
+                mock_info("bidder", &coins(101, DENOM)),
+                bid_msg.clone(),
+            ),
+            Err(ContractError::AuctionFinishedBuyOut { .. })
+        ));
+    }
+}
 
 #[test]
 fn update_info_test() {
@@ -841,7 +1009,6 @@ fn test_royalties() {
             },
             creator_type: String::from("cxacx"),
             royalty: Some(10000000),
-            providers: None,
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -1005,7 +1172,6 @@ fn test_sell_nft_unhappy() {
             },
             creator_type: String::from("cxacx"),
             royalty: Some(10000000),
-            providers: None,
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -1077,7 +1243,6 @@ fn withdraw_offering() {
             },
             creator_type: String::from("cxacx"),
             royalty: None,
-            providers: None,
         });
 
         manager.handle(withdraw_info.clone(), mint_msg).unwrap();
@@ -1206,7 +1371,6 @@ fn test_mint() {
             },
             creator_type: String::from("cxacx"),
             royalty: None,
-            providers: None,
         };
         let mut mint_msg = HandleMsg::MintNft(mint.clone());
         manager
@@ -1335,7 +1499,6 @@ fn test_change_creator_happy() {
             },
             creator_type: String::from("cxacx"),
             royalty: None,
-            providers: None,
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
         manager
@@ -1405,7 +1568,6 @@ fn test_change_creator_unhappy() {
             },
             creator_type: String::from("cxacx"),
             royalty: None,
-            providers: None,
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
         manager

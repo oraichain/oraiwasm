@@ -35,20 +35,20 @@ pub fn add_msg_royalty(sender: &str, governance: &str, msg: MintMsg) -> StdResul
     )?);
 
     // providers are the list that the minter wants to share royalty with
-    if let Some(providers) = msg.providers {
-        for provider in providers {
-            cosmos_msgs.push(get_handle_msg(
-                governance,
-                AI_ROYALTY_STORAGE,
-                AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
-                    creator: provider.address,
-                    creator_type: provider.creator_tpye,
-                    royalty: provider.royalty,
-                    ..royalty_msg.clone()
-                }),
-            )?);
-        }
-    }
+    // if let Some(providers) = msg.providers {
+    //     for provider in providers {
+    //         cosmos_msgs.push(get_handle_msg(
+    //             governance,
+    //             AI_ROYALTY_STORAGE,
+    //             AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+    //                 creator: provider.address,
+    //                 creator_type: provider.creator_tpye,
+    //                 royalty: provider.royalty,
+    //                 ..royalty_msg.clone()
+    //             }),
+    //         )?);
+    //     }
+    // }
 
     // update creator as the caller of the mint tx
     cosmos_msgs.push(get_handle_msg(

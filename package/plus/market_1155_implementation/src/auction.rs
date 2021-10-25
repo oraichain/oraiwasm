@@ -75,7 +75,7 @@ pub fn try_bid_nft(
                 // if no buyout => insufficient funds
                 if let Some(buyout_per_price) = off.buyout_per_price {
                     // if there's buyout, the funds must be equal to the buyout price
-                    if sent_fund.amount != calculate_price(buyout_per_price, off.amount) {
+                    if sent_fund.amount < calculate_price(buyout_per_price, off.amount) {
                         return Err(ContractError::InsufficientFunds {});
                     }
                 } else {

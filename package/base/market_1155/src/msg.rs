@@ -20,7 +20,6 @@ pub struct MintMsg {
     pub creator: HumanAddr,
     pub creator_type: String,
     pub royalty: Option<u64>,
-    pub providers: Option<Vec<Provider>>,
     pub mint: MintIntermediate,
 }
 

@@ -917,8 +917,6 @@ fn claim_winner_happy_path() {
     }
 }
 
-// TODO: add test cases for bid nft
-
 // test royalty
 
 #[test]
