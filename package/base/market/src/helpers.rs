@@ -65,11 +65,7 @@ impl Registry {
     }
 }
 
-pub fn query_proxy_generic<T: DeserializeOwned>(
-    deps: Deps,
-    addr: HumanAddr,
-    msg: Binary,
-) -> StdResult<T> {
+fn get_raw_request(addr: HumanAddr, msg: Binary) -> StdResult<Vec<u8>> {
     let request: QueryRequest<Empty> = WasmQuery::Smart {
         contract_addr: addr,
         msg,
@@ -78,7 +74,16 @@ pub fn query_proxy_generic<T: DeserializeOwned>(
 
     let raw = to_vec(&request).map_err(|serialize_err| {
         StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
-    })?;
+    });
+    raw
+}
+
+pub fn query_proxy_generic<T: DeserializeOwned>(
+    deps: Deps,
+    addr: HumanAddr,
+    msg: Binary,
+) -> StdResult<T> {
+    let raw = get_raw_request(addr, msg)?;
 
     match deps.querier.raw_query(&raw) {
         SystemResult::Err(system_err) => Err(StdError::generic_err(format!(
@@ -94,15 +99,7 @@ pub fn query_proxy_generic<T: DeserializeOwned>(
 }
 
 pub fn query_proxy(deps: Deps, addr: HumanAddr, msg: Binary) -> StdResult<Binary> {
-    let request: QueryRequest<Empty> = WasmQuery::Smart {
-        contract_addr: addr,
-        msg,
-    }
-    .into();
-
-    let raw = to_vec(&request).map_err(|serialize_err| {
-        StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
-    })?;
+    let raw = get_raw_request(addr, msg)?;
 
     match deps.querier.raw_query(&raw) {
         SystemResult::Err(system_err) => Err(StdError::generic_err(format!(
