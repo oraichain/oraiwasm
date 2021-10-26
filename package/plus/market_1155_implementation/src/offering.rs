@@ -6,8 +6,8 @@ use crate::error::ContractError;
 use crate::msg::SellNft;
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
+    attr, coins, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse,
+    MessageInfo, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, StdError};
 use cw1155::Cw1155ExecuteMsg;
@@ -15,21 +15,40 @@ use market_1155::{MarketHandleMsg, MarketQueryMsg, MintMsg, Offering};
 use market_ai_royalty::{AiRoyaltyHandleMsg, RoyaltyMsg};
 use std::ops::{Mul, Sub};
 
-pub fn add_msg_royalty(
-    sender: &str,
-    governance: &str,
-    msg: RoyaltyMsg,
-) -> StdResult<Vec<CosmosMsg>> {
+pub fn add_msg_royalty(sender: &str, governance: &str, msg: MintMsg) -> StdResult<Vec<CosmosMsg>> {
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+    let royalty_msg = RoyaltyMsg {
+        contract_addr: msg.contract_addr,
+        token_id: msg.mint.mint.token_id,
+        creator: msg.creator,
+        creator_type: Some(msg.creator_type),
+        royalty: msg.royalty,
+    };
     // update ai royalty provider
     cosmos_msgs.push(get_handle_msg(
         governance,
         AI_ROYALTY_STORAGE,
         AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
             royalty: None,
-            ..msg.clone()
+            ..royalty_msg.clone()
         }),
     )?);
+
+    // providers are the list that the minter wants to share royalty with
+    // if let Some(providers) = msg.providers {
+    //     for provider in providers {
+    //         cosmos_msgs.push(get_handle_msg(
+    //             governance,
+    //             AI_ROYALTY_STORAGE,
+    //             AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+    //                 creator: provider.address,
+    //                 creator_type: provider.creator_tpye,
+    //                 royalty: provider.royalty,
+    //                 ..royalty_msg.clone()
+    //             }),
+    //         )?);
+    //     }
+    // }
 
     // update creator as the caller of the mint tx
     cosmos_msgs.push(get_handle_msg(
@@ -38,7 +57,7 @@ pub fn add_msg_royalty(
         AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
             creator: HumanAddr(sender.to_string()),
             creator_type: Some(String::from(CREATOR_NAME)),
-            ..msg
+            ..royalty_msg
         }),
     )?);
     Ok(cosmos_msgs)
@@ -79,22 +98,12 @@ pub fn try_handle_mint(
     .into();
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
-    let mut cosmos_msgs = add_msg_royalty(
-        info.sender.as_str(),
-        &governance,
-        RoyaltyMsg {
-            contract_addr: msg.contract_addr,
-            token_id: msg.mint.mint.token_id,
-            creator: msg.creator,
-            creator_type: Some(msg.creator_type),
-            royalty: msg.royalty,
-        },
-    )?;
+    let mut cosmos_msgs = add_msg_royalty(info.sender.as_str(), &governance, msg)?;
     cosmos_msgs.push(mint_msg);
 
     let response = HandleResponse {
         messages: cosmos_msgs,
-        attributes: vec![attr("action", "mint_nft"), attr("invoker", info.sender)],
+        attributes: vec![attr("action", "mint_nft"), attr("minter", info.sender)],
         data: None,
     };
 
@@ -148,12 +157,10 @@ pub fn try_buy(
             if let Ok(royalties) =
                 get_royalties(deps.as_ref(), off.contract_addr.as_str(), &off.token_id)
             {
-                println!("royalties in buy: {:?}\n", royalties);
                 for royalty in royalties {
                     // royalty = total price * royalty percentage
                     let creator_amount =
                         price.mul(Decimal::from_ratio(royalty.royalty, decimal_point));
-                    println!("creator amount: {:?}\n", creator_amount);
                     if creator_amount.gt(&Uint128::from(0u128)) {
                         seller_amount = seller_amount.sub(creator_amount)?;
                         cosmos_msgs.push(
@@ -232,6 +239,7 @@ pub fn try_buy(
             attr("offering_id", offering_id),
             attr("per_price", off.per_price),
             attr("amount", amount),
+            attr("royalty", true),
         ],
         data: None,
     })
@@ -368,6 +376,7 @@ pub fn try_sell_nft(
     // get unique offering. Dont allow a seller to sell when he's already selling or on auction
     let _ = verify_nft(
         deps.as_ref(),
+        governance.as_str(),
         msg.contract_addr.as_str(),
         msg.token_id.as_str(),
         info.sender.as_str(),
@@ -406,10 +415,11 @@ pub fn try_sell_nft(
 }
 
 fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError> {
-    let offering: Offering = from_binary(&query_storage(
+    let offering: Offering = query_storage(
         deps,
+        STORAGE_1155,
         MarketQueryMsg::GetOffering { offering_id },
-    )?)
+    )
     .map_err(|_| ContractError::InvalidGetOffering {})?;
     Ok(offering)
 }

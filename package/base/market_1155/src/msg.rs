@@ -25,6 +25,14 @@ pub struct MintMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
+pub struct Provider {
+    pub address: HumanAddr,
+    pub creator_tpye: Option<String>,
+    pub royalty: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
 pub struct MintIntermediate {
     pub mint: MintStruct,
 }

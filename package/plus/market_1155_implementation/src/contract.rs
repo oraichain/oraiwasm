@@ -1,4 +1,7 @@
-use crate::auction::AUCTION_STORAGE;
+use crate::auction::{
+    handle_ask_auction, try_bid_nft, try_cancel_bid, try_claim_winner,
+    try_emergency_cancel_auction, AUCTION_STORAGE,
+};
 use crate::offering::{
     try_burn, try_buy, try_change_creator, try_handle_mint, try_sell_nft, try_withdraw,
 };
@@ -7,18 +10,18 @@ use std::fmt;
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO};
+use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
     InitResponse, MessageInfo, StdError, StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{from_binary, HumanAddr};
 use cw1155::{BalanceResponse, Cw1155QueryMsg};
-use market::{query_proxy, StorageHandleMsg, StorageQueryMsg};
+use market::{query_proxy, query_proxy_generic, StorageHandleMsg, StorageQueryMsg};
 use market_1155::{MarketQueryMsg, Offering};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_auction_extend::{AuctionQueryMsg, QueryAuctionsResult};
 use schemars::JsonSchema;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 
 pub const MAX_ROYALTY_PERCENT: u64 = 1_000_000_000;
 pub const MAX_DECIMAL_POINT: u64 = 1_000_000_000;
@@ -83,6 +86,14 @@ pub fn handle(
             token_id,
             value,
         } => try_burn(deps, info, env, contract_addr, token_id, value),
+        HandleMsg::BidNft { auction_id } => try_bid_nft(deps, info, env, auction_id),
+        HandleMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
+        // HandleMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
+        HandleMsg::EmergencyCancelAuction { auction_id } => {
+            try_emergency_cancel_auction(deps, info, env, auction_id)
+        }
+        HandleMsg::AskAuctionNft(msg) => handle_ask_auction(deps, info, env, msg),
+        HandleMsg::CancelBid { auction_id } => try_cancel_bid(deps, info, env, auction_id),
         HandleMsg::ChangeCreator {
             contract_addr,
             token_id,
@@ -96,9 +107,9 @@ pub fn handle(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
-        QueryMsg::MarketStorage(msg) => query_storage(deps, msg),
-        QueryMsg::AiRoyalty(ai_royalty_msg) => query_ai_royalty(deps, ai_royalty_msg),
-        QueryMsg::Auction(auction) => query_auction(deps, auction),
+        QueryMsg::Offering(msg) => query_storage_binary(deps, msg),
+        QueryMsg::AiRoyalty(ai_royalty_msg) => query_ai_royalty_binary(deps, ai_royalty_msg),
+        QueryMsg::Auction(auction) => query_auction_binary(deps, auction),
     }
 }
 
@@ -206,29 +217,45 @@ where
     .into())
 }
 
-pub fn query_storage(deps: Deps, msg: MarketQueryMsg) -> StdResult<Binary> {
+pub fn query_storage<
+    U: DeserializeOwned,
+    T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
+>(
+    deps: Deps,
+    storage_name: &str,
+    msg: T,
+) -> StdResult<U> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
-    query_proxy(
+    query_proxy_generic(
         deps,
-        get_storage_addr(deps, contract_info.governance, STORAGE_1155)?,
+        get_storage_addr(deps, contract_info.governance, storage_name)?,
         to_binary(&ProxyQueryMsg::Msg(msg))?,
     )
 }
 
-pub fn query_auction(deps: Deps, msg: AuctionQueryMsg) -> StdResult<Binary> {
-    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+pub fn query_storage_binary(deps: Deps, msg: MarketQueryMsg) -> StdResult<Binary> {
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     query_proxy(
         deps,
-        get_storage_addr(deps, contract_info.governance, AUCTION_STORAGE)?,
+        get_storage_addr(deps, governance, STORAGE_1155)?,
         to_binary(&ProxyQueryMsg::Msg(msg))?,
     )
 }
 
-pub fn query_ai_royalty(deps: Deps, msg: AiRoyaltyQueryMsg) -> StdResult<Binary> {
-    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+pub fn query_auction_binary(deps: Deps, msg: AuctionQueryMsg) -> StdResult<Binary> {
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     query_proxy(
         deps,
-        get_storage_addr(deps, contract_info.governance, AI_ROYALTY_STORAGE)?,
+        get_storage_addr(deps, governance, AUCTION_STORAGE)?,
+        to_binary(&ProxyQueryMsg::Msg(msg))?,
+    )
+}
+
+pub fn query_ai_royalty_binary(deps: Deps, msg: AiRoyaltyQueryMsg) -> StdResult<Binary> {
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+    query_proxy(
+        deps,
+        get_storage_addr(deps, governance, AI_ROYALTY_STORAGE)?,
         to_binary(&ProxyQueryMsg::Msg(msg))?,
     )
 }
@@ -238,8 +265,9 @@ pub fn get_royalties(
     contract_addr: &str,
     token_id: &str,
 ) -> Result<Vec<Royalty>, ContractError> {
-    let royalties: Vec<Royalty> = from_binary(&query_ai_royalty(
+    let royalties: Vec<Royalty> = query_storage(
         deps,
+        AI_ROYALTY_STORAGE,
         AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
             contract_addr: HumanAddr::from(contract_addr),
             token_id: token_id.to_string(),
@@ -247,7 +275,7 @@ pub fn get_royalties(
             limit: Some(30),
             order: Some(1),
         },
-    )?)
+    )
     .map_err(|_| ContractError::InvalidGetRoyaltiesTokenId {
         token_id: token_id.to_string(),
     })?;
@@ -260,36 +288,39 @@ pub fn get_royalty(
     token_id: &str,
     creator: &str,
 ) -> Result<Royalty, ContractError> {
-    let royalty: Royalty = from_binary(&query_ai_royalty(
+    let royalty: Royalty = query_storage(
         deps,
+        AI_ROYALTY_STORAGE,
         AiRoyaltyQueryMsg::GetRoyalty {
             contract_addr: HumanAddr::from(contract_addr),
             token_id: token_id.to_string(),
             creator: HumanAddr::from(creator),
         },
-    )?)
+    )
     .map_err(|_| ContractError::Std(StdError::generic_err("Invalid get unique royalty")))?;
     Ok(royalty)
 }
 
 pub fn verify_nft(
     deps: Deps,
+    _governance: &str,
     contract_addr: &str,
     token_id: &str,
     owner: &str,
     amount: Option<Uint128>,
 ) -> Result<bool, ContractError> {
     // get unique offering. Dont allow a seller to sell when he's already selling
-    let offering: Option<Offering> = from_binary(&query_storage(
+    let offering: Option<Offering> = query_storage(
         deps,
+        STORAGE_1155,
         MarketQueryMsg::GetUniqueOffering {
             contract: HumanAddr::from(contract_addr),
             token_id: token_id.to_string(),
             seller: HumanAddr::from(owner),
         },
-    )?)
-    .map_err(|_| ContractError::InvalidGetOffering {})
+    )
     .ok();
+
     if offering.is_some() {
         return Err(ContractError::TokenOnSale {
             seller: owner.clone().to_string(),
@@ -298,14 +329,15 @@ pub fn verify_nft(
 
     // check if auction exists
     // get unique offering. Dont allow a seller to sell when he's already selling
-    let auction: Option<QueryAuctionsResult> = from_binary(&query_auction(
+    let auction: Option<QueryAuctionsResult> = query_storage(
         deps,
+        AUCTION_STORAGE,
         AuctionQueryMsg::GetUniqueAuction {
             contract: HumanAddr::from(contract_addr),
             token_id: token_id.to_string(),
             asker: HumanAddr::from(owner),
         },
-    )?)
+    )
     .ok();
 
     if auction.is_some() {

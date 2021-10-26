@@ -4,7 +4,7 @@ use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_1155::{MarketQueryMsg, MintMsg};
 use market_ai_royalty::AiRoyaltyQueryMsg;
-use market_auction_extend::{AuctionHandleMsg, AuctionQueryMsg};
+use market_auction_extend::AuctionQueryMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -47,6 +47,19 @@ pub enum HandleMsg {
         token_id: String,
         to: String,
     },
+    CancelBid {
+        auction_id: u64,
+    },
+    BidNft {
+        auction_id: u64,
+    },
+    ClaimWinner {
+        auction_id: u64,
+    },
+    EmergencyCancelAuction {
+        auction_id: u64,
+    },
+    AskAuctionNft(AskNftMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -90,7 +103,7 @@ pub struct UpdateContractMsg {
 pub enum QueryMsg {
     // Auction info must be queried from auction contract
     GetContractInfo {},
-    MarketStorage(MarketQueryMsg),
+    Offering(MarketQueryMsg),
     AiRoyalty(AiRoyaltyQueryMsg),
     Auction(AuctionQueryMsg),
 }
@@ -103,7 +116,6 @@ where
 {
     Msg(T),
     Storage(StorageQueryMsg),
-    Auction(AuctionQueryMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -113,7 +125,6 @@ where
     T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
 {
     // GetOfferings returns a list of all offerings
-    Auction(AuctionHandleMsg),
     Msg(T),
     Storage(StorageHandleMsg),
 }

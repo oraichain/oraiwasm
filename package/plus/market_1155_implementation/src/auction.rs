@@ -1,13 +1,13 @@
-use crate::contract::{get_royalties, get_storage_addr, query_auction, verify_nft};
+use crate::contract::{get_royalties, get_storage_addr, query_storage, verify_nft};
 use crate::error::ContractError;
 use crate::msg::{AskNftMsg, ProxyHandleMsg, ProxyQueryMsg};
 // use crate::offering::OFFERING_STORAGE;
 use crate::state::{ContractInfo, CONTRACT_INFO};
+use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, coins, to_binary, BankMsg, CosmosMsg, Decimal, DepsMut, Env, HandleResponse, MessageInfo,
     StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{from_binary, HumanAddr};
 use cw1155::Cw1155ExecuteMsg;
 use market::StorageHandleMsg;
 use market_auction_extend::{Auction, AuctionHandleMsg, AuctionQueryMsg};
@@ -35,8 +35,7 @@ pub fn try_bid_nft(
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id })
-                as &ProxyQueryMsg,
+            &ProxyQueryMsg::Msg(AuctionQueryMsg::GetAuctionRaw { auction_id }),
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
@@ -54,7 +53,7 @@ pub fn try_bid_nft(
     // check if price already >= buyout price. If yes => wont allow to bid
     if let Some(buyout_per_price) = off.buyout_per_price {
         let buyout_price = calculate_price(buyout_per_price, off.amount);
-        if off_price.ge(&buyout_per_price) {
+        if off_price.ge(&buyout_price) {
             return Err(ContractError::AuctionFinishedBuyOut {
                 price: off_price,
                 buyout_price,
@@ -76,7 +75,7 @@ pub fn try_bid_nft(
                 // if no buyout => insufficient funds
                 if let Some(buyout_per_price) = off.buyout_per_price {
                     // if there's buyout, the funds must be equal to the buyout price
-                    if sent_fund.amount != calculate_price(buyout_per_price, off.amount) {
+                    if sent_fund.amount < calculate_price(buyout_per_price, off.amount) {
                         return Err(ContractError::InsufficientFunds {});
                     }
                 } else {
@@ -147,8 +146,7 @@ pub fn try_claim_winner(
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id })
-                as &ProxyQueryMsg,
+            &ProxyQueryMsg::Msg(AuctionQueryMsg::GetAuctionRaw { auction_id }),
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
@@ -170,13 +168,12 @@ pub fn try_claim_winner(
     let mut cosmos_msgs = vec![];
     if let Some(bidder) = off.bidder {
         let bidder_addr = deps.api.human_address(&bidder)?;
-
         // transfer token to bidder
         cosmos_msgs.push(
             WasmMsg::Execute {
                 contract_addr: deps.api.human_address(&off.contract_addr)?,
                 msg: to_binary(&Cw1155ExecuteMsg::SendFrom {
-                    from: off.asker.clone().to_string(),
+                    from: asker_addr.clone().to_string(),
                     to: bidder_addr.clone().to_string(),
                     value: off.amount,
                     token_id: off.token_id.clone(),
@@ -229,7 +226,7 @@ pub fn try_claim_winner(
         AUCTION_STORAGE,
         AuctionHandleMsg::RemoveAuction { id: auction_id },
     )?);
-    let mut handle_response = HandleResponse {
+    let handle_response = HandleResponse {
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "claim_winner"),
@@ -237,19 +234,20 @@ pub fn try_claim_winner(
             attr("token_id", off.token_id.clone()),
             attr("auction_id", auction_id),
             attr("total_price", price),
+            attr("royalty", true),
         ],
         data: None,
     };
 
-    let royalties = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id)
-        .ok()
-        .unwrap_or(vec![]);
-    for royalty in royalties {
-        handle_response.attributes.push(attr(
-            format!("royalty_{}", royalty.creator),
-            royalty.royalty,
-        ));
-    }
+    // let royalties = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id)
+    //     .ok()
+    //     .unwrap_or(vec![]);
+    // for royalty in royalties {
+    //     handle_response.attributes.push(attr(
+    //         format!("royalty_{}", royalty.creator),
+    //         royalty.royalty,
+    //     ));
+    // }
 
     Ok(handle_response)
 }
@@ -269,6 +267,7 @@ pub fn handle_ask_auction(
 
     let _ = verify_nft(
         deps.as_ref(),
+        governance.as_str(),
         msg.contract_addr.as_str(),
         msg.token_id.as_str(),
         info.sender.as_str(),
@@ -284,7 +283,6 @@ pub fn handle_ask_auction(
         .end_timestamp
         .unwrap_or(start_timestamp + auction_duration);
     // check if same token Id form same original contract is already on sale
-    let contract_addr = deps.api.canonical_address(&info.sender)?;
     // TODO: does asker need to pay fee for listing?
     let start = msg
         .start
@@ -313,7 +311,7 @@ pub fn handle_ask_auction(
     // save Auction, waiting for finished
     let off = Auction {
         id: None,
-        contract_addr,
+        contract_addr: deps.api.canonical_address(&msg.contract_addr)?,
         token_id: msg.token_id.clone(),
         asker,
         per_price: msg.per_price,
@@ -368,8 +366,7 @@ pub fn try_cancel_bid(
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionRaw { auction_id })
-                as &ProxyQueryMsg,
+            &ProxyQueryMsg::Msg(AuctionQueryMsg::GetAuctionRaw { auction_id }),
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
@@ -458,10 +455,11 @@ pub fn try_emergency_cancel_auction(
     } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if auction exists
-    let off: Auction = from_binary(&query_auction(
+    let off: Auction = query_storage(
         deps.as_ref(),
+        AUCTION_STORAGE,
         AuctionQueryMsg::GetAuctionRaw { auction_id },
-    )?)?;
+    )?;
 
     if info.sender.to_string().ne(&creator) {
         return Err(ContractError::Unauthorized {
@@ -512,7 +510,7 @@ pub fn get_auction_handle_msg(
     name: &str,
     msg: AuctionHandleMsg,
 ) -> StdResult<CosmosMsg> {
-    let msg_auction: ProxyHandleMsg<AuctionHandleMsg> = ProxyHandleMsg::Auction(msg);
+    let msg_auction: ProxyHandleMsg<AuctionHandleMsg> = ProxyHandleMsg::Msg(msg);
     let auction_msg = to_binary(&msg_auction)?;
     let proxy_msg: ProxyHandleMsg<StorageHandleMsg> =
         ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {

@@ -30,6 +30,12 @@ pub enum HandleMsg {
     WithdrawNft {
         offering_id: u64,
     },
+    SellNft {
+        contract_addr: HumanAddr,
+        token_id: String,
+        amount: Uint128,
+        royalty_msg: SellRoyalty,
+    },
     BuyNft {
         offering_id: u64,
     },
@@ -77,7 +83,7 @@ pub struct AskNftMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct SellNft {
+pub struct SellRoyalty {
     pub per_price: Uint128,
     pub royalty: Option<u64>,
 }

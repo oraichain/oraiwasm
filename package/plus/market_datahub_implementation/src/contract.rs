@@ -5,11 +5,11 @@ use crate::annotation::{
     try_approve_annotation, try_update_annotation_annotators,
     try_withdraw as try_withdraw_annotation, try_withdraw_submit_annotation,
 };
-use crate::offering::{handle_sell_nft, try_buy, try_handle_mint, try_withdraw};
+use crate::offering::{handle_sell_nft, try_buy, try_handle_mint, try_sell, try_withdraw};
 
 use crate::error::ContractError;
 use crate::msg::{
-    HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellNft, UpdateContractMsg,
+    HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellRoyalty, UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
@@ -77,6 +77,20 @@ pub fn handle(
         // royalty
         HandleMsg::MintNft(msg) => try_handle_mint(deps, info, msg),
         HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, env, offering_id),
+        HandleMsg::SellNft {
+            contract_addr,
+            token_id,
+            amount,
+            royalty_msg,
+        } => try_sell(
+            deps,
+            info,
+            env,
+            contract_addr,
+            token_id,
+            amount,
+            royalty_msg,
+        ),
         HandleMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
         HandleMsg::SubmitAnnotation { annotation_id } => {
             handle_submit_annotation(deps, info, annotation_id)
@@ -251,7 +265,7 @@ pub fn try_receive_nft(
     env: Env,
     rcv_msg: Cw1155ReceiveMsg,
 ) -> Result<HandleResponse, ContractError> {
-    if let Ok(msg_sell) = from_binary::<SellNft>(&rcv_msg.msg) {
+    if let Ok(msg_sell) = from_binary::<SellRoyalty>(&rcv_msg.msg) {
         return handle_sell_nft(deps, info, msg_sell, rcv_msg);
     }
     if let Ok(msg_annotation) = from_binary::<RequestAnnotate>(&rcv_msg.msg) {

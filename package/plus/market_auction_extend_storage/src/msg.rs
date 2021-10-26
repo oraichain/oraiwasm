@@ -12,7 +12,7 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    Auction(AuctionHandleMsg),
+    Msg(AuctionHandleMsg),
     // other implementation
     UpdateInfo(UpdateContractMsg),
 }
@@ -27,6 +27,6 @@ pub struct UpdateContractMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     // GetOfferings returns a list of all offerings
-    Auction(AuctionQueryMsg),
+    Msg(AuctionQueryMsg),
     GetContractInfo {},
 }

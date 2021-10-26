@@ -209,6 +209,7 @@ pub fn try_buy(
             attr("token_id", off.token_id.clone()),
             attr("offering_id", offering_id),
             attr("total_price", off.price),
+            attr("royalty", true),
         ],
         data: None,
     };
