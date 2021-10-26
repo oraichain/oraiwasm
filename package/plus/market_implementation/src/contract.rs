@@ -30,7 +30,7 @@ use serde::Serialize;
 
 pub const MAX_ROYALTY_PERCENT: u64 = 1_000_000_000;
 pub const MAX_DECIMAL_POINT: u64 = 1_000_000_000;
-pub const MAX_FEE_PERMILLE: u64 = 100;
+pub const MAX_FEE_PERMILLE: u64 = 1000;
 pub const CREATOR_NAME: &str = "creator";
 pub const FIRST_LV_ROYALTY_STORAGE: &str = "first_lv_royalty";
 

@@ -25,7 +25,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 pub const MAX_ROYALTY_PERCENT: u64 = 1_000_000_000;
 pub const MAX_DECIMAL_POINT: u64 = 1_000_000_000;
-pub const MAX_FEE_PERMILLE: u64 = 100;
+pub const MAX_FEE_PERMILLE: u64 = 1000;
 pub const EXPIRED_BLOCK_RANGE: u64 = 50000;
 pub const STORAGE_1155: &str = "1155_storage";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";

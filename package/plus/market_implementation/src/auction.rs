@@ -341,9 +341,7 @@ pub fn handle_ask_auction(
 
     // get Auctions count
     let asker = deps.api.canonical_address(&rcv_msg.sender)?;
-    let start_timestamp = msg
-        .start_timestamp
-        .unwrap_or(Uint128::from(env.block.time_nanos));
+    let start_timestamp = msg.start_timestamp.unwrap_or(Uint128::from(env.block.time));
     let end_timestamp = msg
         .end_timestamp
         .unwrap_or(start_timestamp + auction_duration);
