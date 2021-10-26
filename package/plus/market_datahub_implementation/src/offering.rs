@@ -124,7 +124,7 @@ pub fn try_handle_mint(
 pub fn try_sell(
     deps: DepsMut,
     info: MessageInfo,
-    env: Env,
+    _env: Env,
     contract_addr: HumanAddr,
     token_id: String,
     amount: Uint128,
@@ -132,6 +132,8 @@ pub fn try_sell(
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     let sender = info.sender.clone().to_string();
+
+    // Check sent fund
 
     // TODO: This should be commented when we allow multiple owners to sell this nft
     let offering_result: Result<Offering, ContractError> = deps
@@ -186,19 +188,6 @@ pub fn try_sell(
         DATAHUB_STORAGE,
         DataHubHandleMsg::UpdateOffering { offering },
     )?);
-
-    let approve_permission_msg = Cw1155ExecuteMsg::ApproveAll {
-        operator: env.contract.address.to_string(),
-        expires: None,
-    };
-
-    let exec_approve = WasmMsg::Execute {
-        contract_addr: contract_addr.clone(),
-        msg: to_binary(&approve_permission_msg)?,
-        send: vec![],
-    }
-    .into();
-    cosmos_msg.push(exec_approve);
 
     return Ok(HandleResponse {
         messages: cosmos_msg,
