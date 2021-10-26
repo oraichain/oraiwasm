@@ -15,8 +15,9 @@
   "description": "distributed key generation in JS",
   "main": "index.js",
   "dependencies": {
-    "futoin-hkdf": "^1.4.2",
     "@oraichain/cosmosjs": "^0.0.70",
+    "futoin-hkdf": "^1.4.2",
+    "js-sha3": "^0.8.0",
     "yaml": "^1.10.2"
   },
   "devDependencies": {

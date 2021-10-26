@@ -593,10 +593,10 @@ impl Commitment {
 #[derive(Clone)]
 pub struct BivarPoly {
     /// The polynomial's degree in each of the two variables.
-    degree: usize,
+    pub degree: usize,
     /// The coefficients of the polynomial. Coefficient `(i, j)` for `i <= j` is in position
     /// `j * (j + 1) / 2 + i`.
-    coeff: Vec<Fr>,
+    pub coeff: Vec<Fr>,
 }
 
 impl Zeroize for BivarPoly {

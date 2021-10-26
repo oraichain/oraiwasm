@@ -52,6 +52,7 @@ pub enum HandleMsg {
     },
     BidNft {
         auction_id: u64,
+        per_price: Uint128,
     },
     ClaimWinner {
         auction_id: u64,

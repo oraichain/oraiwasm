@@ -10,7 +10,8 @@ const {
   decrypt,
   delay,
   convertOffset,
-  env
+  env,
+  signSignature
 } = require('./utils');
 
 const config = YAML.parse(
@@ -37,6 +38,7 @@ const run = async () => {
       contract_info: {}
     }
   );
+  console.log("total before getting members: ", total);
 
   // first time or WaitForRequest
   if (status !== 'WaitForRequest' || !members) {
@@ -89,19 +91,18 @@ const getMembers = async (total) => {
     const tempMembers = await queryWasm(cosmos, config.contract, {
       get_members: {
         offset,
-        limit: 2
+        limit: 30
       }
     });
     if (!tempMembers || tempMembers.code || tempMembers.length === 0) continue;
     members = members.concat(tempMembers);
     offset = convertOffset(members[members.length - 1].address);
     members = members.filter(
-      (v, i, a) => a.findIndex((t) => t.address === v.address) === i
+      (v, i, a) => a.findIndex((t) => t.index === v.index) === i
     );
     // if no more data, we also need to break
     // if (oldOffset === offset) break;
     // oldOffset = offset;
-    console.log("members: ", members);
   } while (members.length < total);
   return members;
 };
@@ -233,9 +234,14 @@ const processRequest = async (skShare) => {
   //   );
   // }
 
-  if (roundInfo.sigs.find((sig) => sig.sender === address)) {
+  if (roundInfo.sigs.find((sig) => sig.sender === address) && !roundInfo.combined_sig) {
     return console.log(
-      'You have successfully submitted your signature share, currently waiting for others to submit to finish the round'
+      'You have successfully submitted your signature share, waiting to finish the round'
+    );
+  }
+  if (roundInfo.signed_combined_sig) {
+    return console.log(
+      'The round has finished'
     );
   }
 
@@ -245,9 +251,16 @@ const processRequest = async (skShare) => {
     BigInt(roundInfo.round)
   );
 
+  // sign on the sig
+  let signedSignature = null;
+  if (!roundInfo.signed_combined_sig && roundInfo.combined_sig) {
+    signedSignature = signSignature(Buffer.from(roundInfo.combined_sig, 'base64'), cosmos.getECPairPriv(childKey));
+  }
+
   const share = {
     sig: Buffer.from(sig).toString('base64'),
-    round: roundInfo.round
+    round: roundInfo.round,
+    signed_sig: Buffer.from(signedSignature).toString('base64'),
   };
 
   // console.log(address, shareSig);

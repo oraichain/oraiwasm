@@ -86,7 +86,10 @@ pub fn handle(
             token_id,
             value,
         } => try_burn(deps, info, env, contract_addr, token_id, value),
-        HandleMsg::BidNft { auction_id } => try_bid_nft(deps, info, env, auction_id),
+        HandleMsg::BidNft {
+            auction_id,
+            per_price,
+        } => try_bid_nft(deps, info, env, auction_id, per_price),
         HandleMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
         // HandleMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
         HandleMsg::EmergencyCancelAuction { auction_id } => {

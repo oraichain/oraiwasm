@@ -1,6 +1,7 @@
 const hkdf = require('futoin-hkdf');
 const { createCipheriv, createDecipheriv, randomBytes } = require('crypto');
 const secp256k1 = require('secp256k1');
+const sha3 = require('js-sha3');
 const dotenv = require("dotenv");
 const Cosmos = require('@oraichain/cosmosjs').default;
 
@@ -128,3 +129,9 @@ exports.convertOffset = (offset) => {
   // return [...Buffer.from(offset)];
   return offset;
 };
+
+exports.signSignature = function (combinedSig, privKey) {
+  const hashedSig = sha3.keccak256(combinedSig);
+  const bufferHashedSig = Uint8Array.from(Buffer.from(hashedSig, 'hex'));
+  return secp256k1.ecdsaSign(bufferHashedSig, privKey).signature;
+}

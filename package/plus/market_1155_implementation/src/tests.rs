@@ -443,7 +443,10 @@ fn cancel_auction_happy_path() {
         let _res = manager.handle(info, msg).unwrap();
         // bid auction
         let bid_info = mock_info("bidder", &coins(50000, DENOM));
-        let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+        let bid_msg = HandleMsg::BidNft {
+            auction_id: 1,
+            per_price: Uint128::from(5000u64),
+        };
         let _res = manager.handle(bid_info.clone(), bid_msg).unwrap();
 
         let cancel_auction_msg = HandleMsg::EmergencyCancelAuction { auction_id: 1 };
@@ -492,7 +495,10 @@ fn cancel_auction_unhappy_path() {
         let _res = manager.handle(info, msg).unwrap();
         // bid auction
         let bid_info = mock_info("bidder", &coins(50000, DENOM));
-        let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+        let bid_msg = HandleMsg::BidNft {
+            auction_id: 1,
+            per_price: Uint128::from(5000u64),
+        };
         let _res = manager.handle(bid_info, bid_msg).unwrap();
 
         let hacker_info = mock_info("hacker", &coins(2, DENOM));
@@ -532,7 +538,10 @@ fn cancel_bid_happy_path() {
         let _res = manager.handle(info, msg).unwrap();
         // bid auction
         let bid_info = mock_info("bidder", &coins(500000, DENOM));
-        let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+        let bid_msg = HandleMsg::BidNft {
+            auction_id: 1,
+            per_price: Uint128::from(5000u64),
+        };
         let _res = manager.handle(bid_info.clone(), bid_msg).unwrap();
 
         let cancel_bid_msg = HandleMsg::CancelBid { auction_id: 1 };
@@ -626,7 +635,10 @@ fn claim_winner_happy_path() {
         // bid auction
         let bid_info = mock_info("bidder", &coins(50000000, DENOM));
 
-        let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+        let bid_msg = HandleMsg::BidNft {
+            auction_id: 1,
+            per_price: Uint128::from(5000000u64),
+        };
         let mut bid_contract_env = contract_env.clone();
         bid_contract_env.block.height = contract_env.block.height + 15;
 
@@ -732,7 +744,10 @@ fn claim_winner_unhappy_path() {
         // bid auction
         let bid_info = mock_info("bidder", &coins(51, DENOM));
 
-        let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+        let bid_msg = HandleMsg::BidNft {
+            auction_id: 1,
+            per_price: Uint128::from(5u64),
+        };
         let mut bid_contract_env = contract_env.clone();
         bid_contract_env.block.height = contract_env.block.height + 15;
 
@@ -810,7 +825,10 @@ fn test_bid_nft_happy_path() {
         // bid auction
         let bid_info = mock_info("bidder", &coins(50000000, DENOM));
 
-        let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+        let bid_msg = HandleMsg::BidNft {
+            auction_id: 1,
+            per_price: Uint128::from(5000000u64),
+        };
         let mut bid_contract_env = contract_env.clone();
         bid_contract_env.block.height = contract_env.block.height + 15;
 
@@ -860,7 +878,10 @@ fn test_bid_nft_unhappy_path() {
             manager.handle_with_env(
                 bid_contract_env.clone(),
                 bid_info.clone(),
-                HandleMsg::BidNft { auction_id: 2 }
+                HandleMsg::BidNft {
+                    auction_id: 2,
+                    per_price: Uint128::from(5u64),
+                }
             ),
             Err(ContractError::AuctionNotFound {})
         ));
@@ -870,7 +891,10 @@ fn test_bid_nft_unhappy_path() {
             manager.handle_with_env(
                 bid_contract_env.clone(),
                 bid_info.clone(),
-                HandleMsg::BidNft { auction_id: 1 }
+                HandleMsg::BidNft {
+                    auction_id: 1,
+                    per_price: Uint128::from(5u64),
+                }
             ),
             Err(ContractError::AuctionNotStarted {})
         ));
@@ -881,14 +905,20 @@ fn test_bid_nft_unhappy_path() {
             manager.handle_with_env(
                 bid_contract_env.clone(),
                 bid_info.clone(),
-                HandleMsg::BidNft { auction_id: 1 }
+                HandleMsg::BidNft {
+                    auction_id: 1,
+                    per_price: Uint128::from(5u64),
+                }
             ),
             Err(ContractError::AuctionHasEnded {})
         ));
         // reset block height to start bidding
         bid_contract_env.block.height = contract_env.block.height + 15;
 
-        let bid_msg = HandleMsg::BidNft { auction_id: 1 };
+        let bid_msg = HandleMsg::BidNft {
+            auction_id: 1,
+            per_price: Uint128::from(5u64),
+        };
         bid_contract_env.block.height = contract_env.block.height + 15;
 
         // invalid denom case
@@ -922,7 +952,23 @@ fn test_bid_nft_unhappy_path() {
             manager.handle_with_env(
                 bid_contract_env.clone(),
                 mock_info("bidder", &coins(50, DENOM)),
-                HandleMsg::BidNft { auction_id: 2 },
+                HandleMsg::BidNft {
+                    auction_id: 2,
+                    per_price: Uint128::from(0u64),
+                },
+            ),
+            Err(ContractError::InsufficientFunds {})
+        ));
+
+        // case per price greater than sent funds
+        assert!(matches!(
+            manager.handle_with_env(
+                bid_contract_env.clone(),
+                mock_info("bidder", &coins(50, DENOM)),
+                HandleMsg::BidNft {
+                    auction_id: 2,
+                    per_price: Uint128::from(10u64),
+                },
             ),
             Err(ContractError::InsufficientFunds {})
         ));
@@ -932,7 +978,10 @@ fn test_bid_nft_unhappy_path() {
             .handle_with_env(
                 bid_contract_env.clone(),
                 mock_info("bidder", &coins(100, DENOM)),
-                bid_msg.clone(),
+                HandleMsg::BidNft {
+                    auction_id: 2,
+                    per_price: Uint128::from(10u64),
+                },
             )
             .unwrap();
 
@@ -941,7 +990,10 @@ fn test_bid_nft_unhappy_path() {
             manager.handle_with_env(
                 bid_contract_env.clone(),
                 mock_info("bidder", &coins(101, DENOM)),
-                bid_msg.clone(),
+                HandleMsg::BidNft {
+                    auction_id: 2,
+                    per_price: Uint128::from(10u64),
+                },
             ),
             Err(ContractError::AuctionFinishedBuyOut { .. })
         ));
