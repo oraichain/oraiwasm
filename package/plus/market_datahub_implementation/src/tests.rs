@@ -17,6 +17,7 @@ use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_datahub::{
     Annotation, DataHubQueryMsg, MintIntermediate, MintMsg, MintStruct, Offering,
 };
+
 use std::mem::transmute;
 use std::ops::Mul;
 use std::ptr::null;
@@ -95,7 +96,7 @@ impl DepsManager {
             mock_env(OW_1155_ADDR),
             info.clone(),
             ow1155::msg::InstantiateMsg {
-                minter: OW_1155_ADDR.to_string(),
+                minter: MARKET_ADDR.to_string(),
             },
         )
         .unwrap();
@@ -171,7 +172,7 @@ impl DepsManager {
                     OW_1155_ADDR => ow1155::contract::handle(
                         self.ow1155.as_mut(),
                         mock_env(OW_1155_ADDR),
-                        mock_info(OW_1155_ADDR, &[]),
+                        mock_info(MARKET_ADDR, &[]),
                         from_slice(msg).unwrap(),
                     )
                     .ok(),
@@ -294,6 +295,7 @@ fn test_royalties() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from("offering"),
             creator: HumanAddr::from("provider"),
+            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -314,7 +316,7 @@ fn test_royalties() {
             token_id: String::from("SellableNFT"),
             from: None,
             amount: Uint128::from(10u64),
-            msg: to_binary(&SellNft {
+            msg: to_binary(&SellRoyalty {
                 per_price: Uint128(50),
                 royalty: Some(10),
             })
@@ -355,7 +357,7 @@ fn test_royalties() {
             token_id: String::from("SellableNFT"),
             from: None,
             amount: Uint128::from(10u64),
-            msg: to_binary(&SellNft {
+            msg: to_binary(&SellRoyalty {
                 per_price: Uint128(50),
                 royalty: None,
             })
@@ -467,7 +469,7 @@ fn withdraw_offering() {
             token_id: String::from("SellableNFT"),
             from: None,
             amount: Uint128::from(10u64),
-            msg: to_binary(&SellNft {
+            msg: to_binary(&SellRoyalty {
                 per_price: Uint128(90),
                 royalty: Some(10),
             })
@@ -530,7 +532,7 @@ fn test_sell_nft_unhappy() {
             token_id: String::from("SellableNFT"),
             from: None,
             amount: Uint128::from(10u64),
-            msg: to_binary(&SellNft {
+            msg: to_binary(&SellRoyalty {
                 per_price: Uint128(90),
                 royalty: Some(10),
             })
@@ -560,25 +562,38 @@ fn test_buy_nft_unhappy() {
         ));
 
         // beneficiary can release it
-        let info = mock_info("offering", &coins(2, DENOM));
-        let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
-            operator: "seller".to_string(),
+        let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            creator: HumanAddr::from("provider"),
+            co_owners: None,
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    to: String::from("provider"),
+                    value: Uint128::from(50u64),
+                    token_id: String::from("SellableNFT"),
+                },
+            },
+            creator_type: String::from("cxacx"),
+            royalty: None,
+        });
+
+        manager.handle(provider_info.clone(), mint_msg).unwrap();
+
+        let sell_msg = HandleMsg::SellNft {
             token_id: String::from("SellableNFT"),
-            from: None,
             amount: Uint128::from(10u64),
-            msg: to_binary(&SellNft {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            royalty_msg: SellRoyalty {
                 per_price: Uint128(90),
                 royalty: Some(10),
-            })
-            .unwrap(),
-        });
-        let _res = manager.handle(info.clone(), msg.clone()).unwrap();
+            },
+        };
 
-        // already on sale case
-        assert!(matches!(
-            manager.handle(info.clone(), msg),
-            Err(ContractError::TokenOnSale {})
-        ));
+        // Sell successfully
+        let _res = manager
+            .handle(provider_info.clone(), sell_msg.clone())
+            .unwrap();
 
         // wrong denom
         let info_buy_wrong_denom = mock_info("buyer", &coins(10, "cosmos"));
@@ -596,6 +611,59 @@ fn test_buy_nft_unhappy() {
 }
 
 #[test]
+fn test_sell() {
+    unsafe {
+        let manager = DepsManager::get_new();
+
+        let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+
+        //let info_sell = mock_info("creator", &coins(2, DENOM));
+        let msg = HandleMsg::SellNft {
+            token_id: String::from("SellableNFT"),
+            amount: Uint128::from(10u64),
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            royalty_msg: SellRoyalty {
+                per_price: Uint128(90),
+                royalty: Some(10),
+            },
+        };
+
+        // InsufficientBalance
+        assert!(matches!(
+            manager.handle(provider_info.clone(), msg.clone()),
+            Err(ContractError::InsufficientBalance {})
+        ));
+
+        // mint before sell
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            creator: HumanAddr::from("provider"),
+            co_owners: None,
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    to: String::from("provider"),
+                    value: Uint128::from(50u64),
+                    token_id: String::from("SellableNFT"),
+                },
+            },
+            creator_type: String::from("cxacx"),
+            royalty: None,
+        });
+
+        manager.handle(provider_info.clone(), mint_msg).unwrap();
+
+        // Sell successfully
+        let _res = manager.handle(provider_info.clone(), msg.clone()).unwrap();
+
+        // already on sale case
+        assert!(matches!(
+            manager.handle(provider_info.clone(), msg),
+            Err(ContractError::TokenOnSale {})
+        ));
+    }
+}
+
+#[test]
 fn test_request_annotations_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
@@ -604,6 +672,7 @@ fn test_request_annotations_happy_path() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
+            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("creator"),
@@ -872,15 +941,23 @@ fn test_submit_annotations() {
         // submit annotation
         let submit_info = mock_info("annotator", &coins(900, DENOM));
         let submit_msg = HandleMsg::SubmitAnnotation { annotation_id: 1 };
-        manager.handle(submit_info, submit_msg).unwrap();
+        manager.handle(submit_info.clone(), submit_msg).unwrap();
 
         // query check annotator
         let annotation_query =
             QueryMsg::DataHub(DataHubQueryMsg::GetAnnotation { annotation_id: 1 });
         let annotation: Annotation =
-            from_binary(&manager.query(annotation_query).unwrap()).unwrap();
+            from_binary(&manager.query(annotation_query.clone()).unwrap()).unwrap();
         assert_eq!(annotation.annotators.len(), 1);
         assert_eq!(annotation.annotators[0], HumanAddr::from("annotator"));
+
+        //test withdraw submit annotation
+
+        let withdraw_msg = HandleMsg::WithdrawSubmitAnnotation { annotation_id: 1 };
+        manager.handle(submit_info, withdraw_msg).unwrap();
+        let annotation_after_withdraw_submit: Annotation =
+            from_binary(&manager.query(annotation_query).unwrap()).unwrap();
+        assert_eq!(annotation_after_withdraw_submit.annotators.len(), 0);
     }
 }
 
@@ -1095,6 +1172,7 @@ fn test_migrate() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
+            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("creator"),
@@ -1115,7 +1193,7 @@ fn test_migrate() {
             token_id: String::from("SellableNFT"),
             from: None,
             amount: Uint128::from(10u64),
-            msg: to_binary(&SellNft {
+            msg: to_binary(&SellRoyalty {
                 per_price: Uint128(50),
                 royalty: Some(10),
             })
@@ -1180,11 +1258,13 @@ fn test_migrate() {
 fn test_mint() {
     unsafe {
         let manager = DepsManager::get_new();
+        let co_owners = vec!["a1".to_string(), "a2".to_string()];
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mut mint = MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("creator"),
+            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -1237,5 +1317,44 @@ fn test_mint() {
         .unwrap();
 
         assert_eq!(balance.balance, Uint128::from(100u64));
+
+        // mint with co owners
+        mint.co_owners = Some(co_owners.clone());
+        mint_msg = HandleMsg::MintNft(mint.clone());
+        manager
+            .handle(provider_info.clone(), mint_msg.clone())
+            .unwrap();
+
+        let balance2: BalanceResponse = from_binary(
+            &ow1155::contract::query(
+                manager.ow1155.as_ref(),
+                mock_env(OW_1155_ADDR),
+                Cw1155QueryMsg::Balance {
+                    owner: String::from("creator"),
+                    token_id: String::from("SellableNFT"),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(balance2.balance, Uint128::from(150u64));
+
+        for owner_addr in co_owners {
+            let balance: BalanceResponse = from_binary(
+                &ow1155::contract::query(
+                    manager.ow1155.as_ref(),
+                    mock_env(OW_1155_ADDR),
+                    Cw1155QueryMsg::Balance {
+                        owner: owner_addr,
+                        token_id: String::from("SellableNFT"),
+                    },
+                )
+                .unwrap(),
+            )
+            .unwrap();
+
+            assert_eq!(balance.balance, Uint128::from(50u64));
+        }
     }
 }

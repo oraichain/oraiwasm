@@ -16,6 +16,9 @@ pub enum ContractError {
     #[error("Insufficient funds")]
     InsufficientFunds {},
 
+    #[error("Insufficient balance")]
+    InsufficientBalance {},
+
     #[error("Cannot find creator of the given token")]
     CannotFindCreator {},
 
@@ -72,6 +75,9 @@ pub enum ContractError {
 
     #[error("Not the creator of the token. Cannot create royalty")]
     NotTokenCreator {},
+
+    #[error("Annotator not found")]
+    AnnotatorNotFound {},
 }
 
 impl Into<String> for ContractError {
