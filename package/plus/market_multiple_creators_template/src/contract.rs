@@ -91,6 +91,7 @@ pub fn mint_1155(
     cosmos_msgs.push(mint_msg);
 
     Ok(HandleResponse {
+        messages: cosmos_msgs,
         attributes: vec![attr("action", "mint_1155"), attr("caller", info.sender)],
         ..HandleResponse::default()
     })
@@ -115,6 +116,7 @@ pub fn mint_721(
     cosmos_msgs.push(mint_msg);
 
     Ok(HandleResponse {
+        messages: cosmos_msgs,
         attributes: vec![attr("action", "mint_721"), attr("caller", info.sender)],
         ..HandleResponse::default()
     })
