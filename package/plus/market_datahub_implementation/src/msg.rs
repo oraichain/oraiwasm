@@ -41,6 +41,13 @@ pub enum HandleMsg {
     },
     /// Mint a new NFT, can only be called by the contract minter
     MintNft(MintMsg),
+    RequestAnnotation {
+        contract_addr: HumanAddr,
+        token_id: String,
+        amount: Uint128,
+        price_per_annotation: Uint128,
+        expired_after: Option<u64>,
+    },
     DepositAnnotation {
         annotation_id: u64,
     },
