@@ -1,12 +1,12 @@
 use crate::contract::{get_handle_msg, query_datahub, DATAHUB_STORAGE};
 use crate::error::ContractError;
 use crate::state::{ContractInfo, CONTRACT_INFO};
-use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    HandleResponse, MessageInfo, Uint128, WasmMsg,
+    attr, coins, from_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse,
+    MessageInfo, Uint128,
 };
-use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg, RequestAnnotate};
+use cosmwasm_std::{HumanAddr, StdError};
+use cw1155::{BalanceResponse, Cw1155QueryMsg};
 use market_datahub::{Annotation, DataHubHandleMsg, DataHubQueryMsg};
 use std::ops::{Mul, Sub};
 
@@ -88,24 +88,25 @@ pub fn try_approve_annotation(
         }
     }
 
-    // create transfer cw1155 msg to transfer the nft back to the requester
-    let transfer_cw1155_msg = Cw1155ExecuteMsg::SendFrom {
-        token_id: off.token_id.clone(),
-        from: env.contract.address.to_string(),
-        to: off.requester.to_string(),
-        value: off.amount,
-        msg: None,
-    };
+    /* We will not transfer token from sender to market anymore */
+    // // create transfer cw1155 msg to transfer the nft back to the requester
+    // let transfer_cw1155_msg = Cw1155ExecuteMsg::SendFrom {
+    //     token_id: off.token_id.clone(),
+    //     from: env.contract.address.to_string(),
+    //     to: off.requester.to_string(),
+    //     value: off.amount,
+    //     msg: None,
+    // };
 
-    // if everything is fine transfer NFT token to buyer
-    cosmos_msgs.push(
-        WasmMsg::Execute {
-            contract_addr: off.contract_addr,
-            msg: to_binary(&transfer_cw1155_msg)?,
-            send: vec![],
-        }
-        .into(),
-    );
+    // // if everything is fine transfer NFT token to buyer
+    // cosmos_msgs.push(
+    //     WasmMsg::Execute {
+    //         contract_addr: off.contract_addr,
+    //         msg: to_binary(&transfer_cw1155_msg)?,
+    //         send: vec![],
+    //     }
+    //     .into(),
+    // );
 
     // remove annotation in the annotation storage
     cosmos_msgs.push(get_handle_msg(
@@ -305,23 +306,24 @@ pub fn try_withdraw(
             return Err(ContractError::InvalidNonZeroAnnonators {});
         }
 
+        /* We will not transfer token from sender to market anymore */
         // check if token_id is currently sold by the requesting address
         // transfer token back to original owner
-        let transfer_cw721_msg = Cw1155ExecuteMsg::SendFrom {
-            from: env.contract.address.to_string(),
-            to: off.requester.to_string(),
-            token_id: off.token_id.clone(),
-            value: off.amount,
-            msg: None,
-        };
+        // let transfer_cw721_msg = Cw1155ExecuteMsg::SendFrom {
+        //     from: env.contract.address.to_string(),
+        //     to: off.requester.to_string(),
+        //     token_id: off.token_id.clone(),
+        //     value: off.amount,
+        //     msg: None,
+        // };
 
-        let exec_cw721_transfer = WasmMsg::Execute {
-            contract_addr: off.contract_addr,
-            msg: to_binary(&transfer_cw721_msg)?,
-            send: vec![],
-        };
+        // let exec_cw721_transfer = WasmMsg::Execute {
+        //     contract_addr: off.contract_addr,
+        //     msg: to_binary(&transfer_cw721_msg)?,
+        //     send: vec![],
+        // };
 
-        let mut cosmos_msgs: Vec<CosmosMsg> = vec![exec_cw721_transfer.into()];
+        let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
         // need to transfer funds back to the requester if the individual has deposited funds
         if off.deposited {
@@ -362,25 +364,49 @@ pub fn try_withdraw(
     })
 }
 
-pub fn handle_request_annotation(
+pub fn try_execute_request_annotation(
     deps: DepsMut,
     info: MessageInfo,
     env: Env,
-    msg: RequestAnnotate,
-    rcv_msg: Cw1155ReceiveMsg,
+    contract_addr: HumanAddr,
+    token_id: String,
+    amount: Uint128,
+    price_per_annotation: Uint128,
+    expired_after: Option<u64>,
 ) -> Result<HandleResponse, ContractError> {
+    // Check sendt funds
     let ContractInfo {
-        governance,
         denom,
+        governance,
         expired_block,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
+
+    let balance: BalanceResponse = deps
+        .querier
+        .query_wasm_smart(
+            contract_addr.to_string(),
+            &Cw1155QueryMsg::Balance {
+                owner: info.sender.clone().to_string(),
+                token_id: token_id.clone(),
+            },
+        )
+        .map_err(|_op| {
+            ContractError::Std(StdError::generic_err(
+                "Invalid getting balance of the sender's nft",
+            ))
+        })?;
+
+    if balance.balance.lt(&amount) {
+        return Err(ContractError::InsufficientBalance {});
+    }
+
     let mut deposited = false;
-    // If requester have not deposited funds => an alert to annotators to not submit their work. Annotators will try to submit by adding their addresses to the list
-    if msg.sent_funds.denom.eq(&denom) {
-        // can only deposit 100% funds (for simplicity)
-        let price = calculate_annotation_price(msg.per_price_annotation, rcv_msg.amount);
-        if msg.sent_funds.amount.lt(&price) {
+
+    if let Some(fund) = info.sent_funds.iter().find(|fund| fund.denom.eq(&denom)) {
+        let price = calculate_annotation_price(price_per_annotation.clone(), amount.clone());
+
+        if fund.amount.lt(&price) {
             return Err(ContractError::InsufficientFunds {});
         }
         // cannot allow annotation price as 0 (because it is pointless)
@@ -388,27 +414,30 @@ pub fn handle_request_annotation(
             return Err(ContractError::InvalidZeroAmount {});
         }
         deposited = true;
-    };
+    }
+
     let mut expired_block_annotation = env.block.height + expired_block;
-    if let Some(expired_block) = msg.expired_block {
+    if let Some(expired_block) = expired_after {
         expired_block_annotation = env.block.height + expired_block;
     };
+
     // allow multiple annotations on the market with the same contract and token id
     let annotation = Annotation {
         id: None,
-        token_id: rcv_msg.token_id,
-        contract_addr: info.sender.clone(),
+        token_id: token_id.clone(),
+        contract_addr: env.contract.address.clone(),
         annotators: vec![],
-        requester: HumanAddr::from(rcv_msg.operator.clone()),
-        per_price: msg.per_price_annotation,
-        amount: rcv_msg.amount,
+        requester: info.sender.clone(),
+        per_price: price_per_annotation.clone(),
+        amount: amount.clone(),
         deposited,
         expired_block: expired_block_annotation,
     };
 
-    let mut cosmos_msgs = vec![];
+    let mut cosmos_msg = vec![];
+
     // push save message to datahub storage
-    cosmos_msgs.push(get_handle_msg(
+    cosmos_msg.push(get_handle_msg(
         governance.as_str(),
         DATAHUB_STORAGE,
         DataHubHandleMsg::UpdateAnnotation {
@@ -417,17 +446,83 @@ pub fn handle_request_annotation(
     )?);
 
     Ok(HandleResponse {
-        messages: cosmos_msgs,
+        messages: cosmos_msg,
         attributes: vec![
             attr("action", "request_annotation"),
-            attr("original_contract", info.clone().sender),
-            attr("requester", rcv_msg.operator),
-            attr("per price", annotation.per_price.to_string()),
+            attr("requester", info.sender.clone()),
+            attr("per price", price_per_annotation),
             attr("deposited", deposited),
         ],
-        data: Some(to_binary(&info)?),
+        data: None,
     })
 }
+
+// pub fn handle_request_annotation(
+//     deps: DepsMut,
+//     info: MessageInfo,
+//     env: Env,
+//     msg: RequestAnnotate,
+//     rcv_msg: Cw1155ReceiveMsg,
+// ) -> Result<HandleResponse, ContractError> {
+//     let ContractInfo {
+//         governance,
+//         denom,
+//         expired_block,
+//         ..
+//     } = CONTRACT_INFO.load(deps.storage)?;
+//     let mut deposited = false;
+//     // If requester have not deposited funds => an alert to annotators to not submit their work. Annotators will try to submit by adding their addresses to the list
+//     if msg.sent_funds.denom.eq(&denom) {
+//         // can only deposit 100% funds (for simplicity)
+//         let price = calculate_annotation_price(msg.per_price_annotation, rcv_msg.amount);
+//         if msg.sent_funds.amount.lt(&price) {
+//             return Err(ContractError::InsufficientFunds {});
+//         }
+//         // cannot allow annotation price as 0 (because it is pointless)
+//         if price.eq(&Uint128::from(0u64)) {
+//             return Err(ContractError::InvalidZeroAmount {});
+//         }
+//         deposited = true;
+//     };
+//     let mut expired_block_annotation = env.block.height + expired_block;
+//     if let Some(expired_block) = msg.expired_block {
+//         expired_block_annotation = env.block.height + expired_block;
+//     };
+//     // allow multiple annotations on the market with the same contract and token id
+//     let annotation = Annotation {
+//         id: None,
+//         token_id: rcv_msg.token_id,
+//         contract_addr: info.sender.clone(),
+//         annotators: vec![],
+//         requester: HumanAddr::from(rcv_msg.operator.clone()),
+//         per_price: msg.per_price_annotation,
+//         amount: rcv_msg.amount,
+//         deposited,
+//         expired_block: expired_block_annotation,
+//     };
+
+//     let mut cosmos_msgs = vec![];
+//     // push save message to datahub storage
+//     cosmos_msgs.push(get_handle_msg(
+//         governance.as_str(),
+//         DATAHUB_STORAGE,
+//         DataHubHandleMsg::UpdateAnnotation {
+//             annotation: annotation.clone(),
+//         },
+//     )?);
+
+//     Ok(HandleResponse {
+//         messages: cosmos_msgs,
+//         attributes: vec![
+//             attr("action", "request_annotation"),
+//             attr("original_contract", info.clone().sender),
+//             attr("requester", rcv_msg.operator),
+//             attr("per price", annotation.per_price.to_string()),
+//             attr("deposited", deposited),
+//         ],
+//         data: Some(to_binary(&info)?),
+//     })
+// }
 
 pub fn get_annotation(deps: Deps, annotation_id: u64) -> Result<Annotation, ContractError> {
     let annotation: Annotation = from_binary(&query_datahub(

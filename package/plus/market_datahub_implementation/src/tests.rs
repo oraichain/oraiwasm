@@ -687,74 +687,92 @@ fn test_request_annotations_happy_path() {
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 
         // request annotate
-        let request_msg = Cw1155ExecuteMsg::SendFrom {
-            from: String::from("creator"),
-            to: String::from("offering"),
+        // let request_msg = Cw1155ExecuteMsg::SendFrom {
+        //     from: String::from("creator"),
+        //     to: String::from("offering"),
+        //     token_id: String::from("SellableNFT"),
+        //     value: Uint128::from(10u64),
+        //     msg: Some(
+        //         to_binary(&RequestAnnotate {
+        //             per_price_annotation: Uint128::from(5u64),
+        //             expired_block: None,
+        //             sent_funds: coin(900, DENOM),
+        //         })
+        //         .unwrap(),
+        //     ),
+        // };
+
+        // // beneficiary can release it
+        // let info = mock_info("datahub", &coins(900, DENOM));
+        // // let mut msg = HandleMsg::Receive(Cw1155ReceiveMsg {
+        // //     operator: "requester".to_string(),
+        // //     token_id: String::from("SellableNFT"),
+        // //     from: None,
+        // //     amount: Uint128::from(10u64),
+        // //     msg: to_binary(&RequestAnnotate {
+        // //         per_price_annotation: Uint128(90),
+        // //         expired_block: None,
+        // //     })
+        // //     .unwrap(),
+        // // });
+        // let _res = ow1155::contract::handle(
+        //     manager.ow1155.as_mut(),
+        //     mock_env(OW_1155_ADDR),
+        //     mock_info("creator", &coins(900, DENOM)),
+        //     request_msg,
+        // )
+        // .unwrap();
+
+        let request_msg = HandleMsg::RequestAnnotation {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("SellableNFT"),
-            value: Uint128::from(10u64),
-            msg: Some(
-                to_binary(&RequestAnnotate {
-                    per_price_annotation: Uint128::from(5u64),
-                    expired_block: None,
-                    sent_funds: coin(900, DENOM),
-                })
-                .unwrap(),
-            ),
+            amount: Uint128::from(5u64),
+            price_per_annotation: Uint128::from(5u64),
+            expired_after: None,
         };
 
-        // beneficiary can release it
-        let info = mock_info("datahub", &coins(900, DENOM));
+        // Insufficient balance error
+        assert!(matches!(
+            manager.handle(mock_info("aaa", &[]), request_msg.clone()),
+            Err(ContractError::InsufficientBalance {})
+        ));
+
+        // successfully request
+        let info = mock_info("creator", &coins(900, DENOM));
+        let _res = manager.handle(info.clone(), request_msg.clone()).unwrap();
+
+        // // second annotation
         // let mut msg = HandleMsg::Receive(Cw1155ReceiveMsg {
-        //     operator: "requester".to_string(),
+        //     operator: "requester_second".to_string(),
         //     token_id: String::from("SellableNFT"),
         //     from: None,
-        //     amount: Uint128::from(10u64),
+        //     amount: Uint128::from(5u64),
         //     msg: to_binary(&RequestAnnotate {
-        //         per_price_annotation: Uint128(90),
+        //         per_price_annotation: Uint128(5),
         //         expired_block: None,
+        //         sent_funds: coin(900, DENOM),
         //     })
         //     .unwrap(),
         // });
-        let _res = ow1155::contract::handle(
-            manager.ow1155.as_mut(),
-            mock_env(OW_1155_ADDR),
-            mock_info("creator", &coins(900, DENOM)),
-            request_msg,
-        )
-        .unwrap();
+        // manager.handle(info.clone(), msg.clone()).unwrap();
 
-        // second annotation
-        let mut msg = HandleMsg::Receive(Cw1155ReceiveMsg {
-            operator: "requester_second".to_string(),
-            token_id: String::from("SellableNFT"),
-            from: None,
-            amount: Uint128::from(5u64),
-            msg: to_binary(&RequestAnnotate {
-                per_price_annotation: Uint128(5),
-                expired_block: None,
-                sent_funds: coin(900, DENOM),
-            })
-            .unwrap(),
-        });
-        manager.handle(info.clone(), msg.clone()).unwrap();
-
-        // third annotation
-        msg = HandleMsg::Receive(Cw1155ReceiveMsg {
-            operator: "requester_third".to_string(),
-            token_id: String::from("SellableNFTSecond"),
-            from: None,
-            amount: Uint128::from(10u64),
-            msg: to_binary(&RequestAnnotate {
-                per_price_annotation: Uint128(5),
-                expired_block: None,
-                sent_funds: coin(900, DENOM),
-            })
-            .unwrap(),
-        });
-        manager.handle(info.clone(), msg.clone()).unwrap();
+        // // third annotation
+        // msg = HandleMsg::Receive(Cw1155ReceiveMsg {
+        //     operator: "requester_third".to_string(),
+        //     token_id: String::from("SellableNFTSecond"),
+        //     from: None,
+        //     amount: Uint128::from(10u64),
+        //     msg: to_binary(&RequestAnnotate {
+        //         per_price_annotation: Uint128(5),
+        //         expired_block: None,
+        //         sent_funds: coin(900, DENOM),
+        //     })
+        //     .unwrap(),
+        // });
+        // manager.handle(info.clone(), msg.clone()).unwrap();
 
         let mut annotation_msg =
-            QueryMsg::DataHub(DataHubQueryMsg::GetAnnotation { annotation_id: 2 });
+            QueryMsg::DataHub(DataHubQueryMsg::GetAnnotation { annotation_id: 1 });
         let annotation: Annotation = from_binary(&manager.query(annotation_msg).unwrap()).unwrap();
         println!("annotation: {:?}\n", annotation);
 
@@ -770,7 +788,7 @@ fn test_request_annotations_happy_path() {
 
         // query by contract
         annotation_msg = QueryMsg::DataHub(DataHubQueryMsg::GetAnnotationsByContract {
-            contract: HumanAddr::from("datahub"),
+            contract: HumanAddr::from(MARKET_ADDR),
             offset: None,
             limit: None,
             order: Some(1),
@@ -780,7 +798,7 @@ fn test_request_annotations_happy_path() {
 
         // query by contract
         annotation_msg = QueryMsg::DataHub(DataHubQueryMsg::GetAnnotationsByContractTokenId {
-            contract: HumanAddr::from("datahub"),
+            contract: HumanAddr::from(MARKET_ADDR),
             token_id: String::from("SellableNFTSecond"),
             offset: None,
             limit: None,
@@ -796,44 +814,60 @@ fn test_request_annotations_unhappy_path() {
     unsafe {
         let manager = DepsManager::get_new();
 
-        // beneficiary can release it
-        let info = mock_info("datahub", &coins(100, DENOM));
-        let mut msg = HandleMsg::Receive(Cw1155ReceiveMsg {
-            operator: "requester".to_string(),
-            token_id: String::from("SellableNFT"),
-            from: None,
-            amount: Uint128::from(10u64),
-            msg: to_binary(&RequestAnnotate {
-                per_price_annotation: Uint128(90),
-                sent_funds: coin(100, DENOM),
-                expired_block: None,
-            })
-            .unwrap(),
+        let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            creator: HumanAddr::from("provider"),
+            co_owners: None,
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    to: String::from("creator"),
+                    value: Uint128::from(50u64),
+                    token_id: String::from("SellableNFT"),
+                },
+            },
+            creator_type: String::from("cxacx"),
+            royalty: None,
         });
 
-        // insufficent funds case
+        manager.handle(provider_info.clone(), mint_msg).unwrap();
+
+        let request_msg = HandleMsg::RequestAnnotation {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            token_id: String::from("SellableNFT"),
+            amount: Uint128::from(5u64),
+            price_per_annotation: Uint128::from(50u64),
+            expired_after: None,
+        };
+
+        // Insufficient balance error
         assert!(matches!(
-            manager.handle(info.clone(), msg.clone()),
+            manager.handle(mock_info("aaa", &[]), request_msg.clone()),
+            Err(ContractError::InsufficientBalance {})
+        ));
+
+        // Insufficient sent_fund
+        assert!(matches!(
+            manager.handle(mock_info("creator", &vec![coin(20, DENOM)]), request_msg),
             Err(ContractError::InsufficientFunds {})
         ));
 
-        msg = HandleMsg::Receive(Cw1155ReceiveMsg {
-            operator: "requester".to_string(),
+        // Invalid zero amount
+        let request_msg = HandleMsg::RequestAnnotation {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("SellableNFT"),
-            from: None,
-            amount: Uint128::from(10u64),
-            msg: to_binary(&RequestAnnotate {
-                per_price_annotation: Uint128(0),
-                sent_funds: coin(100, DENOM),
-                expired_block: None,
-            })
-            .unwrap(),
-        });
+            amount: Uint128::from(5u64),
+            price_per_annotation: Uint128::from(0u64),
+            expired_after: None,
+        };
 
         assert!(matches!(
-            manager.handle(info.clone(), msg.clone()),
+            manager.handle(
+                mock_info("creator", &vec![coin(20, DENOM)]),
+                request_msg.clone()
+            ),
             Err(ContractError::InvalidZeroAmount {})
-        ));
+        ))
     }
 }
 
@@ -848,26 +882,74 @@ fn test_get_annotation_unhappy() {
     }
 }
 
+fn request_annotation_deposited(manager: &mut DepsManager) {
+    let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
+    let mint_msg = HandleMsg::MintNft(MintMsg {
+        contract_addr: HumanAddr::from(OW_1155_ADDR),
+        creator: HumanAddr::from("provider"),
+        co_owners: None,
+        mint: MintIntermediate {
+            mint: MintStruct {
+                to: String::from("requester"),
+                value: Uint128::from(50u64),
+                token_id: String::from("SellableNFT"),
+            },
+        },
+        creator_type: String::from("cxacx"),
+        royalty: None,
+    });
+
+    manager.handle(provider_info.clone(), mint_msg).unwrap();
+
+    let request_msg = HandleMsg::RequestAnnotation {
+        contract_addr: HumanAddr::from(OW_1155_ADDR),
+        token_id: String::from("SellableNFT"),
+        amount: Uint128::from(5u64),
+        price_per_annotation: Uint128::from(5u64),
+        expired_after: None,
+    };
+    // successfully request
+    let info = mock_info("requester", &coins(900, DENOM));
+    let _res = manager.handle(info.clone(), request_msg.clone()).unwrap();
+}
+
+fn request_annotation_undeposited(manager: &mut DepsManager) {
+    let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
+    let mint_msg = HandleMsg::MintNft(MintMsg {
+        contract_addr: HumanAddr::from(OW_1155_ADDR),
+        creator: HumanAddr::from("provider"),
+        co_owners: None,
+        mint: MintIntermediate {
+            mint: MintStruct {
+                to: String::from("requester"),
+                value: Uint128::from(50u64),
+                token_id: String::from("SellableNFT"),
+            },
+        },
+        creator_type: String::from("cxacx"),
+        royalty: None,
+    });
+
+    manager.handle(provider_info.clone(), mint_msg).unwrap();
+
+    let request_msg = HandleMsg::RequestAnnotation {
+        contract_addr: HumanAddr::from(OW_1155_ADDR),
+        token_id: String::from("SellableNFT"),
+        amount: Uint128::from(5u64),
+        price_per_annotation: Uint128::from(5u64),
+        expired_after: None,
+    };
+    // successfully request
+    let info = mock_info("requester", &coins(900, "something_else"));
+    let _res = manager.handle(info.clone(), request_msg.clone()).unwrap();
+}
+
 #[test]
 fn test_deposit_annotations() {
     unsafe {
-        let manager = DepsManager::get_new();
+        let mut manager = DepsManager::get_new();
 
-        // beneficiary can release it
-        let info = mock_info("datahub", &coins(100, "something else"));
-        let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
-            operator: "requester".to_string(),
-            token_id: String::from("SellableNFT"),
-            from: None,
-            amount: Uint128::from(10u64),
-            msg: to_binary(&RequestAnnotate {
-                per_price_annotation: Uint128(90),
-                sent_funds: coin(100, "something else"),
-                expired_block: None,
-            })
-            .unwrap(),
-        });
-        manager.handle(info.clone(), msg.clone()).unwrap();
+        request_annotation_undeposited(&mut manager);
 
         // query annotation to get deposited value
         let annotation_msg = QueryMsg::DataHub(DataHubQueryMsg::GetAnnotation { annotation_id: 1 });
@@ -878,7 +960,7 @@ fn test_deposit_annotations() {
         // insufficient funds case when deposit
         assert!(matches!(
             manager.handle(
-                mock_info("requester", &coins(100, DENOM)),
+                mock_info("requester", &coins(1, DENOM)),
                 HandleMsg::DepositAnnotation { annotation_id: 1 }
             ),
             Err(ContractError::InsufficientFunds {})
@@ -906,23 +988,9 @@ fn test_deposit_annotations() {
 #[test]
 fn test_submit_annotations() {
     unsafe {
-        let manager = DepsManager::get_new();
+        let mut manager = DepsManager::get_new();
 
-        // beneficiary can release it
-        let info = mock_info("datahub", &coins(900, "DENOM"));
-        let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
-            operator: "requester".to_string(),
-            token_id: String::from("SellableNFT"),
-            from: None,
-            amount: Uint128::from(10u64),
-            msg: to_binary(&RequestAnnotate {
-                per_price_annotation: Uint128(90),
-                expired_block: None,
-                sent_funds: coin(900, "DENOM"),
-            })
-            .unwrap(),
-        });
-        manager.handle(info.clone(), msg.clone()).unwrap();
+        request_annotation_undeposited(&mut manager);
 
         // annotation no funds case
         assert!(matches!(
@@ -964,23 +1032,9 @@ fn test_submit_annotations() {
 #[test]
 fn test_approve_annotations_requester() {
     unsafe {
-        let manager = DepsManager::get_new();
+        let mut manager = DepsManager::get_new();
 
-        // beneficiary can release it
-        let info = mock_info("datahub", &coins(900, DENOM));
-        let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
-            operator: "requester".to_string(),
-            token_id: String::from("SellableNFT"),
-            from: None,
-            amount: Uint128::from(10u64),
-            msg: to_binary(&RequestAnnotate {
-                per_price_annotation: Uint128(90),
-                expired_block: None,
-                sent_funds: coin(900, DENOM),
-            })
-            .unwrap(),
-        });
-        manager.handle(info.clone(), msg.clone()).unwrap();
+        request_annotation_deposited(&mut manager);
 
         // submit annotation
         let submit_info = mock_info("annotator", &coins(900, DENOM));
@@ -1052,7 +1106,7 @@ fn test_approve_annotations_requester() {
                                 .annotators
                                 .contains(&HumanAddr(to_address.to_string()))
                             {
-                                assert_eq!(amount, Uint128::from(900u64));
+                                assert_eq!(amount, Uint128::from(25u64));
                             }
                         }
                     }
@@ -1065,23 +1119,10 @@ fn test_approve_annotations_requester() {
 #[test]
 fn test_approve_annotations_creator() {
     unsafe {
-        let manager = DepsManager::get_new();
+        let mut manager = DepsManager::get_new();
 
         // beneficiary can release it
-        let info = mock_info("datahub", &coins(900, DENOM));
-        let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
-            operator: "requester".to_string(),
-            token_id: String::from("SellableNFT"),
-            from: None,
-            amount: Uint128::from(3u64),
-            msg: to_binary(&RequestAnnotate {
-                per_price_annotation: Uint128(7),
-                expired_block: None,
-                sent_funds: coin(900, DENOM),
-            })
-            .unwrap(),
-        });
-        manager.handle(info.clone(), msg.clone()).unwrap();
+        request_annotation_deposited(&mut manager);
 
         // submit many annotations
         for i in 1..9 {

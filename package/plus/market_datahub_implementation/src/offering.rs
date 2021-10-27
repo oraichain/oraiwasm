@@ -133,8 +133,6 @@ pub fn try_sell(
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     let sender = info.sender.clone().to_string();
 
-    // Check sent fund
-
     // TODO: This should be commented when we allow multiple owners to sell this nft
     let offering_result: Result<Offering, ContractError> = deps
         .querier
