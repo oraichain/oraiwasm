@@ -1,14 +1,14 @@
 use std::ops::Mul;
 
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, WrapMintMsg, WrapMintMsg721};
 use crate::state::{
     config, config_read, increment_changes, num_changes, Change, ChangeStatus, Founder, State,
     SHARE_CHANGES,
 };
 use cosmwasm_std::{
     attr, coins, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, StdError, StdResult, Uint128,
+    HandleResponse, HumanAddr, InitResponse, MessageInfo, StdError, StdResult, Uint128, WasmMsg,
 };
 
 pub const MAX_REVENUE: u64 = 1_000_000_000;
@@ -62,8 +62,62 @@ pub fn handle(
             end_height,
         } => change_state(deps, info, env, co_founders, threshold, end_height),
         HandleMsg::Vote {} => vote(deps, info, env),
+        HandleMsg::Mint1155(contract_addr, mint_msg) => {
+            mint_1155(deps, info, env, contract_addr, mint_msg)
+        }
+        HandleMsg::Mint721(contract_addr, mint_msg) => {
+            mint_721(deps, info, env, contract_addr, mint_msg)
+        }
         HandleMsg::ShareRevenue { amount, denom } => share_revenue(deps, info, env, amount, denom),
     }
+}
+
+pub fn mint_1155(
+    _deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    contract_addr: HumanAddr,
+    mint_msg: WrapMintMsg,
+) -> Result<HandleResponse, ContractError> {
+    let mint_msg = WasmMsg::Execute {
+        contract_addr: contract_addr.clone(),
+        msg: to_binary(&mint_msg)?,
+        send: vec![],
+    }
+    .into();
+
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+
+    cosmos_msgs.push(mint_msg);
+
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "mint_1155"), attr("caller", info.sender)],
+        ..HandleResponse::default()
+    })
+}
+
+pub fn mint_721(
+    _deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    contract_addr: HumanAddr,
+    mint_msg: WrapMintMsg721,
+) -> Result<HandleResponse, ContractError> {
+    let mint_msg = WasmMsg::Execute {
+        contract_addr: contract_addr.clone(),
+        msg: to_binary(&mint_msg)?,
+        send: vec![],
+    }
+    .into();
+
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+
+    cosmos_msgs.push(mint_msg);
+
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "mint_721"), attr("caller", info.sender)],
+        ..HandleResponse::default()
+    })
 }
 
 pub fn change_state(
@@ -158,9 +212,11 @@ pub fn share_revenue(
     denom: String,
 ) -> Result<HandleResponse, ContractError> {
     let num_changes = num_changes(deps.storage)?;
-    let change = SHARE_CHANGES.load(deps.storage, &num_changes.to_be_bytes())?;
-    if change.status.eq(&ChangeStatus::Voting) {
-        return Err(ContractError::VotingStatus {});
+    let change = SHARE_CHANGES.may_load(deps.storage, &num_changes.to_be_bytes())?;
+    if let Some(change) = change {
+        if change.status.eq(&ChangeStatus::Voting) {
+            return Err(ContractError::VotingStatus {});
+        }
     }
 
     // ready to distribute shares
@@ -177,6 +233,7 @@ pub fn share_revenue(
         ));
         // only send bank msg when revenue > 0
         if revenue.u128() > 0u128 {
+            println!("revenue: {:?}", revenue);
             cosmos_msgs.push(
                 BankMsg::Send {
                     from_address: env.contract.address.clone(),
@@ -189,6 +246,7 @@ pub fn share_revenue(
     }
 
     Ok(HandleResponse {
+        messages: cosmos_msgs,
         attributes: vec![
             attr("action", "share_revenue"),
             attr("caller", info.sender),
@@ -203,12 +261,17 @@ pub fn share_revenue(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
+        QueryMsg::GetShareChange { round } => to_binary(&query_share_change(deps, round)?),
         QueryMsg::GetCoFounder { co_founder } => to_binary(&query_co_founder(deps, co_founder)?),
     }
 }
 
 fn query_state(deps: Deps) -> StdResult<State> {
     config_read(deps.storage).load()
+}
+
+fn query_share_change(deps: Deps, round: u64) -> StdResult<Change> {
+    Ok(SHARE_CHANGES.load(deps.storage, &round.to_be_bytes())?)
 }
 
 fn query_co_founder(deps: Deps, co_founder: HumanAddr) -> StdResult<Option<Founder>> {

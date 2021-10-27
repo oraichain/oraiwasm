@@ -1,4 +1,6 @@
 use cosmwasm_std::{HumanAddr, Uint128};
+use market_1155::MintMsg;
+use market_ai_royalty::MintMsg as MintMsg721;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -23,6 +25,20 @@ pub enum HandleMsg {
         amount: Uint128,
         denom: String,
     },
+    Mint1155(HumanAddr, WrapMintMsg),
+    Mint721(HumanAddr, WrapMintMsg721),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct WrapMintMsg {
+    pub mint_nft: MintMsg,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct WrapMintMsg721 {
+    pub mint_nft: MintMsg721,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -30,4 +46,5 @@ pub enum HandleMsg {
 pub enum QueryMsg {
     GetState {},
     GetCoFounder { co_founder: HumanAddr },
+    GetShareChange { round: u64 },
 }

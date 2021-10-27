@@ -34,7 +34,7 @@ schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }
 market_1155 = { path = "../../base/market_1155" }
-market_royalty = { path = "../../base/market_royalty" }
+market_ai_royalty = { path = "../../base/market_ai_royalty" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.13.0" }
