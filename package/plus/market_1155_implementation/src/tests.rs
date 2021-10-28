@@ -313,6 +313,7 @@ fn handle_approve(manager: &mut DepsManager) {
         mock_info("asker", &vec![coin(50, DENOM)]),
         mock_info("creator", &vec![coin(50, DENOM)]),
         mock_info("seller", &vec![coin(50, DENOM)]),
+        mock_info("bidder", &vec![coin(50, DENOM)]),
     ];
     let token_ids = vec![String::from("SellableNFT"), String::from("BiddableNFT")];
 
@@ -393,6 +394,7 @@ fn sell_auction_happy_path() {
             amount: Uint128(10),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("BiddableNFT"),
+            asker: None,
         };
         let msg = HandleMsg::AskAuctionNft(sell_msg);
 
@@ -419,6 +421,99 @@ fn sell_auction_happy_path() {
 }
 
 #[test]
+fn sell_auction_unhappy_path() {
+    unsafe {
+        let manager = DepsManager::get_new();
+
+        let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+
+        handle_approve(manager);
+
+        // beneficiary can release it
+        let msg = HandleMsg::AskAuctionNft(AskNftMsg {
+            per_price: Uint128(5),
+            cancel_fee: Some(10),
+            start: None,
+            end: None,
+            buyout_per_price: None,
+            start_timestamp: None,
+            end_timestamp: None,
+            step_price: None,
+            amount: Uint128(10000000000),
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            token_id: String::from("BiddableNFT"),
+            asker: None,
+        });
+
+        // insufficient amount case creator
+        assert!(matches!(
+            manager.handle(provider_info.clone(), msg.clone()),
+            Err(ContractError::InsufficientAmount {})
+        ));
+
+        // unauthorized case when non-approved
+        let msg = HandleMsg::AskAuctionNft(AskNftMsg {
+            per_price: Uint128(5),
+            cancel_fee: Some(10),
+            start: None,
+            end: None,
+            buyout_per_price: None,
+            start_timestamp: None,
+            end_timestamp: None,
+            step_price: None,
+            amount: Uint128(10000000000),
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            token_id: String::from("BiddableNFT"),
+            asker: Some(HumanAddr::from("Somebody")),
+        });
+
+        assert!(matches!(
+            manager.handle(provider_info.clone(), msg.clone()),
+            Err(ContractError::Unauthorized { .. })
+        ));
+
+        let msg = HandleMsg::AskAuctionNft(AskNftMsg {
+            per_price: Uint128(50),
+            cancel_fee: Some(10),
+            start: None,
+            end: None,
+            buyout_per_price: None,
+            start_timestamp: None,
+            end_timestamp: None,
+            step_price: None,
+            amount: Uint128(10),
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            token_id: String::from("BiddableNFT"),
+            asker: None,
+        });
+
+        // successful case
+        manager.handle(provider_info.clone(), msg.clone()).unwrap();
+
+        // failed auction because it is already on auction by the same person
+        assert!(matches!(
+            manager.handle(provider_info.clone(), msg.clone()),
+            Err(ContractError::TokenOnAuction { .. })
+        ));
+
+        // Cannot sell either by the same person
+        let msg = HandleMsg::SellNft(SellNft {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            per_price: Uint128(50),
+            token_id: String::from("BiddableNFT"),
+            amount: Uint128(100),
+            seller: None,
+        });
+
+        // failed auction because it is already on auction by the same person
+        assert!(matches!(
+            manager.handle(provider_info.clone(), msg.clone()),
+            Err(ContractError::TokenOnAuction { .. })
+        ));
+    }
+}
+
+#[test]
 fn cancel_auction_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
@@ -438,6 +533,7 @@ fn cancel_auction_happy_path() {
             amount: Uint128(10),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("BiddableNFT"),
+            asker: None,
         };
 
         let msg = HandleMsg::AskAuctionNft(sell_msg);
@@ -490,6 +586,7 @@ fn cancel_auction_unhappy_path() {
             amount: Uint128(10),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("BiddableNFT"),
+            asker: None,
         };
 
         let msg = HandleMsg::AskAuctionNft(sell_msg);
@@ -533,6 +630,7 @@ fn cancel_bid_happy_path() {
             amount: Uint128(10),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("BiddableNFT"),
+            asker: None,
         };
 
         let msg = HandleMsg::AskAuctionNft(sell_msg);
@@ -584,6 +682,7 @@ fn cancel_bid_unhappy_path() {
             amount: Uint128(10),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("BiddableNFT"),
+            asker: None,
         };
 
         let msg = HandleMsg::AskAuctionNft(sell_msg);
@@ -628,6 +727,7 @@ fn claim_winner_happy_path() {
             amount: Uint128(10),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("BiddableNFT"),
+            asker: None,
         };
 
         let msg = HandleMsg::AskAuctionNft(sell_msg.clone());
@@ -692,6 +792,7 @@ fn claim_winner_happy_path() {
             amount: Uint128(10),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("BiddableNFT"),
+            asker: None,
         };
         let msg = HandleMsg::AskAuctionNft(sell_msg);
 
@@ -737,6 +838,7 @@ fn claim_winner_unhappy_path() {
             amount: Uint128(10),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("BiddableNFT"),
+            asker: None,
         };
 
         let msg = HandleMsg::AskAuctionNft(sell_msg.clone());
@@ -818,6 +920,7 @@ fn test_bid_nft_happy_path() {
             amount: Uint128(10),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("BiddableNFT"),
+            asker: None,
         };
 
         let msg = HandleMsg::AskAuctionNft(sell_msg.clone());
@@ -866,6 +969,7 @@ fn test_bid_nft_unhappy_path() {
             amount: Uint128(10),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("BiddableNFT"),
+            asker: None,
         };
 
         let msg = HandleMsg::AskAuctionNft(sell_msg.clone());
@@ -1073,6 +1177,7 @@ fn test_royalties() {
             per_price: Uint128(10),
             token_id: String::from("SellableNFT"),
             amount: Uint128::from(100u64),
+            seller: None,
         });
         manager.handle(provider_info.clone(), msg).unwrap();
 
@@ -1112,6 +1217,7 @@ fn test_royalties() {
             per_price: Uint128(10),
             token_id: String::from("SellableNFT"),
             amount: Uint128::from(50u64),
+            seller: None,
         });
         manager.handle(info_sell.clone(), msg).unwrap();
 
@@ -1220,6 +1326,7 @@ fn test_sell_nft_unhappy() {
             per_price: Uint128(50),
             token_id: String::from("SellableNFT"),
             amount: Uint128::from(10000000000000u64),
+            seller: None,
         });
 
         // insufficient amount case creator
@@ -1228,11 +1335,26 @@ fn test_sell_nft_unhappy() {
             Err(ContractError::InsufficientAmount {})
         ));
 
+        // unauthorized case when non-approved
         let msg = HandleMsg::SellNft(SellNft {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             per_price: Uint128(50),
             token_id: String::from("SellableNFT"),
             amount: Uint128::from(10u64),
+            seller: Some(HumanAddr::from("Somebody unauthorized")),
+        });
+
+        assert!(matches!(
+            manager.handle(provider_info.clone(), msg.clone()),
+            Err(ContractError::Unauthorized { .. })
+        ));
+
+        let msg = HandleMsg::SellNft(SellNft {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            per_price: Uint128(50),
+            token_id: String::from("SellableNFT"),
+            amount: Uint128::from(10u64),
+            seller: None,
         });
 
         // successful case
@@ -1256,6 +1378,7 @@ fn test_sell_nft_unhappy() {
             amount: Uint128(10000000000),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("SellableNFT"),
+            asker: None,
         };
         // fail when trying to create an auction
         let mut auction_msg = HandleMsg::AskAuctionNft(ask_msg.clone());
@@ -1301,24 +1424,9 @@ fn test_sell_nft_unhappy() {
 fn withdraw_offering() {
     unsafe {
         let manager = DepsManager::get_new();
-        let withdraw_info = mock_info("seller", &coins(2, DENOM));
+        let withdraw_info = mock_info("creator", &coins(2, DENOM));
 
-        let mint_msg = HandleMsg::MintNft(MintMsg {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
-            creator: HumanAddr::from("provider"),
-            mint: MintIntermediate {
-                mint: MintStruct {
-                    to: String::from("provider"),
-                    value: Uint128::from(50u64),
-                    token_id: String::from("SellableNFT"),
-                    co_owner: None,
-                },
-            },
-            creator_type: String::from("cxacx"),
-            royalty: None,
-        });
-
-        manager.handle(withdraw_info.clone(), mint_msg).unwrap();
+        handle_approve(manager);
 
         // no offering to withdraw case
         let withdraw_no_offering = HandleMsg::WithdrawNft { offering_id: 1 };
@@ -1329,13 +1437,14 @@ fn withdraw_offering() {
         ));
 
         // beneficiary can release it
-        let info = mock_info("seller", &coins(2, DENOM));
+        let info = mock_info("creator", &coins(2, DENOM));
 
         let msg = HandleMsg::SellNft(SellNft {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             per_price: Uint128(50),
             token_id: String::from("SellableNFT"),
             amount: Uint128::from(10u64),
+            seller: None,
         });
         let _res = manager.handle(info, msg).unwrap();
 
@@ -1408,6 +1517,7 @@ fn test_buy_nft_unhappy() {
             per_price: Uint128(90),
             token_id: String::from("SellableNFT"),
             amount: Uint128::from(10u64),
+            seller: None,
         });
         let _res = manager.handle(info.clone(), msg.clone()).unwrap();
 

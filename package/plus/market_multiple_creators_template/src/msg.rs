@@ -1,4 +1,5 @@
 use cosmwasm_std::{HumanAddr, Uint128};
+use cw0::Expiration;
 use market_1155::MintMsg;
 use market_ai_royalty::MintMsg as MintMsg721;
 use schemars::JsonSchema;
@@ -27,6 +28,42 @@ pub enum HandleMsg {
     },
     Mint1155(HumanAddr, WrapMintMsg),
     Mint721(HumanAddr, WrapMintMsg721),
+    ApproveAll(HumanAddr, ApproveAllMsg),
+    RevokeAll(HumanAddr, Vec<RevokeAllMsg>),
+    ChangeCreator(HumanAddr, ChangeCreatorMsg),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ApproveAllMsg {
+    pub approve_all: ApproveAll,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ApproveAll {
+    pub operator: String,
+    pub expiration: Option<Expiration>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct RevokeAllMsg {
+    pub revoke_all: RevokeAll,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct RevokeAll {
+    pub operator: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ChangeCreatorMsg {
+    pub change_creator: ChangeCreator,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ChangeCreator {
+    pub contract_addr: HumanAddr,
+    pub token_id: String,
+    pub to: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

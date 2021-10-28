@@ -1,7 +1,10 @@
 use std::ops::Mul;
 
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, WrapMintMsg, WrapMintMsg721};
+use crate::msg::{
+    ApproveAll, ApproveAllMsg, ChangeCreatorMsg, HandleMsg, InitMsg, QueryMsg, RevokeAllMsg,
+    WrapMintMsg, WrapMintMsg721,
+};
 use crate::state::{
     config, config_read, increment_changes, num_changes, Change, ChangeStatus, Founder, State,
     SHARE_CHANGES,
@@ -10,7 +13,6 @@ use cosmwasm_std::{
     attr, coins, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, HumanAddr, InitResponse, MessageInfo, StdError, StdResult, Uint128, WasmMsg,
 };
-
 pub const MAX_REVENUE: u64 = 1_000_000_000;
 pub const DEFAULT_END_HEIGHT: u64 = 300000;
 
@@ -27,9 +29,13 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, init: InitMsg) -> StdRe
             "Unauthorized. Sender must be in the co founders list",
         ));
     }
+    let mut final_threshold = init.threshold;
+    if final_threshold > init.co_founders.len() as u64 {
+        final_threshold = init.co_founders.len() as u64;
+    }
     let state = State {
         co_founders: init.co_founders.clone(),
-        threshold: init.threshold,
+        threshold: final_threshold,
     };
     let mut total_shares: u64 = 0;
 
@@ -68,27 +74,54 @@ pub fn handle(
         HandleMsg::Mint721(contract_addr, mint_msg) => {
             mint_721(deps, info, env, contract_addr, mint_msg)
         }
+        HandleMsg::ApproveAll(contract_addr, approve_msg) => {
+            approve_all(deps, info, env, contract_addr, approve_msg)
+        }
+        HandleMsg::RevokeAll(contract_addr, revoke_msg) => {
+            revoke_all(deps, info, env, contract_addr, revoke_msg)
+        }
+        HandleMsg::ChangeCreator(contract_addr, change_creator_msg) => {
+            change_creator(deps, info, env, contract_addr, change_creator_msg)
+        }
         HandleMsg::ShareRevenue { amount, denom } => share_revenue(deps, info, env, amount, denom),
     }
 }
 
 pub fn mint_1155(
-    _deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     _env: Env,
     contract_addr: HumanAddr,
     mint_msg: WrapMintMsg,
 ) -> Result<HandleResponse, ContractError> {
-    let mint_msg = WasmMsg::Execute {
+    if !check_authorization(deps.as_ref(), info.sender.as_str()) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mint_cosmos_msg = WasmMsg::Execute {
         contract_addr: contract_addr.clone(),
         msg: to_binary(&mint_msg)?,
         send: vec![],
     }
     .into();
 
+    // approve for the marketplace after mint by default
+    let approve_msg = WasmMsg::Execute {
+        contract_addr: mint_msg.mint_nft.contract_addr.clone(),
+        msg: to_binary(&ApproveAllMsg {
+            approve_all: ApproveAll {
+                operator: contract_addr.to_string(),
+                expiration: None,
+            },
+        })?,
+        send: vec![],
+    }
+    .into();
+
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
-    cosmos_msgs.push(mint_msg);
+    cosmos_msgs.push(mint_cosmos_msg);
+    cosmos_msgs.push(approve_msg);
 
     Ok(HandleResponse {
         messages: cosmos_msgs,
@@ -98,26 +131,135 @@ pub fn mint_1155(
 }
 
 pub fn mint_721(
-    _deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     _env: Env,
     contract_addr: HumanAddr,
     mint_msg: WrapMintMsg721,
 ) -> Result<HandleResponse, ContractError> {
-    let mint_msg = WasmMsg::Execute {
+    if !check_authorization(deps.as_ref(), info.sender.as_str()) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mint_cosmos_msg = WasmMsg::Execute {
         contract_addr: contract_addr.clone(),
         msg: to_binary(&mint_msg)?,
         send: vec![],
     }
     .into();
 
+    // approve for the marketplace after mint by default
+    let approve_msg = WasmMsg::Execute {
+        contract_addr: mint_msg.mint_nft.contract_addr.clone(),
+        msg: to_binary(&ApproveAllMsg {
+            approve_all: ApproveAll {
+                operator: contract_addr.to_string(),
+                expiration: None,
+            },
+        })?,
+        send: vec![],
+    }
+    .into();
+
+    // approve for the marketplace after mint by default
+
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
-    cosmos_msgs.push(mint_msg);
+    cosmos_msgs.push(mint_cosmos_msg);
+    cosmos_msgs.push(approve_msg);
 
     Ok(HandleResponse {
         messages: cosmos_msgs,
         attributes: vec![attr("action", "mint_721"), attr("caller", info.sender)],
+        ..HandleResponse::default()
+    })
+}
+
+// this shall be called when approving for the co-founder
+pub fn approve_all(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    contract_addr: HumanAddr,
+    approve_msg: ApproveAllMsg,
+) -> Result<HandleResponse, ContractError> {
+    if !check_authorization(deps.as_ref(), info.sender.as_str()) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let approve_msg = WasmMsg::Execute {
+        contract_addr: contract_addr.clone(),
+        msg: to_binary(&approve_msg)?,
+        send: vec![],
+    }
+    .into();
+
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+
+    cosmos_msgs.push(approve_msg);
+
+    Ok(HandleResponse {
+        messages: cosmos_msgs,
+        attributes: vec![attr("action", "approve all"), attr("caller", info.sender)],
+        ..HandleResponse::default()
+    })
+}
+
+// this shall be called when approving for the co-founder
+pub fn revoke_all(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    contract_addr: HumanAddr,
+    revoke_msgs: Vec<RevokeAllMsg>,
+) -> Result<HandleResponse, ContractError> {
+    if !check_authorization(deps.as_ref(), info.sender.as_str()) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+
+    for msg in revoke_msgs {
+        let revoke_msg = WasmMsg::Execute {
+            contract_addr: contract_addr.clone(),
+            msg: to_binary(&msg)?,
+            send: vec![],
+        }
+        .into();
+
+        cosmos_msgs.push(revoke_msg);
+    }
+
+    Ok(HandleResponse {
+        messages: cosmos_msgs,
+        attributes: vec![attr("action", "revoke all"), attr("caller", info.sender)],
+        ..HandleResponse::default()
+    })
+}
+
+pub fn change_creator(
+    _deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    contract_addr: HumanAddr,
+    change_creator_msg: ChangeCreatorMsg,
+) -> Result<HandleResponse, ContractError> {
+    let change_creator_cosmos_msg = WasmMsg::Execute {
+        contract_addr: contract_addr.clone(),
+        msg: to_binary(&change_creator_msg)?,
+        send: vec![],
+    }
+    .into();
+
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+    cosmos_msgs.push(change_creator_cosmos_msg);
+
+    Ok(HandleResponse {
+        messages: cosmos_msgs,
+        attributes: vec![
+            attr("action", "change_creator"),
+            attr("caller", info.sender),
+        ],
         ..HandleResponse::default()
     })
 }
@@ -131,13 +273,33 @@ pub fn change_state(
     end_height: Option<u64>,
 ) -> Result<HandleResponse, ContractError> {
     let num_changes = num_changes(deps.storage)?;
-    let change = SHARE_CHANGES.load(deps.storage, &num_changes.to_be_bytes())?;
-    if change.status.ne(&ChangeStatus::Idle) {
-        return Err(ContractError::IdleStatus {});
+    let change = SHARE_CHANGES.may_load(deps.storage, &num_changes.to_be_bytes())?;
+    if let Some(change) = change {
+        if change.status.ne(&ChangeStatus::Idle) {
+            return Err(ContractError::IdleStatus {});
+        }
     }
 
     if !check_authorization(deps.as_ref(), info.sender.as_str()) {
         return Err(ContractError::Unauthorized {});
+    }
+    let state = config_read(deps.storage).load()?;
+    if let Some(threshold) = threshold {
+        if let Some(co_founders) = co_founders.clone() {
+            if threshold > co_founders.len() as u64 {
+                return Err(ContractError::InvalidThreshold {});
+            }
+        } else {
+            if threshold > state.co_founders.len() as u64 {
+                return Err(ContractError::InvalidThreshold {});
+            }
+        }
+    } else {
+        if let Some(co_founders) = co_founders.clone() {
+            if state.threshold > co_founders.len() as u64 {
+                return Err(ContractError::InvalidThreshold {});
+            }
+        }
     }
 
     let mut final_end_height = env.block.height + DEFAULT_END_HEIGHT;
@@ -147,6 +309,8 @@ pub fn change_state(
         }
     }
 
+    let new_num_change = increment_changes(deps.storage)?;
+
     let share_change = Change {
         co_founders,
         threshold,
@@ -155,7 +319,7 @@ pub fn change_state(
         start_height: env.block.height,
         end_height: final_end_height,
     };
-    SHARE_CHANGES.save(deps.storage, &num_changes.to_be_bytes(), &share_change)?;
+    SHARE_CHANGES.save(deps.storage, &new_num_change.to_be_bytes(), &share_change)?;
 
     Ok(HandleResponse {
         attributes: vec![attr("action", "change_state"), attr("caller", info.sender)],
@@ -182,7 +346,6 @@ pub fn vote(deps: DepsMut, info: MessageInfo, env: Env) -> Result<HandleResponse
     if change.end_height.le(&env.block.height) && change.vote_count < state.threshold {
         change.status = ChangeStatus::Finished;
         // increment change round
-        increment_changes(deps.storage)?;
         SHARE_CHANGES.save(deps.storage, &num_changes.to_be_bytes(), &change)?;
         return Ok(handle_response);
     }
@@ -235,7 +398,6 @@ pub fn share_revenue(
         ));
         // only send bank msg when revenue > 0
         if revenue.u128() > 0u128 {
-            println!("revenue: {:?}", revenue);
             cosmos_msgs.push(
                 BankMsg::Send {
                     from_address: env.contract.address.clone(),

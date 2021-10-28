@@ -77,6 +77,7 @@ pub struct AskNftMsg {
     pub end_timestamp: Option<Uint128>,
     pub buyout_per_price: Option<Uint128>,
     pub step_price: Option<u64>,
+    pub asker: Option<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -86,6 +87,7 @@ pub struct SellNft {
     pub contract_addr: HumanAddr,
     pub token_id: String,
     pub amount: Uint128,
+    pub seller: Option<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -271,10 +271,11 @@ pub fn handle_ask_auction(
 
     let _ = verify_nft(
         deps.as_ref(),
-        governance.as_str(),
+        env.contract.address.as_str(),
         msg.contract_addr.as_str(),
         msg.token_id.as_str(),
         info.sender.as_str(),
+        msg.asker,
         Some(msg.amount),
     )?;
 
@@ -298,7 +299,7 @@ pub fn handle_ask_auction(
     let end = msg
         .end
         .map(|mut end| {
-            if end.lt(&env.block.height) {
+            if end.lt(&env.block.height) || end.le(&start) {
                 end = start + DEFAULT_AUCTION_BLOCK;
             }
             end
