@@ -1,4 +1,5 @@
 use std::ops::Mul;
+use std::rc::Rc;
 
 use crate::error::ContractError;
 use crate::msg::{
@@ -150,7 +151,7 @@ pub fn mint_721(
 
     // approve for the marketplace after mint by default
     let approve_msg = WasmMsg::Execute {
-        contract_addr: mint_msg.mint_nft.contract_addr.clone(),
+        contract_addr: mint_msg.mint_nft.contract_addr,
         msg: to_binary(&ApproveAllMsg {
             approve_all: ApproveAll {
                 operator: contract_addr.to_string(),
@@ -188,7 +189,7 @@ pub fn approve_all(
     }
 
     let approve_msg = WasmMsg::Execute {
-        contract_addr: contract_addr.clone(),
+        contract_addr,
         msg: to_binary(&approve_msg)?,
         send: vec![],
     }
@@ -216,12 +217,13 @@ pub fn revoke_all(
     if !check_authorization(deps.as_ref(), info.sender.as_str()) {
         return Err(ContractError::Unauthorized {});
     }
+    let contract = Rc::new(contract_addr);
 
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
     for msg in revoke_msgs {
         let revoke_msg = WasmMsg::Execute {
-            contract_addr: contract_addr.clone(),
+            contract_addr: HumanAddr::from(Rc::clone(&contract).as_str()),
             msg: to_binary(&msg)?,
             send: vec![],
         }
@@ -245,7 +247,7 @@ pub fn change_creator(
     change_creator_msg: ChangeCreatorMsg,
 ) -> Result<HandleResponse, ContractError> {
     let change_creator_cosmos_msg = WasmMsg::Execute {
-        contract_addr: contract_addr.clone(),
+        contract_addr,
         msg: to_binary(&change_creator_msg)?,
         send: vec![],
     }
@@ -383,10 +385,10 @@ pub fn share_revenue(
             return Err(ContractError::VotingStatus {});
         }
     }
-
     // ready to distribute shares
-
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+
+    let contract_addr = Rc::new(env.contract.address);
 
     let state = config_read(deps.storage).load()?;
     for co_founder in state.co_founders {
@@ -400,9 +402,9 @@ pub fn share_revenue(
         if revenue.u128() > 0u128 {
             cosmos_msgs.push(
                 BankMsg::Send {
-                    from_address: env.contract.address.clone(),
-                    to_address: co_founder.address.clone(),
-                    amount: coins(revenue.u128(), denom.clone()),
+                    from_address: HumanAddr::from(Rc::clone(&contract_addr).as_str()),
+                    to_address: co_founder.address,
+                    amount: coins(revenue.u128(), denom.as_str()),
                 }
                 .into(),
             );

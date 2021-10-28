@@ -312,7 +312,7 @@ pub fn verify_nft(
     owner: &str,
     seller: Option<HumanAddr>,
     amount: Option<Uint128>,
-) -> Result<bool, ContractError> {
+) -> Result<String, ContractError> {
     // get unique offering. Dont allow a seller to sell when he's already selling
 
     let mut final_seller: String = owner.to_string();
@@ -403,5 +403,5 @@ pub fn verify_nft(
             return Err(ContractError::InsufficientAmount {});
         }
     }
-    Ok(true)
+    Ok(final_seller)
 }

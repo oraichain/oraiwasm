@@ -375,7 +375,7 @@ pub fn try_sell_nft(
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
     // get unique offering. Dont allow a seller to sell when he's already selling or on auction
-    let _ = verify_nft(
+    let final_seller = verify_nft(
         deps.as_ref(),
         env.contract.address.as_str(),
         msg.contract_addr.as_str(),
@@ -389,7 +389,7 @@ pub fn try_sell_nft(
         id: None,
         token_id: msg.token_id,
         contract_addr: msg.contract_addr.clone(),
-        seller: info.sender.clone(),
+        seller: HumanAddr(final_seller),
         per_price: msg.per_price,
         amount: msg.amount,
     };
