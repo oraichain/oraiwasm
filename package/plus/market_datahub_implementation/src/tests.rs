@@ -9,9 +9,7 @@ use cosmwasm_std::{
     HandleResponse, HumanAddr, MessageInfo, OwnedDeps, QuerierResult, StdError, StdResult,
     SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
 };
-use cw1155::{
-    BalanceResponse, Cw1155ExecuteMsg, Cw1155QueryMsg, Cw1155ReceiveMsg, RequestAnnotate,
-};
+use cw1155::{BalanceResponse, Cw1155ExecuteMsg, Cw1155QueryMsg, Cw1155ReceiveMsg};
 use market::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_datahub::{
@@ -729,6 +727,7 @@ fn test_request_annotations_happy_path() {
             amount: Uint128::from(5u64),
             price_per_annotation: Uint128::from(5u64),
             expired_after: None,
+            number_of_jobs: Uint128::from(2u128),
         };
 
         // Insufficient balance error
@@ -772,7 +771,7 @@ fn test_request_annotations_happy_path() {
         // manager.handle(info.clone(), msg.clone()).unwrap();
 
         let mut annotation_msg =
-            QueryMsg::DataHub(DataHubQueryMsg::GetAnnotation { annotation_id: 1 });
+            QueryMsg::DataHub(DataHubQueryMsg::GetAnnotation { annotation_id: 2 });
         let annotation: Annotation = from_binary(&manager.query(annotation_msg).unwrap()).unwrap();
         println!("annotation: {:?}\n", annotation);
 
@@ -838,6 +837,7 @@ fn test_request_annotations_unhappy_path() {
             amount: Uint128::from(5u64),
             price_per_annotation: Uint128::from(50u64),
             expired_after: None,
+            number_of_jobs: Uint128::from(1u64),
         };
 
         // Insufficient balance error
@@ -859,6 +859,7 @@ fn test_request_annotations_unhappy_path() {
             amount: Uint128::from(5u64),
             price_per_annotation: Uint128::from(0u64),
             expired_after: None,
+            number_of_jobs: Uint128::from(1u64),
         };
 
         assert!(matches!(
@@ -907,6 +908,7 @@ fn request_annotation_deposited(manager: &mut DepsManager) {
         amount: Uint128::from(5u64),
         price_per_annotation: Uint128::from(5u64),
         expired_after: None,
+        number_of_jobs: Uint128::from(1u64),
     };
     // successfully request
     let info = mock_info("requester", &coins(900, DENOM));
@@ -938,6 +940,7 @@ fn request_annotation_undeposited(manager: &mut DepsManager) {
         amount: Uint128::from(5u64),
         price_per_annotation: Uint128::from(5u64),
         expired_after: None,
+        number_of_jobs: Uint128::from(1u64),
     };
     // successfully request
     let info = mock_info("requester", &coins(900, "something_else"));

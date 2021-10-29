@@ -373,6 +373,7 @@ pub fn try_execute_request_annotation(
     amount: Uint128,
     price_per_annotation: Uint128,
     expired_after: Option<u64>,
+    number_of_jobs: Uint128,
 ) -> Result<HandleResponse, ContractError> {
     // Check sendt funds
     let ContractInfo {
@@ -397,14 +398,15 @@ pub fn try_execute_request_annotation(
             ))
         })?;
 
-    if balance.balance.lt(&amount) {
+    if balance.balance.is_zero() {
         return Err(ContractError::InsufficientBalance {});
     }
 
     let mut deposited = false;
 
     if let Some(fund) = info.sent_funds.iter().find(|fund| fund.denom.eq(&denom)) {
-        let price = calculate_annotation_price(price_per_annotation.clone(), amount.clone());
+        let price = calculate_annotation_price(price_per_annotation.clone(), amount.clone())
+            .mul(Decimal::from_ratio(number_of_jobs.u128(), 1u128));
 
         if fund.amount.lt(&price) {
             return Err(ContractError::InsufficientFunds {});
@@ -437,13 +439,15 @@ pub fn try_execute_request_annotation(
     let mut cosmos_msg = vec![];
 
     // push save message to datahub storage
-    cosmos_msg.push(get_handle_msg(
-        governance.as_str(),
-        DATAHUB_STORAGE,
-        DataHubHandleMsg::UpdateAnnotation {
-            annotation: annotation.clone(),
-        },
-    )?);
+    for _ in 0..number_of_jobs.u128() {
+        cosmos_msg.push(get_handle_msg(
+            governance.as_str(),
+            DATAHUB_STORAGE,
+            DataHubHandleMsg::UpdateAnnotation {
+                annotation: annotation.clone(),
+            },
+        )?);
+    }
 
     Ok(HandleResponse {
         messages: cosmos_msg,
