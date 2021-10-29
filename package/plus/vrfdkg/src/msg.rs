@@ -54,6 +54,7 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ShareSigMsg {
     pub sig: Binary,
+    pub signed_sig: Binary,
     pub round: u64,
 }
 
@@ -114,6 +115,8 @@ pub struct DistributedShareData {
     pub round: u64,
     pub input: Binary,
     pub combined_sig: Option<Binary>,
+    pub signed_combined_sig: Option<Binary>,
+    pub signed_pubkey: Option<Binary>,
     pub combined_pubkey: Option<Binary>,
     pub randomness: Option<Binary>,
 }

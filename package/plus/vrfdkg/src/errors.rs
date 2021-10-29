@@ -15,6 +15,8 @@ pub enum ContractError {
     InvalidRound { round: u64 },
     #[error("Signature is invalid")]
     InvalidSignature {},
+    #[error("Signed signature is invalid")]
+    InvalidSignedSignature {},
     #[error("Pubkey share is invalid")]
     InvalidPublicKeyShare {},
     #[error("No funds were sent with the expected token: {expected_denom}")]

@@ -25,19 +25,19 @@ pub fn try_bid_nft(
     info: MessageInfo,
     env: Env,
     auction_id: u64,
+    per_price: Uint128,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
         denom, governance, ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if auction exists, when return StdError => it will show EOF while parsing a JSON value.
-    let mut off: Auction = deps
-        .querier
-        .query_wasm_smart(
-            get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Msg(AuctionQueryMsg::GetAuctionRaw { auction_id }),
-        )
-        .map_err(|_op| ContractError::AuctionNotFound {})?;
+    let mut off: Auction = query_storage(
+        deps.as_ref(),
+        AUCTION_STORAGE,
+        AuctionQueryMsg::GetAuctionRaw { auction_id },
+    )
+    .map_err(|_op| ContractError::AuctionNotFound {})?;
 
     let token_id_event = off.token_id.clone();
 
@@ -82,6 +82,11 @@ pub fn try_bid_nft(
                     return Err(ContractError::InsufficientFunds {});
                 }
             }
+            // check sent funds vs per price to make sure sent funds is greator or equal to input price
+            let input_price = calculate_price(per_price, off.amount);
+            if sent_fund.amount.lt(&input_price) {
+                return Err(ContractError::InsufficientFunds {});
+            }
 
             if let Some(bidder) = off.bidder {
                 let bidder_addr = deps.api.human_address(&bidder)?;
@@ -98,9 +103,7 @@ pub fn try_bid_nft(
 
             // update new price and new bidder
             off.bidder = deps.api.canonical_address(&info.sender).ok();
-            off.per_price = sent_fund
-                .amount
-                .mul(Decimal::from_ratio(1u128, off.amount.u128()));
+            off.per_price = per_price;
             // push save message to auction_storage
             cosmos_msgs.push(get_auction_handle_msg(
                 governance,
@@ -121,6 +124,7 @@ pub fn try_bid_nft(
             attr("bidder", info.sender),
             attr("auction_id", auction_id),
             attr("token_id", token_id_event),
+            attr("per_price", per_price),
         ],
         data: None,
     })
@@ -265,17 +269,18 @@ pub fn handle_ask_auction(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
-    let _ = verify_nft(
+    let final_asker = verify_nft(
         deps.as_ref(),
-        governance.as_str(),
+        env.contract.address.as_str(),
         msg.contract_addr.as_str(),
         msg.token_id.as_str(),
         info.sender.as_str(),
+        msg.asker,
         Some(msg.amount),
     )?;
 
     // get Auctions count
-    let asker = deps.api.canonical_address(&info.sender)?;
+    let asker = deps.api.canonical_address(&HumanAddr(final_asker))?;
     let start_timestamp = msg.start_timestamp.unwrap_or(Uint128::from(env.block.time));
     let end_timestamp = msg
         .end_timestamp
@@ -294,7 +299,7 @@ pub fn handle_ask_auction(
     let end = msg
         .end
         .map(|mut end| {
-            if end.lt(&env.block.height) {
+            if end.lt(&env.block.height) || end.le(&start) {
                 end = start + DEFAULT_AUCTION_BLOCK;
             }
             end

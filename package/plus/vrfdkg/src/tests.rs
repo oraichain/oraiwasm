@@ -20,6 +20,10 @@ use cosmwasm_std::{
 };
 use pairing::bls12_381::Fr;
 
+use sha3::{Digest, Keccak256};
+
+use cosmwasm_crypto::secp256k1_verify;
+
 fn get_sk_key(member: &Member, dealers: &Vec<Member>) -> SecretKeyShare {
     let mut sec_key = Fr::zero();
     for dealer in dealers {
@@ -115,7 +119,6 @@ pub fn generate_bivars(
 
         let mut rng = rand::thread_rng();
         let bi_poly = BivarPoly::random(threshold, &mut rng);
-
         let bi_commit = bi_poly.commitment();
 
         commits.push(Binary::from(bi_commit.row(0).to_bytes()).to_base64());
@@ -202,7 +205,8 @@ fn initialization(deps: DepsMut) -> InitResponse {
         members: ADDRESSES
             .iter()
             .map(|addr| MemberMsg {
-                pubkey: Binary::default(), // pubkey is using for encrypt/decrypt on the blockchain
+                pubkey: Binary::from_base64("Ak03yXh95GQAV08DT3ZY091tMwjoD5Df+mAcunLEonFZ")
+                    .unwrap(), // pubkey is using for encrypt/decrypt on the blockchain
                 address: addr.to_string(),
             })
             .collect(),
@@ -230,7 +234,7 @@ fn share_dealer() {
     deps.api.canonical_length = 54;
     let _res = initialization(deps.as_mut());
 
-    init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD);
+    init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD, true);
 
     let ret: Config =
         from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::ContractInfo {}).unwrap()).unwrap();
@@ -278,7 +282,7 @@ fn request_round() {
     deps.api.canonical_length = 54;
     let _res = initialization(deps.as_mut());
 
-    init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD);
+    init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD, true);
 
     let members: Vec<Member> = from_binary(
         &query(
@@ -323,6 +327,7 @@ fn request_round() {
     while current_round_result.is_ok() {
         let current_round = query_current(deps.as_ref()).unwrap();
         // threshold is 2, so need 3,4,5 as honest member to contribute sig
+        let signed_sig = vec!["1CG1ookmdSI5uLZu7y1sVYtAvhk3zmEQ7vnOqQ+5vuNRT9lbkchwr5SyMJ5UNCog1Vvvdsda0mPJ0vnh+duKGA==","rGR3n+1/zVcWc2Qu+0pojOto3a/BKAZBb31cfTI9qB5ZIZaIzri0VYN1C+0eIn9z31ryfBNq8+L693i2Iq0k+A==","+PU2BLZA5Ki2MscP8mDdzXJtXmAVhq8XD+UiLeR2O8p0S3gJWv57mpp201i7YZeODgQTw77rXNdq5pR04Sr75g=="];
         let contributors: Vec<&Member> = [2, 3, 4].iter().map(|i| &members[*i]).collect();
         for contributor in contributors {
             // now can share secret pubkey for contract to verify
@@ -343,6 +348,8 @@ fn request_round() {
                 share: ShareSigMsg {
                     sig,
                     round: current_round.round,
+                    signed_sig: Binary::from_base64(signed_sig[(current_round.round - 1) as usize])
+                        .unwrap(),
                 },
             };
             handle(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -392,7 +399,7 @@ fn test_reset() {
 
     println!("initial config: {:?}", config);
 
-    init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD);
+    init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD, true);
 
     let members: Vec<Member> = from_binary(
         &query(
@@ -453,6 +460,7 @@ fn test_reset() {
                 share: ShareSigMsg {
                     sig,
                     round: current_round.round,
+                    signed_sig: Binary::from_base64("aGVsbG8=").unwrap(),
                 },
             };
             handle(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -523,7 +531,8 @@ fn test_reset() {
         deps,
         ADDRESSES,
         config.dealer as usize,
-        config.total as usize
+        config.total as usize,
+        true
     );
 
     let members: Vec<Member> = get_all_members(deps.as_ref()).unwrap();
@@ -565,4 +574,26 @@ fn force_next_round() {
     let current_round: u64 = round_count_read(deps.as_ref().storage).load().unwrap();
     println!("current round: {:?}", current_round);
     assert_eq!(current_round, 11);
+}
+
+#[test]
+fn test_verify_signed_sig() {
+    let mut hasher = Keccak256::new();
+    hasher.update("hello world");
+    let result = hasher.finalize();
+    println!("result: {:?}", result);
+    let signature = vec![
+        121, 132, 11, 107, 83, 130, 225, 24, 62, 29, 44, 7, 36, 119, 15, 135, 209, 214, 106, 218,
+        222, 20, 36, 49, 219, 244, 206, 165, 147, 228, 56, 175, 124, 90, 47, 241, 152, 120, 76, 0,
+        226, 71, 137, 15, 73, 166, 249, 40, 225, 85, 97, 84, 52, 180, 8, 195, 101, 22, 24, 170,
+        117, 192, 61, 100,
+    ];
+
+    let pubkey = vec![
+        3, 215, 107, 162, 127, 174, 200, 111, 162, 250, 227, 29, 61, 5, 208, 149, 205, 103, 215,
+        235, 96, 191, 152, 206, 119, 214, 70, 156, 239, 128, 174, 198, 93,
+    ];
+
+    let verified = secp256k1_verify(result.to_vec().as_slice(), &signature, &pubkey).unwrap();
+    println!("verified: {:?}", verified);
 }

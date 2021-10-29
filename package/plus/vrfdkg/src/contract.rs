@@ -21,6 +21,10 @@ use crate::state::{
     members_storage_read, owner, owner_read, round_count, round_count_read, Config, Owner,
 };
 
+use sha3::{Digest, Keccak256};
+
+use cosmwasm_crypto::secp256k1_verify;
+
 // settings for pagination
 const MAX_LIMIT: u8 = 30;
 const DEFAULT_LIMIT: u8 = 5;
@@ -342,8 +346,34 @@ pub fn update_share_sig(
     let value = beacons.get(&round_key).ok_or(ContractError::NoBeacon {})?;
     let mut share_data: DistributedShareData = from_slice(value.as_slice())?;
 
-    // if too late, unauthorized to add more signature
+    // if too late, check signed signature. If still empty => update then increase round count
     if share_data.sigs.len() > threshold as usize {
+        if share_data.signed_combined_sig.is_none() && share_data.combined_sig.is_some() {
+            // also verify the signed signature against the signature received
+            let mut hasher = Keccak256::new();
+            hasher.update(share_data.combined_sig.clone().unwrap().as_slice());
+            let combined_sig_hash = hasher.finalize();
+            let signed_verifed = secp256k1_verify(
+                combined_sig_hash.to_vec().as_slice(),
+                share.signed_sig.as_slice(),
+                member.pubkey.as_slice(),
+            )
+            .map_err(|_| ContractError::InvalidSignedSignature {})?;
+            if signed_verifed {
+                // increment round count since this round has finished and verified
+                round_count(deps.storage).save(&(share.round + 1))?;
+                share_data.signed_combined_sig = Some(share.signed_sig);
+                share_data.signed_pubkey = Some(member.pubkey); // update back data
+                beacons_storage(deps.storage).set(&round_key, &to_binary(&share_data)?);
+                return Ok(HandleResponse {
+                    attributes: vec![
+                        attr("action", "update_signed_sig"),
+                        attr("executor", member.address),
+                    ],
+                    ..HandleResponse::default()
+                });
+            }
+        }
         return Ok(HandleResponse::default());
     }
 
@@ -353,7 +383,7 @@ pub fn update_share_sig(
         .find(|sig| sig.sender.eq(&member.address))
         .is_some()
     {
-        // can not update the signature once commited
+        // can not update the signature once committed
         return Err(ContractError::Unauthorized(format!(
             "{} can not update the signature once commited",
             info.sender
@@ -409,7 +439,8 @@ pub fn update_share_sig(
         let combined_pubkey = mpkset.public_key();
         let mut combined_sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
         combined_sig_bytes.copy_from_slice(&combined_sig.to_bytes());
-        share_data.combined_sig = Some(Binary::from(combined_sig_bytes));
+
+        share_data.combined_sig = Some(Binary::from(combined_sig_bytes.as_slice()));
         share_data.combined_pubkey = Some(Binary::from(combined_pubkey.to_bytes()));
         let verifed = combined_pubkey.verify_g2(&combined_sig, hash_on_curve);
 
@@ -417,8 +448,9 @@ pub fn update_share_sig(
         if verifed {
             let randomness = derive_randomness(&combined_sig);
             share_data.randomness = Some(Binary::from(randomness));
-            // increment round count since this round has finished and verified
-            round_count(deps.storage).save(&(share.round + 1))?;
+        } else {
+            // if not verified, we stop and return error. Let other executors do the work
+            return Err(ContractError::InvalidSignature {});
         }
     }
 
@@ -508,6 +540,8 @@ pub fn request_random(
         // each compute will store the aggregated_pubkey for other to verify,
         // because pubkey may change follow commits shared
         combined_sig: None,
+        signed_combined_sig: None,
+        signed_pubkey: None,
         combined_pubkey: None,
         randomness: None,
     })?;
