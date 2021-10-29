@@ -240,12 +240,16 @@ pub fn revoke_all(
 }
 
 pub fn change_creator(
-    _deps: DepsMut,
+    deps: DepsMut,
     info: MessageInfo,
     _env: Env,
     contract_addr: HumanAddr,
     change_creator_msg: ChangeCreatorMsg,
 ) -> Result<HandleResponse, ContractError> {
+    if !check_authorization(deps.as_ref(), info.sender.as_str()) {
+        return Err(ContractError::Unauthorized {});
+    }
+
     let change_creator_cosmos_msg = WasmMsg::Execute {
         contract_addr,
         msg: to_binary(&change_creator_msg)?,
@@ -462,4 +466,16 @@ pub fn check_authorization(deps: Deps, sender: &str) -> bool {
         return true;
     };
     false
+}
+
+pub fn verify_change_state(deps: Deps) -> Result<bool, ContractError> {
+    let num_changes = num_changes(deps.storage)?;
+    let change = SHARE_CHANGES.may_load(deps.storage, &num_changes.to_be_bytes())?;
+    if let Some(change) = change {
+        if change.status.ne(&ChangeStatus::Voting) {
+            return Ok(true);
+        }
+        return Ok(false);
+    }
+    Ok(true)
 }

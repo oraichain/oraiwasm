@@ -25,6 +25,7 @@ const MARKET_ADDR: &str = "market_addr";
 const HUB_ADDR: &str = "hub_addr";
 const OFFERING_ADDR: &str = "offering_addr";
 const AUCTION_ADDR: &str = "auction_addr";
+const APPROVE_ADDR: &str = "approve_addr";
 const AI_ROYALTY_ADDR: &str = "ai_royalty_addr";
 const OW_1155_ADDR: &str = "1155_addr";
 const CONTRACT_NAME: &str = "Auction Marketplace";
@@ -32,6 +33,7 @@ const DENOM: &str = "orai";
 pub const STORAGE_1155: &str = "1155_storage";
 pub const AUCTION_STORAGE: &str = "auction_extend";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
+pub const APPROVE_STORAGE: &str = "approve_storage";
 
 static mut _DATA: *const DepsManager = 0 as *const DepsManager;
 struct DepsManager {
@@ -75,6 +77,7 @@ impl DepsManager {
                         AI_ROYALTY_STORAGE.to_string(),
                         HumanAddr::from(AI_ROYALTY_ADDR),
                     ),
+                    (APPROVE_STORAGE.to_string(), HumanAddr::from(APPROVE_ADDR)),
                 ],
                 implementations: vec![HumanAddr::from(MARKET_ADDR)],
             },
@@ -125,6 +128,19 @@ impl DepsManager {
             },
         )
         .unwrap();
+
+        let mut approve = mock_dependencies(HumanAddr::from(APPROVE_ADDR), &[], Self::query_wasm);
+        let _res = market_approval_storage::contract::init(
+            approve.as_mut(),
+            mock_env(APPROVE_ADDR),
+            info.clone(),
+            market_approval_storage::msg::InitMsg {
+                governance: HumanAddr::from(HUB_ADDR),
+            },
+        )
+        .unwrap();
+
+        // TODO: Add approval storage
 
         // update maximum royalty to MAX_ROYALTY_PERCENT
         let update_info = market_ai_royalty_storage::msg::HandleMsg::UpdateInfo(
