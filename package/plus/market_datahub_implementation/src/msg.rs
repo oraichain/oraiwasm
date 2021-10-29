@@ -47,6 +47,7 @@ pub enum HandleMsg {
         amount: Uint128,
         price_per_annotation: Uint128,
         expired_after: Option<u64>,
+        number_of_jobs: Uint128,
     },
     DepositAnnotation {
         annotation_id: u64,
