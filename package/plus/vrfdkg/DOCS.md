@@ -6,7 +6,7 @@
 
 #### Features of good randomness
 
-- Unpredictable: you can not predict the next number to come out of the generator, because the output derived from cryptographic functions.
+- Unpredictable: you can not predict the next number to come out of the generator, because the output derived from cryptographic functions using private seeds.
 
 - Publicly-verifiable: anyone can verify that a random number is calculated correctly with provided proofs, a combined signature and a combined public key.
 
