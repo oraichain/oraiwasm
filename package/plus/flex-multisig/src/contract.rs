@@ -6,7 +6,6 @@ use cosmwasm_std::{
 };
 
 use cw0::{maybe_canonical, Expiration};
-use cw2::set_contract_version;
 use cw3::{
     ProposalListResponse, ProposalResponse, Status, ThresholdResponse, Vote, VoteInfo,
     VoteListResponse, VoteResponse, VoterDetail, VoterListResponse, VoterResponse,
@@ -19,10 +18,6 @@ use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 use crate::state::{
     next_id, parse_id, Ballot, Config, Proposal, Votes, BALLOTS, CONFIG, PROPOSALS,
 };
-
-// version info for migration info
-const CONTRACT_NAME: &str = "crates.io:cw3-flex-multisig";
-const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn init(
     deps: DepsMut,
@@ -40,8 +35,6 @@ pub fn init(
     let group = Cw4Contract(msg.group_addr);
     let total_weight = group.total_weight(&deps.querier)?;
     msg.threshold.validate(total_weight)?;
-
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
 
     let cfg = Config {
         threshold: msg.threshold,
@@ -448,7 +441,6 @@ mod tests {
     use cosmwasm_std::{coin, coins, BankMsg, Coin, Decimal};
 
     use cw0::Duration;
-    use cw2::{query_contract_info, ContractVersion};
     use cw4::{Cw4HandleMsg, Member};
     use cw4_group::helpers::Cw4GroupContract;
     use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
@@ -654,16 +646,6 @@ mod tests {
         let flex_addr = app
             .instantiate_contract(flex_id, OWNER, &init_msg, &[], "all good")
             .unwrap();
-
-        // Verify contract version set properly
-        let version = query_contract_info(&app, &flex_addr).unwrap();
-        assert_eq!(
-            ContractVersion {
-                contract: CONTRACT_NAME.to_string(),
-                version: CONTRACT_VERSION.to_string(),
-            },
-            version,
-        );
 
         // Get voters query
         let voters: VoterListResponse = app
