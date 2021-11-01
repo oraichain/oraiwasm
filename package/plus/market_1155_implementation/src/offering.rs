@@ -369,17 +369,19 @@ pub fn try_change_creator(
 pub fn try_sell_nft(
     deps: DepsMut,
     info: MessageInfo,
+    env: Env,
     msg: SellNft,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
     // get unique offering. Dont allow a seller to sell when he's already selling or on auction
-    let _ = verify_nft(
+    let final_seller = verify_nft(
         deps.as_ref(),
-        governance.as_str(),
+        env.contract.address.as_str(),
         msg.contract_addr.as_str(),
         msg.token_id.as_str(),
         info.sender.as_str(),
+        msg.seller,
         Some(msg.amount),
     )?;
 
@@ -387,7 +389,7 @@ pub fn try_sell_nft(
         id: None,
         token_id: msg.token_id,
         contract_addr: msg.contract_addr.clone(),
-        seller: info.sender.clone(),
+        seller: HumanAddr(final_seller),
         per_price: msg.per_price,
         amount: msg.amount,
     };

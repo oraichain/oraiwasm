@@ -269,17 +269,18 @@ pub fn handle_ask_auction(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
-    let _ = verify_nft(
+    let final_asker = verify_nft(
         deps.as_ref(),
-        governance.as_str(),
+        env.contract.address.as_str(),
         msg.contract_addr.as_str(),
         msg.token_id.as_str(),
         info.sender.as_str(),
+        msg.asker,
         Some(msg.amount),
     )?;
 
     // get Auctions count
-    let asker = deps.api.canonical_address(&info.sender)?;
+    let asker = deps.api.canonical_address(&HumanAddr(final_asker))?;
     let start_timestamp = msg.start_timestamp.unwrap_or(Uint128::from(env.block.time));
     let end_timestamp = msg
         .end_timestamp
@@ -298,7 +299,7 @@ pub fn handle_ask_auction(
     let end = msg
         .end
         .map(|mut end| {
-            if end.lt(&env.block.height) {
+            if end.lt(&env.block.height) || end.le(&start) {
                 end = start + DEFAULT_AUCTION_BLOCK;
             }
             end

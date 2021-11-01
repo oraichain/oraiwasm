@@ -91,7 +91,7 @@ const getMembers = async (total) => {
     const tempMembers = await queryWasm(cosmos, config.contract, {
       get_members: {
         offset,
-        limit: 30
+        limit: 5
       }
     });
     if (!tempMembers || tempMembers.code || tempMembers.length === 0) continue;

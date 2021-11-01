@@ -98,6 +98,7 @@ pub fn handle(
             amount,
             price_per_annotation,
             expired_after,
+            number_of_jobs,
         } => try_execute_request_annotation(
             deps,
             info,
@@ -107,6 +108,7 @@ pub fn handle(
             amount,
             price_per_annotation,
             expired_after,
+            number_of_jobs,
         ),
         HandleMsg::SubmitAnnotation { annotation_id } => {
             handle_submit_annotation(deps, info, annotation_id)

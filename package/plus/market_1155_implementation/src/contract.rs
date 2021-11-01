@@ -15,7 +15,7 @@ use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
     InitResponse, MessageInfo, StdError, StdResult, Uint128, WasmMsg,
 };
-use cw1155::{BalanceResponse, Cw1155QueryMsg};
+use cw1155::{BalanceResponse, Cw1155QueryMsg, IsApprovedForAllResponse};
 use market::{query_proxy, query_proxy_generic, StorageHandleMsg, StorageQueryMsg};
 use market_1155::{MarketQueryMsg, Offering};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
@@ -71,7 +71,7 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::SellNft(msg) => try_sell_nft(deps, info, msg),
+        HandleMsg::SellNft(msg) => try_sell_nft(deps, info, env, msg),
         HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
         // royalty
@@ -306,27 +306,63 @@ pub fn get_royalty(
 
 pub fn verify_nft(
     deps: Deps,
-    _governance: &str,
+    market_addr: &str,
     contract_addr: &str,
     token_id: &str,
     owner: &str,
+    seller: Option<HumanAddr>,
     amount: Option<Uint128>,
-) -> Result<bool, ContractError> {
+) -> Result<String, ContractError> {
     // get unique offering. Dont allow a seller to sell when he's already selling
+
+    let mut final_seller: String = owner.to_string();
+
+    // if there's input seller => must check if the seller approves the info sender to sell the nft
+    if let Some(msg_seller) = seller {
+        let is_approved: IsApprovedForAllResponse = deps.querier.query_wasm_smart(
+            contract_addr.clone(),
+            &Cw1155QueryMsg::IsApprovedForAll {
+                owner: msg_seller.to_string(),
+                operator: owner.to_string(),
+            },
+        )?;
+        if !is_approved.approved {
+            return Err(ContractError::Unauthorized {
+                sender: owner.to_string(),
+            });
+        } else {
+            final_seller = msg_seller.to_string();
+        }
+    }
+
+    // verify if the final seller has approved the marketplace or not => fail if not
+    let is_approved: IsApprovedForAllResponse = deps.querier.query_wasm_smart(
+        contract_addr.clone(),
+        &Cw1155QueryMsg::IsApprovedForAll {
+            owner: final_seller.clone(),
+            operator: market_addr.to_string(),
+        },
+    )?;
+    if !is_approved.approved {
+        return Err(ContractError::Unauthorized {
+            sender: owner.to_string(),
+        });
+    }
+
     let offering: Option<Offering> = query_storage(
         deps,
         STORAGE_1155,
         MarketQueryMsg::GetUniqueOffering {
             contract: HumanAddr::from(contract_addr),
             token_id: token_id.to_string(),
-            seller: HumanAddr::from(owner),
+            seller: HumanAddr::from(final_seller.as_str()),
         },
     )
     .ok();
 
     if offering.is_some() {
         return Err(ContractError::TokenOnSale {
-            seller: owner.clone().to_string(),
+            seller: final_seller.clone(),
         });
     }
 
@@ -338,7 +374,7 @@ pub fn verify_nft(
         AuctionQueryMsg::GetUniqueAuction {
             contract: HumanAddr::from(contract_addr),
             token_id: token_id.to_string(),
-            asker: HumanAddr::from(owner),
+            asker: HumanAddr::from(final_seller.as_str()),
         },
     )
     .ok();
@@ -354,7 +390,7 @@ pub fn verify_nft(
             .query_wasm_smart(
                 contract_addr,
                 &Cw1155QueryMsg::Balance {
-                    owner: owner.to_string(),
+                    owner: final_seller.to_string(),
                     token_id: token_id.to_string(),
                 },
             )
@@ -367,5 +403,5 @@ pub fn verify_nft(
             return Err(ContractError::InsufficientAmount {});
         }
     }
-    Ok(true)
+    Ok(final_seller)
 }
