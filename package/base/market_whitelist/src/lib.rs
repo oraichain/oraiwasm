@@ -8,4 +8,4 @@ pub use crate::msg::*;
 pub use crate::query::*;
 pub use market::*;
 
-pub use crate::event::RejectAllEvent;
+pub use crate::event::ApproveAllEvent;
