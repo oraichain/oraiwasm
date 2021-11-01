@@ -10,7 +10,7 @@
 
 - Publicly-verifiable: anyone can verify that a random number is calculated correctly with provided proofs, a combined signature and a combined public key.
 
-- Bias-resistant: no one can behave disonestly to lead the generator toward their advantage, because each shared part can be verified onchain.
+- Bias-resistant: no one can behave disonestly to lead the generator toward their advantage, because each shared part can be verified on-chain.
 
 - Decentralized: a set of independent parties produces random numbers, by commiting all their public keys in init phrase.
 
