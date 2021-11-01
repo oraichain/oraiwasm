@@ -12,7 +12,7 @@
 
 - Bias-resistant: no one can behave disonestly to lead the generator toward their advantage, because each shared part can be verified on-chain.
 
-- Decentralized: a set of independent parties produces random numbers, by commiting all their public keys in init phrase.
+- Decentralized: a set of independent parties produces random numbers, by commiting all their public keys in init phrase and broad cast their signatures in each round.
 
 - Available: the system always be able to provide random numbers, by running on blockchain.
 
