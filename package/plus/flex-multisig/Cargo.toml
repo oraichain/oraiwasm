@@ -19,7 +19,6 @@ library = []
 
 [dependencies]
 cw0 = { version = "0.5.0" }
-cw2 = { version = "0.5.0" }
 cw3 = { version = "0.5.0" }
 cw4 = { version = "0.5.0" }
 cw-storage-plus = { version = "0.5.0", features = ["iterator"] }
