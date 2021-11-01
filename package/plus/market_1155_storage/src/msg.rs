@@ -13,7 +13,14 @@ pub struct InitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     Msg(MarketHandleMsg),
+    UpdateInfo(UpdateContractMsg),
     // other implementation
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UpdateContractMsg {
+    pub governance: Option<HumanAddr>,
+    pub creator: Option<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

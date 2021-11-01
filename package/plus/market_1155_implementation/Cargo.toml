@@ -42,13 +42,13 @@ serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }
 market_ai_royalty = { path = "../../base/market_ai_royalty" }
 market_auction_extend = { path = "../../base/market_auction_extend" }
-market_approval_storage = { path = "../market_approval_storage" }
+market_rejected = { path = "../../base/market_rejected" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.13.2" }
 market_hub = { path = "../market_hub" }
 market_ai_royalty_storage = { path = "../market_ai_royalty_storage" }
-market_approval_storage = { path = "../market_approval_storage" }
+market_rejected_storage = { path = "../market_rejected_storage" }
 market_1155_storage = { path = "../market_1155_storage" }
 market_auction_extend_storage = { path = "../market_auction_extend_storage" }
 ow1155 = { path = "../ow1155" }

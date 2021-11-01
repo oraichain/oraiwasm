@@ -11,6 +11,8 @@ pub enum ContractError {
 
     #[error("Unauthorized data hub implementation with sender: {sender}")]
     Unauthorized { sender: String },
+    #[error("Rejected data hub implementation with sender: {sender}. The sender is in marketplace black list")]
+    Rejected { sender: String },
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
     #[error("Insufficient funds")]

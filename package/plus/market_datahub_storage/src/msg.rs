@@ -14,6 +14,13 @@ pub struct InitMsg {
 pub enum HandleMsg {
     Msg(DataHubHandleMsg),
     // other implementation
+    UpdateInfo(UpdateContractMsg),
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UpdateContractMsg {
+    pub governance: Option<HumanAddr>,
+    pub creator: Option<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

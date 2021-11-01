@@ -16,6 +16,9 @@ use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_auction_extend::{
     AuctionQueryMsg, AuctionsResponse, PagingOptions, QueryAuctionsResult,
 };
+use market_rejected::{
+    IsRejectedForAllResponse, MarketRejectedHandleMsg, MarketRejectedQueryMsg, NftInfo,
+};
 use std::mem::transmute;
 use std::ops::Mul;
 use std::ptr::null;
@@ -25,7 +28,7 @@ const MARKET_ADDR: &str = "market_addr";
 const HUB_ADDR: &str = "hub_addr";
 const OFFERING_ADDR: &str = "offering_addr";
 const AUCTION_ADDR: &str = "auction_addr";
-const APPROVE_ADDR: &str = "approve_addr";
+const REJECT_ADDR: &str = "reject_addr";
 const AI_ROYALTY_ADDR: &str = "ai_royalty_addr";
 const OW_1155_ADDR: &str = "1155_addr";
 const CONTRACT_NAME: &str = "Auction Marketplace";
@@ -33,7 +36,7 @@ const DENOM: &str = "orai";
 pub const STORAGE_1155: &str = "1155_storage";
 pub const AUCTION_STORAGE: &str = "auction_extend";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
-pub const APPROVE_STORAGE: &str = "approve_storage";
+pub const REJECTED_STORAGE: &str = "rejected_storage";
 
 static mut _DATA: *const DepsManager = 0 as *const DepsManager;
 struct DepsManager {
@@ -43,6 +46,7 @@ struct DepsManager {
     ow1155: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     ai_royalty: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     auction: OwnedDeps<MockStorage, MockApi, MockQuerier>,
+    rejected: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     // main deps
     deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
 }
@@ -77,7 +81,7 @@ impl DepsManager {
                         AI_ROYALTY_STORAGE.to_string(),
                         HumanAddr::from(AI_ROYALTY_ADDR),
                     ),
-                    (APPROVE_STORAGE.to_string(), HumanAddr::from(APPROVE_ADDR)),
+                    (REJECTED_STORAGE.to_string(), HumanAddr::from(REJECT_ADDR)),
                 ],
                 implementations: vec![HumanAddr::from(MARKET_ADDR)],
             },
@@ -129,18 +133,16 @@ impl DepsManager {
         )
         .unwrap();
 
-        let mut approve = mock_dependencies(HumanAddr::from(APPROVE_ADDR), &[], Self::query_wasm);
-        let _res = market_approval_storage::contract::init(
-            approve.as_mut(),
-            mock_env(APPROVE_ADDR),
+        let mut rejected = mock_dependencies(HumanAddr::from(REJECT_ADDR), &[], Self::query_wasm);
+        let _res = market_rejected_storage::contract::init(
+            rejected.as_mut(),
+            mock_env(REJECT_ADDR),
             info.clone(),
-            market_approval_storage::msg::InitMsg {
+            market_rejected_storage::msg::InitMsg {
                 governance: HumanAddr::from(HUB_ADDR),
             },
         )
         .unwrap();
-
-        // TODO: Add approval storage
 
         // update maximum royalty to MAX_ROYALTY_PERCENT
         let update_info = market_ai_royalty_storage::msg::HandleMsg::UpdateInfo(
@@ -184,6 +186,7 @@ impl DepsManager {
             ow1155,
             ai_royalty,
             auction,
+            rejected,
             deps,
         }
     }
@@ -220,6 +223,13 @@ impl DepsManager {
                     AUCTION_ADDR => market_auction_extend_storage::contract::handle(
                         self.auction.as_mut(),
                         mock_env(AUCTION_ADDR),
+                        mock_info(HUB_ADDR, &[]),
+                        from_slice(msg).unwrap(),
+                    )
+                    .ok(),
+                    REJECT_ADDR => market_rejected_storage::contract::handle(
+                        self.rejected.as_mut(),
+                        mock_env(REJECT_ADDR),
                         mock_info(HUB_ADDR, &[]),
                         from_slice(msg).unwrap(),
                     )
@@ -297,6 +307,12 @@ impl DepsManager {
                         AUCTION_ADDR => market_auction_extend_storage::contract::query(
                             manager.auction.as_ref(),
                             mock_env(AUCTION_ADDR),
+                            from_slice(&msg).unwrap(),
+                        )
+                        .unwrap_or_default(),
+                        REJECT_ADDR => market_rejected_storage::contract::query(
+                            manager.rejected.as_ref(),
+                            mock_env(REJECT_ADDR),
                             from_slice(&msg).unwrap(),
                         )
                         .unwrap_or_default(),
@@ -525,6 +541,48 @@ fn sell_auction_unhappy_path() {
         assert!(matches!(
             manager.handle(provider_info.clone(), msg.clone()),
             Err(ContractError::TokenOnAuction { .. })
+        ));
+
+        // unauthorized case when in black list
+        let blacklist_msg = MarketRejectedHandleMsg::RejectAll {
+            nft_info: NftInfo {
+                contract_addr: OW_1155_ADDR.to_string(),
+                token_id: String::from("BiddableNFT"),
+            },
+            expires: None,
+        };
+        market_rejected_storage::contract::handle(
+            manager.rejected.as_mut(),
+            mock_env(REJECT_ADDR),
+            mock_info(HUB_ADDR, &coins(1, "orai")),
+            market_rejected_storage::msg::HandleMsg::Msg(blacklist_msg),
+        )
+        .unwrap();
+
+        // query rejected list
+        let rejected: IsRejectedForAllResponse = from_binary(
+            &market_rejected_storage::contract::query(
+                manager.rejected.as_ref(),
+                mock_env(REJECT_ADDR),
+                market_rejected_storage::msg::QueryMsg::Msg(
+                    MarketRejectedQueryMsg::IsRejectedForAll {
+                        owner: HUB_ADDR.to_string(),
+                        nft_info: NftInfo {
+                            contract_addr: OW_1155_ADDR.to_string(),
+                            token_id: String::from("BiddableNFT"),
+                        },
+                    },
+                ),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        println!("rejected for all: {:?}", rejected);
+
+        // failed auction because it is already on auction by the same person
+        assert!(matches!(
+            manager.handle(provider_info.clone(), msg.clone()),
+            Err(ContractError::Rejected { .. })
         ));
     }
 }

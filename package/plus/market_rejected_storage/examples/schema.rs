@@ -3,8 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use market_approval_storage::msg::{HandleMsg, InitMsg, QueryMsg};
-use market_approval_storage::state::ContractInfo;
+use market_rejected_storage::msg::{HandleMsg, InitMsg, QueryMsg};
+use market_rejected_storage::state::ContractInfo;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

@@ -8,6 +8,7 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, U
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
     pub governance: HumanAddr,
+    pub creator: HumanAddr,
 }
 
 /// OFFERINGS is a map which maps the offering_id to an offering. Offering_id is derived from OFFERINGS_COUNT.

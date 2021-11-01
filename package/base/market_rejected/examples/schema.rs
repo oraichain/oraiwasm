@@ -10,19 +10,19 @@ fn main() {
     remove_schemas(&out_dir).unwrap();
 
     export_schema(
-        &schema_for!(market_approval::MarketApprovalHandleMsg),
+        &schema_for!(market_rejected::MarketRejectedHandleMsg),
         &out_dir,
     );
     export_schema(
-        &schema_for!(market_approval::MarketApprovalQueryMsg),
+        &schema_for!(market_rejected::MarketRejectedQueryMsg),
         &out_dir,
     );
     export_schema(
-        &schema_for!(market_approval::ApprovedForAllResponse),
+        &schema_for!(market_rejected::RejectedForAllResponse),
         &out_dir,
     );
     export_schema(
-        &schema_for!(market_approval::IsApprovedForAllResponse),
+        &schema_for!(market_rejected::IsRejectedForAllResponse),
         &out_dir,
     );
 }

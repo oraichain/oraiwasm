@@ -20,6 +20,7 @@ use market::{query_proxy, query_proxy_generic, StorageHandleMsg, StorageQueryMsg
 use market_1155::{MarketQueryMsg, Offering};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_auction_extend::{AuctionQueryMsg, QueryAuctionsResult};
+use market_rejected::{IsRejectedForAllResponse, MarketRejectedQueryMsg, NftInfo};
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -29,6 +30,7 @@ pub const MAX_FEE_PERMILLE: u64 = 1000;
 pub const EXPIRED_BLOCK_RANGE: u64 = 50000;
 pub const STORAGE_1155: &str = "1155_storage";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
+pub const REJECTED_STORAGE: &str = "rejected_storage";
 pub const CREATOR_NAME: &str = "creator";
 
 fn sanitize_fee(fee: u64, name: &str) -> Result<u64, ContractError> {
@@ -312,6 +314,7 @@ pub fn verify_nft(
     owner: &str,
     seller: Option<HumanAddr>,
     amount: Option<Uint128>,
+    governance: &str,
 ) -> Result<String, ContractError> {
     // get unique offering. Dont allow a seller to sell when he's already selling
 
@@ -335,6 +338,25 @@ pub fn verify_nft(
         }
     }
 
+    // verify if the final seller is in black list or not
+    let is_rejected: IsRejectedForAllResponse = query_storage(
+        deps,
+        REJECTED_STORAGE,
+        MarketRejectedQueryMsg::IsRejectedForAll {
+            owner: governance.to_string(),
+            nft_info: NftInfo {
+                contract_addr: contract_addr.to_string(),
+                token_id: token_id.to_string(),
+            },
+        },
+    )?;
+
+    if is_rejected.rejected {
+        return Err(ContractError::Rejected {
+            sender: final_seller.to_string(),
+        });
+    }
+
     // verify if the final seller has approved the marketplace or not => fail if not
     let is_approved: IsApprovedForAllResponse = deps.querier.query_wasm_smart(
         contract_addr.clone(),
@@ -345,7 +367,7 @@ pub fn verify_nft(
     )?;
     if !is_approved.approved {
         return Err(ContractError::Unauthorized {
-            sender: owner.to_string(),
+            sender: final_seller.to_string(),
         });
     }
 
