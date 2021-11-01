@@ -2,16 +2,21 @@
 
 - Verifiable, unpredictable and unbiased random numbers as a service using smart contract running on Oraichain network.
 
-Randomness serves a vital role in many aspect of a blockchain world. Voting systems, financial services, and the most widely used is within the field of NFT games.
+- Randomness serves a vital role in many aspect of a blockchain world. Voting systems, financial services, and the most widely used is within the field of NFT games.
 
 #### Features of good randomness
 
-. Unpredictable: you can not predict the next number to come out of the generator, because the output derived from cryptographic functions.
-. Publicly-verifiable: anyone can verify that a random number is calculated correctly with provided proofs, a combined signature and a combined public key.
-. Bias-resistant: no one can behave disonestly to lead the generator toward their advantage, because each shared part can be verified onchain.
-. Decentralized: a set of independent parties produces random numbers, by commiting all their public keys in init phrase.
-. Available: the system always be able to provide random numbers, by running on blockchain.
-. Fault Tolerance: the system can continue to provide random numbers if some nodes are down or have any failures, thanks to Threshold Signature Scheme.
+- Unpredictable: you can not predict the next number to come out of the generator, because the output derived from cryptographic functions.
+
+- Publicly-verifiable: anyone can verify that a random number is calculated correctly with provided proofs, a combined signature and a combined public key.
+
+- Bias-resistant: no one can behave disonestly to lead the generator toward their advantage, because each shared part can be verified onchain.
+
+- Decentralized: a set of independent parties produces random numbers, by commiting all their public keys in init phrase.
+
+- Available: the system always be able to provide random numbers, by running on blockchain.
+
+- Fault Tolerance: the system can continue to provide random numbers if some nodes are down or have any failures, thanks to Threshold Signature Scheme.
 
 #### How sub-network works
 
