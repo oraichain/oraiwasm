@@ -12,8 +12,8 @@ use crate::check_size;
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, MintMsg, MinterResponse, QueryMsg};
 use crate::state::{
-    increment_tokens, num_tokens, tokens, Approval, TokenInfo, CONTRACT_INFO, MINTER, OPERATORS,
-    OWNER,
+    decrement_tokens, increment_tokens, num_tokens, tokens, Approval, TokenInfo, CONTRACT_INFO,
+    MINTER, OPERATORS, OWNER,
 };
 use cw_storage_plus::Bound;
 
@@ -67,6 +67,7 @@ pub fn handle(
             recipient,
             token_id,
         } => handle_transfer_nft(deps, env, info, recipient, token_id),
+        HandleMsg::Burn { token_id } => handle_burn(deps, env, info, token_id),
         HandleMsg::SendNft {
             contract,
             token_id,
@@ -123,6 +124,30 @@ pub fn handle_mint(
             attr("action", "mint_nft"),
             attr("minter", info.sender),
             attr("token_id", msg.token_id),
+        ],
+        data: None,
+    })
+}
+
+pub fn handle_burn(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    token_id: String,
+) -> Result<HandleResponse, ContractError> {
+    let token = tokens().load(deps.storage, &token_id)?;
+    check_can_send(deps.as_ref(), &env, &info, &token)?;
+
+    tokens().remove(deps.storage, &token_id)?;
+
+    decrement_tokens(deps.storage)?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("action", "burn_nft"),
+            attr("minter", info.sender),
+            attr("token_id", token_id),
         ],
         data: None,
     })
@@ -402,6 +427,10 @@ fn check_can_approve(
 ) -> Result<(), ContractError> {
     // owner can approve
     let sender_raw = deps.api.canonical_address(&info.sender)?;
+    let owner_raw = OWNER.load(deps.storage)?;
+    if sender_raw.eq(&owner_raw) {
+        return Ok(());
+    }
     if token.owner == sender_raw {
         return Ok(());
     }
@@ -428,6 +457,10 @@ fn check_can_send(
 ) -> Result<(), ContractError> {
     // owner can send
     let sender_raw = deps.api.canonical_address(&info.sender)?;
+    let owner_raw = OWNER.load(deps.storage)?;
+    if sender_raw.eq(&owner_raw) {
+        return Ok(());
+    }
     if token.owner == sender_raw {
         return Ok(());
     }

@@ -28,6 +28,9 @@ pub enum HandleMsg {
         recipient: HumanAddr,
         token_id: String,
     },
+    Burn {
+        token_id: String,
+    },
     // ChangeMinter is a base message for the OW721 owner to change the minter
     ChangeMinter {
         minter: HumanAddr,

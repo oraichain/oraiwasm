@@ -47,6 +47,12 @@ pub fn increment_tokens(storage: &mut dyn Storage) -> StdResult<u64> {
     Ok(val)
 }
 
+pub fn decrement_tokens(storage: &mut dyn Storage) -> StdResult<u64> {
+    let val = num_tokens(storage)? - 1;
+    TOKEN_COUNT.save(storage, &val)?;
+    Ok(val)
+}
+
 pub struct TokenIndexes<'a> {
     pub owner: MultiIndex<'a, TokenInfo>,
 }

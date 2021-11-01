@@ -15,6 +15,7 @@ use cw721::{
 };
 
 const MINTER: &str = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3d";
+const OWNER: &str = "owner";
 const CONTRACT_NAME: &str = "Magic Power";
 const CONTRACT_VERSION: &str = "0.1.1";
 const SYMBOL: &str = "MGK";
@@ -28,7 +29,7 @@ fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
         minter: MINTER.into(),
         version: Some(CONTRACT_VERSION.to_string()),
     };
-    let info = mock_info(MINTER, &[]);
+    let info = mock_info(OWNER, &[]);
     let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
     deps
@@ -233,6 +234,99 @@ fn transferring_nft() {
             data: None,
         }
     );
+}
+
+#[test]
+fn test_owner_rights() {
+    let mut deps = setup_contract();
+
+    // Mint a token
+    let token_id = "melt".to_string();
+    let name = "Melting power".to_string();
+    let description = "Allows the owner to melt anyone looking at him or her".to_string();
+
+    let mint_msg = HandleMsg::Mint(MintMsg {
+        token_id: token_id.clone(),
+        owner: "venus".into(),
+        name: name.clone(),
+        description: Some(description.clone()),
+        image: "".to_string(),
+    });
+
+    let minter = mock_info(MINTER, &[]);
+    handle(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
+
+    // owner of the smart contract can transfer
+    let random = mock_info(OWNER, &[]);
+    let transfer_msg = HandleMsg::TransferNft {
+        recipient: "random".into(),
+        token_id: token_id.clone(),
+    };
+
+    let _ = handle(
+        deps.as_mut(),
+        mock_env(),
+        random.clone(),
+        transfer_msg.clone(),
+    )
+    .unwrap();
+
+    // owner can also approve the nft
+    let approve_msg = HandleMsg::Approve {
+        spender: HumanAddr::from("some random guy"),
+        token_id: "melt".to_string(),
+        expires: None,
+    };
+    handle(
+        deps.as_mut(),
+        mock_env(),
+        random.clone(),
+        approve_msg.clone(),
+    )
+    .unwrap();
+
+    // can also revoke the nft
+    let revoke_msg = HandleMsg::Revoke {
+        spender: HumanAddr::from("some random guy"),
+        token_id: "melt".to_string(),
+    };
+    handle(
+        deps.as_mut(),
+        mock_env(),
+        random.clone(),
+        revoke_msg.clone(),
+    )
+    .unwrap();
+
+    // burn the nft
+    let burn_msg = HandleMsg::Burn {
+        token_id: "melt".to_string(),
+    };
+
+    // random dude cannot burn
+    assert!(matches!(
+        handle(
+            deps.as_mut(),
+            mock_env(),
+            mock_info("random guy", &[]),
+            burn_msg.clone()
+        ),
+        Err(ContractError::Unauthorized {})
+    ));
+
+    handle(deps.as_mut(), mock_env(), random.clone(), burn_msg.clone()).unwrap();
+    // should be burnt
+
+    let is_err = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::NftInfo {
+            token_id: "melt".to_string(),
+        },
+    )
+    .is_err();
+
+    assert_eq!(is_err, true);
 }
 
 #[test]

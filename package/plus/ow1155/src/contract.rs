@@ -173,6 +173,10 @@ fn check_can_approve(
     if owner == operator {
         return Ok(true);
     }
+    let real_owner = OWNER.load(deps.storage)?;
+    if operator.eq(&real_owner) {
+        return Ok(true);
+    }
     // operator can approve
     let op = APPROVES.may_load(deps.storage, (owner.as_bytes(), operator.as_bytes()))?;
     Ok(match op {
