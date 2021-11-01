@@ -1,4 +1,4 @@
-## Distributed randomness sub-network
+## Distributed verifiable randomness function sub-network
 
 - Verifiable, unpredictable and unbiased random numbers as a service using smart contract running on Oraichain network.
 
