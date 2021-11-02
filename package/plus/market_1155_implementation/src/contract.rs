@@ -21,6 +21,9 @@ use market_1155::{MarketQueryMsg, Offering};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_auction_extend::{AuctionQueryMsg, QueryAuctionsResult};
 use market_rejected::{IsRejectedForAllResponse, MarketRejectedQueryMsg, NftInfo};
+use market_whitelist::{
+    IsApprovedForAllResponse as IsApprovedForAllResponseWhiteList, MarketWhiteListdQueryMsg,
+};
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -31,6 +34,7 @@ pub const EXPIRED_BLOCK_RANGE: u64 = 50000;
 pub const STORAGE_1155: &str = "1155_storage";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 pub const REJECTED_STORAGE: &str = "rejected_storage";
+pub const WHITELIST_STORAGE: &str = "whitelist_storage";
 pub const CREATOR_NAME: &str = "creator";
 
 fn sanitize_fee(fee: u64, name: &str) -> Result<u64, ContractError> {
@@ -351,6 +355,21 @@ pub fn verify_nft(
 
     if is_rejected.rejected {
         return Err(ContractError::Rejected {
+            sender: final_seller.to_string(),
+        });
+    }
+
+    // verify if the nft contract address is whitelisted. If not => reject
+    let is_approved: IsApprovedForAllResponseWhiteList = query_storage(
+        deps,
+        WHITELIST_STORAGE,
+        MarketWhiteListdQueryMsg::IsApprovedForAll {
+            nft_addr: contract_addr.to_string(),
+        },
+    )?;
+
+    if !is_approved.approved {
+        return Err(ContractError::NotWhilteList {
             sender: final_seller.to_string(),
         });
     }

@@ -13,6 +13,8 @@ pub enum ContractError {
     Unauthorized { sender: String },
     #[error("Rejected data hub implementation with sender: {sender}. The sender is in marketplace black list")]
     Rejected { sender: String },
+    #[error("Rejected data hub implementation with sender: {sender}. The nft contract is not whitelisted. Cannot use it on the marketplace")]
+    NotWhilteList { sender: String },
     // Add any other custom errors you like here.
     // Look at https://docs.rs/thiserror/1.0.21/thiserror/ for details.
     #[error("Insufficient funds")]

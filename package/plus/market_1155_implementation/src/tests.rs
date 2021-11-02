@@ -19,6 +19,7 @@ use market_auction_extend::{
 use market_rejected::{
     IsRejectedForAllResponse, MarketRejectedHandleMsg, MarketRejectedQueryMsg, NftInfo,
 };
+use market_whitelist::MarketWhiteListHandleMsg;
 use std::mem::transmute;
 use std::ops::Mul;
 use std::ptr::null;
@@ -29,6 +30,7 @@ const HUB_ADDR: &str = "hub_addr";
 const OFFERING_ADDR: &str = "offering_addr";
 const AUCTION_ADDR: &str = "auction_addr";
 const REJECT_ADDR: &str = "reject_addr";
+const WHITELIST_ADDR: &str = "whitelist_addr";
 const AI_ROYALTY_ADDR: &str = "ai_royalty_addr";
 const OW_1155_ADDR: &str = "1155_addr";
 const CONTRACT_NAME: &str = "Auction Marketplace";
@@ -37,6 +39,7 @@ pub const STORAGE_1155: &str = "1155_storage";
 pub const AUCTION_STORAGE: &str = "auction_extend";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 pub const REJECTED_STORAGE: &str = "rejected_storage";
+pub const WHITELIST_STORAGE: &str = "whitelist_storage";
 
 static mut _DATA: *const DepsManager = 0 as *const DepsManager;
 struct DepsManager {
@@ -47,6 +50,7 @@ struct DepsManager {
     ai_royalty: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     auction: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     rejected: OwnedDeps<MockStorage, MockApi, MockQuerier>,
+    whitelist: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     // main deps
     deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
 }
@@ -82,6 +86,10 @@ impl DepsManager {
                         HumanAddr::from(AI_ROYALTY_ADDR),
                     ),
                     (REJECTED_STORAGE.to_string(), HumanAddr::from(REJECT_ADDR)),
+                    (
+                        WHITELIST_STORAGE.to_string(),
+                        HumanAddr::from(WHITELIST_ADDR),
+                    ),
                 ],
                 implementations: vec![HumanAddr::from(MARKET_ADDR)],
             },
@@ -144,6 +152,18 @@ impl DepsManager {
         )
         .unwrap();
 
+        let mut whitelist =
+            mock_dependencies(HumanAddr::from(WHITELIST_ADDR), &[], Self::query_wasm);
+        let _res = market_whitelist_storage::contract::init(
+            whitelist.as_mut(),
+            mock_env(WHITELIST_ADDR),
+            info.clone(),
+            market_whitelist_storage::msg::InitMsg {
+                governance: HumanAddr::from(HUB_ADDR),
+            },
+        )
+        .unwrap();
+
         // update maximum royalty to MAX_ROYALTY_PERCENT
         let update_info = market_ai_royalty_storage::msg::HandleMsg::UpdateInfo(
             market_ai_royalty_storage::msg::UpdateContractMsg {
@@ -187,6 +207,7 @@ impl DepsManager {
             ai_royalty,
             auction,
             rejected,
+            whitelist,
             deps,
         }
     }
@@ -230,6 +251,13 @@ impl DepsManager {
                     REJECT_ADDR => market_rejected_storage::contract::handle(
                         self.rejected.as_mut(),
                         mock_env(REJECT_ADDR),
+                        mock_info(HUB_ADDR, &[]),
+                        from_slice(msg).unwrap(),
+                    )
+                    .ok(),
+                    WHITELIST_ADDR => market_whitelist_storage::contract::handle(
+                        self.whitelist.as_mut(),
+                        mock_env(WHITELIST_ADDR),
                         mock_info(HUB_ADDR, &[]),
                         from_slice(msg).unwrap(),
                     )
@@ -313,6 +341,12 @@ impl DepsManager {
                         REJECT_ADDR => market_rejected_storage::contract::query(
                             manager.rejected.as_ref(),
                             mock_env(REJECT_ADDR),
+                            from_slice(&msg).unwrap(),
+                        )
+                        .unwrap_or_default(),
+                        WHITELIST_ADDR => market_whitelist_storage::contract::query(
+                            manager.whitelist.as_ref(),
+                            mock_env(WHITELIST_ADDR),
                             from_slice(&msg).unwrap(),
                         )
                         .unwrap_or_default(),
@@ -403,6 +437,17 @@ fn handle_approve(manager: &mut DepsManager) {
             .unwrap();
         }
     }
+    // add whitelist nft address
+    market_whitelist_storage::contract::handle(
+        manager.whitelist.as_mut(),
+        mock_env(WHITELIST_ADDR),
+        mock_info(CREATOR, &vec![coin(50, DENOM)]),
+        market_whitelist_storage::msg::HandleMsg::Msg(MarketWhiteListHandleMsg::ApproveAll {
+            nft_addr: OW_1155_ADDR.to_string(),
+            expires: None,
+        }),
+    )
+    .unwrap();
 }
 
 #[test]
@@ -560,7 +605,7 @@ fn sell_auction_unhappy_path() {
         .unwrap();
 
         // query rejected list
-        let rejected: IsRejectedForAllResponse = from_binary(
+        let _: IsRejectedForAllResponse = from_binary(
             &market_rejected_storage::contract::query(
                 manager.rejected.as_ref(),
                 mock_env(REJECT_ADDR),
@@ -576,12 +621,32 @@ fn sell_auction_unhappy_path() {
             .unwrap(),
         )
         .unwrap();
-        println!("rejected for all: {:?}", rejected);
 
         // failed auction because it is already on auction by the same person
         assert!(matches!(
             manager.handle(provider_info.clone(), msg.clone()),
             Err(ContractError::Rejected { .. })
+        ));
+
+        assert!(matches!(
+            manager.handle(
+                provider_info.clone(),
+                HandleMsg::AskAuctionNft(AskNftMsg {
+                    per_price: Uint128(50),
+                    cancel_fee: Some(10),
+                    start: None,
+                    end: None,
+                    buyout_per_price: None,
+                    start_timestamp: None,
+                    end_timestamp: None,
+                    step_price: None,
+                    amount: Uint128(10),
+                    contract_addr: HumanAddr::from("some cute address"),
+                    token_id: String::from("BiddableNFT"),
+                    asker: None,
+                }),
+            ),
+            Err(ContractError::NotWhilteList { .. })
         ));
     }
 }
@@ -1489,6 +1554,21 @@ fn test_sell_nft_unhappy() {
         assert!(matches!(
             manager.handle(provider_info.clone(), auction_msg.clone()),
             Err(ContractError::TokenOnAuction { .. })
+        ));
+
+        // failed because not in whitelist
+        assert!(matches!(
+            manager.handle(
+                provider_info.clone(),
+                HandleMsg::SellNft(SellNft {
+                    contract_addr: HumanAddr::from("some cute address"),
+                    per_price: Uint128(50),
+                    token_id: String::from("SellableNFT"),
+                    amount: Uint128(100),
+                    seller: None,
+                })
+            ),
+            Err(ContractError::NotWhilteList { .. })
         ));
     }
 }
