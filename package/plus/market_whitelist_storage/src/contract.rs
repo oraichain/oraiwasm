@@ -15,7 +15,7 @@ use cw_storage_plus::Bound;
 use std::usize;
 
 const DEFAULT_LIMIT: u32 = 10;
-const MAX_LIMIT: u32 = 30;
+const MAX_LIMIT: u32 = 50;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -200,12 +200,12 @@ fn query_all_approvals(
         .range(deps.storage, start, None, Order::Ascending)
         .filter(|r| include_expired || r.is_err() || !r.as_ref().unwrap().1.is_expired(&env.block))
         .take(limit)
-        .map(parse_rejected)
+        .map(parse_approved)
         .collect::<StdResult<_>>()?;
     Ok(ApprovedForAllResponse { operators })
 }
 
-fn parse_rejected(item: StdResult<KV<Expiration>>) -> StdResult<Approved> {
+fn parse_approved(item: StdResult<KV<Expiration>>) -> StdResult<Approved> {
     item.and_then(|(k, expires)| {
         let spender = String::from_utf8(k)?;
         Ok(Approved { spender, expires })

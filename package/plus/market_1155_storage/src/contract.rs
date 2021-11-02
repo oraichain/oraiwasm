@@ -194,10 +194,10 @@ fn _get_range_params(
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min: Option<Bound> = None;
     let mut max: Option<Bound> = None;
-    let mut order_enum = Order::Descending;
+    let mut order_enum = Order::Ascending;
     if let Some(num) = order {
-        if num == 1 {
-            order_enum = Order::Ascending;
+        if num == 2 {
+            order_enum = Order::Descending;
         }
     }
 
