@@ -48,6 +48,7 @@ pub fn pay_royalties(
                 creator: royalty.creator.to_string(),
                 royalty: royalty.royalty,
                 amount: creator_amount,
+                denom: denom.to_string(),
             })
         }
     }

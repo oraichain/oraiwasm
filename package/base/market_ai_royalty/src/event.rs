@@ -9,6 +9,7 @@ pub struct RoyaltyEvent {
     pub creator: String,
     pub royalty: u64,
     pub amount: Uint128,
+    pub denom: String,
 }
 
 pub struct RoyaltiesEvent<'a> {
@@ -21,7 +22,7 @@ impl<'a> Event for RoyaltiesEvent<'a> {
         for royalty in self.royalties_event {
             rsp.attributes.push(attr(
                 format!("royalty_{}_{}", royalty.creator, royalty.royalty),
-                royalty.amount,
+                format!("{}{}", royalty.amount, royalty.denom),
             ));
         }
         rsp.attributes.push(attr("action", "finish_pay_royalty"));

@@ -71,7 +71,7 @@ pub fn handle(
             value,
         } => execute_burn(env, from, token_id, value),
         Cw1155ExecuteMsg::BatchBurn { from, batch } => execute_batch_burn(env, from, batch),
-        Cw1155ExecuteMsg::ChangeMinter(minter) => change_minter(env, minter),
+        Cw1155ExecuteMsg::ChangeMinter { minter } => change_minter(env, minter),
         Cw1155ExecuteMsg::ApproveAll { operator, expires } => {
             execute_approve_all(env, operator, expires)
         }

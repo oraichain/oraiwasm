@@ -734,7 +734,9 @@ fn change_minter() {
             deps.as_mut(),
             env.clone(),
             mock_info(HumanAddr(minter.clone()), &[]),
-            Cw1155ExecuteMsg::ChangeMinter("hello there".to_string()),
+            Cw1155ExecuteMsg::ChangeMinter {
+                minter: "hello there".to_string()
+            },
         ),
         // only match type
         Err(ContractError::Unauthorized {})
@@ -745,7 +747,9 @@ fn change_minter() {
         deps.as_mut(),
         env.clone(),
         mock_info(HumanAddr("operator".to_string()), &[]),
-        Cw1155ExecuteMsg::ChangeMinter("hello there".to_string()),
+        Cw1155ExecuteMsg::ChangeMinter {
+            minter: "hello there".to_string(),
+        },
     )
     .unwrap();
 
