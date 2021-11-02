@@ -566,7 +566,6 @@ fn sell_auction_unhappy_path() {
                 mock_env(REJECT_ADDR),
                 market_rejected_storage::msg::QueryMsg::Msg(
                     MarketRejectedQueryMsg::IsRejectedForAll {
-                        owner: HUB_ADDR.to_string(),
                         nft_info: NftInfo {
                             contract_addr: OW_1155_ADDR.to_string(),
                             token_id: String::from("BiddableNFT"),

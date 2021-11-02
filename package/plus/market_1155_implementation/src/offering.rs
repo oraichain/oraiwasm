@@ -383,7 +383,6 @@ pub fn try_sell_nft(
         info.sender.as_str(),
         msg.seller,
         Some(msg.amount),
-        &governance,
     )?;
 
     let offering = Offering {

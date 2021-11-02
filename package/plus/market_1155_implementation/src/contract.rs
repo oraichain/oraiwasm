@@ -314,7 +314,6 @@ pub fn verify_nft(
     owner: &str,
     seller: Option<HumanAddr>,
     amount: Option<Uint128>,
-    governance: &str,
 ) -> Result<String, ContractError> {
     // get unique offering. Dont allow a seller to sell when he's already selling
 
@@ -343,7 +342,6 @@ pub fn verify_nft(
         deps,
         REJECTED_STORAGE,
         MarketRejectedQueryMsg::IsRejectedForAll {
-            owner: governance.to_string(),
             nft_info: NftInfo {
                 contract_addr: contract_addr.to_string(),
                 token_id: token_id.to_string(),

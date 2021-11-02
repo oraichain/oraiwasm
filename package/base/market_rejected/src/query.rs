@@ -12,7 +12,6 @@ pub enum MarketRejectedQueryMsg {
     /// List all operators that can access all of the owner's tokens.
     /// Return type: ApprovedForAllResponse.
     RejectedForAll {
-        owner: String,
         /// unset or false will filter out expired approvals, you must set to true to see them
         include_expired: Option<bool>,
         start_after: Option<Binary>,
@@ -20,7 +19,7 @@ pub enum MarketRejectedQueryMsg {
     },
     /// Query approved status `owner` granted to `operator`.
     /// Return type: IsApprovedForAllResponse
-    IsRejectedForAll { owner: String, nft_info: NftInfo },
+    IsRejectedForAll { nft_info: NftInfo },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

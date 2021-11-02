@@ -6,11 +6,11 @@ use market_rejected::{
     NftInfo, RejectAllEvent, Rejected, RejectedForAllResponse,
 };
 
+use cosmwasm_std::KV;
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse,
     MessageInfo, Order, StdResult,
 };
-use cosmwasm_std::{HumanAddr, KV};
 use cw_storage_plus::Bound;
 use std::usize;
 
@@ -84,16 +84,13 @@ pub fn try_update_info(
 }
 
 /// returns true iff the sender is rejected or not
-fn check_reject(deps: Deps, env: &Env, owner: &HumanAddr, nft_info: &NftInfo) -> StdResult<bool> {
+fn check_reject(deps: Deps, env: &Env, nft_info: &NftInfo) -> StdResult<bool> {
     // operator can approve
     let op = REJECTS.may_load(
         deps.storage,
-        (
-            owner.as_bytes(),
-            &get_key_nft_info(
-                nft_info.contract_addr.as_bytes(),
-                nft_info.token_id.as_bytes(),
-            ),
+        &get_key_nft_info(
+            nft_info.contract_addr.as_bytes(),
+            nft_info.token_id.as_bytes(),
         ),
     )?;
     Ok(match op {
@@ -105,18 +102,15 @@ fn check_reject(deps: Deps, env: &Env, owner: &HumanAddr, nft_info: &NftInfo) ->
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Msg(auction_query) => match auction_query {
-            MarketRejectedQueryMsg::IsRejectedForAll { owner, nft_info } => {
-                let owner_addr = HumanAddr(owner);
-                let rejected = check_reject(deps, &env, &owner_addr, &nft_info)?;
+            MarketRejectedQueryMsg::IsRejectedForAll { nft_info } => {
+                let rejected = check_reject(deps, &env, &nft_info)?;
                 to_binary(&IsRejectedForAllResponse { rejected })
             }
             MarketRejectedQueryMsg::RejectedForAll {
-                owner,
                 include_expired,
                 start_after,
                 limit,
             } => {
-                let owner_addr = HumanAddr(owner);
                 let start_addr = start_after.map(|bin| {
                     from_binary(&bin).unwrap_or(NftInfo {
                         contract_addr: "".to_string(),
@@ -126,7 +120,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 to_binary(&query_all_rejected(
                     deps,
                     env,
-                    owner_addr,
                     include_expired.unwrap_or(false),
                     start_addr,
                     limit,
@@ -165,12 +158,9 @@ pub fn execute_reject_all(
     // set the nft_info for us
     REJECTS.save(
         deps.storage,
-        (
-            info.sender.as_bytes(),
-            &get_key_nft_info(
-                nft_info.contract_addr.as_bytes(),
-                nft_info.token_id.as_bytes(),
-            ),
+        &get_key_nft_info(
+            nft_info.contract_addr.as_bytes(),
+            nft_info.token_id.as_bytes(),
         ),
         &expires,
     )?;
@@ -205,12 +195,9 @@ pub fn execute_release_all(
 
     REJECTS.remove(
         deps.storage,
-        (
-            info.sender.as_bytes(),
-            &get_key_nft_info(
-                nft_info.contract_addr.as_bytes(),
-                nft_info.token_id.as_bytes(),
-            ),
+        &get_key_nft_info(
+            nft_info.contract_addr.as_bytes(),
+            nft_info.token_id.as_bytes(),
         ),
     );
 
@@ -228,7 +215,6 @@ pub fn execute_release_all(
 fn query_all_rejected(
     deps: Deps,
     env: Env,
-    owner: HumanAddr,
     include_expired: bool,
     start_after: Option<NftInfo>,
     limit: Option<u32>,
@@ -242,7 +228,6 @@ fn query_all_rejected(
     });
 
     let operators = REJECTS
-        .prefix(owner.as_bytes())
         .range(deps.storage, start, None, Order::Ascending)
         .filter(|r| include_expired || r.is_err() || !r.as_ref().unwrap().1.is_expired(&env.block))
         .take(limit)

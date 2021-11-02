@@ -24,4 +24,4 @@ pub const OFFERINGS_COUNT: Item<u64> = Item::new("num_offerings");
 /// ANNOTATIONS is a map which maps the annotation id to an annotation request. annotation id is derived from ANNOTATION_COUNT.
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("marketplace_info");
 
-pub const REJECTS: Map<(&[u8], &[u8]), Expiration> = Map::new("rejects");
+pub const REJECTS: Map<&[u8], Expiration> = Map::new("rejects");

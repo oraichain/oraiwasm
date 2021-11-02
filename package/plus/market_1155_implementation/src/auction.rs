@@ -277,7 +277,6 @@ pub fn handle_ask_auction(
         info.sender.as_str(),
         msg.asker,
         Some(msg.amount),
-        &governance,
     )?;
 
     // get Auctions count
