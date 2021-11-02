@@ -10,12 +10,13 @@ use cosmwasm_std::{
     SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
 };
 
-use market_ai_royalty::{
-    AiRoyaltyQueryMsg, MintIntermediate, MintMsg, MintStruct, Royalty, RoyaltyMsg,
-};
+use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_auction::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_auction::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
-use market_royalty::{OfferingQueryMsg, OfferingRoyalty, OfferingsResponse, QueryOfferingsResult};
+use market_royalty::{
+    MintIntermediate, MintMsg, MintStruct, OfferingQueryMsg, OfferingRoyalty, OfferingsResponse,
+    QueryOfferingsResult,
+};
 use std::mem::transmute;
 use std::ops::{Add, Mul};
 use std::ptr::null;

@@ -1,6 +1,6 @@
 use crate::contract::{
-    get_handle_msg, get_royalties, get_royalty, query_storage, verify_nft, AI_ROYALTY_STORAGE,
-    CREATOR_NAME, STORAGE_1155,
+    add_royalties_event, get_handle_msg, get_royalties, get_royalty, query_storage, verify_nft,
+    AI_ROYALTY_STORAGE, CREATOR_NAME, STORAGE_1155,
 };
 use crate::error::ContractError;
 use crate::msg::SellNft;
@@ -130,6 +130,13 @@ pub fn try_buy(
         return Err(ContractError::InsufficientAmount {});
     }
 
+    // get royalties
+    let option_royalties =
+        get_royalties(deps.as_ref(), off.contract_addr.as_str(), &off.token_id).ok();
+    let mut rsp = HandleResponse::default();
+    // add royalties into the event response
+    add_royalties_event(option_royalties.as_deref(), &mut rsp);
+
     let seller_addr = off.seller.clone();
 
     let mut cosmos_msgs = vec![];
@@ -154,9 +161,7 @@ pub fn try_buy(
             // Rust will automatically floor down the value to 0 if amount is too small => error
             seller_amount = seller_amount.sub(fee_amount)?;
             // pay for creator, ai provider and others
-            if let Ok(royalties) =
-                get_royalties(deps.as_ref(), off.contract_addr.as_str(), &off.token_id)
-            {
+            if let Some(royalties) = option_royalties {
                 for royalty in royalties {
                     // royalty = total price * royalty percentage
                     let creator_amount =
@@ -228,21 +233,18 @@ pub fn try_buy(
             },
         )?);
     }
+    rsp.messages = cosmos_msgs;
+    rsp.attributes.extend(vec![
+        attr("action", "buy_nft"),
+        attr("buyer", info.sender),
+        attr("seller", seller_addr),
+        attr("token_id", off.token_id),
+        attr("offering_id", offering_id),
+        attr("per_price", off.per_price),
+        attr("amount", amount),
+    ]);
 
-    Ok(HandleResponse {
-        messages: cosmos_msgs,
-        attributes: vec![
-            attr("action", "buy_nft"),
-            attr("buyer", info.sender),
-            attr("seller", seller_addr),
-            attr("token_id", off.token_id),
-            attr("offering_id", offering_id),
-            attr("per_price", off.per_price),
-            attr("amount", amount),
-            attr("royalty", true),
-        ],
-        data: None,
-    })
+    Ok(rsp)
 }
 
 pub fn try_withdraw(

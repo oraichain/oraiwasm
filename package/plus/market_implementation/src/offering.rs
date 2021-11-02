@@ -10,9 +10,9 @@ use cosmwasm_std::{
 };
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{query_proxy, StorageHandleMsg};
-use market_ai_royalty::{sanitize_royalty, AiRoyaltyHandleMsg, MintMsg, RoyaltyMsg};
+use market_ai_royalty::{sanitize_royalty, AiRoyaltyHandleMsg, RoyaltyMsg};
 use market_royalty::{
-    Offering, OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty, QueryOfferingsResult,
+    MintMsg, Offering, OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty, QueryOfferingsResult,
 };
 use std::ops::{Mul, Sub};
 

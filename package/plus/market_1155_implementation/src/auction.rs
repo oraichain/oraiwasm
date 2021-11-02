@@ -1,4 +1,6 @@
-use crate::contract::{get_royalties, get_storage_addr, query_storage, verify_nft};
+use crate::contract::{
+    add_royalties_event, get_royalties, get_storage_addr, query_storage, verify_nft,
+};
 use crate::error::ContractError;
 use crate::msg::{AskNftMsg, ProxyHandleMsg, ProxyQueryMsg};
 // use crate::offering::OFFERING_STORAGE;
@@ -169,6 +171,13 @@ pub fn try_claim_winner(
 
     let asker_addr = deps.api.human_address(&off.asker)?;
     let contract_addr = deps.api.human_address(&off.contract_addr)?;
+
+    // get royalties
+    let option_royalties = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id).ok();
+    let mut rsp = HandleResponse::default();
+    // add royalties into the event response
+    add_royalties_event(option_royalties.as_deref(), &mut rsp);
+
     let mut cosmos_msgs = vec![];
     if let Some(bidder) = off.bidder {
         let bidder_addr = deps.api.human_address(&bidder)?;
@@ -230,30 +239,17 @@ pub fn try_claim_winner(
         AUCTION_STORAGE,
         AuctionHandleMsg::RemoveAuction { id: auction_id },
     )?);
-    let handle_response = HandleResponse {
-        messages: cosmos_msgs,
-        attributes: vec![
-            attr("action", "claim_winner"),
-            attr("claimer", info.sender),
-            attr("token_id", off.token_id.clone()),
-            attr("auction_id", auction_id),
-            attr("total_price", price),
-            attr("royalty", true),
-        ],
-        data: None,
-    };
 
-    // let royalties = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id)
-    //     .ok()
-    //     .unwrap_or(vec![]);
-    // for royalty in royalties {
-    //     handle_response.attributes.push(attr(
-    //         format!("royalty_{}", royalty.creator),
-    //         royalty.royalty,
-    //     ));
-    // }
+    rsp.messages = cosmos_msgs;
+    rsp.attributes.extend(vec![
+        attr("action", "claim_winner"),
+        attr("claimer", info.sender),
+        attr("token_id", off.token_id.clone()),
+        attr("auction_id", auction_id),
+        attr("total_price", price),
+    ]);
 
-    Ok(handle_response)
+    Ok(rsp)
 }
 
 pub fn handle_ask_auction(

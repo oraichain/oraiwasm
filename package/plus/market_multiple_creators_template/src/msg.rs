@@ -1,7 +1,7 @@
 use cosmwasm_std::{HumanAddr, Uint128};
 use cw0::Expiration;
 use market_1155::MintMsg;
-use market_ai_royalty::MintMsg as MintMsg721;
+use market_royalty::MintMsg as MintMsg721;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
