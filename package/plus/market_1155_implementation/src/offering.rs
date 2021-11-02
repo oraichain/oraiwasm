@@ -1,6 +1,6 @@
 use crate::contract::{
-    add_royalties_event, get_handle_msg, get_royalties, get_royalty, query_storage, verify_nft,
-    AI_ROYALTY_STORAGE, CREATOR_NAME, STORAGE_1155,
+    get_handle_msg, get_royalties, get_royalty, query_storage, verify_nft, AI_ROYALTY_STORAGE,
+    CREATOR_NAME, STORAGE_1155,
 };
 use crate::error::ContractError;
 use crate::msg::SellNft;
@@ -12,7 +12,7 @@ use cosmwasm_std::{
 use cosmwasm_std::{HumanAddr, StdError};
 use cw1155::Cw1155ExecuteMsg;
 use market_1155::{MarketHandleMsg, MarketQueryMsg, MintMsg, Offering};
-use market_ai_royalty::{AiRoyaltyHandleMsg, RoyaltyMsg};
+use market_ai_royalty::{pay_royalties, AiRoyaltyHandleMsg, RoyaltyMsg};
 use std::ops::{Mul, Sub};
 
 pub fn add_msg_royalty(sender: &str, governance: &str, msg: MintMsg) -> StdResult<Vec<CosmosMsg>> {
@@ -131,12 +131,7 @@ pub fn try_buy(
     }
 
     // get royalties
-    let option_royalties =
-        get_royalties(deps.as_ref(), off.contract_addr.as_str(), &off.token_id).ok();
     let mut rsp = HandleResponse::default();
-    // add royalties into the event response
-    add_royalties_event(option_royalties.as_deref(), &mut rsp);
-
     let seller_addr = off.seller.clone();
 
     let mut cosmos_msgs = vec![];
@@ -161,23 +156,19 @@ pub fn try_buy(
             // Rust will automatically floor down the value to 0 if amount is too small => error
             seller_amount = seller_amount.sub(fee_amount)?;
             // pay for creator, ai provider and others
-            if let Some(royalties) = option_royalties {
-                for royalty in royalties {
-                    // royalty = total price * royalty percentage
-                    let creator_amount =
-                        price.mul(Decimal::from_ratio(royalty.royalty, decimal_point));
-                    if creator_amount.gt(&Uint128::from(0u128)) {
-                        seller_amount = seller_amount.sub(creator_amount)?;
-                        cosmos_msgs.push(
-                            BankMsg::Send {
-                                from_address: env.contract.address.clone(),
-                                to_address: royalty.creator,
-                                amount: coins(creator_amount.u128(), &contract_info.denom),
-                            }
-                            .into(),
-                        );
-                    }
-                }
+            if let Ok(royalties) =
+                get_royalties(deps.as_ref(), off.contract_addr.as_str(), &off.token_id)
+            {
+                pay_royalties(
+                    &royalties,
+                    &price,
+                    decimal_point,
+                    &mut seller_amount,
+                    &mut cosmos_msgs,
+                    &mut rsp,
+                    env.contract.address.as_str(),
+                    contract_info.denom.as_str(),
+                )?;
             }
 
             // pay the left to the seller

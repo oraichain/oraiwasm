@@ -1,6 +1,4 @@
-use crate::contract::{
-    add_royalties_event, get_royalties, get_storage_addr, query_storage, verify_nft,
-};
+use crate::contract::{get_royalties, get_storage_addr, query_storage, verify_nft};
 use crate::error::ContractError;
 use crate::msg::{AskNftMsg, ProxyHandleMsg, ProxyQueryMsg};
 // use crate::offering::OFFERING_STORAGE;
@@ -12,6 +10,7 @@ use cosmwasm_std::{
 };
 use cw1155::Cw1155ExecuteMsg;
 use market::StorageHandleMsg;
+use market_ai_royalty::pay_royalties;
 use market_auction_extend::{Auction, AuctionHandleMsg, AuctionQueryMsg};
 // use market_royalty::OfferingQueryMsg;
 use std::ops::{Add, Mul, Sub};
@@ -173,11 +172,7 @@ pub fn try_claim_winner(
     let contract_addr = deps.api.human_address(&off.contract_addr)?;
 
     // get royalties
-    let option_royalties = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id).ok();
     let mut rsp = HandleResponse::default();
-    // add royalties into the event response
-    add_royalties_event(option_royalties.as_deref(), &mut rsp);
-
     let mut cosmos_msgs = vec![];
     if let Some(bidder) = off.bidder {
         let bidder_addr = deps.api.human_address(&bidder)?;
@@ -201,21 +196,16 @@ pub fn try_claim_winner(
 
         // pay for creator, ai provider and others
         if let Ok(royalties) = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id) {
-            for royalty in royalties {
-                let provider_amount =
-                    price.mul(Decimal::from_ratio(royalty.royalty, decimal_point));
-                if provider_amount.gt(&Uint128::from(0u128)) {
-                    fund_amount = fund_amount.sub(provider_amount)?;
-                    cosmos_msgs.push(
-                        BankMsg::Send {
-                            from_address: env.contract.address.clone(),
-                            to_address: royalty.creator,
-                            amount: coins(provider_amount.u128(), &denom),
-                        }
-                        .into(),
-                    );
-                }
-            }
+            pay_royalties(
+                &royalties,
+                &price,
+                decimal_point,
+                &mut fund_amount,
+                &mut cosmos_msgs,
+                &mut rsp,
+                env.contract.address.as_str(),
+                denom.as_str(),
+            )?;
         }
 
         // send fund the asker

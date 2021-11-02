@@ -18,7 +18,7 @@ use cosmwasm_std::{
 use cw1155::{BalanceResponse, Cw1155QueryMsg, IsApprovedForAllResponse};
 use market::{query_proxy, query_proxy_generic, StorageHandleMsg, StorageQueryMsg};
 use market_1155::{MarketQueryMsg, Offering};
-use market_ai_royalty::{AiRoyaltyQueryMsg, Event, RoyaltiesEvent, Royalty};
+use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_auction_extend::{AuctionQueryMsg, QueryAuctionsResult};
 use market_rejected::{IsRejectedForAllResponse, MarketRejectedQueryMsg, NftInfo};
 use market_whitelist::{
@@ -443,10 +443,4 @@ pub fn verify_nft(
         }
     }
     Ok(final_seller)
-}
-
-pub fn add_royalties_event<'a>(royalties: Option<&'a [Royalty]>, rsp: &mut HandleResponse) {
-    if let Some(royalties) = royalties {
-        RoyaltiesEvent { royalties }.add_attributes(rsp);
-    }
 }
