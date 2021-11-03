@@ -15,8 +15,18 @@ pub fn sanitize_royalty(royalty: u64, limit: u64, name: &str) -> Result<u64, Std
     Ok(royalty)
 }
 
-fn add_royalties_event<'a>(royalties_event: &'a [RoyaltyEvent], rsp: &mut HandleResponse) {
-    RoyaltiesEvent { royalties_event }.add_attributes(rsp);
+fn add_royalties_event<'a>(
+    nft_addr: &'a str,
+    token_id: &'a str,
+    royalties_event: &'a [RoyaltyEvent],
+    rsp: &mut HandleResponse,
+) {
+    RoyaltiesEvent {
+        nft_addr,
+        token_id,
+        royalties_event,
+    }
+    .add_attributes(rsp);
 }
 
 pub fn pay_royalties(
@@ -28,6 +38,8 @@ pub fn pay_royalties(
     rsp: &mut HandleResponse,
     contract_addr: &str,
     denom: &str,
+    nft_addr: &str,
+    token_id: &str,
 ) -> Result<(), StdError> {
     let mut royalties_event: Vec<RoyaltyEvent> = vec![];
     for royalty in royalties {
@@ -45,14 +57,14 @@ pub fn pay_royalties(
             );
             // only valid send msgs will be collected to put into royalties event
             royalties_event.push(RoyaltyEvent {
-                creator: royalty.creator.to_string(),
+                creator: royalty.creator.as_str(),
                 royalty: royalty.royalty,
                 amount: creator_amount,
-                denom: denom.to_string(),
+                denom,
             })
         }
     }
     // add royalties into the event response
-    add_royalties_event(royalties_event.as_ref(), rsp);
+    add_royalties_event(nft_addr, token_id, royalties_event.as_ref(), rsp);
     Ok(())
 }

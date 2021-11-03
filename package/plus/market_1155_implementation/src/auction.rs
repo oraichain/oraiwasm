@@ -205,6 +205,8 @@ pub fn try_claim_winner(
                 &mut rsp,
                 env.contract.address.as_str(),
                 denom.as_str(),
+                contract_addr.as_str(),
+                off.token_id.as_str(),
             )?;
         }
 
@@ -234,7 +236,6 @@ pub fn try_claim_winner(
     rsp.attributes.extend(vec![
         attr("action", "claim_winner"),
         attr("claimer", info.sender),
-        attr("token_id", off.token_id.clone()),
         attr("auction_id", auction_id),
         attr("total_price", price),
     ]);
