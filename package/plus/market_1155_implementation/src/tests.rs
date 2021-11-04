@@ -380,6 +380,7 @@ fn handle_approve(manager: &mut DepsManager) {
         mock_info("creator", &vec![coin(50, DENOM)]),
         mock_info("seller", &vec![coin(50, DENOM)]),
         mock_info("bidder", &vec![coin(50, DENOM)]),
+        mock_info("sender", &vec![coin(50, DENOM)]),
     ];
     let token_ids = vec![String::from("SellableNFT"), String::from("BiddableNFT")];
 
@@ -1929,5 +1930,174 @@ fn test_change_creator_unhappy() {
             ),
             Err(ContractError::Std(StdError::GenericErr { msg: _msg }))
         ));
+    }
+}
+
+#[test]
+fn transfer_nft_directly_happy_path() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        handle_approve(manager);
+        let _info = mock_info(MARKET_ADDR, &vec![coin(5, DENOM)]);
+
+        let token_id = "ANFT";
+        let sender = "sender";
+        let receiver = "user2";
+        let sender_info = mock_info(sender, &vec![coin(5, DENOM)]);
+
+        let mint = MintMsg {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            creator: HumanAddr::from(sender),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    to: "".to_string(),
+                    value: Uint128::from(50u64),
+                    token_id: String::from(token_id),
+                    co_owner: None,
+                },
+            },
+            creator_type: String::from("creator"),
+            royalty: None,
+        };
+        let mint_msg = HandleMsg::MintNft(mint.clone());
+        manager
+            .handle(sender_info.clone(), mint_msg.clone())
+            .unwrap();
+
+        let transfer_msg = TransferNftDirectlyMsg {
+            amount: Uint128(10),
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            token_id: String::from(token_id),
+            to: HumanAddr::from(receiver),
+        };
+        let msg = HandleMsg::TransferNftDirectly(transfer_msg);
+
+        let _ret = manager.handle(sender_info.clone(), msg.clone()).unwrap();
+
+        // println!("ret: {:?}", ret);
+
+        // let _ret_error = manager.handle(info.clone(), msg.clone());
+        // assert_eq!(_ret_error.is_err(), true);
+
+        let receiver_balance: BalanceResponse = from_binary(
+            &ow1155::contract::query(
+                manager.ow1155.as_ref(),
+                mock_env(OW_1155_ADDR),
+                Cw1155QueryMsg::Balance {
+                    owner: String::from(receiver),
+                    token_id: String::from(token_id),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        let sender_balance: BalanceResponse = from_binary(
+            &ow1155::contract::query(
+                manager.ow1155.as_ref(),
+                mock_env(OW_1155_ADDR),
+                Cw1155QueryMsg::Balance {
+                    owner: String::from("sender"),
+                    token_id: String::from(token_id),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(receiver_balance.balance, Uint128(10));
+        assert_eq!(sender_balance.balance, Uint128(40));
+    }
+}
+
+#[test]
+fn transfer_nft_directly_unhappy_path() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        handle_approve(manager);
+        let _info = mock_info(MARKET_ADDR, &vec![coin(5, DENOM)]);
+
+        let token_id = "ANFT";
+        let sender = "sender";
+        let receiver = "user2";
+        let amount = 50u64;
+        let sender_info = mock_info(sender, &vec![coin(5, DENOM)]);
+
+        let mint = MintMsg {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            creator: HumanAddr::from(sender),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    to: "".to_string(),
+                    value: Uint128::from(amount),
+                    token_id: String::from(token_id),
+                    co_owner: None,
+                },
+            },
+            creator_type: String::from("creator"),
+            royalty: None,
+        };
+        let mint_msg = HandleMsg::MintNft(mint.clone());
+        manager
+            .handle(sender_info.clone(), mint_msg.clone())
+            .unwrap();
+
+        let sell_msg = HandleMsg::SellNft(SellNft {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            per_price: Uint128(50),
+            token_id: String::from(token_id),
+            amount: Uint128::from(amount),
+            seller: None,
+        });
+
+        // insufficient amount case creator
+        manager
+            .handle(sender_info.clone(), sell_msg.clone())
+            .unwrap();
+
+        let transfer_msg = TransferNftDirectlyMsg {
+            amount: Uint128(10),
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            token_id: String::from(token_id),
+            to: HumanAddr::from(receiver),
+        };
+        let msg = HandleMsg::TransferNftDirectly(transfer_msg);
+
+        let ret = manager.handle(sender_info.clone(), msg.clone());
+        assert!(matches!(ret, Err(ContractError::TokenOnMarket {})));
+
+        // println!("ret: {:?}", ret);
+
+        // let _ret_error = manager.handle(info.clone(), msg.clone());
+        // assert_eq!(_ret_error.is_err(), true);
+
+        let receiver_balance: BalanceResponse = from_binary(
+            &ow1155::contract::query(
+                manager.ow1155.as_ref(),
+                mock_env(OW_1155_ADDR),
+                Cw1155QueryMsg::Balance {
+                    owner: String::from(receiver),
+                    token_id: String::from(token_id),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        let sender_balance: BalanceResponse = from_binary(
+            &ow1155::contract::query(
+                manager.ow1155.as_ref(),
+                mock_env(OW_1155_ADDR),
+                Cw1155QueryMsg::Balance {
+                    owner: String::from("sender"),
+                    token_id: String::from(token_id),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(receiver_balance.balance, Uint128(0));
+        assert_eq!(sender_balance.balance, Uint128(50));
     }
 }

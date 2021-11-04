@@ -61,6 +61,7 @@ pub enum HandleMsg {
         auction_id: u64,
     },
     AskAuctionNft(AskNftMsg),
+    TransferNftDirectly(TransferNftDirectlyMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -88,6 +89,15 @@ pub struct SellNft {
     pub token_id: String,
     pub amount: Uint128,
     pub seller: Option<HumanAddr>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct TransferNftDirectlyMsg {
+    pub contract_addr: HumanAddr,
+    pub token_id: String,
+    pub amount: Uint128,
+    pub to: HumanAddr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

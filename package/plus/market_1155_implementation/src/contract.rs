@@ -3,7 +3,8 @@ use crate::auction::{
     try_emergency_cancel_auction, AUCTION_STORAGE,
 };
 use crate::offering::{
-    try_burn, try_buy, try_change_creator, try_handle_mint, try_sell_nft, try_withdraw,
+    try_burn, try_buy, try_change_creator, try_handle_mint, try_handle_transfer_directly,
+    try_sell_nft, try_withdraw,
 };
 use std::fmt;
 
@@ -108,6 +109,7 @@ pub fn handle(
             token_id,
             to,
         } => try_change_creator(deps, info, env, contract_addr, token_id, to),
+        HandleMsg::TransferNftDirectly(msg) => try_handle_transfer_directly(deps, info, env, msg),
     }
 }
 

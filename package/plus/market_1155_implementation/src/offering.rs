@@ -1,9 +1,10 @@
+use crate::auction::AUCTION_STORAGE;
 use crate::contract::{
     get_handle_msg, get_royalties, get_royalty, query_storage, verify_nft, AI_ROYALTY_STORAGE,
     CREATOR_NAME, STORAGE_1155,
 };
 use crate::error::ContractError;
-use crate::msg::SellNft;
+use crate::msg::{SellNft, TransferNftDirectlyMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
     attr, coins, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse,
@@ -13,6 +14,7 @@ use cosmwasm_std::{HumanAddr, StdError};
 use cw1155::Cw1155ExecuteMsg;
 use market_1155::{MarketHandleMsg, MarketQueryMsg, MintMsg, Offering};
 use market_ai_royalty::{pay_royalties, AiRoyaltyHandleMsg, RoyaltyMsg};
+use market_auction_extend::{Auction, AuctionQueryMsg};
 use std::ops::{Mul, Sub};
 
 pub fn add_msg_royalty(sender: &str, governance: &str, msg: MintMsg) -> StdResult<Vec<CosmosMsg>> {
@@ -108,6 +110,63 @@ pub fn try_handle_mint(
     };
 
     Ok(response)
+}
+
+pub fn try_handle_transfer_directly(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    msg: TransferNftDirectlyMsg,
+) -> Result<HandleResponse, ContractError> {
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+
+    let mut rsp = HandleResponse::default();
+    let mut cosmos_msgs = vec![];
+
+    let off: Option<Offering> = get_one_offering_by_token_id(
+        deps.as_ref(),
+        msg.contract_addr.clone(),
+        msg.token_id.clone(),
+        info.sender.clone(),
+    );
+
+    let auction: Option<Auction> = get_one_auction_by_token_id(
+        deps.as_ref(),
+        msg.contract_addr.clone(),
+        msg.token_id.clone(),
+        info.sender.clone(),
+    );
+
+    if !off.is_none() || !auction.is_none() {
+        return Err(ContractError::TokenOnMarket {});
+    }
+
+    let transfer_cw1155_msg = Cw1155ExecuteMsg::SendFrom {
+        token_id: msg.token_id.clone(),
+        from: info.sender.clone().to_string(),
+        to: msg.to.clone().to_string(),
+        value: msg.amount,
+        msg: None,
+    };
+
+    cosmos_msgs.push(
+        WasmMsg::Execute {
+            contract_addr: msg.contract_addr.clone(),
+            msg: to_binary(&transfer_cw1155_msg)?,
+            send: vec![],
+        }
+        .into(),
+    );
+
+    rsp.messages = cosmos_msgs;
+    rsp.attributes.extend(vec![
+        attr("action", "transfer_nft_directly"),
+        attr("receiver", msg.to.clone().to_string()),
+        attr("token_id", msg.token_id.clone()),
+        attr("amount", msg.amount.to_string()),
+    ]);
+
+    Ok(rsp)
 }
 
 pub fn try_buy(
@@ -416,4 +475,52 @@ fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError>
     )
     .map_err(|_| ContractError::InvalidGetOffering {})?;
     Ok(offering)
+}
+
+fn get_one_offering_by_token_id(
+    deps: Deps,
+    contract: HumanAddr,
+    token_id: String,
+    seller: HumanAddr,
+) -> Option<Offering> {
+    let offering: Option<Offering> = query_storage(
+        deps,
+        STORAGE_1155,
+        MarketQueryMsg::GetUniqueOffering {
+            contract,
+            token_id,
+            seller,
+        },
+    )
+    .ok();
+
+    if offering.is_some() {
+        return offering;
+    }
+
+    return None;
+}
+
+fn get_one_auction_by_token_id(
+    deps: Deps,
+    contract: HumanAddr,
+    token_id: String,
+    asker: HumanAddr,
+) -> Option<Auction> {
+    let auction: Option<Auction> = query_storage(
+        deps,
+        AUCTION_STORAGE,
+        AuctionQueryMsg::GetUniqueAuction {
+            contract,
+            token_id,
+            asker,
+        },
+    )
+    .ok();
+
+    if auction.is_some() {
+        return auction;
+    }
+
+    return None;
 }
