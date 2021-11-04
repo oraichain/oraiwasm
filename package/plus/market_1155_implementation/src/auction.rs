@@ -205,8 +205,6 @@ pub fn try_claim_winner(
                 &mut rsp,
                 env.contract.address.as_str(),
                 denom.as_str(),
-                contract_addr.as_str(),
-                off.token_id.as_str(),
             )?;
         }
 

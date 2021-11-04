@@ -21,12 +21,14 @@ fn add_royalties_event<'a>(
     royalties_event: &'a [RoyaltyEvent],
     rsp: &mut HandleResponse,
 ) {
-    RoyaltiesEvent {
-        nft_addr,
-        token_id,
-        royalties_event,
+    if royalties_event.len() > 0 {
+        RoyaltiesEvent {
+            nft_addr,
+            token_id,
+            royalties_event,
+        }
+        .add_attributes(rsp);
     }
-    .add_attributes(rsp);
 }
 
 pub fn pay_royalties(
@@ -38,11 +40,15 @@ pub fn pay_royalties(
     rsp: &mut HandleResponse,
     contract_addr: &str,
     denom: &str,
-    nft_addr: &str,
-    token_id: &str,
 ) -> Result<(), StdError> {
     let mut royalties_event: Vec<RoyaltyEvent> = vec![];
+    let mut nft_addr: &str = "";
+    let mut token_id: &str = "";
     for royalty in royalties {
+        if nft_addr.is_empty() && token_id.is_empty() {
+            nft_addr = royalty.contract_addr.as_str();
+            token_id = royalty.token_id.as_str();
+        }
         // royalty = total price * royalty percentage
         let creator_amount = price.mul(Decimal::from_ratio(royalty.royalty, decimal_point));
         if creator_amount.gt(&Uint128::from(0u128)) {

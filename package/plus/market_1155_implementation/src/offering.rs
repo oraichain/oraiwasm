@@ -168,8 +168,6 @@ pub fn try_buy(
                     &mut rsp,
                     env.contract.address.as_str(),
                     contract_info.denom.as_str(),
-                    off.contract_addr.as_str(),
-                    off.token_id.as_str(),
                 )?;
             }
 
