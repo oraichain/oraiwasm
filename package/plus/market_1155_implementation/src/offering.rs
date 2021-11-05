@@ -115,11 +115,9 @@ pub fn try_handle_mint(
 pub fn try_handle_transfer_directly(
     deps: DepsMut,
     info: MessageInfo,
-    env: Env,
+    _env: Env,
     msg: TransferNftDirectlyMsg,
 ) -> Result<HandleResponse, ContractError> {
-    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
-
     let mut rsp = HandleResponse::default();
     let mut cosmos_msgs = vec![];
 
