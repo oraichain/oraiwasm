@@ -133,8 +133,8 @@ fn change_owner(env: ExecuteEnv) -> Result<HandleResponse, ContractError> {
         messages: vec![],
         attributes: vec![
             attr("action", "change_minter"),
-            attr("owner", owner),
-            attr("owner", env.info.sender),
+            attr("old_owner", owner),
+            attr("new_owner", env.info.sender),
         ],
         data: None,
     })
