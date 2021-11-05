@@ -14,9 +14,12 @@ const {
   signSignature
 } = require('./utils');
 
+const path = process.pwd() + process.env.TESTNET ? '/config-testnet.yaml' : '/config.yaml';
+console.log("path: ", path);
+
 const config = YAML.parse(
   fs
-    .readFileSync(process.env.TESTNET ? 'config-testnet.yaml' : 'config.yaml')
+    .readFileSync(path)
     .toString()
 );
 const message = Cosmos.message;

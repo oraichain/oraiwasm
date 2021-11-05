@@ -61,6 +61,7 @@ pub enum Cw1155ExecuteMsg {
     ChangeMinter {
         minter: String,
     },
+    ChangeOwner {},
     /// Allows operator to transfer / send any token from the owner's account.
     /// If expiration is set, then this allowance has a time/height limit
     ApproveAll {

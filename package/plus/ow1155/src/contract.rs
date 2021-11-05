@@ -72,6 +72,7 @@ pub fn handle(
         } => execute_burn(env, from, token_id, value),
         Cw1155ExecuteMsg::BatchBurn { from, batch } => execute_batch_burn(env, from, batch),
         Cw1155ExecuteMsg::ChangeMinter { minter } => change_minter(env, minter),
+        Cw1155ExecuteMsg::ChangeOwner {} => change_owner(env),
         Cw1155ExecuteMsg::ApproveAll { operator, expires } => {
             execute_approve_all(env, operator, expires)
         }
@@ -116,6 +117,23 @@ fn change_minter(env: ExecuteEnv, minter: String) -> Result<HandleResponse, Cont
         attributes: vec![
             attr("action", "change_minter"),
             attr("minter", minter),
+            attr("owner", env.info.sender),
+        ],
+        data: None,
+    })
+}
+
+fn change_owner(env: ExecuteEnv) -> Result<HandleResponse, ContractError> {
+    let owner = OWNER.load(env.deps.storage)?;
+    if !owner.eq(&env.info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+    OWNER.save(env.deps.storage, &env.info.sender)?;
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("action", "change_minter"),
+            attr("owner", owner),
             attr("owner", env.info.sender),
         ],
         data: None,
