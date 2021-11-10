@@ -44,31 +44,35 @@ pub enum HandleMsg {
     RequestAnnotation {
         contract_addr: HumanAddr,
         token_id: String,
-        amount: Uint128,
-        price_per_annotation: Uint128,
+        number_of_samples: Uint128,
+        award_per_sample: Uint128,
+        max_annotators: Uint128,
         expired_after: Option<u64>,
-        number_of_jobs: Uint128,
     },
-    DepositAnnotation {
-        annotation_id: u64,
-    },
+    // DepositAnnotation {
+    //     annotation_id: u64,
+    // },
     WithdrawAnnotation {
         annotation_id: u64,
     },
-    SubmitAnnotation {
+    Payout {
         annotation_id: u64,
+        annotator_results: Vec<AnnotatorResults>,
     },
-    WithdrawSubmitAnnotation {
-        annotation_id: u64,
-    },
-    UpdateAnnotationAnnotators {
-        annotation_id: u64,
-        annotators: Vec<HumanAddr>,
-    },
-    ApproveAnnotation {
-        annotation_id: u64,
-        annotator: HumanAddr,
-    },
+    // SubmitAnnotation {
+    //     annotation_id: u64,
+    // },
+    // WithdrawSubmitAnnotation {
+    //     annotation_id: u64,
+    // },
+    // UpdateAnnotationAnnotators {
+    //     annotation_id: u64,
+    //     annotators: Vec<HumanAddr>,
+    // },
+    // ApproveAnnotation {
+    //     annotation_id: u64,
+    //     annotator: HumanAddr,
+    // },
     MigrateVersion {
         nft_contract_addr: HumanAddr,
         token_infos: Vec<(String, Uint128)>,
@@ -87,6 +91,13 @@ pub struct AskNftMsg {
     pub end_timestamp: Option<Uint128>,
     pub buyout_price: Option<Uint128>,
     pub step_price: Option<u64>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct AnnotatorResults {
+    pub address: HumanAddr,
+    pub valid_result: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -209,12 +209,12 @@ fn sort_annotations() {
             id: Some(i),
             contract_addr: HumanAddr::from("xxx"),
             token_id: i.to_string(),
-            annotators: vec![HumanAddr::from("annotator")],
             requester: HumanAddr::from(format!("requester{}", i)),
-            per_price: Uint128::from(1u64),
-            amount: Uint128::from(10u64),
-            deposited: true,
+            award_per_sample: Uint128::from(1u64),
+            number_of_samples: Uint128::from(10u64),
+            max_annotators: Uint128::from(10u64),
             expired_block: 1,
+            is_paid: false,
         };
         annotationss.push(annotations);
     }
@@ -318,12 +318,12 @@ fn withdraw_annotations() {
             id: Some(i),
             contract_addr: HumanAddr::from("xxx"),
             token_id: i.to_string(),
-            annotators: vec![HumanAddr::from("annotator")],
             requester: HumanAddr::from("requester"),
-            per_price: Uint128::from(1u64),
-            amount: Uint128::from(1u64),
-            deposited: true,
+            award_per_sample: Uint128::from(1u64),
+            number_of_samples: Uint128::from(1u64),
+            is_paid: false,
             expired_block: 1,
+            max_annotators: Uint128::from(2u64),
         };
         annotationss.push(annotations);
     }

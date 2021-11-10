@@ -31,6 +31,18 @@ pub enum ContractError {
     #[error("Sent funds amount is empty")]
     InvalidSentFundAmount {},
 
+    #[error("Annotation already payout")]
+    InvalidPayout {},
+
+    #[error("Can not withdraw paid contract!")]
+    InvalidWithdraw {},
+
+    #[error("Paid annotators exceed the maximum number of annotators!")]
+    InvalidNumberOfAnnotators {},
+
+    #[error("Invalid annotator result: number of results greater than annotation's total samples")]
+    InvalidAnnotatorResult {},
+
     #[error("Cannot withdraw the request because there's an annonator")]
     InvalidNonZeroAnnonators {},
 

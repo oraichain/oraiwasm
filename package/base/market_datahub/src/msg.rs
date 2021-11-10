@@ -19,11 +19,11 @@ pub struct Annotation {
     pub token_id: String,
     pub contract_addr: HumanAddr,
     pub requester: HumanAddr,
-    pub annotators: Vec<HumanAddr>,
-    pub per_price: Uint128,
-    pub amount: Uint128,
-    pub deposited: bool,
+    pub max_annotators: Uint128,
+    pub award_per_sample: Uint128,
+    pub number_of_samples: Uint128,
     pub expired_block: u64,
+    pub is_paid: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
