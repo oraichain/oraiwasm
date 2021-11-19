@@ -1,4 +1,4 @@
-use market_datahub::{Annotation, Offering};
+use market_datahub::{Annotation, AnnotationResult, Offering};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +16,8 @@ pub const OFFERINGS_COUNT: Item<u64> = Item::new("num_offerings");
 /// ANNOTATIONS is a map which maps the annotation id to an annotation request. annotation id is derived from ANNOTATION_COUNT.
 pub const ANNOTATION_COUNT: Item<u64> = Item::new("num_annotations");
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("marketplace_info");
+
+pub const ANNOTATION_RESULT_COUNT: Item<u64> = Item::new("num_annotation_results");
 
 pub fn num_offerings(storage: &dyn Storage) -> StdResult<u64> {
     Ok(OFFERINGS_COUNT.may_load(storage)?.unwrap_or_default())
@@ -130,4 +132,46 @@ pub fn annotations<'a>() -> IndexedMap<'a, &'a [u8], Annotation, AnnotationIndex
         ),
     };
     IndexedMap::new("annotations", indexes)
+}
+
+pub fn num_annotation_result(storage: &dyn Storage) -> StdResult<u64> {
+    Ok(ANNOTATION_RESULT_COUNT
+        .may_load(storage)?
+        .unwrap_or_default())
+}
+
+pub fn increment_annotation_result(storage: &mut dyn Storage) -> StdResult<u64> {
+    let val = num_annotation_result(storage)? + 1;
+    ANNOTATION_RESULT_COUNT.save(storage, &val)?;
+
+    Ok(val)
+}
+
+pub struct AnnotationResultIndexes<'a> {
+    pub request: MultiIndex<'a, AnnotationResult>,
+    pub reviewer: MultiIndex<'a, AnnotationResult>,
+}
+
+impl<'a> IndexList<AnnotationResult> for AnnotationResultIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<AnnotationResult>> + '_> {
+        let v: Vec<&dyn Index<AnnotationResult>> = vec![&self.request, &self.reviewer];
+        Box::new(v.into_iter())
+    }
+}
+
+pub fn annotation_results<'a>(
+) -> IndexedMap<'a, &'a [u8], AnnotationResult, AnnotationResultIndexes<'a>> {
+    let indexes = AnnotationResultIndexes {
+        request: MultiIndex::new(
+            |o| o.request_id.to_be_bytes().to_vec(),
+            "annotation_results",
+            "annotation_results_request",
+        ),
+        reviewer: MultiIndex::new(
+            |o| o.reviewer_address.as_bytes().to_vec(),
+            "annotation_results",
+            "annotation_results_reviewer",
+        ),
+    };
+    IndexedMap::new("annotation_results", indexes)
 }

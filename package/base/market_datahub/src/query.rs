@@ -66,5 +66,11 @@ pub enum DataHubQueryMsg {
         limit: Option<u8>,
         order: Option<u8>,
     },
+    GetAnnotationResult {
+        annotation_result_id: u64,
+    },
+    GetAnnotationResultsByAnnotationId {
+        annotation_id: u64,
+    },
     GetContractInfo {},
 }

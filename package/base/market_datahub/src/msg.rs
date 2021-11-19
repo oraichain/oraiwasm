@@ -26,6 +26,20 @@ pub struct Annotation {
     pub is_paid: bool,
 }
 
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct AnnotationResult {
+    pub id: Option<u64>,
+    pub request_id: u64,
+    pub reviewer_address: HumanAddr,
+    pub data: Vec<AnnotationResult>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct AnnotatorResult {
+    pub annotator_address: HumanAddr,
+    pub result: Vec<bool>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct MintMsg {
@@ -59,4 +73,5 @@ pub enum DataHubHandleMsg {
     RemoveOffering { id: u64 },
     UpdateAnnotation { annotation: Annotation },
     RemoveAnnotation { id: u64 },
+    UpdateAnnotationResult { annotation_result: AnnotationResult },
 }

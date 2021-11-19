@@ -1,17 +1,18 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
-    annotations, get_contract_token_id, get_unique_key, increment_annotations, increment_offerings,
-    offerings, ContractInfo, CONTRACT_INFO,
+    annotation_results, annotations, get_contract_token_id, get_unique_key,
+    increment_annotation_result, increment_annotations, increment_offerings, offerings,
+    ContractInfo, CONTRACT_INFO,
 };
-use market_datahub::{Annotation, DataHubHandleMsg, DataHubQueryMsg, Offering};
+use market_datahub::{Annotation, AnnotationResult, DataHubHandleMsg, DataHubQueryMsg, Offering};
 
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order,
     StdError, StdResult,
 };
 use cosmwasm_std::{HumanAddr, KV};
-use cw_storage_plus::Bound;
+use cw_storage_plus::{Bound, Endian, Index};
 use std::convert::TryInto;
 use std::usize;
 
@@ -53,6 +54,9 @@ pub fn handle(
                 try_update_annotation(deps, info, env, annotation)
             }
             DataHubHandleMsg::RemoveAnnotation { id } => try_withdraw_annotation(deps, info, id),
+            DataHubHandleMsg::UpdateAnnotationResult { annotation_result } => {
+                try_update_annotation_results(deps, info, env, annotation_result)
+            }
         },
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
@@ -132,6 +136,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             } => to_binary(&query_annotations_by_requester(
                 deps, requester, limit, offset, order,
             )?),
+            DataHubQueryMsg::GetAnnotationResult {
+                annotation_result_id,
+            } => to_binary(&query_annotation_result(deps, annotation_result_id)?),
+            DataHubQueryMsg::GetAnnotationResultsByAnnotationId { annotation_id } => to_binary(
+                &query_annotation_results_by_annotation_id(deps, annotation_id)?,
+            ),
             DataHubQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
         },
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
@@ -257,6 +267,36 @@ pub fn try_withdraw_annotation(
         ],
         data: None,
     });
+}
+
+pub fn try_update_annotation_results(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    mut data: AnnotationResult,
+) -> Result<HandleResponse, ContractError> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+
+    if contract_info.governance.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    };
+
+    if data.id.is_none() {
+        data.id = Some(increment_annotation_result(deps.storage)?);
+    }
+
+    annotation_results().save(deps.storage, &data.id.unwrap().to_be_bytes(), &data)?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("action", "update_annotation_result"),
+            attr("annotation_result_id", &data.id.unwrap().to_string()),
+        ],
+        data: None,
+    })
 }
 
 pub fn try_update_info(
@@ -552,6 +592,49 @@ fn parse_annotation<'a>(item: StdResult<KV<Annotation>>) -> StdResult<Annotation
         Ok(Annotation {
             id: Some(id),
             ..annotation
+        })
+    })
+}
+
+pub fn query_annotation_result(
+    deps: Deps,
+    annotation_result_id: u64,
+) -> StdResult<AnnotationResult> {
+    let result = annotation_results().load(deps.storage, &annotation_result_id.to_be_bytes())?;
+    Ok(result)
+}
+
+pub fn query_annotation_results_by_annotation_id(
+    deps: Deps,
+    annotation_id: u64,
+) -> StdResult<Vec<AnnotationResult>> {
+    let results: StdResult<Vec<AnnotationResult>> = annotation_results()
+        .idx
+        .request
+        .items(
+            deps.storage,
+            &annotation_id.to_be_bytes(),
+            None,
+            None,
+            Order::Ascending,
+        )
+        .map(|kv_item| parse_annotation_result(kv_item))
+        .collect();
+
+    Ok(results?)
+}
+
+fn parse_annotation_result<'a>(
+    item: StdResult<KV<AnnotationResult>>,
+) -> StdResult<AnnotationResult> {
+    item.and_then(|(k, result)| {
+        let value = k
+            .try_into()
+            .map_err(|_| StdError::generic_err("Cannot parse annotation result key"))?;
+        let id: u64 = u64::from_be_bytes(value);
+        Ok(AnnotationResult {
+            id: Some(id),
+            ..result
         })
     })
 }
