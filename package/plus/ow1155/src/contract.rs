@@ -76,6 +76,7 @@ pub fn handle(
             execute_approve_all(env, operator, expires)
         }
         Cw1155ExecuteMsg::RevokeAll { operator } => execute_revoke_all(env, operator),
+        Cw1155ExecuteMsg::ChangeOwner { owner } => change_owner(env, owner),
     }
 }
 
@@ -117,6 +118,23 @@ fn change_minter(env: ExecuteEnv, minter: String) -> Result<HandleResponse, Cont
             attr("action", "change_minter"),
             attr("minter", minter),
             attr("owner", env.info.sender),
+        ],
+        data: None,
+    })
+}
+
+fn change_owner(env: ExecuteEnv, new_owner: String) -> Result<HandleResponse, ContractError> {
+    let owner = OWNER.load(env.deps.storage)?;
+    if !owner.eq(&env.info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+    OWNER.save(env.deps.storage, &HumanAddr::from(new_owner.clone()))?;
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("action", "change_owner"),
+            attr("owner", owner),
+            attr("new_owner", new_owner),
         ],
         data: None,
     })
@@ -539,6 +557,7 @@ pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
             to_binary(&TokenInfoResponse { url })
         }
         Cw1155QueryMsg::Minter {} => to_binary(&query_minter(deps)?),
+        Cw1155QueryMsg::Owner {} => to_binary(&query_owner(deps)?),
         Cw1155QueryMsg::Tokens {
             owner,
             start_after,
@@ -584,6 +603,11 @@ fn query_all_approvals(
 fn query_minter(deps: Deps) -> StdResult<HumanAddr> {
     let minter = MINTER.load(deps.storage)?;
     Ok(minter)
+}
+
+fn query_owner(deps: Deps) -> StdResult<HumanAddr> {
+    let owner = OWNER.load(deps.storage)?;
+    Ok(owner)
 }
 
 fn query_tokens(

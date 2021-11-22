@@ -4,8 +4,8 @@ use crate::msg::{
 };
 use crate::state::{FEES, OWNER, TEST_CASES};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Api, Binary, Coin, Deps, DepsMut, Env, HandleResponse,
-    HumanAddr, InitResponse, MessageInfo, Order, StdResult, Uint128, KV,
+    from_binary, from_slice, to_binary, Api, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr,
+    InitResponse, MessageInfo, Order, StdResult, KV,
 };
 use cw_storage_plus::Bound;
 
@@ -47,7 +47,6 @@ pub fn handle_testcase(
         HandleMsg::AddTestCase { test_case } => try_add_test_case(deps, info, test_case),
         HandleMsg::RemoveTestCase { input } => try_remove_test_case(deps, info, input),
         HandleMsg::SetOwner { owner } => try_set_owner(deps, info, owner),
-        HandleMsg::SetFees { fees } => try_set_fees(deps, info, fees),
     }
 }
 
@@ -96,19 +95,6 @@ fn try_set_owner(
     Ok(HandleResponse::default())
 }
 
-fn try_set_fees(
-    deps: DepsMut,
-    info: MessageInfo,
-    fees: Coin,
-) -> Result<HandleResponse, ContractError> {
-    let owner: HumanAddr = OWNER.load(deps.storage)?;
-    if !info.sender.eq(&owner) {
-        return Err(ContractError::Unauthorized {});
-    }
-    FEES.save(deps.storage, &fees)?;
-    Ok(HandleResponse::default())
-}
-
 pub fn query_testcase(
     deps: Deps,
     env: Env,
@@ -116,15 +102,15 @@ pub fn query_testcase(
     assert_handler: AssertHandler,
 ) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetFees {} => query_fees(deps),
-        QueryMsg::GetFeesFull {} => query_fees_full(deps),
         QueryMsg::GetTestCases {
             limit,
             offset,
             order,
         } => to_binary(&query_testcases(deps, limit, offset, order)?),
         QueryMsg::GetOwner {} => query_owner(deps),
-        QueryMsg::Assert { assert_inputs } => assert(env, assert_inputs, assert_handler),
+        QueryMsg::Assert { assert_inputs } => {
+            to_binary(&assert(env, assert_inputs, assert_handler)?)
+        }
     }
 }
 
@@ -133,28 +119,15 @@ fn query_owner(deps: Deps) -> StdResult<Binary> {
     to_binary(&state)
 }
 
-fn query_fees_full(deps: Deps) -> StdResult<Binary> {
-    let fees = FEES.load(deps.storage)?;
-    to_binary(&fees)
-}
-
-fn query_fees(deps: Deps) -> StdResult<Binary> {
-    let fees = FEES.load(deps.storage)?;
-    if fees.amount == Uint128::from(0u64) || !fees.denom.eq("orai") {
-        return to_binary(&0);
-    }
-    to_binary(&fees.amount)
-}
-
 fn assert(
     env: Env,
     assert_inputs: Vec<String>,
     assert_handler: AssertHandler,
-) -> StdResult<Binary> {
+) -> StdResult<Response> {
     // force all assert handler output to follow the AssertOutput struct
     let result_handler_result = assert_handler(assert_inputs.as_slice());
     if result_handler_result.is_err() {
-        return to_binary(&Response {
+        return Ok(Response {
             contract: env.contract.address.clone(),
             dsource_status: true,
             tcase_status: false,
@@ -163,7 +136,7 @@ fn assert(
     let result_handler = result_handler_result.unwrap();
     let assert_result = from_binary(&result_handler);
     if assert_result.is_err() {
-        return to_binary(&Response {
+        return Ok(Response {
             contract: env.contract.address.clone(),
             dsource_status: true,
             tcase_status: false,
@@ -175,7 +148,7 @@ fn assert(
         dsource_status: assert.dsource_status,
         tcase_status: assert.tcase_status,
     };
-    Ok(to_binary(&response)?)
+    Ok(response)
 }
 
 fn parse_testcase(_api: &dyn Api, item: StdResult<KV<String>>) -> StdResult<TestCaseMsg> {
@@ -192,7 +165,7 @@ fn parse_testcase(_api: &dyn Api, item: StdResult<KV<String>>) -> StdResult<Test
 fn query_testcases(
     deps: Deps,
     limit: Option<u8>,
-    offset: Option<u64>,
+    offset: Option<Binary>,
     order: Option<u8>,
 ) -> StdResult<TestCaseResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
@@ -208,7 +181,7 @@ fn query_testcases(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        let offset_value = Some(Bound::Exclusive(offset.to_vec()));
         match order_enum {
             Order::Ascending => min = offset_value,
             Order::Descending => max = offset_value,

@@ -9,7 +9,7 @@ pub struct InitMsg(pub State);
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    SetState(State),
+    SetState(StateMsg),
     SetOwner { owner: String },
 }
 
@@ -17,7 +17,12 @@ pub enum HandleMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetState {},
-    GetFees {},
-    GetFeesFull {},
     GetOwner {},
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StateMsg {
+    pub language: Option<String>,
+    pub script_url: Option<String>,
+    pub parameters: Option<Vec<String>>,
 }

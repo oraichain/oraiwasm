@@ -16,3 +16,4 @@ Cargo.lock
 
 .registry_cache
 node_modules
+.env

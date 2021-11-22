@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Coin, HumanAddr, Storage};
+use cosmwasm_std::{HumanAddr, Storage};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 
 use cw_storage_plus::Item;
@@ -13,7 +13,6 @@ pub struct State {
     pub language: String,
     pub script_url: String,
     pub parameters: Vec<String>,
-    pub fees: Option<Coin>,
 }
 
 pub const OWNER: Item<HumanAddr> = Item::new("owner");

@@ -71,6 +71,9 @@ pub enum Cw1155ExecuteMsg {
     RevokeAll {
         operator: String,
     },
+    ChangeOwner {
+        owner: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -14,17 +14,14 @@ pub enum HandleMsg {
     SetOwner { owner: String },
     AddTestCase { test_case: TestCaseMsg },
     RemoveTestCase { input: Vec<String> },
-    SetFees { fees: Coin },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    GetFees {},
-    GetFeesFull {},
     GetOwner {},
     GetTestCases {
-        offset: Option<u64>,
+        offset: Option<Binary>,
         limit: Option<u8>,
         order: Option<u8>,
     },

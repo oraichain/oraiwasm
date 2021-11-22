@@ -1,15 +1,14 @@
-use crate::contract::{get_royalties, get_storage_addr, query_storage, verify_nft};
+use crate::contract::{get_handle_msg, get_royalties, query_storage, verify_nft};
 use crate::error::ContractError;
-use crate::msg::{AskNftMsg, ProxyHandleMsg, ProxyQueryMsg};
+use crate::msg::AskNftMsg;
 // use crate::offering::OFFERING_STORAGE;
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
-    attr, coins, to_binary, BankMsg, CosmosMsg, Decimal, DepsMut, Env, HandleResponse, MessageInfo,
-    StdResult, Uint128, WasmMsg,
+    attr, coins, to_binary, BankMsg, Decimal, DepsMut, Env, HandleResponse, MessageInfo, Uint128,
+    WasmMsg,
 };
 use cw1155::Cw1155ExecuteMsg;
-use market::StorageHandleMsg;
 use market_ai_royalty::pay_royalties;
 use market_auction_extend::{Auction, AuctionHandleMsg, AuctionQueryMsg};
 // use market_royalty::OfferingQueryMsg;
@@ -106,8 +105,8 @@ pub fn try_bid_nft(
             off.bidder = deps.api.canonical_address(&info.sender).ok();
             off.per_price = per_price;
             // push save message to auction_storage
-            cosmos_msgs.push(get_auction_handle_msg(
-                governance,
+            cosmos_msgs.push(get_handle_msg(
+                &governance,
                 AUCTION_STORAGE,
                 AuctionHandleMsg::UpdateAuction { auction: off },
             )?);
@@ -147,13 +146,12 @@ pub fn try_claim_winner(
     } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if auction exists
-    let off: Auction = deps
-        .querier
-        .query_wasm_smart(
-            get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Msg(AuctionQueryMsg::GetAuctionRaw { auction_id }),
-        )
-        .map_err(|_op| ContractError::AuctionNotFound {})?;
+    let off: Auction = query_storage(
+        deps.as_ref(),
+        AUCTION_STORAGE,
+        AuctionQueryMsg::GetAuctionRaw { auction_id },
+    )
+    .map_err(|_| ContractError::AuctionNotFound {})?;
 
     let price = calculate_price(off.per_price, off.amount);
     // check is auction finished
@@ -173,6 +171,7 @@ pub fn try_claim_winner(
 
     // get royalties
     let mut rsp = HandleResponse::default();
+    rsp.attributes.extend(vec![attr("action", "claim_winner")]);
     let mut cosmos_msgs = vec![];
     if let Some(bidder) = off.bidder {
         let bidder_addr = deps.api.human_address(&bidder)?;
@@ -224,15 +223,14 @@ pub fn try_claim_winner(
     };
 
     // push save message to auction_storage
-    cosmos_msgs.push(get_auction_handle_msg(
-        governance,
+    cosmos_msgs.push(get_handle_msg(
+        &governance,
         AUCTION_STORAGE,
         AuctionHandleMsg::RemoveAuction { id: auction_id },
     )?);
 
     rsp.messages = cosmos_msgs;
     rsp.attributes.extend(vec![
-        attr("action", "claim_winner"),
         attr("claimer", info.sender),
         attr("auction_id", auction_id),
         attr("total_price", price),
@@ -318,8 +316,8 @@ pub fn handle_ask_auction(
     // add new auctions
     let mut cosmos_msgs = vec![];
     // push save message to auction_storage
-    cosmos_msgs.push(get_auction_handle_msg(
-        governance.clone(),
+    cosmos_msgs.push(get_handle_msg(
+        &governance,
         AUCTION_STORAGE,
         AuctionHandleMsg::UpdateAuction { auction: off },
     )?);
@@ -350,13 +348,12 @@ pub fn try_cancel_bid(
     } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if auction exists
-    let mut off: Auction = deps
-        .querier
-        .query_wasm_smart(
-            get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Msg(AuctionQueryMsg::GetAuctionRaw { auction_id }),
-        )
-        .map_err(|_op| ContractError::AuctionNotFound {})?;
+    let mut off: Auction = query_storage(
+        deps.as_ref(),
+        AUCTION_STORAGE,
+        AuctionQueryMsg::GetAuctionRaw { auction_id },
+    )
+    .map_err(|_| ContractError::AuctionNotFound {})?;
 
     // check if token_id is currently sold by the requesting address
     if let Some(bidder) = &off.bidder {
@@ -400,8 +397,8 @@ pub fn try_cancel_bid(
             off.per_price = off.orig_per_price;
             let token_id = off.token_id.clone();
             // push save message to auction_storage
-            cosmos_msgs.push(get_auction_handle_msg(
-                governance,
+            cosmos_msgs.push(get_handle_msg(
+                &governance,
                 AUCTION_STORAGE,
                 AuctionHandleMsg::UpdateAuction { auction: off },
             )?);
@@ -474,8 +471,8 @@ pub fn try_emergency_cancel_auction(
 
     // remove auction
     // push save message to auction_storage
-    cosmos_msgs.push(get_auction_handle_msg(
-        governance,
+    cosmos_msgs.push(get_handle_msg(
+        &governance,
         AUCTION_STORAGE,
         AuctionHandleMsg::RemoveAuction { id: auction_id },
     )?);
@@ -493,26 +490,26 @@ pub fn try_emergency_cancel_auction(
     });
 }
 
-pub fn get_auction_handle_msg(
-    addr: HumanAddr,
-    name: &str,
-    msg: AuctionHandleMsg,
-) -> StdResult<CosmosMsg> {
-    let msg_auction: ProxyHandleMsg<AuctionHandleMsg> = ProxyHandleMsg::Msg(msg);
-    let auction_msg = to_binary(&msg_auction)?;
-    let proxy_msg: ProxyHandleMsg<StorageHandleMsg> =
-        ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
-            name: name.to_string(),
-            msg: auction_msg,
-        });
+// pub fn get_auction_handle_msg(
+//     addr: HumanAddr,
+//     name: &str,
+//     msg: AuctionHandleMsg,
+// ) -> StdResult<CosmosMsg> {
+//     let msg_auction: ProxyHandleMsg<AuctionHandleMsg> = ProxyHandleMsg::Msg(msg);
+//     let auction_msg = to_binary(&msg_auction)?;
+//     let proxy_msg: ProxyHandleMsg<StorageHandleMsg> =
+//         ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
+//             name: name.to_string(),
+//             msg: auction_msg,
+//         });
 
-    Ok(WasmMsg::Execute {
-        contract_addr: addr,
-        msg: to_binary(&proxy_msg)?,
-        send: vec![],
-    }
-    .into())
-}
+//     Ok(WasmMsg::Execute {
+//         contract_addr: addr,
+//         msg: to_binary(&proxy_msg)?,
+//         send: vec![],
+//     }
+//     .into())
+// }
 
 pub fn calculate_price(per_price: Uint128, amount: Uint128) -> Uint128 {
     return per_price.mul(Decimal::from_ratio(amount.u128(), 1u128));

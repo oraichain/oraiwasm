@@ -12,12 +12,17 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{HumanAddr, StdError};
 use cw1155::Cw1155ExecuteMsg;
+use market::MarketHubContract;
 use market_1155::{MarketHandleMsg, MarketQueryMsg, MintMsg, Offering};
 use market_ai_royalty::{pay_royalties, AiRoyaltyHandleMsg, RoyaltyMsg};
 use market_auction_extend::{Auction, AuctionQueryMsg};
 use std::ops::{Mul, Sub};
 
-pub fn add_msg_royalty(sender: &str, governance: &str, msg: MintMsg) -> StdResult<Vec<CosmosMsg>> {
+pub fn add_msg_royalty(
+    sender: &str,
+    governance: &MarketHubContract,
+    msg: MintMsg,
+) -> StdResult<Vec<CosmosMsg>> {
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
     let royalty_msg = RoyaltyMsg {
         contract_addr: msg.contract_addr,
@@ -26,6 +31,7 @@ pub fn add_msg_royalty(sender: &str, governance: &str, msg: MintMsg) -> StdResul
         creator_type: Some(msg.creator_type),
         royalty: msg.royalty,
     };
+
     // update ai royalty provider
     cosmos_msgs.push(get_handle_msg(
         governance,
@@ -189,6 +195,7 @@ pub fn try_buy(
 
     // get royalties
     let mut rsp = HandleResponse::default();
+    rsp.attributes.extend(vec![attr("action", "buy_nft")]);
     let seller_addr = off.seller.clone();
 
     let mut cosmos_msgs = vec![];
@@ -266,7 +273,7 @@ pub fn try_buy(
     if amount.eq(&off.amount) {
         // remove offering in the offering storage
         cosmos_msgs.push(get_handle_msg(
-            governance.as_str(),
+            &governance,
             STORAGE_1155,
             MarketHandleMsg::RemoveOffering { id: offering_id },
         )?);
@@ -274,7 +281,7 @@ pub fn try_buy(
         // if not equal => reduce amount
         off.amount = off.amount.sub(&amount)?;
         cosmos_msgs.push(get_handle_msg(
-            governance.as_str(),
+            &governance,
             STORAGE_1155,
             MarketHandleMsg::UpdateOffering {
                 offering: off.clone(),
@@ -283,7 +290,6 @@ pub fn try_buy(
     }
     rsp.messages = cosmos_msgs;
     rsp.attributes.extend(vec![
-        attr("action", "buy_nft"),
         attr("buyer", info.sender),
         attr("seller", seller_addr),
         attr("offering_id", offering_id),
@@ -313,7 +319,7 @@ pub fn try_withdraw(
 
         // remove offering
         cw721_transfer_cosmos_msg.push(get_handle_msg(
-            governance.as_str(),
+            &governance,
             STORAGE_1155,
             MarketHandleMsg::RemoveOffering { id: offering_id },
         )?);
@@ -391,7 +397,7 @@ pub fn try_change_creator(
 
     // update creator royalty
     cosmos_msgs.push(get_handle_msg(
-        governance.as_str(),
+        &governance,
         AI_ROYALTY_STORAGE,
         AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
             contract_addr: contract_addr.clone(),
@@ -446,7 +452,7 @@ pub fn try_sell_nft(
     let mut cosmos_msgs = vec![];
     // push save message to datahub storage
     cosmos_msgs.push(get_handle_msg(
-        governance.as_str(),
+        &governance,
         STORAGE_1155,
         MarketHandleMsg::UpdateOffering {
             offering: offering.clone(),
