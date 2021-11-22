@@ -72,5 +72,12 @@ pub enum DataHubQueryMsg {
     GetAnnotationResultsByAnnotationId {
         annotation_id: u64,
     },
+    GetAnnotationReviewerByUniqueKey {
+        annotation_id: u64,
+        reviewer_address: HumanAddr,
+    },
+    GetAnnotationReviewerByAnnotationId {
+        annotation_id: u64,
+    },
     GetContractInfo {},
 }

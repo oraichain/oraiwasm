@@ -67,8 +67,20 @@ pub enum ContractError {
     #[error("There is an error while collecting the offering")]
     InvalidGetOffering {},
 
+    #[error("Invalid Annotator results length")]
+    InvalidAnnotatorResults {},
+
+    #[error("Can not commit 2 results")]
+    AddResultError {},
+
+    #[error("There is an error while collecting annotation")]
+    InvalidGetAnnotationResult {},
+
     #[error("There is an error while collecting the annotation")]
     InvalidGetAnnotation {},
+
+    #[error("Only can payout when all reviewer commited their result")]
+    EarlyPayoutError {},
 
     #[error("The requester has not deposited funds into the annotation request yet. You will not receive rewards if you submit")]
     AnnotationNoFunds {},

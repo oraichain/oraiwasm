@@ -14,6 +14,13 @@ pub struct Offering {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct AnnotationReviewer {
+    pub id: Option<u64>,
+    pub annotation_id: u64,
+    pub reviewer_address: HumanAddr,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Annotation {
     pub id: Option<u64>,
     pub token_id: String,
@@ -29,9 +36,9 @@ pub struct Annotation {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct AnnotationResult {
     pub id: Option<u64>,
-    pub request_id: u64,
+    pub annotation_id: u64,
     pub reviewer_address: HumanAddr,
-    pub data: Vec<AnnotationResult>,
+    pub data: Vec<AnnotatorResult>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -69,9 +76,30 @@ pub struct MintStruct {
 #[serde(rename_all = "snake_case")]
 pub enum DataHubHandleMsg {
     // this allow implementation contract to update the storage
-    UpdateOffering { offering: Offering },
-    RemoveOffering { id: u64 },
-    UpdateAnnotation { annotation: Annotation },
-    RemoveAnnotation { id: u64 },
-    UpdateAnnotationResult { annotation_result: AnnotationResult },
+    UpdateOffering {
+        offering: Offering,
+    },
+    RemoveOffering {
+        id: u64,
+    },
+    UpdateAnnotation {
+        annotation: Annotation,
+    },
+    RemoveAnnotation {
+        id: u64,
+    },
+    UpdateAnnotationResult {
+        annotation_result: AnnotationResult,
+    },
+    AddAnnotationReviewer {
+        annotation_id: u64,
+        reviewer_address: HumanAddr,
+    },
+    RemoveAnnotationReviewer {
+        annotation_id: u64,
+        reviewer_address: HumanAddr,
+    },
+    RemoveAnnotationResultData {
+        annotation_id: u64,
+    },
 }

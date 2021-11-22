@@ -3,6 +3,9 @@ use std::fmt;
 use crate::annotation::{
     try_execute_request_annotation, try_payout, try_withdraw as try_withdraw_annotation,
 };
+use crate::annotation_result::{
+    try_add_annotation_result, try_add_annotation_reviewer, try_remove_annotation_reviewer,
+};
 use crate::offering::{handle_sell_nft, try_buy, try_handle_mint, try_sell, try_withdraw};
 
 use crate::error::ContractError;
@@ -108,22 +111,23 @@ pub fn handle(
             max_annotators,
             expired_after,
         ),
-        HandleMsg::Payout {
-            annotation_id,
-            annotator_results,
-        } => try_payout(deps, env, info, annotation_id, annotator_results),
-        // HandleMsg::SubmitAnnotation { annotation_id } => {
-        //     handle_submit_annotation(deps, info, annotation_id)
-        // }
-        // HandleMsg::WithdrawSubmitAnnotation { annotation_id } => {
-        //     try_withdraw_submit_annotation(deps, info, annotation_id)
-        // }
-        // HandleMsg::DepositAnnotation { annotation_id } => {
-        //     handle_deposit_annotation(deps, info, annotation_id)
-        // }
+        HandleMsg::Payout { annotation_id } => try_payout(deps, env, info, annotation_id),
+
         HandleMsg::WithdrawAnnotation { annotation_id } => {
             try_withdraw_annotation(deps, info, env, annotation_id)
         }
+        HandleMsg::AddAnnotationResult {
+            annotation_id,
+            annotator_results,
+        } => try_add_annotation_result(deps, info, env, annotation_id, annotator_results),
+        HandleMsg::AddAnnotationReviewer {
+            annotation_id,
+            reviewer_address,
+        } => try_add_annotation_reviewer(deps, info, env, annotation_id, reviewer_address),
+        HandleMsg::RemoveAnnnotationReviewer {
+            annotation_id,
+            reviewer_address,
+        } => try_remove_annotation_reviewer(deps, info, env, annotation_id, reviewer_address),
         // HandleMsg::UpdateAnnotationAnnotators {
         //     annotation_id,
         //     annotators,

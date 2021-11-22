@@ -4,7 +4,7 @@ use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
 use cw1155::Cw1155ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::AiRoyaltyQueryMsg;
-use market_datahub::{DataHubQueryMsg, MintMsg};
+use market_datahub::{AnnotatorResult, DataHubQueryMsg, MintMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -49,15 +49,23 @@ pub enum HandleMsg {
         max_annotators: Uint128,
         expired_after: Option<u64>,
     },
-    // DepositAnnotation {
-    //     annotation_id: u64,
-    // },
+    AddAnnotationReviewer {
+        annotation_id: u64,
+        reviewer_address: HumanAddr,
+    },
+    RemoveAnnnotationReviewer {
+        annotation_id: u64,
+        reviewer_address: HumanAddr,
+    },
     WithdrawAnnotation {
         annotation_id: u64,
     },
+    AddAnnotationResult {
+        annotation_id: u64,
+        annotator_results: Vec<AnnotatorResult>,
+    },
     Payout {
         annotation_id: u64,
-        annotator_results: Vec<AnnotatorResults>,
     },
     // SubmitAnnotation {
     //     annotation_id: u64,
@@ -79,6 +87,12 @@ pub enum HandleMsg {
         new_marketplace: HumanAddr,
     },
 }
+
+// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+// pub struct AnnotatorResult {
+//     pub annotator_address: HumanAddr,
+//     pub result: Vec<bool>,
+// }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AskNftMsg {

@@ -1,18 +1,21 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
-    annotation_results, annotations, get_contract_token_id, get_unique_key,
-    increment_annotation_result, increment_annotations, increment_offerings, offerings,
+    annotation_results, annotation_reviewers, annotations, get_contract_token_id,
+    get_unique_annotation_reviewer_key, get_unique_key, increment_annotation_result,
+    increment_annotation_reviewer, increment_annotations, increment_offerings, offerings,
     ContractInfo, CONTRACT_INFO,
 };
-use market_datahub::{Annotation, AnnotationResult, DataHubHandleMsg, DataHubQueryMsg, Offering};
+use market_datahub::{
+    Annotation, AnnotationResult, AnnotationReviewer, DataHubHandleMsg, DataHubQueryMsg, Offering,
+};
 
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order,
     StdError, StdResult,
 };
 use cosmwasm_std::{HumanAddr, KV};
-use cw_storage_plus::{Bound, Endian, Index};
+use cw_storage_plus::{Bound, Endian};
 use std::convert::TryInto;
 use std::usize;
 
@@ -56,6 +59,17 @@ pub fn handle(
             DataHubHandleMsg::RemoveAnnotation { id } => try_withdraw_annotation(deps, info, id),
             DataHubHandleMsg::UpdateAnnotationResult { annotation_result } => {
                 try_update_annotation_results(deps, info, env, annotation_result)
+            }
+            DataHubHandleMsg::AddAnnotationReviewer {
+                annotation_id,
+                reviewer_address,
+            } => try_add_annotation_reviewer(deps, info, env, annotation_id, reviewer_address),
+            DataHubHandleMsg::RemoveAnnotationReviewer {
+                annotation_id,
+                reviewer_address,
+            } => try_remove_annotation_reviewer(deps, info, env, annotation_id, reviewer_address),
+            DataHubHandleMsg::RemoveAnnotationResultData { annotation_id } => {
+                try_remove_annotation_result_data(deps, info, env, annotation_id)
             }
         },
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
@@ -139,10 +153,25 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             DataHubQueryMsg::GetAnnotationResult {
                 annotation_result_id,
             } => to_binary(&query_annotation_result(deps, annotation_result_id)?),
+
             DataHubQueryMsg::GetAnnotationResultsByAnnotationId { annotation_id } => to_binary(
                 &query_annotation_results_by_annotation_id(deps, annotation_id)?,
             ),
+
             DataHubQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+
+            DataHubQueryMsg::GetAnnotationReviewerByUniqueKey {
+                annotation_id,
+                reviewer_address,
+            } => to_binary(&query_annotation_reviewer_by_unique_key(
+                deps,
+                annotation_id,
+                reviewer_address,
+            )?),
+
+            DataHubQueryMsg::GetAnnotationReviewerByAnnotationId { annotation_id } => to_binary(
+                &query_annotation_reviewer_by_annotation_id(deps, annotation_id)?,
+            ),
         },
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
     }
@@ -295,6 +324,125 @@ pub fn try_update_annotation_results(
             attr("action", "update_annotation_result"),
             attr("annotation_result_id", &data.id.unwrap().to_string()),
         ],
+        data: None,
+    })
+}
+
+pub fn try_add_annotation_reviewer(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    annotation_id: u64,
+    reviewer_address: HumanAddr,
+) -> Result<HandleResponse, ContractError> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+
+    if contract_info.governance.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    };
+
+    let is_existed = annotation_reviewers().idx.unique_key.item(
+        deps.storage,
+        get_unique_annotation_reviewer_key(&annotation_id, &reviewer_address),
+    );
+
+    if is_existed.is_ok() {
+        return Err(ContractError::InvalidAnnotationReviewer {});
+    } else {
+        let annotation_reviewer = AnnotationReviewer {
+            id: Some(increment_annotation_reviewer(deps.storage)?),
+            annotation_id: annotation_id.clone(),
+            reviewer_address: reviewer_address.clone(),
+        };
+        annotation_reviewers().save(
+            deps.storage,
+            &annotation_reviewer.id.unwrap().to_be_bytes(),
+            &annotation_reviewer,
+        )?;
+
+        Ok(HandleResponse {
+            messages: vec![],
+            data: None,
+            attributes: vec![
+                attr("action", "add_annotation_reviewer"),
+                attr("annotation_id", annotation_id.to_string()),
+                attr("reviewer_address", reviewer_address.to_string()),
+            ],
+        })
+    }
+}
+
+pub fn try_remove_annotation_reviewer(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    annotation_id: u64,
+    reviewer_address: HumanAddr,
+) -> Result<HandleResponse, ContractError> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+
+    if contract_info.governance.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    };
+
+    let old = annotation_reviewers().idx.unique_key.item(
+        deps.storage,
+        get_unique_annotation_reviewer_key(&annotation_id, &reviewer_address),
+    )?;
+
+    if old.is_none() {
+        return Err(ContractError::InvalidRemovingAnnotationReviewer {});
+    } else {
+        annotation_reviewers().remove(
+            deps.storage,
+            &old.as_ref().unwrap().1.id.unwrap().to_be_bytes().to_vec(),
+        )?;
+
+        Ok(HandleResponse {
+            messages: vec![],
+            attributes: vec![
+                attr("action", "remove_annotation_reviewer"),
+                attr("annotation_id", annotation_id.to_string()),
+                attr("reviewer_address", reviewer_address.to_string()),
+            ],
+            data: None,
+        })
+    }
+}
+
+pub fn try_remove_annotation_result_data(
+    deps: DepsMut,
+    info: MessageInfo,
+    _env: Env,
+    annotation_id: u64,
+) -> Result<HandleResponse, ContractError> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+
+    if contract_info.governance.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    };
+
+    let results = query_annotation_results_by_annotation_id(deps.as_ref(), annotation_id)?;
+
+    for item in results.iter() {
+        annotation_results().remove(deps.storage, &item.id.unwrap().to_be_bytes().to_vec())?;
+    }
+
+    let reviewers = query_annotation_reviewer_by_annotation_id(deps.as_ref(), annotation_id)?;
+
+    for item in reviewers.iter() {
+        annotation_reviewers().remove(deps.storage, &item.id.unwrap().to_be_bytes().to_vec())?;
+    }
+
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![attr("action", "remove annotation result")],
         data: None,
     })
 }
@@ -610,7 +758,7 @@ pub fn query_annotation_results_by_annotation_id(
 ) -> StdResult<Vec<AnnotationResult>> {
     let results: StdResult<Vec<AnnotationResult>> = annotation_results()
         .idx
-        .request
+        .annotation
         .items(
             deps.storage,
             &annotation_id.to_be_bytes(),
@@ -633,6 +781,63 @@ fn parse_annotation_result<'a>(
             .map_err(|_| StdError::generic_err("Cannot parse annotation result key"))?;
         let id: u64 = u64::from_be_bytes(value);
         Ok(AnnotationResult {
+            id: Some(id),
+            ..result
+        })
+    })
+}
+
+pub fn query_annotation_reviewer_by_annotation_id(
+    deps: Deps,
+    annotation_id: u64,
+) -> StdResult<Vec<AnnotationReviewer>> {
+    let items: StdResult<Vec<AnnotationReviewer>> = annotation_reviewers()
+        .idx
+        .annotation
+        .items(
+            deps.storage,
+            &annotation_id.to_be_bytes().to_vec(),
+            None,
+            None,
+            Order::Ascending,
+        )
+        .map(|item| parse_annotation_reviewer(item))
+        .collect();
+
+    Ok(items?)
+}
+
+pub fn query_annotation_reviewer_by_unique_key(
+    deps: Deps,
+    annotation_id: u64,
+    reviewer_address: HumanAddr,
+) -> StdResult<AnnotationReviewer> {
+    let item = annotation_reviewers()
+        .idx
+        .unique_key
+        .item(
+            deps.storage,
+            get_unique_annotation_reviewer_key(&annotation_id, &reviewer_address),
+        )
+        .map(|r| r.unwrap().1);
+    if item.is_err() {
+        return Err(StdError::generic_err(
+            "Reviewer is not existed for this annotation",
+        ));
+    } else {
+        Ok(item.unwrap())
+    }
+}
+
+fn parse_annotation_reviewer<'a>(
+    item: StdResult<KV<AnnotationReviewer>>,
+) -> StdResult<AnnotationReviewer> {
+    item.and_then(|(k, result)| {
+        let value = k
+            .try_into()
+            .map_err(|_| StdError::generic_err("Cannot parse annotation reviewer key"))?;
+        let id: u64 = u64::from_be_bytes(value);
+        Ok(AnnotationReviewer {
             id: Some(id),
             ..result
         })
