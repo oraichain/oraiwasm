@@ -71,6 +71,9 @@ pub enum ContractError {
     #[error("Token already been sold by address: {seller}")]
     TokenOnSale { seller: String },
 
+    #[error("Token already been on market")]
+    TokenOnMarket {},
+
     #[error("Invalid amount & royalty to update royalty")]
     InvalidRoyaltyArgument {},
 
