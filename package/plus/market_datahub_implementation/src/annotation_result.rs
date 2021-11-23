@@ -1,3 +1,5 @@
+use std::convert::TryInto;
+
 use cosmwasm_std::{
     attr, from_binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse, HumanAddr, MessageInfo,
     StdError,
@@ -22,9 +24,19 @@ pub fn try_add_annotation_result(
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
+    let annotation = get_annotation(deps.as_ref(), annotation_id)?;
+
     // Check if sender is a reviewer for this annotation
     let _reviewer =
         get_annotation_reviewer_by_unique_key(deps.as_ref(), annotation_id, info.sender.clone())?;
+
+    for result in annotator_results.iter() {
+        if result.result.len() > annotation.number_of_samples.u128().try_into().unwrap() {
+            return Err(ContractError::Std(StdError::generic_err(
+                "Annotator result's length can not exceed annotation's number_of_sample",
+            )));
+        }
+    }
 
     let old_annotation_results =
         get_annotation_results_by_annotation_id(deps.as_ref(), annotation_id)?;
@@ -72,9 +84,13 @@ pub fn try_add_annotation_result(
     msg.push(get_handle_msg(
         governance.as_str(),
         DATAHUB_STORAGE,
-        DataHubHandleMsg::AddAnnotationReviewer {
-            annotation_id,
-            reviewer_address: info.sender.clone(),
+        DataHubHandleMsg::UpdateAnnotationResult {
+            annotation_result: AnnotationResult {
+                id: None,
+                annotation_id,
+                reviewer_address: info.sender.clone(),
+                data: annotator_results.clone(),
+            },
         },
     )?);
 
@@ -191,7 +207,7 @@ pub fn get_annotation_reviewer_by_unique_key(
             reviewer_address,
         },
     )?)
-    .map_err(|_err| {
+    .map_err(|_| {
         ContractError::Std(StdError::generic_err(
             "There is an error while collecting reviewers",
         ))

@@ -9,6 +9,9 @@ use cosmwasm_std::Decimal;
 use cosmwasm_std::{coin, coins, from_binary, HumanAddr, Order, OwnedDeps, Uint128};
 
 use market_datahub::Annotation;
+use market_datahub::AnnotationResult;
+use market_datahub::AnnotationReviewer;
+use market_datahub::AnnotatorResult;
 use market_datahub::DataHubHandleMsg;
 use market_datahub::DataHubQueryMsg;
 use market_datahub::Offering;
@@ -350,4 +353,125 @@ fn withdraw_annotations() {
     let value: Vec<Annotation> = from_binary(&res).unwrap();
     println!("value: {:?}", value);
     assert_eq!(value.len(), 1);
+}
+
+#[test]
+fn sort_annotation_reviewer() {
+    let mut deps = setup_contract();
+
+    let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
+    // let mut annotation_reviewers: Vec<AnnotationReviewer> = vec![];
+
+    // Create mock annotation
+    let annotation = Annotation {
+        id: None,
+        contract_addr: HumanAddr::from("xxx"),
+        token_id: 1.to_string(),
+        requester: HumanAddr::from("requester"),
+        award_per_sample: Uint128::from(1u64),
+        number_of_samples: Uint128::from(1u64),
+        is_paid: false,
+        expired_block: 1,
+        max_annotators: Uint128::from(2u64),
+    };
+    let msg = HandleMsg::Msg(DataHubHandleMsg::UpdateAnnotation { annotation });
+    let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+    // Add reviewer for annotation
+    let msg = HandleMsg::Msg(DataHubHandleMsg::AddAnnotationReviewer {
+        annotation_id: 1,
+        reviewer_address: HumanAddr::from("r1"),
+    });
+    let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+    let msg = HandleMsg::Msg(DataHubHandleMsg::AddAnnotationReviewer {
+        annotation_id: 1,
+        reviewer_address: HumanAddr::from("r2"),
+    });
+
+    let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Msg(DataHubQueryMsg::GetAnnotationReviewerByAnnotationId { annotation_id: 1 }),
+    )
+    .unwrap();
+
+    let value = from_binary::<Vec<AnnotationReviewer>>(&res).unwrap();
+    assert_eq!(value.len(), 2);
+    println!("value query list reviewer by annotation {:?}", value);
+
+    // Add reviewer result
+
+    let result = AnnotationResult {
+        id: None,
+        annotation_id: 1,
+        reviewer_address: HumanAddr::from("r1"),
+        data: vec![
+            AnnotatorResult {
+                annotator_address: HumanAddr::from("a1"),
+                result: vec![true, true],
+            },
+            AnnotatorResult {
+                annotator_address: HumanAddr::from("a2"),
+                result: vec![true, true, false],
+            },
+        ],
+    };
+
+    let msg = HandleMsg::Msg(DataHubHandleMsg::UpdateAnnotationResult {
+        annotation_result: result,
+    });
+    let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+    // successfully get
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Msg(DataHubQueryMsg::GetAnnotationResultsByAnnotationId { annotation_id: 1 }),
+    )
+    .unwrap();
+
+    let results = from_binary::<Vec<AnnotationResult>>(&res).unwrap();
+    println!("review results {:?}", results);
+
+    // empty reviewers
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Msg(DataHubQueryMsg::GetAnnotationResultsByAnnotationId { annotation_id: 2 }),
+    )
+    .unwrap();
+
+    let results = from_binary::<Vec<AnnotationResult>>(&res).unwrap();
+    println!("No review results {:?}", results);
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Msg(DataHubQueryMsg::GetAnnotationReviewerByUniqueKey {
+            annotation_id: 1,
+            reviewer_address: HumanAddr::from("r1"),
+        }),
+    )
+    .unwrap();
+
+    let result = from_binary::<AnnotationReviewer>(&res).unwrap();
+
+    println!("Annotation reviewer by unique key {:?}", result);
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Msg(DataHubQueryMsg::GetAnnotationReviewerByUniqueKey {
+            annotation_id: 2,
+            reviewer_address: HumanAddr::from("r1"),
+        }),
+    )
+    .unwrap();
+
+    let result = from_binary::<Option<AnnotationReviewer>>(&res).unwrap();
+
+    println!("Failed Annotation reviewer by unique key {:?}", result);
 }

@@ -109,13 +109,6 @@ pub struct AskNftMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct AnnotatorResults {
-    pub address: HumanAddr,
-    pub valid_result: Uint128,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
 pub struct SellRoyalty {
     pub per_price: Uint128,
     pub royalty: Option<u64>,

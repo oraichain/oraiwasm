@@ -32,13 +32,13 @@ pub fn try_withdraw(
             return Err(ContractError::InvalidWithdraw {});
         }
 
-        // let results = get_annotation_results_by_annotation_id(deps.as_ref(), annotation_id)?;
+        let results = get_annotation_results_by_annotation_id(deps.as_ref(), annotation_id)?;
 
-        // if results.len() > 0 {
-        //     return ContractError::Std(StdError::generic_err(
-        //         "Can not withdraw annotation that has reviewer submitted",
-        //     ));
-        // }
+        if results.len() > 0 {
+            return Err(ContractError::Std(StdError::generic_err(
+                "Can not withdraw annotation that has reviewer submitted",
+            )));
+        }
 
         let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
@@ -52,7 +52,7 @@ pub fn try_withdraw(
                 BankMsg::Send {
                     from_address: env.contract.address.clone(),
                     to_address: HumanAddr::from(off.requester),
-                    amount: coins(annotation_price.u128(), &denom),
+                    amount: coins(annotation_price.clone().u128(), &denom),
                 }
                 .into(),
             );
@@ -72,6 +72,7 @@ pub fn try_withdraw(
                 attr("requester", info.sender),
                 attr("annotation_id", annotation_id),
                 attr("token_id", off.token_id),
+                attr("payback_amount", annotation_price.to_string()),
             ],
             data: None,
         });
@@ -182,9 +183,14 @@ pub fn try_payout(
     info: MessageInfo,
     annotation_id: u64,
 ) -> Result<HandleResponse, ContractError> {
-    let ContractInfo { creator, denom, .. } = CONTRACT_INFO.load(deps.storage)?;
+    let ContractInfo {
+        creator,
+        governance,
+        denom,
+        ..
+    } = CONTRACT_INFO.load(deps.storage)?;
 
-    let annotation: Annotation = get_annotation(deps.as_ref(), annotation_id)?;
+    let mut annotation: Annotation = get_annotation(deps.as_ref(), annotation_id)?;
 
     // Check if annotation is payout or not
     if annotation.is_paid {
@@ -197,33 +203,27 @@ pub fn try_payout(
         });
     }
 
-    let annotation_results = get_annotation_results_by_annotation_id(deps.as_ref(), annotation_id)?;
-
-    if annotation_results.len() == 0 {
-        return Err(ContractError::Std(StdError::generic_err(
-            "There is no annotator results to payout",
-        )));
-    }
+    let annotation_reviewed_results =
+        get_annotation_results_by_annotation_id(deps.as_ref(), annotation_id)?;
 
     let reviewers = get_reviewer_by_annotation_id(deps.as_ref(), annotation_id)?;
 
-    if annotation_results.len() != reviewers.len() {
+    // Only allow payout when all reviewers had submitted their results
+    if annotation_reviewed_results.len() != reviewers.len() {
         return Err(ContractError::EarlyPayoutError {});
     }
 
-    let first = annotation_results.first().unwrap();
+    let first = annotation_reviewed_results.first().unwrap();
 
     let mut annotator_valid_results_map = HashMap::<HumanAddr, u128>::new();
 
     // Traverse all reviewer result, 1 reviewer - many annotator's results
     for (annotator_index, result) in first.data.iter().enumerate() {
-        //let annotator_address = &result.annotator_address;
-
-        let mut valid_results = annotation_results.len().try_into().unwrap();
-
+        // valid_results set as max
+        let mut valid_results = result.result.len().try_into().unwrap();
         // Traverse annotator's result in review result
         for (index, _) in result.result.iter().enumerate() {
-            for r in annotation_results.iter() {
+            for r in annotation_reviewed_results.iter() {
                 // If some reviewer reject the result in this index, then the result will be rejected
                 if !r.data[annotator_index].result[index] {
                     valid_results = valid_results - 1;
@@ -240,8 +240,17 @@ pub fn try_payout(
 
     attributes.push(attr("action", "annotation_payout"));
 
+    let mut total_reward = 0u128;
+    let total_bond = calculate_annotation_price(
+        annotation.award_per_sample.clone(),
+        annotation.number_of_samples.clone(),
+    )
+    .mul(Decimal::from_ratio(annotation.max_annotators.u128(), 1u128))
+    .u128();
+
     for (annotator_address, valid_results) in annotator_valid_results_map {
         let reward = annotation.award_per_sample.u128() * valid_results;
+        total_reward = total_reward + reward;
         cosmos_msg.push(
             BankMsg::Send {
                 from_address: env.contract.address.clone(),
@@ -253,6 +262,31 @@ pub fn try_payout(
         attributes.push(attr("annotator", annotator_address.to_string()));
         attributes.push(attr("reward", reward.to_string()));
     }
+
+    // Payback the excess cash to the annotation's requestor
+    let payback_amount = total_bond - total_reward;
+    if payback_amount.ge(&0u128) {
+        cosmos_msg.push(
+            BankMsg::Send {
+                from_address: env.contract.address.clone(),
+                to_address: annotation.clone().requester,
+                amount: coins(payback_amount, denom.clone()),
+            }
+            .into(),
+        );
+
+        attributes.push(attr("payback", payback_amount.to_string()));
+    }
+
+    // Update annotation pais status
+    annotation.is_paid = true;
+    cosmos_msg.push(get_handle_msg(
+        governance.as_str(),
+        DATAHUB_STORAGE,
+        DataHubHandleMsg::UpdateAnnotation {
+            annotation: annotation.clone(),
+        },
+    )?);
 
     Ok(HandleResponse {
         messages: cosmos_msg,

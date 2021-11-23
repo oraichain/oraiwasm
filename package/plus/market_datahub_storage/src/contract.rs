@@ -15,7 +15,7 @@ use cosmwasm_std::{
     StdError, StdResult,
 };
 use cosmwasm_std::{HumanAddr, KV};
-use cw_storage_plus::{Bound, Endian};
+use cw_storage_plus::Bound;
 use std::convert::TryInto;
 use std::usize;
 
@@ -348,7 +348,7 @@ pub fn try_add_annotation_reviewer(
         get_unique_annotation_reviewer_key(&annotation_id, &reviewer_address),
     );
 
-    if is_existed.is_ok() {
+    if is_existed.unwrap().is_some() {
         return Err(ContractError::InvalidAnnotationReviewer {});
     } else {
         let annotation_reviewer = AnnotationReviewer {
@@ -811,7 +811,7 @@ pub fn query_annotation_reviewer_by_unique_key(
     deps: Deps,
     annotation_id: u64,
     reviewer_address: HumanAddr,
-) -> StdResult<AnnotationReviewer> {
+) -> StdResult<Option<AnnotationReviewer>> {
     let item = annotation_reviewers()
         .idx
         .unique_key
@@ -819,13 +819,12 @@ pub fn query_annotation_reviewer_by_unique_key(
             deps.storage,
             get_unique_annotation_reviewer_key(&annotation_id, &reviewer_address),
         )
-        .map(|r| r.unwrap().1);
-    if item.is_err() {
-        return Err(StdError::generic_err(
-            "Reviewer is not existed for this annotation",
-        ));
+        .map(|r| r)
+        .unwrap();
+    if item.is_none() {
+        return Ok(None);
     } else {
-        Ok(item.unwrap())
+        Ok(Some(item.unwrap().1))
     }
 }
 
