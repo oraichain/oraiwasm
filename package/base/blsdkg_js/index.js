@@ -14,7 +14,7 @@ const {
   signSignature
 } = require('./utils');
 
-const path = process.pwd() + process.env.TESTNET ? '/config-testnet.yaml' : '/config.yaml';
+const path = process.cwd() + process.env.TESTNET ? 'config-testnet.yaml' : 'config.yaml';
 console.log("path: ", path);
 
 const config = YAML.parse(
@@ -263,7 +263,7 @@ const processRequest = async (skShare) => {
   const share = {
     sig: Buffer.from(sig).toString('base64'),
     round: roundInfo.round,
-    signed_sig: Buffer.from(signedSignature).toString('base64'),
+    signed_sig: signedSignature ? Buffer.from(signedSignature).toString('base64') : Buffer.from('').toString('base64'),
   };
 
   // console.log(address, shareSig);
