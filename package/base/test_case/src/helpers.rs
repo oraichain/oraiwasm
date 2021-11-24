@@ -4,8 +4,8 @@ use crate::msg::{
 };
 use crate::state::{FEES, OWNER, TEST_CASES};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Api, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, Order, StdResult, KV,
+    attr, from_binary, from_slice, to_binary, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
+    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult, WasmMsg, KV,
 };
 use cw_storage_plus::Bound;
 
@@ -47,6 +47,9 @@ pub fn handle_testcase(
         HandleMsg::AddTestCase { test_case } => try_add_test_case(deps, info, test_case),
         HandleMsg::RemoveTestCase { input } => try_remove_test_case(deps, info, input),
         HandleMsg::SetOwner { owner } => try_set_owner(deps, info, owner),
+        HandleMsg::SetProviderData { contract_addr, msg } => {
+            try_set_provider_data(deps, info, contract_addr, msg)
+        }
     }
 }
 
@@ -65,7 +68,10 @@ fn try_add_test_case(
         input_bin.as_slice(),
         &test_case.expected_output,
     )?;
-    Ok(HandleResponse::default())
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "add_test_case")],
+        ..HandleResponse::default()
+    })
 }
 
 fn try_remove_test_case(
@@ -79,7 +85,10 @@ fn try_remove_test_case(
     }
     let input_bin = to_binary(&input)?;
     TEST_CASES.remove(deps.storage, input_bin.as_slice());
-    Ok(HandleResponse::default())
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "remove_test_case")],
+        ..HandleResponse::default()
+    })
 }
 
 fn try_set_owner(
@@ -92,7 +101,34 @@ fn try_set_owner(
         return Err(ContractError::Unauthorized {});
     }
     OWNER.save(deps.storage, &HumanAddr::from(owner))?;
-    Ok(HandleResponse::default())
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "set_owner")],
+        ..HandleResponse::default()
+    })
+}
+
+fn try_set_provider_data(
+    deps: DepsMut,
+    info: MessageInfo,
+    contract_addr: HumanAddr,
+    msg: Binary,
+) -> Result<HandleResponse, ContractError> {
+    let owner: HumanAddr = OWNER.load(deps.storage)?;
+    if !info.sender.eq(&owner) {
+        return Err(ContractError::Unauthorized {});
+    }
+    let msg: CosmosMsg = WasmMsg::Execute {
+        contract_addr,
+        msg,
+        send: vec![],
+    }
+    .into();
+
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "set_provider_data")],
+        messages: vec![msg],
+        ..HandleResponse::default()
+    })
 }
 
 pub fn query_testcase(

@@ -21,9 +21,9 @@ pub struct AiRequest {
     pub rewards: Vec<Reward>,
 }
 
-pub type Fees = (HumanAddr, Uint128);
+pub type Fees = (HumanAddr, Uint128, String);
 
-pub type Reward = (HumanAddr, Vec<Coin>);
+pub type Reward = (HumanAddr, Uint128, String);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DataSourceResults {

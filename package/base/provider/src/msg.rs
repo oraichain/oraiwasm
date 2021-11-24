@@ -1,3 +1,4 @@
+use cosmwasm_std::{Binary, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +11,13 @@ pub struct InitMsg(pub State);
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     SetState(StateMsg),
-    SetOwner { owner: String },
+    SetOwner {
+        owner: String,
+    },
+    SetProviderData {
+        contract_addr: HumanAddr,
+        msg: Binary,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

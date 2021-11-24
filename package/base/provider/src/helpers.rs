@@ -2,8 +2,8 @@ use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, StateMsg};
 use crate::state::{config, config_read, State, OWNER};
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
-    StdResult,
+    attr, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse, HumanAddr,
+    InitResponse, MessageInfo, StdResult, WasmMsg,
 };
 
 pub fn init_provider(
@@ -37,6 +37,9 @@ pub fn handle_provider(
     match msg {
         HandleMsg::SetState(state) => try_set_state(deps, info, state),
         HandleMsg::SetOwner { owner } => try_set_owner(deps, info, owner),
+        HandleMsg::SetProviderData { contract_addr, msg } => {
+            try_set_provider_data(deps, info, contract_addr, msg)
+        }
     }
 }
 
@@ -50,7 +53,34 @@ fn try_set_owner(
         return Err(ContractError::Unauthorized {});
     }
     OWNER.save(deps.storage, &HumanAddr::from(owner))?;
-    Ok(HandleResponse::default())
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "set_owner")],
+        ..HandleResponse::default()
+    })
+}
+
+fn try_set_provider_data(
+    deps: DepsMut,
+    info: MessageInfo,
+    contract_addr: HumanAddr,
+    msg: Binary,
+) -> Result<HandleResponse, ContractError> {
+    let owner: HumanAddr = OWNER.load(deps.storage)?;
+    if !info.sender.eq(&owner) {
+        return Err(ContractError::Unauthorized {});
+    }
+    let msg: CosmosMsg = WasmMsg::Execute {
+        contract_addr,
+        msg,
+        send: vec![],
+    }
+    .into();
+
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "set_provider_data")],
+        messages: vec![msg],
+        ..HandleResponse::default()
+    })
 }
 
 fn try_set_state(
@@ -73,7 +103,10 @@ fn try_set_state(
         state.parameters = parameters;
     }
     config(deps.storage).save(&state)?;
-    Ok(HandleResponse::default())
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "set_state")],
+        ..HandleResponse::default()
+    })
 }
 
 pub fn query_provider(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {

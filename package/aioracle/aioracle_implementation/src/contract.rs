@@ -4,9 +4,9 @@ use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO, THRESHOLD};
 use aioracle::{
     AiOracleHandle, AiOracleHubContract, AiOracleProviderContract, AiOracleStorageMsg,
-    AiOracleStorageQuery, AiOracleTestCaseContract, AiRequest, AiRequestMsg, DataSourceResultMsg,
-    DataSourceResults, Fees, PagingOptions, Report, Reward, ServiceFeesResponse, TestCaseResultMsg,
-    TestCaseResults,
+    AiOracleStorageQuery, AiOracleTestCaseContract, AiRequest, AiRequestMsg, AiRequestsResponse,
+    DataSourceResultMsg, DataSourceResults, Fees, PagingOptions, Report, ServiceFeesResponse,
+    TestCaseResultMsg, TestCaseResults,
 };
 use cosmwasm_std::{
     attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
@@ -76,11 +76,13 @@ impl AiOracleHandle for HandleMsg {
         };
 
         // reward to validators
+        let mut rewards: Vec<(HumanAddr, Uint128, String)> = vec![];
         for validator_fee in &ai_request.validator_fees {
             let reward_obj = vec![Coin {
                 denom: denom.clone(),
                 amount: validator_fee.1,
             }];
+            rewards.push((validator_fee.0.clone(), validator_fee.1, denom.clone()));
 
             let reward_msg: CosmosMsg = BankMsg::Send {
                 from_address: env.contract.address.clone(),
@@ -93,7 +95,7 @@ impl AiOracleHandle for HandleMsg {
         // update report
         ai_request.reports.push(report.clone());
         // update reward
-        ai_request.rewards = collect_rewards(&cosmos_msgs);
+        ai_request.rewards = rewards;
         // check if the reports reach a certain threshold or not. If yes => change status to true
         let threshold = THRESHOLD.load(deps.storage)?;
         // count successful reports to validate if the request is actually finished
@@ -118,12 +120,12 @@ impl AiOracleHandle for HandleMsg {
         let res = HandleResponse {
             messages: cosmos_msgs,
             attributes: vec![
+                attr("action", "aggregate_and_report"),
                 attr("aggregated_result", aggregated_result),
                 attr("request_id", request_id),
                 attr("reporter", report.validator),
                 attr("report_status", report.status),
                 attr("block_height", report.block_height),
-                attr("action", "aggregate_and_report"),
             ],
             data: None,
         };
@@ -370,10 +372,12 @@ fn process_data_sources(
     let mut results: Vec<String> = Vec::new();
     // prepare cosmos messages to send rewards
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+    let mut rewards: Vec<(HumanAddr, Uint128, String)> = vec![];
     for dsource_result_str in dsource_results {
         let dsource_result: DataSourceResultMsg = from_slice(dsource_result_str.as_bytes())?;
         let (test_case_results, is_success) = process_test_cases(&dsource_result.test_case_results);
 
+        // TODO: Add rewards for test case providers
         if dsource_result.status && is_success {
             // send rewards to the providers
             if let Some(provider_fee) = ai_request
@@ -385,6 +389,8 @@ fn process_data_sources(
                     denom: String::from(denom),
                     amount: provider_fee.1,
                 }];
+                // append reward into the list of rewards
+                rewards.push((provider_fee.0.clone(), provider_fee.1, denom.to_string()));
                 let reward_msg: CosmosMsg = BankMsg::Send {
                     from_address: contract_addr.to_owned(),
                     to_address: provider_fee.0.clone(),
@@ -441,25 +447,6 @@ fn validate_ai_request(ai_request: &AiRequest, sender: &HumanAddr) -> Option<Con
     return None;
 }
 
-fn collect_rewards(cosmos_msgs: &Vec<CosmosMsg>) -> Vec<Reward> {
-    let mut rewards: Vec<Reward> = vec![];
-    for msg in cosmos_msgs {
-        if let CosmosMsg::Bank(msg) = msg {
-            match msg {
-                BankMsg::Send {
-                    from_address: _,
-                    to_address,
-                    amount,
-                } => {
-                    let reward = (to_address.to_owned(), amount.to_owned());
-                    rewards.push(reward);
-                }
-            }
-        }
-    }
-    return rewards;
-}
-
 fn try_set_threshold(
     deps: DepsMut,
     info: MessageInfo,
@@ -483,9 +470,9 @@ fn try_create_airequest(
 ) -> Result<HandleResponse, ContractError> {
     // validate list validators
     // UNCOMMENT THIS WHEN RUNNING IN PRODUCTION
-    // if !validate_validators(deps.as_ref(), ai_request_msg.validators.clone()) {
-    //     return Err(ContractError::InvalidValidators());
-    // }
+    if !validate_validators(deps.as_ref(), ai_request_msg.validators.clone()) {
+        return Err(ContractError::InvalidValidators());
+    }
     let ContractInfo {
         governance,
         denom,
@@ -588,6 +575,7 @@ fn query_service_fees(
 ) -> Result<(u64, Vec<Fees>), StdError> {
     let mut total: u64 = 0u64;
     let mut list_fees: Vec<Fees> = vec![];
+    let ContractInfo { denom, .. } = CONTRACT_INFO.load(deps.storage)?;
 
     for address in addresses {
         let fees_result: StdResult<ServiceFeesResponse> = governance.query_storage_generic(
@@ -600,7 +588,7 @@ fn query_service_fees(
         }
         let fees: u64 = fees_result.unwrap().fees;
         total = total + fees;
-        list_fees.push((HumanAddr::from(address), Uint128::from(fees)));
+        list_fees.push((HumanAddr::from(address), Uint128::from(fees), denom.clone()));
     }
     return Ok((total, list_fees));
 }
@@ -636,7 +624,7 @@ pub fn query_airequests(
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> StdResult<AiRequest> {
+) -> StdResult<AiRequestsResponse> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     governance.query_storage_generic(
         &deps.querier,

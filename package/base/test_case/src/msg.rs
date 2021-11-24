@@ -11,9 +11,19 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    SetOwner { owner: String },
-    AddTestCase { test_case: TestCaseMsg },
-    RemoveTestCase { input: Vec<String> },
+    SetOwner {
+        owner: String,
+    },
+    AddTestCase {
+        test_case: TestCaseMsg,
+    },
+    RemoveTestCase {
+        input: Vec<String>,
+    },
+    SetProviderData {
+        contract_addr: HumanAddr,
+        msg: Binary,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -215,10 +215,6 @@ pub fn try_buy(
 
             let mut seller_amount = price;
 
-            // pay for the owner of this minter contract if there is fee set in marketplace
-            let fee_amount = price.mul(Decimal::permille(contract_info.fee));
-            // Rust will automatically floor down the value to 0 if amount is too small => error
-            seller_amount = seller_amount.sub(fee_amount)?;
             // pay for creator, ai provider and others
             if let Ok(royalties) =
                 get_royalties(deps.as_ref(), off.contract_addr.as_str(), &off.token_id)
@@ -234,6 +230,9 @@ pub fn try_buy(
                     contract_info.denom.as_str(),
                 )?;
             }
+
+            // pay for the owner of this minter contract if there is fee set in marketplace
+            seller_amount = seller_amount.mul(Decimal::permille(1000 - contract_info.fee));
 
             // pay the left to the seller
             if !seller_amount.is_zero() {
