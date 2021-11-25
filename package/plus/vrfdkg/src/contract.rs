@@ -348,10 +348,12 @@ pub fn update_share_sig(
 
     // if too late, check signed signature. If still empty => update then increase round count
     if share_data.sigs.len() > threshold as usize {
-        if share_data.signed_combined_sig.is_none() && share_data.combined_sig.is_some() {
+        if share_data.signed_eth_combined_sig.is_none() && share_data.combined_sig.is_some() {
             // also verify the signed signature against the signature received
             let mut hasher = Keccak256::new();
-            hasher.update(share_data.combined_sig.clone().unwrap().as_slice());
+            hasher.update(get_final_signed_message(
+                share_data.combined_sig.clone().unwrap().as_slice(),
+            ));
             let combined_sig_hash = hasher.finalize();
             let signed_verifed = secp256k1_verify(
                 combined_sig_hash.to_vec().as_slice(),
@@ -362,8 +364,8 @@ pub fn update_share_sig(
             if signed_verifed {
                 // increment round count since this round has finished and verified
                 round_count(deps.storage).save(&(share.round + 1))?;
-                share_data.signed_combined_sig = Some(share.signed_sig);
-                share_data.signed_pubkey = Some(member.pubkey); // update back data
+                share_data.signed_eth_combined_sig = Some(share.signed_sig);
+                share_data.signed_eth_pubkey = Some(member.pubkey); // update back data
                 beacons_storage(deps.storage).set(&round_key, &to_binary(&share_data)?);
                 return Ok(HandleResponse {
                     attributes: vec![
@@ -540,8 +542,8 @@ pub fn request_random(
         // each compute will store the aggregated_pubkey for other to verify,
         // because pubkey may change follow commits shared
         combined_sig: None,
-        signed_combined_sig: None,
-        signed_pubkey: None,
+        signed_eth_combined_sig: None,
+        signed_eth_pubkey: None,
         combined_pubkey: None,
         randomness: None,
     })?;
@@ -715,4 +717,15 @@ fn verify_round(deps: Deps, round: u64) -> Result<bool, ContractError> {
         }
     }
     Ok(false)
+}
+
+pub fn get_final_signed_message(group_sig: &[u8]) -> String {
+    let ethereum_msg = "\x19Ethereum Signed Message:\n";
+    let sig_hex = to_hex_string(group_sig.to_vec());
+    format!("{}{}{}", ethereum_msg, sig_hex.len(), sig_hex)
+}
+
+pub fn to_hex_string(bytes: Vec<u8>) -> String {
+    let strs: Vec<String> = bytes.iter().map(|b| format!("{:02x}", b)).collect();
+    strs.join("")
 }

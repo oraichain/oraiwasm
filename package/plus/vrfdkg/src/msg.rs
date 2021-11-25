@@ -115,8 +115,8 @@ pub struct DistributedShareData {
     pub round: u64,
     pub input: Binary,
     pub combined_sig: Option<Binary>,
-    pub signed_combined_sig: Option<Binary>,
-    pub signed_pubkey: Option<Binary>,
+    pub signed_eth_combined_sig: Option<Binary>,
+    pub signed_eth_pubkey: Option<Binary>,
     pub combined_pubkey: Option<Binary>,
     pub randomness: Option<Binary>,
 }

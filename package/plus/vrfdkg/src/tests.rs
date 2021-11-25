@@ -1,5 +1,5 @@
 use crate::{
-    contract::{get_all_members, handle, init, query, query_current},
+    contract::{get_all_members, get_final_signed_message, handle, init, query, query_current},
     msg::{
         DistributedShareData, HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, ShareSigMsg,
         SharedDealerMsg, SharedRowMsg, SharedStatus,
@@ -198,6 +198,28 @@ const ADDRESSES: [&str; NUM_NODE] = [
     "orai17zr98cwzfqdwh69r8v5nrktsalmgs5sawmngxz",
 ];
 
+const _COMBINED_SIGNATURES: [&str; 3] = [
+    "163, 68, 254, 201, 240, 159, 69, 235, 188, 105, 176, 57, 64, 53, 8, 160, 54, 177, 228, 110,
+        154, 184, 235, 189, 220, 183, 25, 172, 116, 68, 29, 73, 245, 45, 55, 51, 6, 59, 200, 181,
+        218, 168, 196, 199, 243, 108, 57, 30, 21, 47, 162, 87, 202, 103, 177, 42, 113, 228, 167,
+        227, 11, 153, 236, 69, 199, 180, 131, 28, 87, 126, 97, 79, 250, 161, 33, 129, 52, 19, 53,
+        19, 140, 147, 147, 130, 35, 105, 172, 63, 214, 180, 125, 73, 173, 131, 36, 66,",
+    "
+        146, 40, 197, 201, 128, 164, 80, 189, 6, 247, 232, 118, 66, 46, 193, 28, 193, 18, 38, 107,
+        135, 78, 126, 10, 1, 36, 145, 63, 232, 229, 182, 149, 123, 117, 37, 20, 131, 49, 169, 253,
+        64, 105, 57, 120, 1, 186, 17, 200, 2, 203, 27, 247, 137, 210, 227, 26, 99, 29, 97, 152, 90,
+        218, 75, 50, 162, 172, 165, 173, 62, 212, 15, 24, 89, 162, 86, 61, 162, 228, 161, 169, 125,
+        85, 137, 218, 84, 226, 154, 16, 67, 74, 180, 26, 200, 202, 170, 64,
+    ",
+    "
+        153, 149, 249, 20, 253, 180, 150, 166, 223, 26, 180, 58, 32, 193, 52, 250, 66, 48, 93, 126,
+        191, 253, 176, 151, 158, 36, 16, 159, 91, 23, 104, 138, 227, 138, 49, 227, 57, 138, 87, 69,
+        243, 88, 163, 59, 242, 130, 174, 43, 7, 140, 246, 161, 65, 13, 226, 73, 141, 61, 118, 165,
+        234, 141, 97, 188, 252, 232, 139, 219, 54, 70, 188, 145, 18, 191, 248, 197, 202, 40, 101,
+        69, 17, 5, 255, 214, 151, 0, 178, 236, 176, 37, 81, 17, 132, 189, 133, 20,
+    ",
+];
+
 fn initialization(deps: DepsMut) -> InitResponse {
     let info = mock_info("creator", &vec![]);
 
@@ -205,7 +227,7 @@ fn initialization(deps: DepsMut) -> InitResponse {
         members: ADDRESSES
             .iter()
             .map(|addr| MemberMsg {
-                pubkey: Binary::from_base64("Ak03yXh95GQAV08DT3ZY091tMwjoD5Df+mAcunLEonFZ")
+                pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
                     .unwrap(), // pubkey is using for encrypt/decrypt on the blockchain
                 address: addr.to_string(),
             })
@@ -327,16 +349,18 @@ fn request_round() {
     while current_round_result.is_ok() {
         let current_round = query_current(deps.as_ref()).unwrap();
         // threshold is 2, so need 3,4,5 as honest member to contribute sig
-        let signed_sig = vec!["1CG1ookmdSI5uLZu7y1sVYtAvhk3zmEQ7vnOqQ+5vuNRT9lbkchwr5SyMJ5UNCog1Vvvdsda0mPJ0vnh+duKGA==","rGR3n+1/zVcWc2Qu+0pojOto3a/BKAZBb31cfTI9qB5ZIZaIzri0VYN1C+0eIn9z31ryfBNq8+L693i2Iq0k+A==","+PU2BLZA5Ki2MscP8mDdzXJtXmAVhq8XD+UiLeR2O8p0S3gJWv57mpp201i7YZeODgQTw77rXNdq5pR04Sr75g=="];
+        // how to collect signed signatures: Collect the combined signatures constant above. Sign locally each one with the account having public key AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn (in Oraichain it's orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573) and convert the signatures into base64
+        let signed_sig = vec!["Kyl85RByjLv9D6d60iptoQsZi4noVvYJjw6ZBsFZvlxlJ6TPshQ3NO2QuKCx/HcUOrIGaqJAOO43eO7PGOFFcQ==","WK2aRniU537lJSWdyO31OSeO3MhwNEiY+0skfIBJocJ+uk8SuEEIgCBsbaO4zrogsdhK88tgqpKSm7DV2HUMGg==","I6lRvF+0VGVRSd4fzVgSf76ZjyEEtooqwuTfFsCoCflVQupv/iPCOIZ8ZFALJRwnpGroJxFKiHB1Z2sfHKDsag=="];
         let contributors: Vec<&Member> = [2, 3, 4].iter().map(|i| &members[*i]).collect();
         for contributor in contributors {
             // now can share secret pubkey for contract to verify
             let sk = get_sk_key(contributor, &dealers);
-            println!(
-                "msg after adding round: {}",
-                current_round.input.to_base64()
-            );
+            // println!(
+            //     "msg after adding round: {}",
+            //     current_round.input.to_base64()
+            // );
             let mut msg = current_round.input.to_vec();
+            println!("current round: {}", current_round.round);
             msg.extend(current_round.round.to_be_bytes().to_vec());
             let msg_hash = hash_g2(msg);
             let mut sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
@@ -579,21 +603,34 @@ fn force_next_round() {
 #[test]
 fn test_verify_signed_sig() {
     let mut hasher = Keccak256::new();
-    hasher.update("hello world");
+    let signature = vec![
+        153, 149, 249, 20, 253, 180, 150, 166, 223, 26, 180, 58, 32, 193, 52, 250, 66, 48, 93, 126,
+        191, 253, 176, 151, 158, 36, 16, 159, 91, 23, 104, 138, 227, 138, 49, 227, 57, 138, 87, 69,
+        243, 88, 163, 59, 242, 130, 174, 43, 7, 140, 246, 161, 65, 13, 226, 73, 141, 61, 118, 165,
+        234, 141, 97, 188, 252, 232, 139, 219, 54, 70, 188, 145, 18, 191, 248, 197, 202, 40, 101,
+        69, 17, 5, 255, 214, 151, 0, 178, 236, 176, 37, 81, 17, 132, 189, 133, 20,
+    ];
+    let message = get_final_signed_message(&signature);
+    println!("message: {}", message);
+    hasher.update(message);
     let result = hasher.finalize();
     println!("result: {:?}", result);
-    let signature = vec![
-        121, 132, 11, 107, 83, 130, 225, 24, 62, 29, 44, 7, 36, 119, 15, 135, 209, 214, 106, 218,
-        222, 20, 36, 49, 219, 244, 206, 165, 147, 228, 56, 175, 124, 90, 47, 241, 152, 120, 76, 0,
-        226, 71, 137, 15, 73, 166, 249, 40, 225, 85, 97, 84, 52, 180, 8, 195, 101, 22, 24, 170,
-        117, 192, 61, 100,
+    let mut signed_signature = vec![
+        69, 158, 17, 168, 164, 113, 3, 5, 136, 244, 245, 59, 171, 45, 208, 235, 183, 217, 199, 103,
+        64, 160, 229, 23, 222, 10, 124, 143, 220, 94, 30, 147, 92, 202, 127, 191, 232, 149, 232,
+        132, 186, 211, 140, 141, 237, 173, 109, 207, 172, 10, 63, 82, 107, 209, 147, 230, 111, 228,
+        187, 173, 217, 117, 83, 121, 27,
     ];
+    let last_bytes = signed_signature.pop();
+    assert_eq!(last_bytes.unwrap(), 27u8);
 
     let pubkey = vec![
-        3, 215, 107, 162, 127, 174, 200, 111, 162, 250, 227, 29, 61, 5, 208, 149, 205, 103, 215,
-        235, 96, 191, 152, 206, 119, 214, 70, 156, 239, 128, 174, 198, 93,
+        3, 140, 187, 39, 126, 39, 137, 38, 113, 179, 94, 252, 90, 153, 215, 45, 178, 205, 168, 2,
+        240, 83, 26, 231, 20, 51, 24, 10, 238, 155, 7, 146, 236,
     ];
 
-    let verified = secp256k1_verify(result.to_vec().as_slice(), &signature, &pubkey).unwrap();
+    let verified =
+        secp256k1_verify(result.to_vec().as_slice(), &signed_signature, &pubkey).unwrap();
     println!("verified: {:?}", verified);
+    assert_eq!(verified, true);
 }
