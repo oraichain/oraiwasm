@@ -27,8 +27,10 @@ pub struct Annotation {
     pub contract_addr: HumanAddr,
     pub requester: HumanAddr,
     pub max_annotators: Uint128,
-    pub award_per_sample: Uint128,
+    pub reward_per_sample: Uint128,
     pub number_of_samples: Uint128,
+    pub max_upload_tasks: Uint128,
+    pub reward_per_upload_task: Uint128,
     pub expired_block: u64,
     pub is_paid: bool,
 }
@@ -88,8 +90,11 @@ pub enum DataHubHandleMsg {
     RemoveAnnotation {
         id: u64,
     },
-    UpdateAnnotationResult {
+    AddAnnotationResult {
         annotation_result: AnnotationResult,
+    },
+    AddReviewedUpload {
+        reviewed_result: AnnotationResult,
     },
     AddAnnotationReviewer {
         annotation_id: u64,

@@ -69,8 +69,15 @@ pub enum DataHubQueryMsg {
     GetAnnotationResult {
         annotation_result_id: u64,
     },
+    GetAnnotationResultByReviewer {
+        reviewer_address: HumanAddr,
+    },
     GetAnnotationResultsByAnnotationId {
         annotation_id: u64,
+    },
+    GetAnnotationResultsByAnnotationIdAndReviewer {
+        annotation_id: u64,
+        reviewer_address: HumanAddr,
     },
     GetAnnotationReviewerByUniqueKey {
         annotation_id: u64,
@@ -78,6 +85,13 @@ pub enum DataHubQueryMsg {
     },
     GetAnnotationReviewerByAnnotationId {
         annotation_id: u64,
+    },
+    GetReviewedUploadByAnnotationId {
+        annotation_id: u64,
+    },
+    GetReviewedUploadByAnnotationIdAndReviewer {
+        annotation_id: u64,
+        reviewer_address: HumanAddr,
     },
     GetContractInfo {},
 }

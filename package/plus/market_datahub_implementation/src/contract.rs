@@ -4,7 +4,8 @@ use crate::annotation::{
     try_execute_request_annotation, try_payout, try_withdraw as try_withdraw_annotation,
 };
 use crate::annotation_result::{
-    try_add_annotation_result, try_add_annotation_reviewer, try_remove_annotation_reviewer,
+    try_add_annotation_result, try_add_annotation_reviewer, try_add_reviewed_upload,
+    try_remove_annotation_reviewer,
 };
 use crate::offering::{handle_sell_nft, try_buy, try_handle_mint, try_sell, try_withdraw};
 
@@ -94,21 +95,23 @@ pub fn handle(
         ),
         HandleMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
         HandleMsg::RequestAnnotation {
-            contract_addr,
             token_id,
             number_of_samples,
-            award_per_sample,
+            reward_per_sample,
             max_annotators,
             expired_after,
+            max_upload_tasks,
+            reward_per_upload_task,
         } => try_execute_request_annotation(
             deps,
             info,
             env,
-            contract_addr,
             token_id,
             number_of_samples,
-            award_per_sample,
+            reward_per_sample,
             max_annotators,
+            max_upload_tasks,
+            reward_per_upload_task,
             expired_after,
         ),
         HandleMsg::Payout { annotation_id } => try_payout(deps, env, info, annotation_id),
@@ -128,14 +131,10 @@ pub fn handle(
             annotation_id,
             reviewer_address,
         } => try_remove_annotation_reviewer(deps, info, env, annotation_id, reviewer_address),
-        // HandleMsg::UpdateAnnotationAnnotators {
-        //     annotation_id,
-        //     annotators,
-        // } => try_update_annotation_annotators(deps, info, annotation_id, annotators),
-        // HandleMsg::ApproveAnnotation {
-        //     annotation_id,
-        //     annotator,
-        // } => try_approve_annotation(deps, info, env, annotation_id, annotator),
+        HandleMsg::AddReviewedUpload {
+            annotation_id,
+            reviewed_upload,
+        } => try_add_reviewed_upload(deps, info, env, annotation_id, reviewed_upload),
         HandleMsg::MigrateVersion {
             nft_contract_addr,
             token_infos,

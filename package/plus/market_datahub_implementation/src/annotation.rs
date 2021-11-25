@@ -1,4 +1,6 @@
-use crate::annotation_result::get_annotation_results_by_annotation_id;
+use crate::annotation_result::{
+    get_annotation_results_by_annotation_id, get_reviewed_upload_by_annotation_id,
+};
 use crate::contract::{get_handle_msg, query_datahub, DATAHUB_STORAGE};
 use crate::error::ContractError;
 use crate::state::{ContractInfo, CONTRACT_INFO};
@@ -7,11 +9,15 @@ use cosmwasm_std::{
     MessageInfo, Uint128,
 };
 use cosmwasm_std::{HumanAddr, StdError};
-use cw1155::{BalanceResponse, Cw1155QueryMsg};
 use market_datahub::{Annotation, AnnotationReviewer, DataHubHandleMsg, DataHubQueryMsg};
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::ops::Mul;
+use std::ops::{AddAssign, Mul};
+
+struct AnnotatorValidResults {
+    pub annotation_valid_result: u128,
+    pub upload_valid_result: u128,
+}
 
 pub fn try_withdraw(
     deps: DepsMut,
@@ -33,8 +39,9 @@ pub fn try_withdraw(
         }
 
         let results = get_annotation_results_by_annotation_id(deps.as_ref(), annotation_id)?;
+        let reviewed_upload = get_reviewed_upload_by_annotation_id(deps.as_ref(), annotation_id)?;
 
-        if results.len() > 0 {
+        if results.len() > 0 || reviewed_upload.len() > 0 {
             return Err(ContractError::Std(StdError::generic_err(
                 "Can not withdraw annotation that has reviewer submitted",
             )));
@@ -45,7 +52,7 @@ pub fn try_withdraw(
         //need to transfer funds back to the requester
         // check if amount > 0
         let annotation_price =
-            calculate_annotation_price(off.award_per_sample, off.number_of_samples)
+            calculate_annotation_price(off.reward_per_sample, off.number_of_samples)
                 .mul(Decimal::from_ratio(off.max_annotators.u128(), 1u128));
         if !annotation_price.is_zero() {
             cosmos_msgs.push(
@@ -86,11 +93,12 @@ pub fn try_execute_request_annotation(
     deps: DepsMut,
     info: MessageInfo,
     env: Env,
-    contract_addr: HumanAddr,
     token_id: String,
     number_of_samples: Uint128,
-    award_per_sample: Uint128,
+    reward_per_sample: Uint128,
     max_annotators: Uint128,
+    max_upload_tasks: Uint128,
+    reward_per_upload_task: Uint128,
     expired_after: Option<u64>,
 ) -> Result<HandleResponse, ContractError> {
     // Check sendt funds
@@ -101,35 +109,23 @@ pub fn try_execute_request_annotation(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
-    let balance: BalanceResponse = deps
-        .querier
-        .query_wasm_smart(
-            contract_addr.to_string(),
-            &Cw1155QueryMsg::Balance {
-                owner: info.sender.clone().to_string(),
-                token_id: token_id.clone(),
-            },
-        )
-        .map_err(|_op| {
-            ContractError::Std(StdError::generic_err(
-                "Invalid getting balance of the sender's nft",
-            ))
-        })?;
-
-    if balance.balance.is_zero() {
-        return Err(ContractError::InsufficientBalance {});
-    }
-
     // Requester is required to deposited
     if let Some(fund) = info.sent_funds.iter().find(|fund| fund.denom.eq(&denom)) {
-        let price = calculate_annotation_price(award_per_sample.clone(), number_of_samples.clone())
-            .mul(Decimal::from_ratio(max_annotators.u128(), 1u128));
+        let mut reward =
+            calculate_annotation_price(reward_per_sample.clone(), number_of_samples.clone())
+                .mul(Decimal::from_ratio(max_annotators.u128(), 1u128));
 
-        if fund.amount.lt(&price) {
+        let upload_reward =
+            calculate_annotation_price(reward_per_upload_task.clone(), max_upload_tasks.clone())
+                .mul(Decimal::from_ratio(max_annotators.u128(), 1u128));
+
+        reward.add_assign(upload_reward);
+
+        if fund.amount.lt(&reward) {
             return Err(ContractError::InsufficientFunds {});
         }
         // cannot allow annotation price as 0 (because it is pointless)
-        if price.eq(&Uint128::from(0u64)) {
+        if reward.eq(&Uint128::from(0u64)) || upload_reward.eq(&Uint128::from(0u128)) {
             return Err(ContractError::InvalidZeroAmount {});
         }
     } else {
@@ -147,10 +143,12 @@ pub fn try_execute_request_annotation(
         token_id: token_id.clone(),
         contract_addr: env.contract.address.clone(),
         requester: info.sender.clone(),
-        award_per_sample: award_per_sample.clone(),
+        reward_per_sample: reward_per_sample.clone(),
         number_of_samples: number_of_samples.clone(),
         max_annotators: max_annotators.clone(),
         expired_block: expired_block_annotation,
+        max_upload_tasks,
+        reward_per_upload_task,
         is_paid: false,
     };
 
@@ -169,9 +167,14 @@ pub fn try_execute_request_annotation(
         attributes: vec![
             attr("action", "request_annotation"),
             attr("requester", info.sender.clone()),
-            attr("award_per_sample", award_per_sample.to_string()),
+            attr("award_per_sample", reward_per_sample.to_string()),
             attr("number_of_samples", number_of_samples.to_string()),
             attr("max_annotators", max_annotators.to_string()),
+            attr("max_upload_samples", max_upload_tasks.to_string()),
+            attr(
+                "reward_per_upload_sample",
+                reward_per_upload_task.to_string(),
+            ),
         ],
         data: None,
     })
@@ -206,16 +209,26 @@ pub fn try_payout(
     let annotation_reviewed_results =
         get_annotation_results_by_annotation_id(deps.as_ref(), annotation_id)?;
 
+    let reviewed_uploads = get_reviewed_upload_by_annotation_id(deps.as_ref(), annotation_id)?;
+
     let reviewers = get_reviewer_by_annotation_id(deps.as_ref(), annotation_id)?;
 
+    if reviewers.len() == 0 {
+        return Err(ContractError::Std(StdError::generic_err(
+            "Can not payout when there is no reviewers!",
+        )));
+    }
+
     // Only allow payout when all reviewers had submitted their results
-    if annotation_reviewed_results.len() != reviewers.len() {
+    if annotation_reviewed_results.len() != reviewers.len()
+        || reviewed_uploads.len() != reviewers.len()
+    {
         return Err(ContractError::EarlyPayoutError {});
     }
 
     let first = annotation_reviewed_results.first().unwrap();
 
-    let mut annotator_valid_results_map = HashMap::<HumanAddr, u128>::new();
+    let mut annotator_valid_results_map = HashMap::<HumanAddr, AnnotatorValidResults>::new();
 
     // Traverse all reviewer result, 1 reviewer - many annotator's results
     for (annotator_index, result) in first.data.iter().enumerate() {
@@ -232,8 +245,45 @@ pub fn try_payout(
             }
         }
 
-        annotator_valid_results_map.insert(result.annotator_address.clone(), valid_results);
+        annotator_valid_results_map.insert(
+            result.annotator_address.clone(),
+            AnnotatorValidResults {
+                annotation_valid_result: valid_results,
+                upload_valid_result: 0,
+            },
+        );
     }
+
+    let first_reviewed_upload = reviewed_uploads.first().unwrap();
+
+    for (annotator_index, result) in first_reviewed_upload.data.iter().enumerate() {
+        // valid_results set as max
+        let mut valid_results = result.result.len().try_into().unwrap();
+        // Traverse annotator's result in review result
+        for (index, _) in result.result.iter().enumerate() {
+            for r in reviewed_uploads.iter() {
+                // If some reviewer reject the result in this index, then the result will be rejected
+                if !r.data[annotator_index].result[index] {
+                    valid_results = valid_results - 1;
+                    break;
+                }
+            }
+        }
+
+        let annotator_results = annotator_valid_results_map.get_mut(&result.annotator_address);
+        if annotator_results.is_none() {
+            annotator_valid_results_map.insert(
+                result.annotator_address.clone(),
+                AnnotatorValidResults {
+                    annotation_valid_result: 0,
+                    upload_valid_result: valid_results,
+                },
+            );
+        } else {
+            annotator_results.unwrap().upload_valid_result = valid_results;
+        }
+    }
+
     let mut cosmos_msg: Vec<CosmosMsg> = vec![];
 
     let mut attributes = vec![];
@@ -241,15 +291,23 @@ pub fn try_payout(
     attributes.push(attr("action", "annotation_payout"));
 
     let mut total_reward = 0u128;
-    let total_bond = calculate_annotation_price(
-        annotation.award_per_sample.clone(),
+    let mut total_bond = calculate_annotation_price(
+        annotation.reward_per_sample.clone(),
         annotation.number_of_samples.clone(),
     )
-    .mul(Decimal::from_ratio(annotation.max_annotators.u128(), 1u128))
-    .u128();
+    .mul(Decimal::from_ratio(annotation.max_annotators.u128(), 1u128));
+
+    let upload_reward_bond = calculate_annotation_price(
+        annotation.reward_per_upload_task.clone(),
+        annotation.max_upload_tasks.clone(),
+    )
+    .mul(Decimal::from_ratio(annotation.max_annotators.u128(), 1u128));
+
+    total_bond.add_assign(upload_reward_bond);
 
     for (annotator_address, valid_results) in annotator_valid_results_map {
-        let reward = annotation.award_per_sample.u128() * valid_results;
+        let reward = annotation.reward_per_sample.u128() * valid_results.annotation_valid_result
+            + annotation.reward_per_upload_task.u128() * valid_results.upload_valid_result;
         total_reward = total_reward + reward;
         cosmos_msg.push(
             BankMsg::Send {
@@ -263,8 +321,10 @@ pub fn try_payout(
         attributes.push(attr("reward", reward.to_string()));
     }
 
+    println!("total bond: {:?}", total_bond);
+    println!("total reward: {:?}", total_reward);
     // Payback the excess cash to the annotation's requestor
-    let payback_amount = total_bond - total_reward;
+    let payback_amount = total_bond.u128() - total_reward;
     if payback_amount.ge(&0u128) {
         cosmos_msg.push(
             BankMsg::Send {

@@ -79,7 +79,7 @@ pub enum ContractError {
     #[error("There is an error while collecting the annotation")]
     InvalidGetAnnotation {},
 
-    #[error("Only can payout when all reviewer commited their result")]
+    #[error("Only can payout when all reviewer commited annotator's result and annotator's reviewed upload")]
     EarlyPayoutError {},
 
     #[error("The requester has not deposited funds into the annotation request yet. You will not receive rewards if you submit")]

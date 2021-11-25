@@ -42,12 +42,13 @@ pub enum HandleMsg {
     /// Mint a new NFT, can only be called by the contract minter
     MintNft(MintMsg),
     RequestAnnotation {
-        contract_addr: HumanAddr,
         token_id: String,
         number_of_samples: Uint128,
-        award_per_sample: Uint128,
+        reward_per_sample: Uint128,
         max_annotators: Uint128,
         expired_after: Option<u64>,
+        max_upload_tasks: Uint128,
+        reward_per_upload_task: Uint128,
     },
     AddAnnotationReviewer {
         annotation_id: u64,
@@ -63,6 +64,10 @@ pub enum HandleMsg {
     AddAnnotationResult {
         annotation_id: u64,
         annotator_results: Vec<AnnotatorResult>,
+    },
+    AddReviewedUpload {
+        annotation_id: u64,
+        reviewed_upload: Vec<AnnotatorResult>,
     },
     Payout {
         annotation_id: u64,

@@ -22,6 +22,8 @@ pub const ANNOTATION_REVIEWER_COUNT: Item<u64> = Item::new("num_annnotation_revi
 
 pub const ANNOTATION_RESULT_COUNT: Item<u64> = Item::new("num_annotation_results");
 
+pub const REVIEWED_UPLOAD_COUNT: Item<u64> = Item::new("num_reviewed_upload");
+
 pub fn num_offerings(storage: &dyn Storage) -> StdResult<u64> {
     Ok(OFFERINGS_COUNT.may_load(storage)?.unwrap_or_default())
 }
@@ -152,14 +154,22 @@ pub fn increment_annotation_result(storage: &mut dyn Storage) -> StdResult<u64> 
 
 pub struct AnnotationResultIndexes<'a> {
     pub annotation: MultiIndex<'a, AnnotationResult>,
+    pub annotation_reviewer: UniqueIndex<'a, PkOwned, AnnotationResult>,
     pub reviewer: MultiIndex<'a, AnnotationResult>,
 }
 
 impl<'a> IndexList<AnnotationResult> for AnnotationResultIndexes<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<AnnotationResult>> + '_> {
-        let v: Vec<&dyn Index<AnnotationResult>> = vec![&self.annotation, &self.reviewer];
+        let v: Vec<&dyn Index<AnnotationResult>> =
+            vec![&self.annotation, &self.reviewer, &self.annotation_reviewer];
         Box::new(v.into_iter())
     }
+}
+
+fn get_annotation_reviewer_id(annotation_id: u64, reviewer_address: &HumanAddr) -> PkOwned {
+    let mut vec = annotation_id.to_be_bytes().to_vec();
+    vec.extend(reviewer_address.as_bytes());
+    PkOwned(vec)
 }
 
 pub fn annotation_results<'a>(
@@ -174,6 +184,11 @@ pub fn annotation_results<'a>(
             |o| o.reviewer_address.as_bytes().to_vec(),
             "annotation_results",
             "annotation_results_reviewer",
+        ),
+
+        annotation_reviewer: UniqueIndex::new(
+            |o| get_annotation_reviewer_id(o.annotation_id, &o.reviewer_address),
+            "annotation_result_unique",
         ),
     };
     IndexedMap::new("annotation_results", indexes)
@@ -235,4 +250,37 @@ pub fn annotation_reviewers<'a>(
         ),
     };
     IndexedMap::new("annotation_reviewer", indexes)
+}
+
+pub fn num_reviewed_upload(storage: &dyn Storage) -> StdResult<u64> {
+    Ok(REVIEWED_UPLOAD_COUNT.may_load(storage)?.unwrap_or_default())
+}
+
+pub fn increment_reviewed_upload(storage: &mut dyn Storage) -> StdResult<u64> {
+    let val = num_reviewed_upload(storage)? + 1;
+    REVIEWED_UPLOAD_COUNT.save(storage, &val)?;
+
+    Ok(val)
+}
+
+pub fn reviewed_uploads<'a>(
+) -> IndexedMap<'a, &'a [u8], AnnotationResult, AnnotationResultIndexes<'a>> {
+    let indexes = AnnotationResultIndexes {
+        annotation: MultiIndex::new(
+            |o| o.annotation_id.to_be_bytes().to_vec(),
+            "reviewed_upload",
+            "reviewed_upload_annotation",
+        ),
+        reviewer: MultiIndex::new(
+            |o| o.reviewer_address.as_bytes().to_vec(),
+            "reviewed_upload",
+            "reviewed_upload_reviewer",
+        ),
+        annotation_reviewer: UniqueIndex::new(
+            |o| get_annotation_reviewer_id(o.annotation_id, &o.reviewer_address),
+            "reviewed_upload_unique",
+        ),
+    };
+
+    IndexedMap::new("reviewed_upload", indexes)
 }

@@ -13,8 +13,8 @@ use cw1155::{BalanceResponse, Cw1155ExecuteMsg, Cw1155QueryMsg, Cw1155ReceiveMsg
 use market::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_datahub::{
-    Annotation, AnnotationReviewer, AnnotatorResult, DataHubQueryMsg, MintIntermediate, MintMsg,
-    MintStruct, Offering,
+    Annotation, AnnotationResult, AnnotationReviewer, AnnotatorResult, DataHubQueryMsg,
+    MintIntermediate, MintMsg, MintStruct, Offering,
 };
 
 use std::mem::transmute;
@@ -686,19 +686,14 @@ fn test_request_annotations() {
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 
         let request_msg = HandleMsg::RequestAnnotation {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("SellableNFT"),
             number_of_samples: Uint128::from(5u64),
-            award_per_sample: Uint128::from(5u64),
+            reward_per_sample: Uint128::from(5u64),
             expired_after: None,
             max_annotators: Uint128::from(2u128),
+            max_upload_tasks: Uint128::from(10u64),
+            reward_per_upload_task: Uint128::from(1u64),
         };
-
-        // Insufficient balance error
-        assert!(matches!(
-            manager.handle(mock_info("aaa", &[]), request_msg.clone()),
-            Err(ContractError::InsufficientBalance {})
-        ));
 
         // successfully request
         let info = mock_info("creator", &coins(900, DENOM));
@@ -766,34 +761,30 @@ fn test_request_annotations_unhappy_path() {
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 
         let request_msg = HandleMsg::RequestAnnotation {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("SellableNFT"),
             number_of_samples: Uint128::from(5u64),
-            award_per_sample: Uint128::from(50u64),
+            reward_per_sample: Uint128::from(50u64),
             expired_after: None,
             max_annotators: Uint128::from(1u64),
+            max_upload_tasks: Uint128::from(10u64),
+            reward_per_upload_task: Uint128::from(1u64),
         };
-
-        // Insufficient balance error
-        assert!(matches!(
-            manager.handle(mock_info("aaa", &[]), request_msg.clone()),
-            Err(ContractError::InsufficientBalance {})
-        ));
 
         // Insufficient sent_fund
         assert!(matches!(
-            manager.handle(mock_info("creator", &vec![coin(20, DENOM)]), request_msg),
+            manager.handle(mock_info("creator", &vec![coin(250, DENOM)]), request_msg),
             Err(ContractError::InsufficientFunds {})
         ));
 
         // Invalid zero amount
         let request_msg = HandleMsg::RequestAnnotation {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("SellableNFT"),
             number_of_samples: Uint128::from(5u64),
-            award_per_sample: Uint128::from(0u64),
+            reward_per_sample: Uint128::from(0u64),
             expired_after: None,
             max_annotators: Uint128::from(1u64),
+            max_upload_tasks: Uint128::from(0u64),
+            reward_per_upload_task: Uint128::from(1u64),
         };
 
         assert!(matches!(
@@ -840,12 +831,13 @@ fn test_payout_annotations() {
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 
         let request_msg = HandleMsg::RequestAnnotation {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("SellableNFT"),
             number_of_samples: Uint128::from(5u64),
-            award_per_sample: Uint128::from(5u64),
+            reward_per_sample: Uint128::from(5u64),
             expired_after: None,
             max_annotators: Uint128::from(2u64),
+            max_upload_tasks: Uint128::from(10u64),
+            reward_per_upload_task: Uint128::from(1u64),
         };
         // successfully request annotation
         let info = mock_info("requester", &coins(900, DENOM));
@@ -887,7 +879,13 @@ fn test_payout_annotations() {
 
         let msg = HandleMsg::AddAnnotationResult {
             annotation_id: 1,
-            annotator_results,
+            annotator_results: annotator_results.clone(),
+        };
+        let _res = manager.handle(mock_info("r1", &vec![]), msg).unwrap();
+
+        let msg = HandleMsg::AddReviewedUpload {
+            annotation_id: 1,
+            reviewed_upload: annotator_results,
         };
         let _res = manager.handle(mock_info("r1", &vec![]), msg).unwrap();
 
@@ -912,7 +910,15 @@ fn test_payout_annotations() {
 
         let msg = HandleMsg::AddAnnotationResult {
             annotation_id: 1,
-            annotator_results,
+            annotator_results: annotator_results.clone(),
+        };
+        let _res = manager
+            .handle(mock_info("r2", &vec![]), msg.clone())
+            .unwrap();
+
+        let msg = HandleMsg::AddReviewedUpload {
+            annotation_id: 1,
+            reviewed_upload: annotator_results,
         };
         let _res = manager.handle(mock_info("r2", &vec![]), msg).unwrap();
 
@@ -960,12 +966,13 @@ fn test_withdraw_annotation() {
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 
         let request_msg = HandleMsg::RequestAnnotation {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("SellableNFT"),
             number_of_samples: Uint128::from(5u64),
-            award_per_sample: Uint128::from(5u64),
+            reward_per_sample: Uint128::from(5u64),
             expired_after: None,
             max_annotators: Uint128::from(2u64),
+            max_upload_tasks: Uint128::from(10u64),
+            reward_per_upload_task: Uint128::from(1u64),
         };
         // successfully request annotation
         let info = mock_info("requester", &coins(900, DENOM));
@@ -1004,12 +1011,13 @@ fn test_add_annotation_reviewer() {
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 
         let request_msg = HandleMsg::RequestAnnotation {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from("SellableNFT"),
             number_of_samples: Uint128::from(5u64),
-            award_per_sample: Uint128::from(5u64),
+            reward_per_sample: Uint128::from(5u64),
             expired_after: None,
             max_annotators: Uint128::from(2u64),
+            max_upload_tasks: Uint128::from(10u64),
+            reward_per_upload_task: Uint128::from(1u64),
         };
         // successfully request annotation
         let info = mock_info("requester", &coins(900, DENOM));
@@ -1043,6 +1051,14 @@ fn test_add_annotation_reviewer() {
 
         let _res = manager.handle(info.clone(), msg).unwrap();
 
+        // Add reviewer 2
+        let msg = HandleMsg::AddAnnotationReviewer {
+            annotation_id: 1,
+            reviewer_address: HumanAddr::from("r2"),
+        };
+
+        let _res = manager.handle(info.clone(), msg).unwrap();
+
         let msg = QueryMsg::DataHub(DataHubQueryMsg::GetAnnotationReviewerByAnnotationId {
             annotation_id: 1,
         });
@@ -1069,6 +1085,7 @@ fn test_add_annotation_reviewer() {
         };
 
         let res = manager.handle(mock_info("r1", &vec![]), msg.clone());
+        println!("error {:?}", res);
         assert!(matches!(res, Err(ContractError::Std { .. })));
         println!(
             "Annotator's results exceed the annotation's number_of_sample {:?}",
@@ -1095,6 +1112,26 @@ fn test_add_annotation_reviewer() {
             .handle(mock_info("r1", &vec![]), msg.clone())
             .unwrap();
 
+        // add result for reviewer 2
+        let annotator_results = vec![
+            AnnotatorResult {
+                annotator_address: HumanAddr::from("a2"),
+                result: vec![true, false, true, true, false],
+            },
+            AnnotatorResult {
+                annotator_address: HumanAddr::from("a1"),
+                result: vec![true, true, true],
+            },
+        ];
+        let msg = HandleMsg::AddAnnotationResult {
+            annotation_id: 1,
+            annotator_results,
+        };
+
+        let res = manager.handle(mock_info("r2", &vec![]), msg.clone());
+        assert!(matches!(res, Err(ContractError::Std { .. })));
+        println!("wrong annotator result position {:?}", res);
+
         // Error: A reviewer can commit result only one time
         assert!(matches!(
             manager.handle(mock_info("r1", &vec![]), msg.clone()),
@@ -1106,6 +1143,82 @@ fn test_add_annotation_reviewer() {
         let res = manager.handle(info.clone(), withdraw_msg);
         assert!(matches!(res, Err(ContractError::Std { .. })));
         println!("wresult: {:?}", res);
+    }
+}
+
+#[test]
+fn test_reviewed_upload() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            creator: HumanAddr::from("provider"),
+            co_owners: None,
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    to: String::from("requester"),
+                    value: Uint128::from(50u64),
+                    token_id: String::from("SellableNFT"),
+                },
+            },
+            creator_type: String::from("cxacx"),
+            royalty: None,
+        });
+
+        manager.handle(provider_info.clone(), mint_msg).unwrap();
+
+        let request_msg = HandleMsg::RequestAnnotation {
+            token_id: String::from("SellableNFT"),
+            number_of_samples: Uint128::from(5u64),
+            reward_per_sample: Uint128::from(5u64),
+            expired_after: None,
+            max_annotators: Uint128::from(2u64),
+            max_upload_tasks: Uint128::from(10u64),
+            reward_per_upload_task: Uint128::from(1u64),
+        };
+        // successfully request annotation
+        let info = mock_info("requester", &coins(900, DENOM));
+        let _res = manager.handle(info.clone(), request_msg.clone()).unwrap();
+
+        // Add reviewer 1
+        let msg = HandleMsg::AddAnnotationReviewer {
+            annotation_id: 1,
+            reviewer_address: HumanAddr::from("r1"),
+        };
+
+        let _res = manager.handle(info.clone(), msg).unwrap();
+
+        let reviewed_upload = vec![
+            AnnotatorResult {
+                annotator_address: HumanAddr::from("a1"),
+                result: vec![true, true, true],
+            },
+            AnnotatorResult {
+                annotator_address: HumanAddr::from("a2"),
+                result: vec![true, false, true, true, false, true],
+            },
+        ];
+
+        let msg = HandleMsg::AddReviewedUpload {
+            annotation_id: 1,
+            reviewed_upload,
+        };
+
+        let _res = manager
+            .handle(mock_info("r1", &vec![]), msg.clone())
+            .unwrap();
+
+        let res = manager
+            .query(QueryMsg::DataHub(
+                DataHubQueryMsg::GetReviewedUploadByAnnotationIdAndReviewer {
+                    annotation_id: 1,
+                    reviewer_address: HumanAddr::from("r1"),
+                },
+            ))
+            .unwrap();
+        let result = from_binary::<Option<AnnotationResult>>(&res).unwrap();
+        println!("Reviewed result by annotationId and reviewer: {:?}", result);
     }
 }
 
