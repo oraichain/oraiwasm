@@ -720,9 +720,10 @@ fn verify_round(deps: Deps, round: u64) -> Result<bool, ContractError> {
 }
 
 pub fn get_final_signed_message(group_sig: &[u8]) -> String {
-    let ethereum_msg = "\x19Ethereum Signed Message:\n";
     let sig_hex = to_hex_string(group_sig.to_vec());
-    format!("{}{}{}", ethereum_msg, sig_hex.len(), sig_hex)
+    let mut final_sig = String::from("0x");
+    final_sig.push_str(&sig_hex);
+    final_sig
 }
 
 pub fn to_hex_string(bytes: Vec<u8>) -> String {

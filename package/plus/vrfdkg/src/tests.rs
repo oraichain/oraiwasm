@@ -350,7 +350,7 @@ fn request_round() {
         let current_round = query_current(deps.as_ref()).unwrap();
         // threshold is 2, so need 3,4,5 as honest member to contribute sig
         // how to collect signed signatures: Collect the combined signatures constant above. Sign locally each one with the account having public key AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn (in Oraichain it's orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573) and convert the signatures into base64
-        let signed_sig = vec!["Kyl85RByjLv9D6d60iptoQsZi4noVvYJjw6ZBsFZvlxlJ6TPshQ3NO2QuKCx/HcUOrIGaqJAOO43eO7PGOFFcQ==","WK2aRniU537lJSWdyO31OSeO3MhwNEiY+0skfIBJocJ+uk8SuEEIgCBsbaO4zrogsdhK88tgqpKSm7DV2HUMGg==","I6lRvF+0VGVRSd4fzVgSf76ZjyEEtooqwuTfFsCoCflVQupv/iPCOIZ8ZFALJRwnpGroJxFKiHB1Z2sfHKDsag=="];
+        let signed_sig = vec!["eYM8MS55xiZKCfPWwZ+jvIYwVTqt1W5+F6mfudN6qMpq856ydcmwttNmfJdz9IGH+7NzZAdQG4FQpbFrEamGog==","pqlVDuMV6eFLDFfhr10UAwgQrUaz8Qbk5LSIReR75SV83eDkH6J1PKfMX//izS0urL3+/Xz8FMRtglejpGvUvg==","y/DRYaxlc1Y+pJQGvADhdhSzUNYvBDTXQc9/drYP6ypSj83eKNo/16aaBC+4j0HWIN1JUyCmOn8LyhaBI4ClBQ=="];
         let contributors: Vec<&Member> = [2, 3, 4].iter().map(|i| &members[*i]).collect();
         for contributor in contributors {
             // now can share secret pubkey for contract to verify

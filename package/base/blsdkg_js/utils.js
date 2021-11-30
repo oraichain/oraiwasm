@@ -131,8 +131,8 @@ exports.convertOffset = (offset) => {
 };
 
 exports.signSignature = function (combinedSig, privKey) {
-  let finalMessage = "\x19Ethereum Signed Message:\n" + combinedSig.length + Buffer.from(combinedSig).toString('base64');
-  const hashedSig = sha3.keccak256(finalMessage);
+  let finalCombinedSig = `0x${Buffer.from(combinedSig).toString('hex')}`;
+  const hashedSig = sha3.keccak256(finalCombinedSig);
   const bufferHashedSig = Uint8Array.from(Buffer.from(hashedSig, 'hex'));
   const signature = secp256k1.ecdsaSign(bufferHashedSig, privKey).signature;
   return signature;
