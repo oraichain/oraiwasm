@@ -198,25 +198,13 @@ const ADDRESSES: [&str; NUM_NODE] = [
     "orai17zr98cwzfqdwh69r8v5nrktsalmgs5sawmngxz",
 ];
 
-const _COMBINED_SIGNATURES: [&str; 3] = [
-    "163, 68, 254, 201, 240, 159, 69, 235, 188, 105, 176, 57, 64, 53, 8, 160, 54, 177, 228, 110,
-        154, 184, 235, 189, 220, 183, 25, 172, 116, 68, 29, 73, 245, 45, 55, 51, 6, 59, 200, 181,
-        218, 168, 196, 199, 243, 108, 57, 30, 21, 47, 162, 87, 202, 103, 177, 42, 113, 228, 167,
-        227, 11, 153, 236, 69, 199, 180, 131, 28, 87, 126, 97, 79, 250, 161, 33, 129, 52, 19, 53,
-        19, 140, 147, 147, 130, 35, 105, 172, 63, 214, 180, 125, 73, 173, 131, 36, 66,",
+const _RANDOMESS: [&str; 3] = [
+    "[34, 100, 87, 4, 213, 55, 15, 111, 34, 143, 129, 54, 66, 214, 165, 198, 186, 168, 206, 77, 59, 76, 111, 82, 45, 52, 170, 104, 236, 167, 19, 14]",
     "
-        146, 40, 197, 201, 128, 164, 80, 189, 6, 247, 232, 118, 66, 46, 193, 28, 193, 18, 38, 107,
-        135, 78, 126, 10, 1, 36, 145, 63, 232, 229, 182, 149, 123, 117, 37, 20, 131, 49, 169, 253,
-        64, 105, 57, 120, 1, 186, 17, 200, 2, 203, 27, 247, 137, 210, 227, 26, 99, 29, 97, 152, 90,
-        218, 75, 50, 162, 172, 165, 173, 62, 212, 15, 24, 89, 162, 86, 61, 162, 228, 161, 169, 125,
-        85, 137, 218, 84, 226, 154, 16, 67, 74, 180, 26, 200, 202, 170, 64,
+        [24, 210, 182, 87, 50, 109, 201, 245, 104, 17, 14, 230, 36, 35, 29, 82, 237, 241, 92, 254, 72, 136, 121, 53, 148, 207, 249, 60, 208, 138, 117, 228],
     ",
     "
-        153, 149, 249, 20, 253, 180, 150, 166, 223, 26, 180, 58, 32, 193, 52, 250, 66, 48, 93, 126,
-        191, 253, 176, 151, 158, 36, 16, 159, 91, 23, 104, 138, 227, 138, 49, 227, 57, 138, 87, 69,
-        243, 88, 163, 59, 242, 130, 174, 43, 7, 140, 246, 161, 65, 13, 226, 73, 141, 61, 118, 165,
-        234, 141, 97, 188, 252, 232, 139, 219, 54, 70, 188, 145, 18, 191, 248, 197, 202, 40, 101,
-        69, 17, 5, 255, 214, 151, 0, 178, 236, 176, 37, 81, 17, 132, 189, 133, 20,
+        [107, 247, 53, 94, 162, 137, 107, 95, 31, 161, 42, 172, 126, 234, 238, 81, 121, 120, 175, 140, 215, 243, 92, 247, 72, 98, 25, 5, 96, 62, 16, 13],
     ",
 ];
 
@@ -349,8 +337,8 @@ fn request_round() {
     while current_round_result.is_ok() {
         let current_round = query_current(deps.as_ref()).unwrap();
         // threshold is 2, so need 3,4,5 as honest member to contribute sig
-        // how to collect signed signatures: Collect the combined signatures constant above. Sign locally each one with the account having public key AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn (in Oraichain it's orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573) and convert the signatures into base64
-        let signed_sig = vec!["eYM8MS55xiZKCfPWwZ+jvIYwVTqt1W5+F6mfudN6qMpq856ydcmwttNmfJdz9IGH+7NzZAdQG4FQpbFrEamGog==","pqlVDuMV6eFLDFfhr10UAwgQrUaz8Qbk5LSIReR75SV83eDkH6J1PKfMX//izS0urL3+/Xz8FMRtglejpGvUvg==","y/DRYaxlc1Y+pJQGvADhdhSzUNYvBDTXQc9/drYP6ypSj83eKNo/16aaBC+4j0HWIN1JUyCmOn8LyhaBI4ClBQ=="];
+        // how to collect signed signatures: Collect the randomness constant above. Sign locally each one with the account having public key AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn (in Oraichain it's orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573) and convert the signatures into base64
+        let signed_sig = vec!["OrAJgpK/YfbEJGck6j0p6Z6aJvyndtZHgaTqPeAkvzdZQkEcTwYnxVNTtdJ/ZT85L5cup6Q5vtszE8WdCu37uQ==","jdHKkRfMKtr8Kqy3j+DHKzA8d13trip1csZV/9Ua3q1lLxq1tV3J9u1wz/uLGzFUr3rV2O+Dg917EWiDkbieIA==","BFVEib4v/vxqw8ev3eH5fhZtG4SLQNGiaX/SuHY6V9cuWKvqOZGldOuZ0uiiEnISTnDp2h0t3cXxopBSgg+wUw=="];
         let contributors: Vec<&Member> = [2, 3, 4].iter().map(|i| &members[*i]).collect();
         for contributor in contributors {
             // now can share secret pubkey for contract to verify

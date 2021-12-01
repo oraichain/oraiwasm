@@ -257,7 +257,7 @@ const processRequest = async (skShare) => {
   // sign on the sig
   let signedSignature = null;
   if (!roundInfo.signed_combined_sig && roundInfo.combined_sig) {
-    signedSignature = signSignature(Buffer.from(roundInfo.combined_sig, 'base64'), cosmos.getECPairPriv(childKey));
+    signedSignature = signSignature(roundInfo.randomness, cosmos.getECPairPriv(childKey));
   }
 
   const share = {

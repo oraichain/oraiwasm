@@ -32,7 +32,7 @@ thiserror = "1.0.22"
 zeroize = "1.1.0"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 blst = { version = "0.3.5", features = ["portable"] }
-tiny-keccak = { version = "2.0.1", features = ["sha3"] }
+tiny-keccak = { version = "2.0.1", features = ["sha3","keccak"] }
 
 bincode = { version = "1.2.1", optional = true }
 codec = { package = "parity-scale-codec", version = "1.2.0", default-features = false, features = [

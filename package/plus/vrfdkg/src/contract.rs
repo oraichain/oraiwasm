@@ -21,8 +21,6 @@ use crate::state::{
     members_storage_read, owner, owner_read, round_count, round_count_read, Config, Owner,
 };
 
-use sha3::{Digest, Keccak256};
-
 use cosmwasm_crypto::secp256k1_verify;
 
 // settings for pagination
@@ -348,15 +346,11 @@ pub fn update_share_sig(
 
     // if too late, check signed signature. If still empty => update then increase round count
     if share_data.sigs.len() > threshold as usize {
-        if share_data.signed_eth_combined_sig.is_none() && share_data.combined_sig.is_some() {
+        if share_data.signed_eth_combined_sig.is_none() && share_data.randomness.is_some() {
             // also verify the signed signature against the signature received
-            let mut hasher = Keccak256::new();
-            hasher.update(get_final_signed_message(
-                share_data.combined_sig.clone().unwrap().as_slice(),
-            ));
-            let combined_sig_hash = hasher.finalize();
+            let hash = share_data.randomness.clone().unwrap();
             let signed_verifed = secp256k1_verify(
-                combined_sig_hash.to_vec().as_slice(),
+                hash.as_slice(),
                 share.signed_sig.as_slice(),
                 member.pubkey.as_slice(),
             )
@@ -449,6 +443,7 @@ pub fn update_share_sig(
         // if not verifed, means something wrong, just ignore this round
         if verifed {
             let randomness = derive_randomness(&combined_sig);
+            println!("randomness: {:?}", randomness);
             share_data.randomness = Some(Binary::from(randomness));
         } else {
             // if not verified, we stop and return error. Let other executors do the work
@@ -721,9 +716,10 @@ fn verify_round(deps: Deps, round: u64) -> Result<bool, ContractError> {
 
 pub fn get_final_signed_message(group_sig: &[u8]) -> String {
     let sig_hex = to_hex_string(group_sig.to_vec());
-    let mut final_sig = String::from("0x");
-    final_sig.push_str(&sig_hex);
-    final_sig
+    // let mut final_sig = String::from("0x");
+    // final_sig.push_str(&sig_hex);
+    // final_sig
+    sig_hex
 }
 
 pub fn to_hex_string(bytes: Vec<u8>) -> String {
