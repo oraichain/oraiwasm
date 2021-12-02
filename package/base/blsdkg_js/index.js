@@ -14,7 +14,9 @@ const {
   signSignature
 } = require('./utils');
 
-const path = process.cwd() + process.env.TESTNET ? 'config-testnet.yaml' : 'config.yaml';
+console.log("testnet: ", process.env.TESTNET)
+const configPath = process.env.TESTNET ? 'config-testnet.yaml' : 'config.yaml';
+const path = process.cwd() + '/' + configPath;
 console.log("path: ", path);
 
 const config = YAML.parse(
@@ -336,8 +338,8 @@ const addPing = async (interval = 5000) => {
   }
 };
 
-console.log('Oraichain VRF, version 3.0');
+console.log('Oraichain VRF, version 3.1');
 runInterval(config.interval);
-// addPing(config.ping_interval);
+addPing(config.ping_interval);
 
 // TODO: add try catch and improve logs
