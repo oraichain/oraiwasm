@@ -16,6 +16,8 @@
   "main": "index.js",
   "dependencies": {
     "@oraichain/cosmosjs": "^0.0.70",
+    "dotenv": "^10.0.0",
+    "ethereum-public-key-to-address": "^0.0.5",
     "futoin-hkdf": "^1.4.2",
     "js-sha3": "^0.8.0",
     "yaml": "^1.10.2"
