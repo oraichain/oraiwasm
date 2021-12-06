@@ -55,3 +55,5 @@ const getAddresses = async () => {
 }
 
 getAddresses();
+
+// URL=http://lcd.orai.io CHAIN_ID=Oraichain CONTRACT=orai15lv4hxxqew2jhfayfmad7y40zfr8zmgfulqdxj node get-eth-address.js
