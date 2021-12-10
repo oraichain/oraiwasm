@@ -248,7 +248,6 @@ pub fn share_dealer(
 
     let mut member = query_and_check(deps.as_ref(), info.sender.as_str())?;
     // when range of member with dealer is greater than dealer count, then finish state
-
     // update share, once and only, to make random verifiable, because other can read the shared onced submitted
     if member.shared_dealer.is_some() {
         return Err(ContractError::Unauthorized(format!(

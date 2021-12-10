@@ -74,6 +74,49 @@ pub struct TestCaseResultMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SharedRowMsg {
+    // is public share
+    pub pk_share: Binary,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct SharedDealerMsg {
+    pub commits: Vec<Binary>,
+    // is public share
+    pub rows: Vec<Binary>,
+}
+
+#[repr(i32)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum SharedStatus {
+    WaitForDealer = 1,
+    WaitForRow,
+    WaitForRequest,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MemberMsg {
+    pub address: String, // orai wallet for easy lookup
+    pub pubkey: Binary,
+}
+
+// member msgs
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum AiOracleMembersMsg {
+    ShareDealer {
+        share: SharedDealerMsg,
+    },
+    ShareRow {
+        share: SharedRowMsg,
+    },
+    Reset {
+        threshold: Option<u16>,
+        members: Option<Vec<MemberMsg>>,
+    },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateMsg {
     pub dsources: Option<Vec<HumanAddr>>,
     pub tcases: Option<Vec<HumanAddr>>,

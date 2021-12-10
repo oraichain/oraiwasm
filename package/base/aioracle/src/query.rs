@@ -96,6 +96,19 @@ pub struct PagingFeesOptions {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub enum AiOracleMembersQuery {
+    GetMember {
+        address: String,
+    },
+    GetMembers {
+        limit: Option<u8>,
+        offset: Option<HumanAddr>,
+        order: Option<u8>,
+    },
+    GetConfigInfo {},
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum StorageQueryMsg {
     // GetOfferings returns a list of all offerings
