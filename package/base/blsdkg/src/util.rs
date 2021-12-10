@@ -22,6 +22,11 @@ pub fn derive_randomness(signature: &Signature) -> [u8; 32] {
     sha3_256(&signature.to_bytes())
 }
 
+/// derive_randomness : gen truly random from signature
+pub fn get_hash(input: &[u8]) -> [u8; 32] {
+    sha3_256(&input)
+}
+
 /// Signs the given message.
 fn hash_on_fr<M: AsRef<[u8]>>(msg: M, round: u64) -> Fr {
     let mut sha3 = Sha3::v256();

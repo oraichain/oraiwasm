@@ -4,10 +4,14 @@ use crate::msg::{
 };
 use crate::state::{FEES, OWNER, TEST_CASES};
 use cosmwasm_std::{
-    attr, from_binary, from_slice, to_binary, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult, WasmMsg, KV,
+    attr, from_binary, from_slice, to_binary, Api, Binary, Deps, DepsMut, Env, HandleResponse,
+    HumanAddr, InitResponse, MessageInfo, Order, StdResult, KV,
 };
 use cw_storage_plus::Bound;
+
+use provider_base::{create_provider_base, handle_provider_base, query_provider_base};
+
+create_provider_base!();
 
 // settings for pagination
 const MAX_LIMIT: u8 = 200;
@@ -39,17 +43,15 @@ pub fn init_testcase(
 // And declare a custom Error variant for the ones where you will want to make use of it
 pub fn handle_testcase(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
         HandleMsg::AddTestCase { test_case } => try_add_test_case(deps, info, test_case),
         HandleMsg::RemoveTestCase { input } => try_remove_test_case(deps, info, input),
-        HandleMsg::SetOwner { owner } => try_set_owner(deps, info, owner),
-        HandleMsg::SetProviderData { contract_addr, msg } => {
-            try_set_provider_data(deps, info, contract_addr, msg)
-        }
+        HandleMsg::ProviderBaseHandle(handle) => handle_provider_base(deps, env, info, handle)
+            .map_err(|err| ContractError::ProviderBaseError(err)),
     }
 }
 
@@ -91,46 +93,6 @@ fn try_remove_test_case(
     })
 }
 
-fn try_set_owner(
-    deps: DepsMut,
-    info: MessageInfo,
-    owner: String,
-) -> Result<HandleResponse, ContractError> {
-    let old_owner: HumanAddr = OWNER.load(deps.storage)?;
-    if !info.sender.eq(&old_owner) {
-        return Err(ContractError::Unauthorized {});
-    }
-    OWNER.save(deps.storage, &HumanAddr::from(owner))?;
-    Ok(HandleResponse {
-        attributes: vec![attr("action", "set_owner")],
-        ..HandleResponse::default()
-    })
-}
-
-fn try_set_provider_data(
-    deps: DepsMut,
-    info: MessageInfo,
-    contract_addr: HumanAddr,
-    msg: Binary,
-) -> Result<HandleResponse, ContractError> {
-    let owner: HumanAddr = OWNER.load(deps.storage)?;
-    if !info.sender.eq(&owner) {
-        return Err(ContractError::Unauthorized {});
-    }
-    let msg: CosmosMsg = WasmMsg::Execute {
-        contract_addr,
-        msg,
-        send: vec![],
-    }
-    .into();
-
-    Ok(HandleResponse {
-        attributes: vec![attr("action", "set_provider_data")],
-        messages: vec![msg],
-        ..HandleResponse::default()
-    })
-}
-
 pub fn query_testcase(
     deps: Deps,
     env: Env,
@@ -143,16 +105,11 @@ pub fn query_testcase(
             offset,
             order,
         } => to_binary(&query_testcases(deps, limit, offset, order)?),
-        QueryMsg::GetOwner {} => query_owner(deps),
         QueryMsg::Assert { assert_inputs } => {
             to_binary(&assert(env, assert_inputs, assert_handler)?)
         }
+        QueryMsg::ProviderBaseQuery(query) => query_provider_base(deps, env, query),
     }
-}
-
-fn query_owner(deps: Deps) -> StdResult<Binary> {
-    let state = OWNER.load(deps.storage)?;
-    to_binary(&state)
 }
 
 fn assert(

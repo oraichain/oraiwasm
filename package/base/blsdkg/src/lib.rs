@@ -51,8 +51,8 @@ pub use convert::{
     fr_from_be_bytes, fr_to_be_bytes, g1_from_be_bytes, g1_to_be_bytes, g2_from_be_bytes,
     g2_to_be_bytes,
 };
-pub use util::derive_randomness;
 use util::{derivation_index_into_fr, sha3_256};
+pub use util::{derive_randomness, get_hash};
 
 use blst::{
     min_pk::{PublicKey as BlstPublicKey, SecretKey as BlstSecretKey, Signature as BlstSignature},

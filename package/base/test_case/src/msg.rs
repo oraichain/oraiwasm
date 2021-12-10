@@ -1,4 +1,5 @@
 use cosmwasm_std::{Binary, Coin, HumanAddr};
+use provider_base::{HandleBaseMsg, QueryBaseMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -11,25 +12,14 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    SetOwner {
-        owner: String,
-    },
-    AddTestCase {
-        test_case: TestCaseMsg,
-    },
-    RemoveTestCase {
-        input: Vec<String>,
-    },
-    SetProviderData {
-        contract_addr: HumanAddr,
-        msg: Binary,
-    },
+    AddTestCase { test_case: TestCaseMsg },
+    RemoveTestCase { input: Vec<String> },
+    ProviderBaseHandle(HandleBaseMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    GetOwner {},
     GetTestCases {
         offset: Option<Binary>,
         limit: Option<u8>,
@@ -38,6 +28,7 @@ pub enum QueryMsg {
     Assert {
         assert_inputs: Vec<String>,
     },
+    ProviderBaseQuery(QueryBaseMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
