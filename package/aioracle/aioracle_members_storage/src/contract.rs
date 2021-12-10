@@ -1,14 +1,14 @@
 use aioracle::{
-    AiOracleMembersMsg, AiOracleMembersQuery, MemberMsg, SharedDealerMsg, SharedRowMsg,
+    AiOracleMembersMsg, AiOracleMembersQuery, Member, MemberMsg, SharedDealerMsg, SharedRowMsg,
     SharedStatus,
 };
 use cosmwasm_std::{
     attr, from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, Order, StdResult, Storage,
+    InitResponse, MessageInfo, Order, StdError, StdResult, Storage,
 };
 
 use crate::errors::ContractError;
-use crate::msg::{HandleMsg, InitMsg, Member, QueryMsg, UpdateContractMsg};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
     clear_store, config, config_read, members_storage, members_storage_read, Config, ContractInfo,
     CONTRACT_INFO,
@@ -252,10 +252,12 @@ pub fn share_row(
 
 /// Query
 
-fn query_member(deps: Deps, address: &str) -> Result<Member, ContractError> {
+fn query_member(deps: Deps, address: &str) -> StdResult<Member> {
     let value = members_storage_read(deps.storage)
         .get(address.as_bytes())
-        .ok_or(ContractError::NoMember {})?;
+        .ok_or(StdError::generic_err(
+            ContractError::NoMember {}.to_string(),
+        ))?;
     let member = from_slice(value.as_slice())?;
     Ok(member)
 }

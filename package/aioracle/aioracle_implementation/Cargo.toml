@@ -41,3 +41,4 @@ sha2 = "0.9"
 cosmwasm-schema = { version = "0.13.2" }
 aioracle_hub = { path = "../aioracle_hub" }
 aioracle_storage = { path = "../aioracle_storage" }
+aioracle_members_storage = { path = "../aioracle_members_storage" }

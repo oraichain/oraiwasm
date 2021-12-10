@@ -5,7 +5,7 @@ use crate::contract::*;
 use crate::error::ContractError;
 use crate::msg::*;
 use aioracle::mock::{mock_dependencies, mock_env, MockQuerier};
-use aioracle::{AiOracleStorageMsg, AiRequest, AiRequestMsg};
+use aioracle::{AiOracleStorageMsg, AiRequest, AiRequestMsg, MemberMsg};
 use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
     coin, coins, from_binary, to_binary, HumanAddr, OwnedDeps, StakingQuery, SystemError,
@@ -21,15 +21,18 @@ const CREATOR: &str = "owner";
 const MARKET_ADDR: &str = "market_addr";
 const HUB_ADDR: &str = "hub_addr";
 const AI_ORACLE_ADDR: &str = "ai_oracle_addr";
+const AI_ORACLE_MEMBERS_ADDR: &str = "ai_oracle_members_addr";
 const CONTRACT_NAME: &str = "AI Oracle implementation";
 const DENOM: &str = "orai";
 pub const AI_ORACLE_STORAGE: &str = "ai_oracle_storage";
+pub const AI_ORACLE_MEMBERS_STORAGE: &str = "ai_oracle_members_storage";
 
 static mut _DATA: *const DepsManager = 0 as *const DepsManager;
 struct DepsManager {
     // using RefCell to both support borrow and borrow_mut for & and &mut
     hub: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     ai_oracle: OwnedDeps<MockStorage, MockApi, MockQuerier>,
+    ai_oracle_members: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     // main deps
     deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
 }
@@ -57,10 +60,16 @@ impl DepsManager {
             aioracle_hub::msg::InitMsg {
                 admins: vec![HumanAddr::from(CREATOR)],
                 mutable: true,
-                storages: vec![(
-                    AI_ORACLE_STORAGE.to_string(),
-                    HumanAddr::from(AI_ORACLE_ADDR),
-                )],
+                storages: vec![
+                    (
+                        AI_ORACLE_STORAGE.to_string(),
+                        HumanAddr::from(AI_ORACLE_ADDR),
+                    ),
+                    (
+                        AI_ORACLE_MEMBERS_STORAGE.to_string(),
+                        HumanAddr::from(AI_ORACLE_MEMBERS_ADDR),
+                    ),
+                ],
                 implementations: vec![HumanAddr::from(MARKET_ADDR)],
             },
         )
@@ -74,6 +83,41 @@ impl DepsManager {
             info.clone(),
             aioracle_storage::msg::InitMsg {
                 governance: HumanAddr::from(HUB_ADDR),
+            },
+        )
+        .unwrap();
+
+        let mut ai_oracle_members = mock_dependencies(
+            HumanAddr::from(AI_ORACLE_MEMBERS_ADDR),
+            &[],
+            Self::query_wasm,
+        );
+        let _res = aioracle_members_storage::contract::init(
+            ai_oracle_members.as_mut(),
+            mock_env(AI_ORACLE_MEMBERS_STORAGE),
+            info.clone(),
+            aioracle_members_storage::msg::InitMsg {
+                governance: HumanAddr::from(HUB_ADDR),
+                members: vec![
+                    MemberMsg {
+                        address: "orai1nx0ryklzqm6c2yxswlt9nlgtrd74qw0lswjgap".to_string(),
+                        pubkey: Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA")
+                            .unwrap(),
+                    },
+                    MemberMsg {
+                        address: "orai1afxe08wrwquq6hfyvu4d4y7yey5kfpg3jes9ay".to_string(),
+                        pubkey: Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw")
+                            .unwrap(),
+                    },
+                    MemberMsg {
+                        address: "orai1kfvk4cwxshypk877pn4tvjm55pexry5kcnzgqg".to_string(),
+                        pubkey: Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j")
+                            .unwrap(),
+                    },
+                ],
+                threshold: 2,
+                dealer: Some(2),
+                fee: None,
             },
         )
         .unwrap();
@@ -101,6 +145,7 @@ impl DepsManager {
         Self {
             hub,
             ai_oracle,
+            ai_oracle_members,
             deps,
         }
     }
@@ -123,6 +168,13 @@ impl DepsManager {
                     AI_ORACLE_ADDR => aioracle_storage::contract::handle(
                         self.ai_oracle.as_mut(),
                         mock_env(AI_ORACLE_ADDR),
+                        mock_info(HUB_ADDR, &[]),
+                        from_slice(msg).unwrap(),
+                    )
+                    .ok(),
+                    AI_ORACLE_MEMBERS_ADDR => aioracle_members_storage::contract::handle(
+                        self.ai_oracle_members.as_mut(),
+                        mock_env(AI_ORACLE_MEMBERS_ADDR),
                         mock_info(HUB_ADDR, &[]),
                         from_slice(msg).unwrap(),
                     )
@@ -184,6 +236,12 @@ impl DepsManager {
                             from_slice(&msg).unwrap(),
                         )
                         .unwrap_or_default(),
+                        AI_ORACLE_MEMBERS_ADDR => aioracle_members_storage::contract::query(
+                            manager.ai_oracle_members.as_ref(),
+                            mock_env(AI_ORACLE_MEMBERS_ADDR),
+                            from_slice(&msg).unwrap(),
+                        )
+                        .unwrap_or_default(),
                         _ => Binary::default(),
                     };
 
@@ -228,7 +286,9 @@ fn test_airequests() {
     unsafe {
         let manager = DepsManager::get_new();
         let ai_request_msg = AiRequestMsg {
-            validators: vec![HumanAddr::from("hello")],
+            validators: vec![HumanAddr::from(
+                "orai1nx0ryklzqm6c2yxswlt9nlgtrd74qw0lswjgap",
+            )],
             input: String::from(""),
         };
 
@@ -263,7 +323,10 @@ fn test_airequests() {
 
         manager
             .handle(
-                mock_info(HumanAddr::from("hello"), &vec![coin(5, DENOM)]),
+                mock_info(
+                    HumanAddr::from("orai1nx0ryklzqm6c2yxswlt9nlgtrd74qw0lswjgap"),
+                    &vec![coin(5, DENOM)],
+                ),
                 aggregate_msg,
             )
             .unwrap();

@@ -1,22 +1,7 @@
-use aioracle::{
-    AiOracleMembersMsg, AiOracleMembersQuery, MemberMsg, SharedDealerMsg, SharedRowMsg,
-};
+use aioracle::{AiOracleMembersMsg, AiOracleMembersQuery, MemberMsg};
 use cosmwasm_std::{Binary, Coin, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Member {
-    pub address: String, // orai wallet for easy lookup
-    pub pubkey: Binary,
-    // share row m to index m
-    pub shared_row: Option<SharedRowMsg>,
-    // dealer will do it
-    pub shared_dealer: Option<SharedDealerMsg>,
-    // index of member, by default it is sorted by their address
-    pub index: u16,
-    pub deleted: bool,
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {

@@ -3,10 +3,10 @@ use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO, THRESHOLD};
 use aioracle::{
-    AiOracleHandle, AiOracleHubContract, AiOracleProviderContract, AiOracleStorageMsg,
-    AiOracleStorageQuery, AiOracleTestCaseContract, AiRequest, AiRequestMsg, AiRequestsResponse,
-    DataSourceResultMsg, DataSourceResults, Fees, PagingOptions, Report, ServiceFeesResponse,
-    TestCaseResultMsg, TestCaseResults,
+    AiOracleHandle, AiOracleHubContract, AiOracleMembersQuery, AiOracleProviderContract,
+    AiOracleStorageMsg, AiOracleStorageQuery, AiOracleTestCaseContract, AiRequest, AiRequestMsg,
+    AiRequestsResponse, DataSourceResultMsg, DataSourceResults, Fees, Member, PagingOptions,
+    Report, ServiceFeesResponse, TestCaseResultMsg, TestCaseResults,
 };
 use cosmwasm_std::{
     attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
@@ -17,6 +17,7 @@ use std::fmt::Write;
 use std::u64;
 
 pub const AI_ORACLE_STORAGE: &str = "ai_oracle_storage";
+pub const AI_ORACLE_MEMBERS_STORAGE: &str = "ai_oracle_members_storage";
 pub const MAX_FEE_PERMILLE: u64 = 1000;
 
 fn sanitize_fee(fee: u64, name: &str) -> Result<u64, ContractError> {
@@ -265,60 +266,6 @@ pub fn try_update_info(
     })
 }
 
-fn search_validator(deps: Deps, validator: &str) -> bool {
-    // convert validator to operator address & check if error
-    let validator_operator_result = convert_to_validator(validator);
-    if validator_operator_result.is_err() {
-        return false;
-    }
-    let validator_operator = validator_operator_result.unwrap();
-
-    let validators_result = deps.querier.query_validators();
-    if validators_result.is_err() {
-        return false;
-    };
-    let validators = validators_result.unwrap();
-    if let Some(_) = validators
-        .iter()
-        .find(|val| val.address.eq(&validator_operator))
-    {
-        return true;
-    }
-    return false;
-}
-
-fn convert_to_validator(address: &str) -> Result<HumanAddr, ContractError> {
-    let decode_result = bech32::decode(address);
-    if decode_result.is_err() {
-        return Err(ContractError::CannotDecode(format!(
-            "Could not decode address {} with error {:?}",
-            address,
-            decode_result.err()
-        )));
-    }
-    let (_, sender_raw, variant) = decode_result.unwrap();
-    let validator_result = bech32::encode("oraivaloper", sender_raw.clone(), variant);
-    if validator_result.is_err() {
-        return Err(ContractError::CannotEncode(format!(
-            "Could not encode address {:?} with error {:?}",
-            sender_raw,
-            validator_result.err()
-        )));
-    }
-    return Ok(HumanAddr(validator_result.unwrap()));
-}
-
-fn validate_validators(deps: Deps, validators: Vec<HumanAddr>) -> bool {
-    // if any validator in the list of validators does not match => invalid
-    for validator in validators {
-        // convert to search validator
-        if !search_validator(deps, validator.as_str()) {
-            return false;
-        }
-    }
-    return true;
-}
-
 fn process_test_cases(
     tcase_results: &Vec<Option<TestCaseResultMsg>>,
 ) -> (Option<TestCaseResults>, bool) {
@@ -468,11 +415,6 @@ fn try_create_airequest(
     env: Env,
     ai_request_msg: AiRequestMsg,
 ) -> Result<HandleResponse, ContractError> {
-    // validate list validators
-    // UNCOMMENT THIS WHEN RUNNING IN PRODUCTION
-    if !validate_validators(deps.as_ref(), ai_request_msg.validators.clone()) {
-        return Err(ContractError::InvalidValidators());
-    }
     let ContractInfo {
         governance,
         denom,
@@ -480,6 +422,21 @@ fn try_create_airequest(
         tcases,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
+
+    // validate list validators
+    for member in &ai_request_msg.validators {
+        let result: StdResult<Member> = governance.query_storage_generic(
+            &deps.querier,
+            AI_ORACLE_MEMBERS_STORAGE,
+            AiOracleMembersQuery::GetMember {
+                address: member.to_string(),
+            },
+        );
+        println!("result: {:?}", result);
+        if result.is_err() {
+            return Err(ContractError::InvalidValidators());
+        }
+    }
 
     // query minimum fees
     let mut providers: Vec<HumanAddr> = vec![];

@@ -1,9 +1,12 @@
-use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, HumanAddr, Uint128};
 use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::{AiOracleHubContract, AiOracleProviderContract, AiOracleTestCaseContract};
+use crate::{
+    AiOracleHubContract, AiOracleProviderContract, AiOracleTestCaseContract, SharedDealerMsg,
+    SharedRowMsg,
+};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AiRequest {
@@ -47,6 +50,19 @@ pub struct Report {
     pub dsources_results: DataSourceResults,
     pub aggregated_result: Binary,
     pub status: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct Member {
+    pub address: String, // orai wallet for easy lookup
+    pub pubkey: Binary,
+    // share row m to index m
+    pub shared_row: Option<SharedRowMsg>,
+    // dealer will do it
+    pub shared_dealer: Option<SharedDealerMsg>,
+    // index of member, by default it is sorted by their address
+    pub index: u16,
+    pub deleted: bool,
 }
 
 pub const THRESHOLD: Item<u8> = Item::new("report_threhold");
