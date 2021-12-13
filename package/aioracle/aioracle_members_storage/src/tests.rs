@@ -1,12 +1,11 @@
 use crate::{
     contract::{get_all_members, handle, init, query},
     msg::{HandleMsg, InitMsg, QueryMsg},
-    state::Config,
 };
 
 use aioracle::{
-    AiOracleMembersMsg, AiOracleMembersQuery, Member, MemberMsg, SharedDealerMsg, SharedRowMsg,
-    SharedStatus,
+    AiOracleMembersMsg, AiOracleMembersQuery, Member, MemberConfig as Config, MemberMsg,
+    SharedDealerMsg, SharedRowMsg, SharedStatus,
 };
 use blsdkg::{
     ff::Field,

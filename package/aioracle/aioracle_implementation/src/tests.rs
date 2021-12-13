@@ -5,15 +5,15 @@ use crate::contract::*;
 use crate::error::ContractError;
 use crate::msg::*;
 use aioracle::mock::{mock_dependencies, mock_env, MockQuerier};
-use aioracle::{AiOracleStorageMsg, AiRequest, AiRequestMsg, MemberMsg};
-use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
-use cosmwasm_std::{
-    coin, coins, from_binary, to_binary, HumanAddr, OwnedDeps, StakingQuery, SystemError,
+use aioracle::{
+    AggregateResultMsg, AiOracleStorageMsg, AiRequest, AiRequestMsg, DataSourcesMsg, MemberMsg,
 };
+use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
+use cosmwasm_std::WasmMsg;
+use cosmwasm_std::{coin, coins, from_binary, HumanAddr, OwnedDeps, SystemError};
 use cosmwasm_std::{from_slice, HandleResponse};
 use cosmwasm_std::{Binary, CosmosMsg};
 use cosmwasm_std::{ContractResult, StdResult};
-use cosmwasm_std::{DepsMut, WasmMsg};
 use cosmwasm_std::{Env, QuerierResult, WasmQuery};
 use cosmwasm_std::{MessageInfo, SystemResult};
 
@@ -115,7 +115,7 @@ impl DepsManager {
                             .unwrap(),
                     },
                 ],
-                threshold: 2,
+                threshold: 1,
                 dealer: Some(2),
                 fee: None,
             },
@@ -286,9 +286,6 @@ fn test_airequests() {
     unsafe {
         let manager = DepsManager::get_new();
         let ai_request_msg = AiRequestMsg {
-            validators: vec![HumanAddr::from(
-                "orai1nx0ryklzqm6c2yxswlt9nlgtrd74qw0lswjgap",
-            )],
             input: String::from(""),
         };
 
@@ -318,8 +315,44 @@ fn test_airequests() {
         .unwrap();
         assert_eq!(ai_request.request_id, Some(1));
 
+        let dsource_result_str = vec![String::from("[{\"name\":\"BTC\",\"prices\":[\"51002.02\"]},{\"name\":\"ETH\",\"prices\":[\"3756.84\"]},{\"name\":\"BNB\",\"prices\":[\"469.6537\"]},{\"name\":\"XRP\",\"prices\":[\"1.28634\"]},{\"name\":\"DOGE\",\"prices\":[\"0.286139\"]},{\"name\":\"LINK\",\"prices\":[\"32.768\"]},{\"name\":\"UNI\",\"prices\":[\"26.7\"]},{\"name\":\"ORAI\",\"prices\":[\"11.781\"]},{\"name\":\"DAI\",\"prices\":[\"0.9977\"]},{\"name\":\"SOL\",\"prices\":[\"183.7048\"]},{\"name\":\"MATIC\",\"prices\":[\"1.53146\"]},{\"name\":\"SUSHI\",\"prices\":[\"12.533\"]},{\"name\":\"DOT\",\"prices\":[\"32.46\"]},{\"name\":\"LUNA\",\"prices\":[\"30.06\"]},{\"name\":\"ICP\",\"prices\":[\"72.16\"]},{\"name\":\"XLM\",\"prices\":[\"0.384\"]},{\"name\":\"ATOM\",\"prices\":[\"24.7378\"]},{\"name\":\"AAVE\",\"prices\":[\"380.16\"]},{\"name\":\"THETA\",\"prices\":[\"8.5854\"]},{\"name\":\"EOS\",\"prices\":[\"5.73\"]},{\"name\":\"CAKE\",\"prices\":[\"23.384\"]},{\"name\":\"AXS\",\"prices\":[\"75.239\"]},{\"name\":\"ALGO\",\"prices\":[\"1.3506\"]},{\"name\":\"MKR\",\"prices\":[\"3426.71\"]},{\"name\":\"KSM\",\"prices\":[\"360.89\"]},{\"name\":\"XTZ\",\"prices\":[\"5.205\"]},{\"name\":\"FIL\",\"prices\":[\"100.28\"]},{\"name\":\"RUNE\",\"prices\":[\"10.615\"]},{\"name\":\"COMP\",\"prices\":[\"458.6\"]}]")];
+        println!("dsource result str: {:?}", dsource_result_str);
+
+        let dsouce_binary = Binary::from_base64("WyJbe1wibmFtZVwiOlwiQlRDXCIsXCJwcmljZXNcIjpbXCI1MTAwMi4wMlwiXX0se1wibmFtZVwiOlwiRVRIXCIsXCJwcmljZXNcIjpbXCIzNzU2Ljg0XCJdfSx7XCJuYW1lXCI6XCJCTkJcIixcInByaWNlc1wiOltcIjQ2OS42NTM3XCJdfSx7XCJuYW1lXCI6XCJYUlBcIixcInByaWNlc1wiOltcIjEuMjg2MzRcIl19LHtcIm5hbWVcIjpcIkRPR0VcIixcInByaWNlc1wiOltcIjAuMjg2MTM5XCJdfSx7XCJuYW1lXCI6XCJMSU5LXCIsXCJwcmljZXNcIjpbXCIzMi43NjhcIl19LHtcIm5hbWVcIjpcIlVOSVwiLFwicHJpY2VzXCI6W1wiMjYuN1wiXX0se1wibmFtZVwiOlwiT1JBSVwiLFwicHJpY2VzXCI6W1wiMTEuNzgxXCJdfSx7XCJuYW1lXCI6XCJEQUlcIixcInByaWNlc1wiOltcIjAuOTk3N1wiXX0se1wibmFtZVwiOlwiU09MXCIsXCJwcmljZXNcIjpbXCIxODMuNzA0OFwiXX0se1wibmFtZVwiOlwiTUFUSUNcIixcInByaWNlc1wiOltcIjEuNTMxNDZcIl19LHtcIm5hbWVcIjpcIlNVU0hJXCIsXCJwcmljZXNcIjpbXCIxMi41MzNcIl19LHtcIm5hbWVcIjpcIkRPVFwiLFwicHJpY2VzXCI6W1wiMzIuNDZcIl19LHtcIm5hbWVcIjpcIkxVTkFcIixcInByaWNlc1wiOltcIjMwLjA2XCJdfSx7XCJuYW1lXCI6XCJJQ1BcIixcInByaWNlc1wiOltcIjcyLjE2XCJdfSx7XCJuYW1lXCI6XCJYTE1cIixcInByaWNlc1wiOltcIjAuMzg0XCJdfSx7XCJuYW1lXCI6XCJBVE9NXCIsXCJwcmljZXNcIjpbXCIyNC43Mzc4XCJdfSx7XCJuYW1lXCI6XCJBQVZFXCIsXCJwcmljZXNcIjpbXCIzODAuMTZcIl19LHtcIm5hbWVcIjpcIlRIRVRBXCIsXCJwcmljZXNcIjpbXCI4LjU4NTRcIl19LHtcIm5hbWVcIjpcIkVPU1wiLFwicHJpY2VzXCI6W1wiNS43M1wiXX0se1wibmFtZVwiOlwiQ0FLRVwiLFwicHJpY2VzXCI6W1wiMjMuMzg0XCJdfSx7XCJuYW1lXCI6XCJBWFNcIixcInByaWNlc1wiOltcIjc1LjIzOVwiXX0se1wibmFtZVwiOlwiQUxHT1wiLFwicHJpY2VzXCI6W1wiMS4zNTA2XCJdfSx7XCJuYW1lXCI6XCJNS1JcIixcInByaWNlc1wiOltcIjM0MjYuNzFcIl19LHtcIm5hbWVcIjpcIktTTVwiLFwicHJpY2VzXCI6W1wiMzYwLjg5XCJdfSx7XCJuYW1lXCI6XCJYVFpcIixcInByaWNlc1wiOltcIjUuMjA1XCJdfSx7XCJuYW1lXCI6XCJGSUxcIixcInByaWNlc1wiOltcIjEwMC4yOFwiXX0se1wibmFtZVwiOlwiUlVORVwiLFwicHJpY2VzXCI6W1wiMTAuNjE1XCJdfSx7XCJuYW1lXCI6XCJDT01QXCIsXCJwcmljZXNcIjpbXCI0NTguNlwiXX1dIl0").unwrap();
+
+        let aggregated_result_base64 = "eyJuYW1lIjpbIkJUQyIsIkVUSCIsIkJOQiIsIlhSUCIsIkRPR0UiLCJMSU5LIiwiVU5JIiwiT1JBSSIsIkRBSSIsIlNPTCIsIk1BVElDIiwiU1VTSEkiLCJET1QiLCJMVU5BIiwiSUNQIiwiWExNIiwiQVRPTSIsIkFBVkUiLCJUSEVUQSIsIkVPUyIsIkNBS0UiLCJBWFMiLCJBTEdPIiwiTUtSIiwiS1NNIiwiWFRaIiwiRklMIiwiUlVORSIsIkNPTVAiXSwicHJpY2UiOlsiNTEwMDIuMDIwIiwiMzc1Ni44NDAiLCI0NjkuNjUzNzAiLCIxLjI4NjM0MCIsIjAuMjg2MTM5MCIsIjMyLjc2ODAiLCIyNi43MCIsIjExLjc4MTAiLCIwLjk5NzcwIiwiMTgzLjcwNDgwIiwiMS41MzE0NjAiLCIxMi41MzMwIiwiMzIuNDYwIiwiMzAuMDYwIiwiNzIuMTYwIiwiMC4zODQwIiwiMjQuNzM3ODAiLCIzODAuMTYwIiwiOC41ODU0MCIsIjUuNzMwIiwiMjMuMzg0MCIsIjc1LjIzOTAiLCIxLjM1MDYwIiwiMzQyNi43MTAiLCIzNjAuODkwIiwiNS4yMDUwIiwiMTAwLjI4MCIsIjEwLjYxNTAiLCI0NTguNjAiXX0=";
+
+        // let mut results: Vec<String> = vec![];
+        // for result in &dsource_result_str {
+        //     let dsource_results_struct: DataSourceResultMsg =
+        //         from_slice(result.as_bytes()).unwrap();
+        //     results.push(dsource_results_struct.result);
+        // }
+
+        // try querying the aggregate result
+        let aggregate_result: Binary = manager
+            .query(QueryMsg::Aggregate {
+                dsource_results: dsouce_binary.clone(),
+            })
+            .unwrap();
+        assert_eq!(aggregate_result.to_string(), aggregated_result_base64);
+
+        let aggregated_res: AggregateResultMsg = AggregateResultMsg {
+            aggregate_result,
+            timestamp: 1u64,
+            data_source_results: vec![DataSourcesMsg {
+                dsource_contract: HumanAddr::from("orai1txryretvf4f626qd6un3rysmstctuxedtzlg25"),
+                tcase_contracts: vec![],
+                dsource_status: true,
+                tcase_status: vec![],
+            }],
+        };
+
         // aggregate result
-        let aggregate_msg = HandleMsg::Aggregate{dsource_results: vec![String::from("{\"contract\":\"orai1txryretvf4f626qd6un3rysmstctuxedtzlg25\",\"result\":\"[{\\\"name\\\":\\\"BTC\\\",\\\"prices\\\":[\\\"51002.02\\\"]},{\\\"name\\\":\\\"ETH\\\",\\\"prices\\\":[\\\"3756.84\\\"]},{\\\"name\\\":\\\"BNB\\\",\\\"prices\\\":[\\\"469.6537\\\"]},{\\\"name\\\":\\\"XRP\\\",\\\"prices\\\":[\\\"1.28634\\\"]},{\\\"name\\\":\\\"DOGE\\\",\\\"prices\\\":[\\\"0.286139\\\"]},{\\\"name\\\":\\\"LINK\\\",\\\"prices\\\":[\\\"32.768\\\"]},{\\\"name\\\":\\\"UNI\\\",\\\"prices\\\":[\\\"26.7\\\"]},{\\\"name\\\":\\\"ORAI\\\",\\\"prices\\\":[\\\"11.781\\\"]},{\\\"name\\\":\\\"DAI\\\",\\\"prices\\\":[\\\"0.9977\\\"]},{\\\"name\\\":\\\"SOL\\\",\\\"prices\\\":[\\\"183.7048\\\"]},{\\\"name\\\":\\\"MATIC\\\",\\\"prices\\\":[\\\"1.53146\\\"]},{\\\"name\\\":\\\"SUSHI\\\",\\\"prices\\\":[\\\"12.533\\\"]},{\\\"name\\\":\\\"DOT\\\",\\\"prices\\\":[\\\"32.46\\\"]},{\\\"name\\\":\\\"LUNA\\\",\\\"prices\\\":[\\\"30.06\\\"]},{\\\"name\\\":\\\"ICP\\\",\\\"prices\\\":[\\\"72.16\\\"]},{\\\"name\\\":\\\"XLM\\\",\\\"prices\\\":[\\\"0.384\\\"]},{\\\"name\\\":\\\"ATOM\\\",\\\"prices\\\":[\\\"24.7378\\\"]},{\\\"name\\\":\\\"AAVE\\\",\\\"prices\\\":[\\\"380.16\\\"]},{\\\"name\\\":\\\"THETA\\\",\\\"prices\\\":[\\\"8.5854\\\"]},{\\\"name\\\":\\\"EOS\\\",\\\"prices\\\":[\\\"5.73\\\"]},{\\\"name\\\":\\\"CAKE\\\",\\\"prices\\\":[\\\"23.384\\\"]},{\\\"name\\\":\\\"AXS\\\",\\\"prices\\\":[\\\"75.239\\\"]},{\\\"name\\\":\\\"ALGO\\\",\\\"prices\\\":[\\\"1.3506\\\"]},{\\\"name\\\":\\\"MKR\\\",\\\"prices\\\":[\\\"3426.71\\\"]},{\\\"name\\\":\\\"KSM\\\",\\\"prices\\\":[\\\"360.89\\\"]},{\\\"name\\\":\\\"XTZ\\\",\\\"prices\\\":[\\\"5.205\\\"]},{\\\"name\\\":\\\"FIL\\\",\\\"prices\\\":[\\\"100.28\\\"]},{\\\"name\\\":\\\"RUNE\\\",\\\"prices\\\":[\\\"10.615\\\"]},{\\\"name\\\":\\\"COMP\\\",\\\"prices\\\":[\\\"458.6\\\"]}]\",\"status\":true,\"test_case_results\":[]}")], request_id: 1};
+        let aggregate_msg = HandleMsg::HandleAggregate {
+            aggregate_result: aggregated_res,
+            request_id: 1,
+        };
 
         manager
             .handle(
@@ -338,7 +371,10 @@ fn test_airequests() {
         )
         .unwrap();
         assert_eq!(ai_request.status, true);
-        assert_eq!(ai_request.reports[0].aggregated_result.to_string(), "eyJuYW1lIjpbIkJUQyIsIkVUSCIsIkJOQiIsIlhSUCIsIkRPR0UiLCJMSU5LIiwiVU5JIiwiT1JBSSIsIkRBSSIsIlNPTCIsIk1BVElDIiwiU1VTSEkiLCJET1QiLCJMVU5BIiwiSUNQIiwiWExNIiwiQVRPTSIsIkFBVkUiLCJUSEVUQSIsIkVPUyIsIkNBS0UiLCJBWFMiLCJBTEdPIiwiTUtSIiwiS1NNIiwiWFRaIiwiRklMIiwiUlVORSIsIkNPTVAiXSwicHJpY2UiOlsiNTEwMDIuMDIwIiwiMzc1Ni44NDAiLCI0NjkuNjUzNzAiLCIxLjI4NjM0MCIsIjAuMjg2MTM5MCIsIjMyLjc2ODAiLCIyNi43MCIsIjExLjc4MTAiLCIwLjk5NzcwIiwiMTgzLjcwNDgwIiwiMS41MzE0NjAiLCIxMi41MzMwIiwiMzIuNDYwIiwiMzAuMDYwIiwiNzIuMTYwIiwiMC4zODQwIiwiMjQuNzM3ODAiLCIzODAuMTYwIiwiOC41ODU0MCIsIjUuNzMwIiwiMjMuMzg0MCIsIjc1LjIzOTAiLCIxLjM1MDYwIiwiMzQyNi43MTAiLCIzNjAuODkwIiwiNS4yMDUwIiwiMTAwLjI4MCIsIjEwLjYxNTAiLCI0NTguNjAiXX0=");
+        assert_eq!(
+            ai_request.reports[0].aggregated_result.to_string(),
+            aggregated_result_base64
+        );
         println!("ai request: {:?}", ai_request);
     }
 }

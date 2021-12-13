@@ -34,7 +34,6 @@ schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = "1.0"
 cosmwasm-crypto = "0.14.0"
-sha3 = "0.9.1"
 cw-storage-plus = { version = "0.5.0", features = ["iterator"] }
 aioracle = { path = "../../base/aioracle" }
 
@@ -43,7 +42,6 @@ aioracle = { path = "../../base/aioracle" }
 cosmwasm-vm = { version = "0.13.2", default-features = false }
 cosmwasm-schema = { version = "0.13.2" }
 cosmwasm-crypto = "0.14.0"
-sha3 = "0.9.1"
 rand = "0.7.3"
 pairing = "0.16.0"
 aioracle = { path = "../../base/aioracle" }

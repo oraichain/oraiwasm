@@ -31,7 +31,6 @@ pub fn increment_requests(storage: &mut dyn Storage) -> StdResult<u64> {
 pub struct RequestIndexes<'a> {
     pub status: MultiIndex<'a, AiRequest>,
     pub request_implementation: MultiIndex<'a, AiRequest>,
-    pub successful_reports_count: MultiIndex<'a, AiRequest>,
     pub data_sources: MultiIndex<'a, AiRequest>,
     pub test_cases: MultiIndex<'a, AiRequest>,
 }
@@ -41,7 +40,6 @@ impl<'a> IndexList<AiRequest> for RequestIndexes<'a> {
         let v: Vec<&dyn Index<AiRequest>> = vec![
             &self.status,
             &self.request_implementation,
-            &self.successful_reports_count,
             &self.data_sources,
             &self.test_cases,
         ];
@@ -77,11 +75,6 @@ pub fn ai_requests<'a>() -> IndexedMap<'a, &'a [u8], AiRequest, RequestIndexes<'
             |d| d.request_implementation.as_bytes().to_vec(),
             "ai_requests",
             "ai_requests_implementation",
-        ),
-        successful_reports_count: MultiIndex::new(
-            |d| d.successful_reports_count.to_be_bytes().to_vec(),
-            "ai_requests",
-            "ai_requests_reports_count",
         ),
         data_sources: MultiIndex::new(
             |d| {

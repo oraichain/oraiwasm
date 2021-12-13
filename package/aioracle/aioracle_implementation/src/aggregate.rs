@@ -1,82 +1,83 @@
 use std::{collections::HashMap, num::ParseIntError, ops::Add};
 
-use cosmwasm_std::{from_slice, to_binary, Binary, DepsMut, Env, MessageInfo, StdError, StdResult};
+use aioracle::AiOracleQuery;
+use cosmwasm_std::{from_binary, from_slice, to_binary, Binary, StdError, StdResult};
 
-use crate::msg::{Input, Output};
+use crate::msg::{Input, Output, QueryMsg};
 
-pub fn aggregate(
-    _deps: &mut DepsMut,
-    _env: &Env,
-    _info: &MessageInfo,
-    results: &[String],
-) -> StdResult<Binary> {
-    // append the list
-    let mut aggregation_result: Output = Output {
-        name: vec![],
-        price: vec![],
-    };
-    let result_str = aggregate_prices_str(results.to_vec());
-    let price_data: Vec<Input> = from_slice(result_str.as_bytes())?;
-    for res in price_data {
-        // split to calculate largest precision of the price
-        let mut largest_precision: usize = 0;
-        for mut price in res.prices.clone() {
-            let dot_pos = get_dot_pos(price.as_str());
-            if dot_pos != 0 {
-                price = price[dot_pos..].to_string();
-                if price.len() > largest_precision {
-                    largest_precision = price.len();
+impl AiOracleQuery for QueryMsg {
+    fn aggregate(&self, dsource_results: &Binary) -> StdResult<Binary> {
+        let results: Vec<String> = from_binary(dsource_results)?;
+
+        // append the list
+        let mut aggregation_result: Output = Output {
+            name: vec![],
+            price: vec![],
+        };
+        let result_str = aggregate_prices_str(results);
+        let price_data: Vec<Input> = from_slice(result_str.as_bytes())?;
+        for res in price_data {
+            // split to calculate largest precision of the price
+            let mut largest_precision: usize = 0;
+            for mut price in res.prices.clone() {
+                let dot_pos = get_dot_pos(price.as_str());
+                if dot_pos != 0 {
+                    price = price[dot_pos..].to_string();
+                    if price.len() > largest_precision {
+                        largest_precision = price.len();
+                    }
                 }
             }
-        }
-        let mut sum: u128 = 0;
-        let mut count = 0;
-        for mut price in res.prices {
-            println!("original price: {}", price);
-            let price_check = price_check(price.as_str());
-            if !price_check.0 {
-                continue;
-            }
-            let mut dot_pos = price_check.1;
-            // it means price is integer => force it to be float
-            if dot_pos == 0 {
-                dot_pos = price.len();
-                price.push_str(".0");
-            }
-            // plus one because postiion starts at 0
-            let dot_add = dot_pos.add(largest_precision + 1);
-            if price.len() > dot_add {
-                price.insert(dot_add, '.');
-                price = price[..dot_add].to_string();
-            } else {
-                while price.len() < dot_add {
-                    price.push('0');
+            let mut sum: u128 = 0;
+            let mut count = 0;
+            for mut price in res.prices {
+                println!("original price: {}", price);
+                let price_check = price_check(price.as_str());
+                if !price_check.0 {
+                    continue;
                 }
+                let mut dot_pos = price_check.1;
+                // it means price is integer => force it to be float
+                if dot_pos == 0 {
+                    dot_pos = price.len();
+                    price.push_str(".0");
+                }
+                // plus one because postiion starts at 0
+                let dot_add = dot_pos.add(largest_precision + 1);
+                if price.len() > dot_add {
+                    price.insert(dot_add, '.');
+                    price = price[..dot_add].to_string();
+                } else {
+                    while price.len() < dot_add {
+                        price.push('0');
+                    }
+                }
+                price.remove(dot_pos);
+                let price_int_result: Result<u128, ParseIntError> = price.parse();
+                if price_int_result.is_err() {
+                    continue;
+                }
+                let price_int = price_int_result.expect(
+                    "Already check error when parse price int aggregate, cannot panic here",
+                );
+                sum += price_int;
+                count += 1;
             }
-            price.remove(dot_pos);
-            let price_int_result: Result<u128, ParseIntError> = price.parse();
-            if price_int_result.is_err() {
-                continue;
+            println!("sum: {}", sum);
+            let mean = sum / count;
+            let mut mean_price = mean.to_string();
+            while mean_price.len() <= largest_precision {
+                mean_price.insert(0, '0');
             }
-            let price_int = price_int_result
-                .expect("Already check error when parse price int aggregate, cannot panic here");
-            sum += price_int;
-            count += 1;
-        }
-        println!("sum: {}", sum);
-        let mean = sum / count;
-        let mut mean_price = mean.to_string();
-        while mean_price.len() <= largest_precision {
-            mean_price.insert(0, '0');
-        }
-        mean_price.insert(mean_price.len().wrapping_sub(largest_precision), '.');
-        println!("mean price: {}", mean_price);
+            mean_price.insert(mean_price.len().wrapping_sub(largest_precision), '.');
+            println!("mean price: {}", mean_price);
 
-        aggregation_result.name.push(res.name);
-        aggregation_result.price.push(mean_price);
+            aggregation_result.name.push(res.name);
+            aggregation_result.price.push(mean_price);
+        }
+        let result_bin = to_binary(&aggregation_result)?;
+        Ok(result_bin)
     }
-    let result_bin = to_binary(&aggregation_result)?;
-    Ok(result_bin)
 }
 
 fn get_dot_pos(price: &str) -> usize {

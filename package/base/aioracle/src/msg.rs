@@ -54,23 +54,22 @@ pub enum AiOracleStorageMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AiRequestMsg {
-    pub validators: Vec<HumanAddr>,
     pub input: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct DataSourceResultMsg {
-    pub contract: HumanAddr,
-    pub result: String,
-    pub status: bool,
-    pub test_case_results: Vec<Option<TestCaseResultMsg>>,
+pub struct AggregateResultMsg {
+    pub aggregate_result: Binary,
+    pub timestamp: u64,
+    pub data_source_results: Vec<DataSourcesMsg>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct TestCaseResultMsg {
-    pub contract: HumanAddr,
+pub struct DataSourcesMsg {
+    pub dsource_contract: HumanAddr,
+    pub tcase_contracts: Vec<Option<HumanAddr>>,
     pub dsource_status: bool,
-    pub tcase_status: bool,
+    pub tcase_status: Vec<Option<bool>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

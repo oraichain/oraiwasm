@@ -1,26 +1,24 @@
-use cosmwasm_std::{Binary, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
 use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     AiOracleHubContract, AiOracleProviderContract, AiOracleTestCaseContract, SharedDealerMsg,
-    SharedRowMsg,
+    SharedRowMsg, SharedStatus,
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AiRequest {
     pub request_id: Option<u64>,
     pub request_implementation: HumanAddr,
-    pub validators: Vec<HumanAddr>,
     pub data_sources: Vec<AiOracleProviderContract>,
     pub test_cases: Vec<AiOracleTestCaseContract>,
+    pub final_aggregated_result: Option<Binary>,
     pub input: String,
     pub reports: Vec<Report>,
-    pub validator_fees: Vec<Fees>,
     pub provider_fees: Vec<Fees>,
     pub status: bool,
-    pub successful_reports_count: u64,
     pub rewards: Vec<Reward>,
 }
 
@@ -31,7 +29,6 @@ pub type Reward = (HumanAddr, Uint128, String);
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DataSourceResults {
     pub contract: Vec<HumanAddr>,
-    pub result_hash: Vec<String>,
     pub status: Vec<bool>,
     pub test_case_results: Vec<Option<TestCaseResults>>,
 }
@@ -39,17 +36,15 @@ pub struct DataSourceResults {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TestCaseResults {
     pub contract: Vec<HumanAddr>,
-    pub dsource_status: Vec<bool>,
     pub tcase_status: Vec<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Report {
-    pub validator: HumanAddr,
+    pub executor: HumanAddr,
     pub block_height: u64,
     pub dsources_results: DataSourceResults,
     pub aggregated_result: Binary,
-    pub status: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -63,6 +58,19 @@ pub struct Member {
     // index of member, by default it is sorted by their address
     pub index: u16,
     pub deleted: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MemberConfig {
+    /// The denom in which bounties are paid. This is typically the fee token of the chain.
+    pub total: u16,
+    pub threshold: u16,
+    pub dealer: u16,
+    // total dealers and rows have been shared
+    pub shared_dealer: u16,
+    pub shared_row: u16,
+    pub fee: Option<Coin>,
+    pub status: SharedStatus,
 }
 
 pub const THRESHOLD: Item<u8> = Item::new("report_threhold");

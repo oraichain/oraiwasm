@@ -9,7 +9,6 @@ pub const THRESHOLD: Item<u8> = Item::new("report_threhold");
 pub struct ContractInfo {
     pub name: String,
     pub creator: String,
-    /// permille fee to pay back to Auction contract when a `Token` is being sold.
     pub fee: u64,
     /// the accepted denom
     pub denom: String,

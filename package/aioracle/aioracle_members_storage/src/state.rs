@@ -1,9 +1,9 @@
-use aioracle::SharedStatus;
+use aioracle::MemberConfig as Config;
 use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Coin, HumanAddr, Order, Storage};
+use cosmwasm_std::{HumanAddr, Order, Storage};
 use cosmwasm_storage::{
     prefixed, prefixed_read, singleton, singleton_read, PrefixedStorage, ReadonlyPrefixedStorage,
     ReadonlySingleton, Singleton,
@@ -11,19 +11,6 @@ use cosmwasm_storage::{
 
 const CONFIG_KEY: &[u8] = b"config";
 const MEMBERS_KEY: &[u8] = b"members";
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Config {
-    /// The denom in which bounties are paid. This is typically the fee token of the chain.
-    pub total: u16,
-    pub threshold: u16,
-    pub dealer: u16,
-    // total dealers and rows have been shared
-    pub shared_dealer: u16,
-    pub shared_row: u16,
-    pub fee: Option<Coin>,
-    pub status: SharedStatus,
-}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {

@@ -1,19 +1,17 @@
-use crate::aggregate::aggregate;
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO, THRESHOLD};
+use aioracle::AiOracleQuery;
 use aioracle::{
-    AiOracleHandle, AiOracleHubContract, AiOracleMembersQuery, AiOracleProviderContract,
+    AggregateResultMsg, AiOracleHubContract, AiOracleMembersQuery, AiOracleProviderContract,
     AiOracleStorageMsg, AiOracleStorageQuery, AiOracleTestCaseContract, AiRequest, AiRequestMsg,
-    AiRequestsResponse, DataSourceResultMsg, DataSourceResults, Fees, Member, PagingOptions,
-    Report, ServiceFeesResponse, TestCaseResultMsg, TestCaseResults,
+    AiRequestsResponse, DataSourceResults, Fees, Member, MemberConfig, PagingOptions, Report,
+    ServiceFeesResponse, TestCaseResults,
 };
 use cosmwasm_std::{
-    attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, StdError, StdResult, Uint128,
+    attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
+    HumanAddr, InitResponse, MessageInfo, QuerierWrapper, StdError, StdResult, Uint128,
 };
-use sha2::{Digest, Sha256};
-use std::fmt::Write;
 use std::u64;
 
 pub const AI_ORACLE_STORAGE: &str = "ai_oracle_storage";
@@ -27,112 +25,6 @@ fn sanitize_fee(fee: u64, name: &str) -> Result<u64, ContractError> {
         });
     }
     Ok(fee)
-}
-
-impl AiOracleHandle for HandleMsg {
-    fn aggregate(
-        &self,
-        mut deps: DepsMut,
-        env: Env,
-        info: MessageInfo,
-        request_id: u64,
-        dsource_results: Vec<String>,
-        aggregate_fn: aioracle::AggregateHandler,
-    ) -> Result<HandleResponse, StdError> {
-        let ContractInfo {
-            governance, denom, ..
-        } = CONTRACT_INFO.load(deps.storage)?;
-        let mut ai_request: AiRequest = governance.query_storage_generic(
-            &deps.querier,
-            AI_ORACLE_STORAGE,
-            AiOracleStorageQuery::GetAiRequest { request_id },
-        )?;
-
-        let validator = info.sender.clone();
-        if let Some(error) = validate_ai_request(&ai_request, &info.sender) {
-            return Err(StdError::generic_err(error.to_string()));
-        }
-
-        let (dsources_results, results, mut cosmos_msgs) =
-            process_data_sources(dsource_results, &ai_request, &env.contract.address, &denom)?;
-
-        // get aggregated result
-        let aggregated_result_res = aggregate_fn(&mut deps, &env, &info, results.as_slice());
-        let mut report_status = true;
-        if aggregated_result_res.is_err() {
-            report_status = false;
-        }
-        let aggregated_result = aggregated_result_res.unwrap();
-        // additional check, won't allow empty string as final aggregated result
-        if aggregated_result.is_empty() {
-            report_status = false;
-        }
-        // create report
-        let report = Report {
-            validator,
-            block_height: env.block.height,
-            dsources_results,
-            aggregated_result: aggregated_result.clone(),
-            status: report_status,
-        };
-
-        // reward to validators
-        let mut rewards: Vec<(HumanAddr, Uint128, String)> = vec![];
-        for validator_fee in &ai_request.validator_fees {
-            let reward_obj = vec![Coin {
-                denom: denom.clone(),
-                amount: validator_fee.1,
-            }];
-            rewards.push((validator_fee.0.clone(), validator_fee.1, denom.clone()));
-
-            let reward_msg: CosmosMsg = BankMsg::Send {
-                from_address: env.contract.address.clone(),
-                to_address: validator_fee.0.clone(),
-                amount: reward_obj,
-            }
-            .into();
-            cosmos_msgs.push(reward_msg);
-        }
-        // update report
-        ai_request.reports.push(report.clone());
-        // update reward
-        ai_request.rewards = rewards;
-        // check if the reports reach a certain threshold or not. If yes => change status to true
-        let threshold = THRESHOLD.load(deps.storage)?;
-        // count successful reports to validate if the request is actually finished
-        let mut successful_count = ai_request.successful_reports_count;
-        if report_status == true {
-            successful_count = ai_request.successful_reports_count + 1;
-        }
-        let count_usize = successful_count as usize;
-        if count_usize
-            .gt(&(ai_request.validators.len() * usize::from(threshold) / usize::from(100u8)))
-        {
-            ai_request.status = true;
-        }
-        // update again the count after updating the report
-        ai_request.successful_reports_count = successful_count;
-
-        cosmos_msgs.push(governance.get_handle_msg(
-            AI_ORACLE_STORAGE,
-            AiOracleStorageMsg::UpdateAiRequest(ai_request),
-        )?);
-
-        let res = HandleResponse {
-            messages: cosmos_msgs,
-            attributes: vec![
-                attr("action", "aggregate_and_report"),
-                attr("aggregated_result", aggregated_result),
-                attr("request_id", request_id),
-                attr("reporter", report.validator),
-                attr("report_status", report.status),
-                attr("block_height", report.block_height),
-            ],
-            data: None,
-        };
-
-        Ok(res)
-    }
 }
 
 // make use of the custom errors
@@ -168,23 +60,22 @@ pub fn handle(
     info: MessageInfo,
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
-    match msg.to_owned() {
+    match msg {
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
         HandleMsg::CreateAiRequest(ai_request_msg) => {
             try_create_airequest(deps, info, env, ai_request_msg)
         }
-        HandleMsg::Aggregate {
+        HandleMsg::HandleAggregate {
             request_id,
-            dsource_results,
-        } => msg
-            .aggregate(deps, env, info, request_id, dsource_results, aggregate)
+            aggregate_result,
+        } => handle_aggregate(deps, env, info, request_id, aggregate_result)
             .map_err(|op| ContractError::Std(op)),
         HandleMsg::SetThreshold(value) => try_set_threshold(deps, info, value),
     }
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
-    match msg {
+    match msg.to_owned() {
         QueryMsg::GetDataSources {} => query_datasources(deps),
         QueryMsg::GetTestCases {} => query_testcases(deps),
         QueryMsg::GetDataSourcesRequest { request_id } => {
@@ -212,7 +103,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             offset,
             order,
         } => to_binary(&query_airequests(deps, limit, offset, order)?),
-        QueryMsg::GetMinFees { validators } => to_binary(&query_min_fees(deps, validators)?),
+        QueryMsg::GetMinFees { executors } => to_binary(&query_min_fees(deps, executors)?),
+        QueryMsg::Aggregate { dsource_results } => msg.aggregate(&dsource_results),
     }
 }
 
@@ -266,116 +158,200 @@ pub fn try_update_info(
     })
 }
 
-fn process_test_cases(
-    tcase_results: &Vec<Option<TestCaseResultMsg>>,
-) -> (Option<TestCaseResults>, bool) {
-    let mut test_case_results: Option<TestCaseResults> = None;
-    let mut is_success = true;
-    for tcase_result_option in tcase_results {
-        if let Some(tcase_result) = tcase_result_option {
-            if !tcase_result.tcase_status {
-                continue;
-            }
-            let mut tcase_results_temp = TestCaseResults {
-                contract: vec![],
-                dsource_status: vec![],
-                tcase_status: vec![],
-            };
+fn handle_aggregate(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    request_id: u64,
+    aggregate_result: AggregateResultMsg,
+) -> Result<HandleResponse, StdError> {
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+    let mut ai_request: AiRequest = governance.query_storage_generic(
+        &deps.querier,
+        AI_ORACLE_STORAGE,
+        AiOracleStorageQuery::GetAiRequest { request_id },
+    )?;
 
-            // append into new test case list
-            tcase_results_temp
-                .contract
-                .push(tcase_result.contract.clone());
-            tcase_results_temp
-                .dsource_status
-                .push(tcase_result.dsource_status);
-            tcase_results_temp
-                .tcase_status
-                .push(tcase_result.tcase_status);
-            test_case_results = Some(tcase_results_temp);
-
-            if !tcase_result.dsource_status {
-                is_success = false;
-                break;
-            }
-        }
+    let executor = info.sender.clone();
+    if let Some(error) = validate_ai_request(&deps.querier, &governance, &ai_request, &info.sender)
+    {
+        return Err(StdError::generic_err(error.to_string()));
     }
-    return (test_case_results, is_success);
+
+    let (dsources_results, mut cosmos_msgs, rewards) =
+        process_aggregate_result(&aggregate_result, &ai_request, &env.contract.address)?;
+
+    // create report
+    let report = Report {
+        executor,
+        block_height: env.block.height,
+        dsources_results,
+        aggregated_result: aggregate_result.aggregate_result.clone(),
+    };
+    // update report
+    ai_request.reports.push(report.clone());
+    // update reward
+    ai_request.rewards = rewards;
+
+    /////// TODO: BELOW PART SHOULD BE MOVED TO WHEN AGGREGATING THE FINAL AGGREGATED RESULT
+    let threshold = THRESHOLD.load(deps.storage)?;
+
+    // get threshold from member config
+    let config: MemberConfig = governance.query_storage_generic(
+        &deps.querier,
+        AI_ORACLE_MEMBERS_STORAGE,
+        AiOracleMembersQuery::GetConfigInfo {},
+    )?;
+    // // necessary conditions to set ai request status as true
+    if ai_request.reports.len() >= config.threshold as usize
+        && ai_request.reports.len() >= threshold as usize
+    {
+        // ai_request.status = true;
+        // TODO: aggregate again the list of aggregated result to get the final aggregate result => then ask validators to sign on this.
+    }
+
+    cosmos_msgs.push(governance.get_handle_msg(
+        AI_ORACLE_STORAGE,
+        AiOracleStorageMsg::UpdateAiRequest(ai_request),
+    )?);
+
+    let res = HandleResponse {
+        messages: cosmos_msgs,
+        attributes: vec![
+            attr("action", "aggregate_and_report"),
+            attr(
+                "aggregated_result",
+                aggregate_result.aggregate_result.to_string(),
+            ),
+            attr("request_id", request_id),
+            attr("executor", report.executor),
+            attr("block_height", report.block_height),
+        ],
+        data: None,
+    };
+
+    Ok(res)
 }
 
-fn process_data_sources(
-    dsource_results: Vec<String>,
+fn process_aggregate_result(
+    aggregate_result: &AggregateResultMsg,
     ai_request: &AiRequest,
     contract_addr: &HumanAddr,
-    denom: &str,
-) -> Result<(DataSourceResults, Vec<String>, Vec<CosmosMsg>), StdError> {
+) -> Result<
+    (
+        DataSourceResults,
+        Vec<CosmosMsg>,
+        Vec<(HumanAddr, Uint128, String)>,
+    ),
+    StdError,
+> {
     let mut dsources_results = DataSourceResults {
         contract: vec![],
-        result_hash: vec![],
         status: vec![],
         test_case_results: vec![],
     };
     // prepare results to aggregate
-    let mut results: Vec<String> = Vec::new();
     // prepare cosmos messages to send rewards
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
     let mut rewards: Vec<(HumanAddr, Uint128, String)> = vec![];
-    for dsource_result_str in dsource_results {
-        let dsource_result: DataSourceResultMsg = from_slice(dsource_result_str.as_bytes())?;
-        let (test_case_results, is_success) = process_test_cases(&dsource_result.test_case_results);
 
-        // TODO: Add rewards for test case providers
-        if dsource_result.status && is_success {
-            // send rewards to the providers
+    let mut test_case_results: Option<TestCaseResults> = None;
+    for data_source_result in &aggregate_result.data_source_results {
+        // rewards for data source providers
+        if data_source_result.dsource_status {
             if let Some(provider_fee) = ai_request
                 .provider_fees
                 .iter()
-                .find(|x| x.0.eq(&dsource_result.contract))
+                .find(|x| x.0.eq(&data_source_result.dsource_contract))
             {
                 let reward_obj = vec![Coin {
-                    denom: String::from(denom),
+                    denom: provider_fee.2.clone(),
                     amount: provider_fee.1,
                 }];
                 // append reward into the list of rewards
-                rewards.push((provider_fee.0.clone(), provider_fee.1, denom.to_string()));
+                rewards.push((
+                    provider_fee.0.clone(),
+                    provider_fee.1,
+                    provider_fee.2.clone(),
+                ));
                 let reward_msg: CosmosMsg = BankMsg::Send {
-                    from_address: contract_addr.to_owned(),
+                    from_address: contract_addr.clone(),
                     to_address: provider_fee.0.clone(),
                     amount: reward_obj,
                 }
                 .into();
                 cosmos_msgs.push(reward_msg);
             }
+        }
 
-            let result = dsource_result.result.clone();
-            // continue if this request fail
-            if result.is_empty() {
-                continue;
-            }
-
-            // push result to aggregate later
-            results.push(result);
-        };
-        // only store hash of the result to minimize the storage used
-        dsources_results.contract.push(dsource_result.contract);
         dsources_results
-            .result_hash
-            .push(derive_results_hash(dsource_result.result.as_bytes())?);
-        dsources_results.status.push(dsource_result.status);
-        dsources_results.test_case_results.push(test_case_results);
+            .contract
+            .push(data_source_result.dsource_contract.clone());
+        dsources_results
+            .status
+            .push(data_source_result.dsource_status);
+
+        let mut tcase_results_temp = TestCaseResults {
+            contract: vec![],
+            tcase_status: vec![],
+        };
+
+        // rewards for test case providers
+        for (i, tcase_result_msg) in data_source_result.tcase_contracts.iter().enumerate() {
+            if let Some(tcase_contract) = tcase_result_msg {
+                if let Some(status) = data_source_result.tcase_status[i] {
+                    if let Some(provider_fee) = ai_request
+                        .provider_fees
+                        .iter()
+                        .find(|x| x.0.eq(tcase_contract))
+                    {
+                        let reward_obj = vec![Coin {
+                            denom: provider_fee.2.clone(),
+                            amount: provider_fee.1,
+                        }];
+                        // append reward into the list of rewards
+                        rewards.push((
+                            provider_fee.0.clone(),
+                            provider_fee.1,
+                            provider_fee.2.clone(),
+                        ));
+                        let reward_msg: CosmosMsg = BankMsg::Send {
+                            from_address: contract_addr.clone(),
+                            to_address: provider_fee.0.clone(),
+                            amount: reward_obj,
+                        }
+                        .into();
+                        cosmos_msgs.push(reward_msg);
+                    }
+
+                    // append into new test case list
+                    tcase_results_temp.contract.push(tcase_contract.clone());
+                    tcase_results_temp.tcase_status.push(status);
+                }
+            }
+        }
+        test_case_results = Some(tcase_results_temp);
     }
-    Ok((dsources_results, results, cosmos_msgs))
+    dsources_results.test_case_results.push(test_case_results);
+    Ok((dsources_results, cosmos_msgs, rewards))
 }
 
-fn validate_ai_request(ai_request: &AiRequest, sender: &HumanAddr) -> Option<ContractError> {
-    if ai_request
-        .validators
-        .iter()
-        .position(|addr| addr.eq(sender))
-        .is_none()
-    {
+fn validate_ai_request(
+    querier: &QuerierWrapper,
+    governance: &AiOracleHubContract,
+    ai_request: &AiRequest,
+    sender: &HumanAddr,
+) -> Option<ContractError> {
+    let result: StdResult<Member> = governance.query_storage_generic(
+        querier,
+        AI_ORACLE_MEMBERS_STORAGE,
+        AiOracleMembersQuery::GetMember {
+            address: sender.to_string(),
+        },
+    );
+    if result.is_err() {
         return Some(ContractError::Unauthorized {
-            sender: format!("{} is not in the validator list", sender),
+            sender: format!("{} is not in the executor list", sender),
         });
     }
 
@@ -383,7 +359,7 @@ fn validate_ai_request(ai_request: &AiRequest, sender: &HumanAddr) -> Option<Con
     if ai_request
         .reports
         .iter()
-        .position(|report| report.validator.eq(sender))
+        .position(|report| report.executor.eq(sender))
         .is_some()
     {
         return Some(ContractError::Reported(format!(
@@ -423,21 +399,6 @@ fn try_create_airequest(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
-    // validate list validators
-    for member in &ai_request_msg.validators {
-        let result: StdResult<Member> = governance.query_storage_generic(
-            &deps.querier,
-            AI_ORACLE_MEMBERS_STORAGE,
-            AiOracleMembersQuery::GetMember {
-                address: member.to_string(),
-            },
-        );
-        println!("result: {:?}", result);
-        if result.is_err() {
-            return Err(ContractError::InvalidValidators());
-        }
-    }
-
     // query minimum fees
     let mut providers: Vec<HumanAddr> = vec![];
     providers.extend(dsources.clone().iter().map(|dsource| dsource.addr()));
@@ -445,9 +406,21 @@ fn try_create_airequest(
     let mut total: u64 = 0u64;
     let (provider_fees, list_provider_fees) =
         query_service_fees(deps.as_ref(), &governance, &providers)?;
-    let (validator_fees, list_validator_fees) =
-        query_service_fees(deps.as_ref(), &governance, &ai_request_msg.validators)?;
-    total += provider_fees + validator_fees;
+
+    // collect executor fees
+    // get threshold from member config
+    let config: MemberConfig = governance.query_storage_generic(
+        &deps.querier,
+        AI_ORACLE_MEMBERS_STORAGE,
+        AiOracleMembersQuery::GetConfigInfo {},
+    )?;
+    total += provider_fees;
+    if let Some(fee) = config.fee {
+        // only add if denom is equal to each other
+        if fee.denom.eq(&denom) {
+            total += fee.amount.u128() as u64;
+        }
+    };
 
     if total > 0 {
         // check sent funds
@@ -473,28 +446,21 @@ fn try_create_airequest(
     let ai_request = AiRequest {
         request_id: None,
         request_implementation: env.contract.address,
-        validators: ai_request_msg.validators,
         input: ai_request_msg.input,
         reports: vec![],
         provider_fees: list_provider_fees,
-        validator_fees: list_validator_fees,
         status: false,
         rewards: vec![],
-        successful_reports_count: 0,
         data_sources: dsources,
         test_cases: tcases,
+        final_aggregated_result: None,
     };
 
-    let mut attrs = vec![
+    let attrs = vec![
         attr("action", "create_ai_request"),
         attr("input", ai_request.input.clone()),
         attr("provider_fees", provider_fees),
-        attr("validator_fees", validator_fees),
     ];
-
-    for validator in &ai_request.validators {
-        attrs.push(attr("validator", validator));
-    }
 
     let create_ai_request_msg = governance.get_handle_msg(
         AI_ORACLE_STORAGE,
@@ -506,23 +472,6 @@ fn try_create_airequest(
         attributes: attrs,
         data: None,
     })
-}
-
-/// Derives a 32 byte hash value of data source & test case results for small storage
-pub fn derive_results_hash(results: &[u8]) -> Result<String, StdError> {
-    let mut hasher = Sha256::new();
-    hasher.update(results);
-    let hash: [u8; 32] = hasher.finalize().into();
-    let mut s = String::with_capacity(hash.len() * 2);
-    for &b in &hash {
-        let result_write = write!(&mut s, "{:02x}", b);
-        if result_write.is_err() {
-            return Err(StdError::generic_err(
-                "Error while converting data source result to hex string",
-            ));
-        };
-    }
-    Ok(s)
 }
 
 fn query_service_fees(
@@ -594,7 +543,7 @@ pub fn query_airequests(
     )
 }
 
-pub fn query_min_fees(deps: Deps, validators: Vec<HumanAddr>) -> StdResult<Uint128> {
+pub fn query_min_fees(deps: Deps, executors: Vec<HumanAddr>) -> StdResult<Uint128> {
     let ContractInfo {
         dsources,
         tcases,
@@ -606,7 +555,8 @@ pub fn query_min_fees(deps: Deps, validators: Vec<HumanAddr>) -> StdResult<Uint1
     providers.extend(tcases.clone().iter().map(|tcase| tcase.addr()));
     let mut total: u64 = 0u64;
     let (provider_fees, _) = query_service_fees(deps, &governance, &providers)?;
-    let (validator_fees, _) = query_service_fees(deps, &governance, &validators)?;
-    total += provider_fees + validator_fees;
+    let (executor_fees, _) = query_service_fees(deps, &governance, &executors)?;
+    // has to multiply because many executors will call the providers
+    total += (provider_fees * executors.len() as u64) + executor_fees;
     return Ok(Uint128::from(total));
 }

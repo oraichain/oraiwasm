@@ -189,9 +189,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             AiOracleStorageQuery::GetAiRequestsByStatus { status, options } => {
                 to_binary(&query_ai_requests_by_status(deps, status, &options)?)
             }
-            AiOracleStorageQuery::GetAiRequestsByReportsCount { count, options } => {
-                to_binary(&query_ai_requests_by_count(deps, count, &options)?)
-            }
             AiOracleStorageQuery::GetAiRequestsByDataSources {
                 data_sources,
                 options,
@@ -288,26 +285,6 @@ pub fn query_ai_requests(deps: Deps, options: &PagingOptions) -> StdResult<AiReq
         .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| kv_item.and_then(|(_k, v)| Ok(v)))
-        .collect();
-
-    Ok(AiRequestsResponse {
-        items: res?,
-        total: num_requests(deps.storage)?,
-    })
-}
-
-pub fn query_ai_requests_by_count(
-    deps: Deps,
-    count: u64,
-    options: &PagingOptions,
-) -> StdResult<AiRequestsResponse> {
-    let (limit, min, max, order_enum) = _get_range_params(options);
-    let res: StdResult<Vec<AiRequest>> = ai_requests()
-        .idx
-        .successful_reports_count
-        .items(deps.storage, &count.to_be_bytes(), min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| parse_ai_requests(deps.api, kv_item))
         .collect();
 
     Ok(AiRequestsResponse {

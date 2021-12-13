@@ -38,10 +38,6 @@ pub enum AiOracleStorageQuery {
         status: bool,
         options: PagingOptions,
     },
-    GetAiRequestsByReportsCount {
-        count: u64,
-        options: PagingOptions,
-    },
     GetAiRequestsByDataSources {
         data_sources: Binary,
         options: PagingOptions,

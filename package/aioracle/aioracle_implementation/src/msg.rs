@@ -1,5 +1,5 @@
-use aioracle::AiRequestMsg;
-use cosmwasm_std::HumanAddr;
+use aioracle::{AggregateResultMsg, AiRequestMsg};
+use cosmwasm_std::{Binary, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -21,8 +21,8 @@ pub enum HandleMsg {
     //     fees: u64,
     // },
     CreateAiRequest(AiRequestMsg),
-    Aggregate {
-        dsource_results: Vec<String>,
+    HandleAggregate {
+        aggregate_result: AggregateResultMsg,
         request_id: u64,
     },
     SetThreshold(u8),
@@ -57,7 +57,10 @@ pub enum QueryMsg {
         order: Option<u8>,
     },
     GetMinFees {
-        validators: Vec<HumanAddr>,
+        executors: Vec<HumanAddr>,
+    },
+    Aggregate {
+        dsource_results: Binary,
     },
 }
 

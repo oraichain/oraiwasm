@@ -1,16 +1,16 @@
 use aioracle::{
-    AiOracleMembersMsg, AiOracleMembersQuery, Member, MemberMsg, SharedDealerMsg, SharedRowMsg,
-    SharedStatus,
+    AiOracleMembersMsg, AiOracleMembersQuery, Member, MemberConfig as Config, MemberMsg,
+    SharedDealerMsg, SharedRowMsg, SharedStatus,
 };
 use cosmwasm_std::{
-    attr, from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr,
+    attr, from_slice, to_binary, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr,
     InitResponse, MessageInfo, Order, StdError, StdResult, Storage,
 };
 
 use crate::errors::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
-    clear_store, config, config_read, members_storage, members_storage_read, Config, ContractInfo,
+    clear_store, config, config_read, members_storage, members_storage_read, ContractInfo,
     CONTRACT_INFO,
 };
 
@@ -118,6 +118,26 @@ fn store_members(storage: &mut dyn Storage, members: Vec<MemberMsg>, clear: bool
         members_store.set(member.address.as_bytes(), &to_binary(&member)?);
     }
     Ok(())
+}
+
+pub fn update_fees(
+    deps: DepsMut,
+    info: MessageInfo,
+    fee: Coin,
+) -> Result<HandleResponse, ContractError> {
+    let ContractInfo { creator, .. } = CONTRACT_INFO.load(deps.storage)?;
+    if !creator.eq(info.sender.as_str()) {
+        return Err(ContractError::Unauthorized(
+            "Not an owner to update members".to_string(),
+        ));
+    }
+    let mut config_data = config_read(deps.storage).load()?;
+    config_data.fee = Some(fee);
+    // init with a signature, pubkey and denom for bounty
+    config(deps.storage).save(&config_data)?;
+    let mut response = HandleResponse::default();
+    response.attributes = vec![attr("action", "update_fees")];
+    Ok(response)
 }
 
 /// Handler

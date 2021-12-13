@@ -48,14 +48,6 @@ fn sort_requests() {
                 "orai1f6q9wjn8qp3ll8y8ztd8290vtec2yxyx0wnd0d{}",
                 i
             )),
-            validators: vec![
-                HumanAddr::from("orai1yc9nysml8dxy447hp3aytr0nssr9pd9au5yhrp"),
-                HumanAddr::from("orai1f6q9wjn8qp3ll8y8ztd8290vtec2yxyx0wnd0d"),
-                HumanAddr::from("orai14vcw5qk0tdvknpa38wz46js5g7vrvut8lk0lk6"),
-                HumanAddr::from("orai16e6cpk6ycddk6208fpaya7tmmardhvr77l5dtr"),
-                HumanAddr::from("orai13ckyvg0ah9vuujtd49yner2ky92lej6n8ch2et"),
-                HumanAddr::from("orai10dzr3yks2jrtgqjnpt6hdgf73mnset024k2lzy"),
-            ],
             data_sources: vec![AiOracleProviderContract(HumanAddr::from(
                 "orai1yc9nysml8dxy447hp3aytr0nssr9pd9au5yhrp",
             ))],
@@ -64,11 +56,10 @@ fn sort_requests() {
             ))],
             input: String::from(""),
             reports: vec![],
-            validator_fees: vec![],
             provider_fees: vec![],
             status,
-            successful_reports_count: i,
             rewards: vec![],
+            final_aggregated_result: None,
         };
         let msg = HandleMsg::Msg(AiOracleStorageMsg::UpdateAiRequest(ai_request));
         let _res = handle(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
@@ -115,22 +106,6 @@ fn sort_requests() {
     .unwrap();
     let value: AiRequestsResponse = from_binary(&res).unwrap();
     assert_eq!(value.items.len(), 25);
-
-    let res = query(
-        deps.as_ref(),
-        contract_env.clone(),
-        QueryMsg::Msg(AiOracleStorageQuery::GetAiRequestsByReportsCount {
-            count: 1,
-            options: PagingOptions {
-                limit: Some(100),
-                offset: None,
-                order: Some(Order::Ascending as u8),
-            },
-        }),
-    )
-    .unwrap();
-    let value: AiRequestsResponse = from_binary(&res).unwrap();
-    assert_eq!(value.items.len(), 1);
 
     let res = query(
         deps.as_ref(),
@@ -213,14 +188,6 @@ fn remove_ai_request() {
     let ai_request = AiRequest {
         request_id: None,
         request_implementation: HumanAddr::from("orai1f6q9wjn8qp3ll8y8ztd8290vtec2yxyx0wnd0d"),
-        validators: vec![
-            HumanAddr::from("orai1yc9nysml8dxy447hp3aytr0nssr9pd9au5yhrp"),
-            HumanAddr::from("orai1f6q9wjn8qp3ll8y8ztd8290vtec2yxyx0wnd0d"),
-            HumanAddr::from("orai14vcw5qk0tdvknpa38wz46js5g7vrvut8lk0lk6"),
-            HumanAddr::from("orai16e6cpk6ycddk6208fpaya7tmmardhvr77l5dtr"),
-            HumanAddr::from("orai13ckyvg0ah9vuujtd49yner2ky92lej6n8ch2et"),
-            HumanAddr::from("orai10dzr3yks2jrtgqjnpt6hdgf73mnset024k2lzy"),
-        ],
         data_sources: vec![AiOracleProviderContract(HumanAddr::from(
             "orai1yc9nysml8dxy447hp3aytr0nssr9pd9au5yhrp",
         ))],
@@ -229,11 +196,10 @@ fn remove_ai_request() {
         ))],
         input: String::from(""),
         reports: vec![],
-        validator_fees: vec![],
         provider_fees: vec![],
         status: true,
-        successful_reports_count: 1,
         rewards: vec![],
+        final_aggregated_result: None,
     };
     let msg = HandleMsg::Msg(AiOracleStorageMsg::UpdateAiRequest(ai_request));
     let _res = handle(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
