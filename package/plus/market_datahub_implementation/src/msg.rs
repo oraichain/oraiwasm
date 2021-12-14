@@ -54,7 +54,7 @@ pub enum HandleMsg {
         annotation_id: u64,
         reviewer_address: HumanAddr,
     },
-    RemoveAnnnotationReviewer {
+    RemoveAnnotationReviewer {
         annotation_id: u64,
         reviewer_address: HumanAddr,
     },

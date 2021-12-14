@@ -111,13 +111,14 @@ pub fn try_execute_request_annotation(
 
     // Requester is required to deposited
     if let Some(fund) = info.sent_funds.iter().find(|fund| fund.denom.eq(&denom)) {
-        let mut reward =
-            calculate_annotation_price(reward_per_sample.clone(), number_of_samples.clone())
-                .mul(Decimal::from_ratio(max_annotators.u128(), 1u128));
+        let mut reward = calculate_annotation_price(
+            reward_per_sample.clone(),
+            Uint128::from(number_of_samples.clone().0 + max_upload_tasks.clone().0),
+        )
+        .mul(Decimal::from_ratio(max_annotators.u128(), 1u128));
 
         let upload_reward =
-            calculate_annotation_price(reward_per_upload_task.clone(), max_upload_tasks.clone())
-                .mul(Decimal::from_ratio(max_annotators.u128(), 1u128));
+            calculate_annotation_price(reward_per_upload_task.clone(), max_upload_tasks.clone());
 
         reward.add_assign(upload_reward);
 
@@ -125,7 +126,7 @@ pub fn try_execute_request_annotation(
             return Err(ContractError::InsufficientFunds {});
         }
         // cannot allow annotation price as 0 (because it is pointless)
-        if reward.eq(&Uint128::from(0u64)) || upload_reward.eq(&Uint128::from(0u128)) {
+        if reward.eq(&Uint128::from(0u64)) {
             return Err(ContractError::InvalidZeroAmount {});
         }
     } else {
@@ -167,7 +168,7 @@ pub fn try_execute_request_annotation(
         attributes: vec![
             attr("action", "request_annotation"),
             attr("requester", info.sender.clone()),
-            attr("award_per_sample", reward_per_sample.to_string()),
+            attr("reward_per_sample", reward_per_sample.to_string()),
             attr("number_of_samples", number_of_samples.to_string()),
             attr("max_annotators", max_annotators.to_string()),
             attr("max_upload_samples", max_upload_tasks.to_string()),
@@ -220,8 +221,12 @@ pub fn try_payout(
     }
 
     // Only allow payout when all reviewers had submitted their results
-    if annotation_reviewed_results.len() != reviewers.len()
-        || reviewed_uploads.len() != reviewers.len()
+    if annotation_reviewed_results.len() != reviewers.len() {
+        return Err(ContractError::EarlyPayoutError {});
+    }
+
+    if annotation.max_upload_tasks.ge(&Uint128::from(0u64))
+        && reviewed_uploads.len() != reviewers.len()
     {
         return Err(ContractError::EarlyPayoutError {});
     }
@@ -293,15 +298,16 @@ pub fn try_payout(
     let mut total_reward = 0u128;
     let mut total_bond = calculate_annotation_price(
         annotation.reward_per_sample.clone(),
-        annotation.number_of_samples.clone(),
+        Uint128::from(
+            annotation.number_of_samples.clone().0 + annotation.max_upload_tasks.clone().0,
+        ),
     )
     .mul(Decimal::from_ratio(annotation.max_annotators.u128(), 1u128));
 
     let upload_reward_bond = calculate_annotation_price(
         annotation.reward_per_upload_task.clone(),
         annotation.max_upload_tasks.clone(),
-    )
-    .mul(Decimal::from_ratio(annotation.max_annotators.u128(), 1u128));
+    );
 
     total_bond.add_assign(upload_reward_bond);
 

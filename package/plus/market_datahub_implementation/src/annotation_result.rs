@@ -37,7 +37,11 @@ pub fn try_add_annotation_result(
     }
 
     for result in annotator_results.iter() {
-        if result.result.len() > annotation.number_of_samples.u128().try_into().unwrap() {
+        if result.result.len()
+            > (annotation.number_of_samples.clone().0 + annotation.max_upload_tasks.clone().0)
+                .try_into()
+                .unwrap()
+        {
             return Err(ContractError::Std(StdError::generic_err(
                 "Annotator result's length must be less equal than annotation's number_of_sample",
             )));
@@ -224,8 +228,11 @@ pub fn try_add_annotation_reviewer(
         });
     }
 
-    let reviewer =
-        get_annotation_reviewer_by_unique_key(deps.as_ref(), annotation_id, info.sender.clone())?;
+    let reviewer = get_annotation_reviewer_by_unique_key(
+        deps.as_ref(),
+        annotation_id,
+        reviewer_address.clone(),
+    )?;
 
     if reviewer.is_some() {
         return Err(ContractError::Std(StdError::generic_err(

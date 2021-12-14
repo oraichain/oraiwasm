@@ -127,7 +127,7 @@ pub fn handle(
             annotation_id,
             reviewer_address,
         } => try_add_annotation_reviewer(deps, info, env, annotation_id, reviewer_address),
-        HandleMsg::RemoveAnnnotationReviewer {
+        HandleMsg::RemoveAnnotationReviewer {
             annotation_id,
             reviewer_address,
         } => try_remove_annotation_reviewer(deps, info, env, annotation_id, reviewer_address),

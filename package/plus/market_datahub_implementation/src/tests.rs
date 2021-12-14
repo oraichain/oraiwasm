@@ -294,7 +294,6 @@ fn test_royalties() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from("offering"),
             creator: HumanAddr::from("provider"),
-            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -548,7 +547,7 @@ fn test_sell_nft_unhappy() {
 }
 
 #[test]
-fn test_buy_nft_unhappy() {
+fn test_buy_nft() {
     unsafe {
         let manager = DepsManager::get_new();
         let buy_msg = HandleMsg::BuyNft { offering_id: 1 };
@@ -565,7 +564,6 @@ fn test_buy_nft_unhappy() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
-            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -581,7 +579,7 @@ fn test_buy_nft_unhappy() {
 
         let sell_msg = HandleMsg::SellNft {
             token_id: String::from("SellableNFT"),
-            amount: Uint128::from(10u64),
+            amount: Uint128::from(2u64),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             royalty_msg: SellRoyalty {
                 per_price: Uint128(90),
@@ -603,9 +601,30 @@ fn test_buy_nft_unhappy() {
 
         // insufficient funds
         assert!(matches!(
-            manager.handle(info_buy, buy_msg),
+            manager.handle(info_buy, buy_msg.clone()),
             Err(ContractError::InsufficientFunds {})
-        ))
+        ));
+
+        // success buy
+        let _res = manager
+            .handle(mock_info("buyer", &coins(90, DENOM)), buy_msg.clone())
+            .unwrap();
+
+        let query_msg = DataHubQueryMsg::GetOffering { offering_id: 1 };
+        let res = manager.query(QueryMsg::DataHub(query_msg.clone())).unwrap();
+        let result = from_binary::<Offering>(&res).unwrap();
+        println!("offering decrease after someone bought {:?}", result);
+
+        // success buy again
+        let _res = manager
+            .handle(mock_info("buyer", &coins(90, DENOM)), buy_msg.clone())
+            .unwrap();
+
+        let query_msg = DataHubQueryMsg::GetOffering { offering_id: 1 };
+        let res = manager.query(QueryMsg::DataHub(query_msg.clone())).unwrap();
+        let result = from_binary::<Offering>(&res);
+        assert_eq!(result.is_err(), true);
+        println!("error {:?}", result);
     }
 }
 
@@ -637,7 +656,6 @@ fn test_sell() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
-            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -671,7 +689,6 @@ fn test_request_annotations() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
-            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("creator"),
@@ -746,7 +763,6 @@ fn test_request_annotations_unhappy_path() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
-            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("creator"),
@@ -816,7 +832,6 @@ fn test_payout_annotations() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
-            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("requester"),
@@ -924,8 +939,8 @@ fn test_payout_annotations() {
 
         // Success
         let payout_msg = HandleMsg::Payout { annotation_id: 1 };
-        let res = manager.handle(info.clone(), payout_msg).unwrap();
-        print!("payout result: {:?}", res);
+        let _res = manager.handle(info.clone(), payout_msg).unwrap();
+        //print!("payout result: {:?}", res);
 
         // Error: Can not payout again
         let payout_msg = HandleMsg::Payout { annotation_id: 1 };
@@ -951,7 +966,6 @@ fn test_withdraw_annotation() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
-            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("requester"),
@@ -996,7 +1010,6 @@ fn test_add_annotation_reviewer() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
-            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("requester"),
@@ -1154,7 +1167,6 @@ fn test_reviewed_upload() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
-            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("requester"),
@@ -1232,7 +1244,6 @@ fn test_migrate() {
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("provider"),
-            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("creator"),
@@ -1324,7 +1335,6 @@ fn test_mint() {
         let mut mint = MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("creator"),
-            co_owners: None,
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -1379,7 +1389,6 @@ fn test_mint() {
         assert_eq!(balance.balance, Uint128::from(100u64));
 
         // mint with co owners
-        mint.co_owners = Some(co_owners.clone());
         mint_msg = HandleMsg::MintNft(mint.clone());
         manager
             .handle(provider_info.clone(), mint_msg.clone())
