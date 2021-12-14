@@ -5,22 +5,23 @@ use crate::ai_royalty::{
 };
 // use crate::ai_royalty::try_update_royalties;
 use crate::auction::{
-    handle_ask_auction, query_auction, try_bid_nft, try_cancel_bid, try_claim_winner,
-    try_emergency_cancel_auction,
+    query_auction, try_bid_nft, try_cancel_bid, try_claim_winner, try_emergency_cancel_auction,
+    try_handle_ask_aution,
 };
 
-use crate::offering::{handle_sell_nft, query_offering, try_buy, try_handle_mint, try_withdraw};
+use crate::offering::{
+    query_offering, try_buy, try_handle_mint, try_handle_sell_nft, try_withdraw,
+};
 
 use crate::error::ContractError;
 use crate::msg::{
-    AskNftMsg, GiftNft, HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellNft,
-    UpdateContractMsg,
+    GiftNft, HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
-    HandleResponse, InitResponse, MessageInfo, StdResult, WasmMsg,
+    attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
+    InitResponse, MessageInfo, StdResult, WasmMsg,
 };
 use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
 use market::{StorageHandleMsg, StorageQueryMsg};
@@ -81,7 +82,40 @@ pub fn handle(
         HandleMsg::EmergencyCancelAuction { auction_id } => {
             try_emergency_cancel_auction(deps, info, env, auction_id)
         }
-        HandleMsg::ReceiveNft(msg) => try_receive_nft(deps, info, env, msg),
+        HandleMsg::AskNft {
+            token_id,
+            contract_addr,
+            price,
+            buyout_price,
+            start,
+            end,
+            end_timestamp,
+            start_timestamp,
+            cancel_fee,
+            royalty,
+            step_price,
+        } => try_handle_ask_aution(
+            deps,
+            info,
+            env,
+            contract_addr,
+            token_id,
+            price,
+            cancel_fee,
+            start,
+            end,
+            start_timestamp,
+            end_timestamp,
+            buyout_price,
+            step_price,
+            royalty,
+        ),
+        HandleMsg::SellNft {
+            contract_addr,
+            token_id,
+            royalty,
+            off_price,
+        } => try_handle_sell_nft(deps, env, info, contract_addr, token_id, off_price, royalty),
         HandleMsg::CancelBid { auction_id } => try_cancel_bid(deps, info, env, auction_id),
         HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
@@ -199,25 +233,25 @@ pub fn try_update_info(
 }
 
 // when user sell NFT to
-pub fn try_receive_nft(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    rcv_msg: Cw721ReceiveMsg,
-) -> Result<HandleResponse, ContractError> {
-    if let Some(msg) = rcv_msg.msg.clone() {
-        if let Ok(ask_msg) = from_binary::<AskNftMsg>(&msg) {
-            return handle_ask_auction(deps, info, env, ask_msg, rcv_msg);
-        }
-        if let Ok(sell_msg) = from_binary::<SellNft>(&msg) {
-            return handle_sell_nft(deps, info, sell_msg, rcv_msg);
-        }
-        if let Ok(gift_msg) = from_binary::<GiftNft>(&msg) {
-            return handle_gift_nft(info, gift_msg, rcv_msg);
-        }
-    }
-    Err(ContractError::NoData {})
-}
+// pub fn try_receive_nft(
+//     deps: DepsMut,
+//     info: MessageInfo,
+//     env: Env,
+//     rcv_msg: Cw721ReceiveMsg,
+// ) -> Result<HandleResponse, ContractError> {
+//     if let Some(msg) = rcv_msg.msg.clone() {
+//         if let Ok(ask_msg) = from_binary::<AskNftMsg>(&msg) {
+//             return handle_ask_auction(deps, info, env, ask_msg, rcv_msg);
+//         }
+//         if let Ok(sell_msg) = from_binary::<SellNft>(&msg) {
+//             return handle_sell_nft(deps, info, sell_msg, rcv_msg);
+//         }
+//         if let Ok(gift_msg) = from_binary::<GiftNft>(&msg) {
+//             return handle_gift_nft(info, gift_msg, rcv_msg);
+//         }
+//     }
+//     Err(ContractError::NoData {})
+// }
 
 pub fn try_migrate(
     deps: DepsMut,

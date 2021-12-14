@@ -23,6 +23,10 @@ pub enum Cw721QueryMsg {
         start_after: Option<HumanAddr>,
         limit: Option<u32>,
     },
+    CheckOperatorAllowance {
+        owner: HumanAddr,
+        operator: HumanAddr,
+    },
     /// Total number of tokens issued
     NumTokens {},
 

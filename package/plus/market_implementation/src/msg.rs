@@ -33,9 +33,26 @@ pub enum HandleMsg {
     ClaimWinner {
         auction_id: u64,
     },
-    // Ask an NFT for a minimum price, must pay fee for auction maketplace
-    ReceiveNft(Cw721ReceiveMsg),
-
+    AskNft {
+        contract_addr: HumanAddr,
+        token_id: String,
+        price: Uint128,
+        // in permille
+        cancel_fee: Option<u64>,
+        start: Option<u64>,
+        end: Option<u64>,
+        start_timestamp: Option<Uint128>,
+        end_timestamp: Option<Uint128>,
+        buyout_price: Option<Uint128>,
+        step_price: Option<u64>,
+        royalty: Option<u64>,
+    },
+    SellNft {
+        contract_addr: HumanAddr,
+        token_id: String,
+        off_price: Uint128,
+        royalty: Option<u64>,
+    },
     // withdraw funds from auction marketplace to the owner wallet
     WithdrawFunds {
         funds: Coin,

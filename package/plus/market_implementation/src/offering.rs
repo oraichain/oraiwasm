@@ -1,14 +1,14 @@
 use crate::ai_royalty::{add_msg_royalty, get_royalties, AI_ROYALTY_STORAGE};
 use crate::contract::{get_handle_msg, get_storage_addr, CREATOR_NAME};
 use crate::error::ContractError;
-use crate::msg::{ProxyHandleMsg, ProxyQueryMsg, SellNft};
+use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO};
-use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, coins, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
-use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
+use cosmwasm_std::{HumanAddr, StdError};
+use cw721::{Cw721HandleMsg, Cw721QueryMsg, OwnerOfResponse};
 use market::{query_proxy, StorageHandleMsg};
 use market_ai_royalty::{sanitize_royalty, AiRoyaltyHandleMsg, RoyaltyMsg};
 use market_royalty::{
@@ -246,30 +246,31 @@ pub fn try_withdraw(
             sender: info.sender.to_string(),
         });
     }
+    /* User approved all transfer to the market, bellow code is unnessary anymore*/
     // check if token_id is currently sold by the requesting address
     // transfer token back to original owner
-    let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
-        recipient: deps.api.human_address(&off.seller)?,
-        token_id: off.token_id.clone(),
-    };
+    // let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+    //     recipient: deps.api.human_address(&off.seller)?,
+    //     token_id: off.token_id.clone(),
+    // };
 
-    let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: deps.api.human_address(&off.contract_addr)?,
-        msg: to_binary(&transfer_cw721_msg)?,
-        send: vec![],
-    };
+    // let exec_cw721_transfer = WasmMsg::Execute {
+    //     contract_addr: deps.api.human_address(&off.contract_addr)?,
+    //     msg: to_binary(&transfer_cw721_msg)?,
+    //     send: vec![],
+    // };
 
-    let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![exec_cw721_transfer.into()];
+    let mut cosmos_msg: Vec<CosmosMsg> = vec![];
 
     // remove offering
-    cw721_transfer_cosmos_msg.push(get_offering_handle_msg(
+    cosmos_msg.push(get_offering_handle_msg(
         governance,
         OFFERING_STORAGE,
         OfferingHandleMsg::RemoveOffering { id: offering_id },
     )?);
 
     Ok(HandleResponse {
-        messages: cw721_transfer_cosmos_msg,
+        messages: cosmos_msg,
         attributes: vec![
             attr("action", "withdraw_nft"),
             attr("seller", info.sender),
@@ -280,25 +281,75 @@ pub fn try_withdraw(
     })
 }
 
-pub fn handle_sell_nft(
+pub fn try_handle_sell_nft(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
-    msg: SellNft,
-    rcv_msg: Cw721ReceiveMsg,
+    contract_addr: HumanAddr,
+    token_id: String,
+    off_price: Uint128,
+    royalty: Option<u64>,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
         governance,
         max_royalty,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
+
+    let nft_owners: Option<OwnerOfResponse> = deps
+        .querier
+        .query_wasm_smart(
+            contract_addr.clone(),
+            &Cw721QueryMsg::OwnerOf {
+                token_id: token_id.clone(),
+                include_expired: None,
+            },
+        )
+        .ok();
+
+    if let Some(nft_owners) = nft_owners {
+        if nft_owners.owner.ne(&info.sender) {
+            return Err(ContractError::Unauthorized {
+                sender: info.sender.to_string(),
+            });
+        }
+    } else {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    }
+
+    let is_market_approved: Option<bool> = deps
+        .querier
+        .query_wasm_smart(
+            contract_addr.clone(),
+            &Cw721QueryMsg::CheckOperatorAllowance {
+                owner: info.sender.clone(),
+                operator: env.contract.address.clone(),
+            },
+        )
+        .ok();
+
+    if let Some(is_market_approved) = is_market_approved {
+        if !is_market_approved {
+            return Err(ContractError::Std(StdError::generic_err(
+                "You must approve all the market first!",
+            )));
+        }
+    } else {
+        return Err(ContractError::Std(StdError::generic_err(
+            "You must approve all the market first!",
+        )));
+    }
+
     // check if same token Id form same original contract is already on sale
     let offering_result: Result<QueryOfferingsResult, ContractError> = deps
         .querier
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
             &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingByContractTokenId {
-                contract: info.sender.clone(),
-                token_id: rcv_msg.token_id.clone(),
+                contract: contract_addr.clone(),
+                token_id: token_id.clone(),
             }) as &ProxyQueryMsg,
         )
         .map_err(|_| ContractError::InvalidGetOffering {});
@@ -306,7 +357,7 @@ pub fn handle_sell_nft(
         return Err(ContractError::TokenOnSale {});
     }
     let royalty = Some(sanitize_royalty(
-        msg.royalty.unwrap_or(0),
+        royalty.unwrap_or(0),
         max_royalty,
         "royalty",
     )?);
@@ -316,28 +367,28 @@ pub fn handle_sell_nft(
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
             &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId {
-                contract: info.sender.clone(),
-                token_id: rcv_msg.token_id.clone(),
+                contract: contract_addr.clone(),
+                token_id: token_id.clone(),
             }) as &ProxyQueryMsg,
         )
         .map_err(|_| ContractError::InvalidGetOfferingRoyalty {})
         .unwrap_or(OfferingRoyalty {
-            token_id: rcv_msg.token_id.clone(),
-            contract_addr: info.sender.clone(),
+            token_id: token_id.clone(),
+            contract_addr: contract_addr.clone(),
             previous_owner: None,
-            current_owner: rcv_msg.sender.clone(),
+            current_owner: info.sender.clone(),
             prev_royalty: None,
             cur_royalty: royalty,
         });
-    offering_royalty_result.current_owner = rcv_msg.sender.clone();
+    offering_royalty_result.current_owner = info.sender.clone();
     offering_royalty_result.cur_royalty = royalty;
 
     let offering = Offering {
         id: None,
-        token_id: rcv_msg.token_id.clone(),
-        contract_addr: deps.api.canonical_address(&info.sender)?,
-        seller: deps.api.canonical_address(&rcv_msg.sender)?,
-        price: msg.off_price,
+        token_id: token_id.clone(),
+        contract_addr: deps.api.canonical_address(&contract_addr)?,
+        seller: deps.api.canonical_address(&info.sender)?,
+        price: off_price,
     };
 
     let mut cosmos_msgs = vec![];
@@ -360,21 +411,17 @@ pub fn handle_sell_nft(
     )?);
 
     // TEMP: auto add royalty creator default for old nft (if that nft does not have royalty creator)
-    let royalty_result = get_royalties(
-        deps.as_ref(),
-        info.sender.as_str(),
-        rcv_msg.token_id.as_str(),
-    )
-    .ok();
+    let royalty_result =
+        get_royalties(deps.as_ref(), contract_addr.as_str(), token_id.as_str()).ok();
     if let Some(royalties) = royalty_result {
         if royalties.len() == 0 {
             cosmos_msgs.push(get_handle_msg(
                 governance.as_str(),
                 AI_ROYALTY_STORAGE,
                 AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
-                    contract_addr: info.sender.clone(),
-                    token_id: rcv_msg.token_id,
-                    creator: rcv_msg.sender.clone(),
+                    contract_addr: contract_addr.clone(),
+                    token_id,
+                    creator: info.sender.clone(),
                     creator_type: Some(String::from(CREATOR_NAME)),
                     royalty: Some(50000000),
                 }),
@@ -386,8 +433,7 @@ pub fn handle_sell_nft(
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "sell_nft"),
-            attr("original_contract", info.sender),
-            attr("seller", rcv_msg.sender),
+            attr("seller", info.sender),
             attr(
                 "previous_owner",
                 offering_royalty_result

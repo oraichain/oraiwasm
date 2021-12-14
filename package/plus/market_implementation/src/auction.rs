@@ -1,16 +1,16 @@
 use crate::contract::get_storage_addr;
 use crate::error::ContractError;
-use crate::msg::{AskNftMsg, ProxyHandleMsg, ProxyQueryMsg};
+use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
 // use crate::offering::OFFERING_STORAGE;
 use crate::ai_royalty::get_royalties;
 use crate::offering::{get_offering_handle_msg, OFFERING_STORAGE};
 use crate::state::{ContractInfo, CONTRACT_INFO};
-use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, coins, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
-use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
+use cosmwasm_std::{HumanAddr, StdError};
+use cw721::{Cw721HandleMsg, Cw721QueryMsg, OwnerOfResponse};
 use market::{query_proxy, StorageHandleMsg};
 use market_ai_royalty::sanitize_royalty;
 use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, QueryAuctionsResult};
@@ -260,19 +260,6 @@ pub fn try_claim_winner(
                 .into(),
             );
         }
-    } else {
-        // return nft back to asker
-        cosmos_msgs.push(
-            WasmMsg::Execute {
-                contract_addr: deps.api.human_address(&off.contract_addr)?,
-                msg: to_binary(&Cw721HandleMsg::TransferNft {
-                    recipient: asker_addr,
-                    token_id: off.token_id.clone(),
-                })?,
-                send: vec![],
-            }
-            .into(),
-        );
     }
 
     // push save message to auction_storage
@@ -307,20 +294,73 @@ pub fn try_claim_winner(
     Ok(handle_response)
 }
 
-pub fn handle_ask_auction(
+pub fn try_handle_ask_aution(
     deps: DepsMut,
     info: MessageInfo,
     env: Env,
-    msg: AskNftMsg,
-    rcv_msg: Cw721ReceiveMsg,
+    contract_addr: HumanAddr,
+    token_id: String,
+    price: Uint128,
+    cancel_fee: Option<u64>,
+    start: Option<u64>,
+    end: Option<u64>,
+    start_timestamp: Option<Uint128>,
+    end_timestamp: Option<Uint128>,
+    buyout_price: Option<Uint128>,
+    step_price: Option<u64>,
+    royalty: Option<u64>,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
         auction_duration,
-        step_price,
+        step_price: default_step_price,
         governance,
         max_royalty,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
+
+    let nft_owners: OwnerOfResponse = deps
+        .querier
+        .query_wasm_smart(
+            contract_addr.clone(),
+            &Cw721QueryMsg::OwnerOf {
+                token_id: token_id.clone(),
+                include_expired: None,
+            },
+        )
+        .map_err(|_op| {
+            ContractError::Std(StdError::generic_err(
+                "Invalid getting info of the owner's nft",
+            ))
+        })?;
+
+    if nft_owners.owner.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    }
+
+    let is_market_approved: Option<bool> = deps
+        .querier
+        .query_wasm_smart(
+            contract_addr.clone(),
+            &Cw721QueryMsg::CheckOperatorAllowance {
+                owner: info.sender.clone(),
+                operator: env.contract.address.clone(),
+            },
+        )
+        .ok();
+
+    if let Some(is_market_approved) = is_market_approved {
+        if !is_market_approved {
+            return Err(ContractError::Std(StdError::generic_err(
+                "You must approve all transfers from the market first!",
+            )));
+        }
+    } else {
+        return Err(ContractError::Std(StdError::generic_err(
+            "You must approve all transfers from the market first!",
+        )));
+    }
 
     // check if auction exists
     let auction: Option<QueryAuctionsResult> = deps
@@ -328,8 +368,8 @@ pub fn handle_ask_auction(
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
             &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionByContractTokenId {
-                contract: info.sender.clone(),
-                token_id: rcv_msg.token_id.clone(),
+                contract: contract_addr.clone(),
+                token_id: token_id.clone(),
             }) as &ProxyQueryMsg,
         )
         .ok();
@@ -338,18 +378,13 @@ pub fn handle_ask_auction(
     if auction.is_some() {
         return Err(ContractError::TokenOnAuction {});
     }
-
     // get Auctions count
-    let asker = deps.api.canonical_address(&rcv_msg.sender)?;
-    let start_timestamp = msg.start_timestamp.unwrap_or(Uint128::from(env.block.time));
-    let end_timestamp = msg
-        .end_timestamp
-        .unwrap_or(start_timestamp + auction_duration);
-    // check if same token Id form same original contract is already on sale
-    let contract_addr = deps.api.canonical_address(&info.sender)?;
+    let asker = deps.api.canonical_address(&info.sender)?;
+    let start_timestamp = start_timestamp.unwrap_or(Uint128::from(env.block.time));
+    let end_timestamp = end_timestamp.unwrap_or(start_timestamp + auction_duration);
+
     // TODO: does asker need to pay fee for listing?
-    let start = msg
-        .start
+    let start = start
         .map(|mut start| {
             if start.lt(&env.block.height) {
                 start = env.block.height;
@@ -357,8 +392,7 @@ pub fn handle_ask_auction(
             start
         })
         .unwrap_or(env.block.height);
-    let end = msg
-        .end
+    let end = end
         .map(|mut end| {
             if end.lt(&env.block.height) {
                 end = start + DEFAULT_AUCTION_BLOCK;
@@ -375,24 +409,24 @@ pub fn handle_ask_auction(
     // save Auction, waiting for finished
     let off = Auction {
         id: None,
-        contract_addr,
-        token_id: rcv_msg.token_id.clone(),
+        contract_addr: deps.api.canonical_address(&contract_addr)?,
+        token_id: token_id.clone(),
         asker,
-        price: msg.price,
-        orig_price: msg.price,
+        price,
+        orig_price: price,
         start,
         end,
         bidder: None,
-        cancel_fee: msg.cancel_fee,
-        buyout_price: msg.buyout_price,
+        cancel_fee,
+        buyout_price,
         start_timestamp,
         end_timestamp,
-        step_price: msg.step_price.unwrap_or(step_price),
+        step_price: step_price.unwrap_or(default_step_price),
     };
 
     // add first level royalty
     let royalty = Some(sanitize_royalty(
-        msg.royalty.unwrap_or(0),
+        royalty.unwrap_or(0),
         max_royalty,
         "royalty",
     )?);
@@ -402,20 +436,20 @@ pub fn handle_ask_auction(
         .query_wasm_smart(
             get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
             &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId {
-                contract: info.sender.clone(),
-                token_id: rcv_msg.token_id.clone(),
+                contract: contract_addr.clone(),
+                token_id: token_id.clone(),
             }) as &ProxyQueryMsg,
         )
         .map_err(|_| ContractError::InvalidGetOfferingRoyalty {})
         .unwrap_or(OfferingRoyalty {
-            token_id: rcv_msg.token_id.clone(),
-            contract_addr: info.sender.clone(),
+            token_id: token_id.clone(),
+            contract_addr: contract_addr.clone(),
             previous_owner: None,
-            current_owner: rcv_msg.sender.clone(),
+            current_owner: info.sender.clone(),
             prev_royalty: None,
             cur_royalty: royalty,
         });
-    offering_royalty_result.current_owner = rcv_msg.sender.clone();
+    offering_royalty_result.current_owner = info.sender.clone();
 
     // add new auctions
     let mut cosmos_msgs = vec![];
@@ -438,10 +472,9 @@ pub fn handle_ask_auction(
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "ask_nft"),
-            attr("original_contract", info.sender),
-            attr("asker", rcv_msg.sender),
-            attr("price", msg.price),
-            attr("token_id", rcv_msg.token_id),
+            attr("asker", info.sender),
+            attr("price", price),
+            attr("token_id", token_id),
         ],
         data: None,
     })
@@ -562,7 +595,7 @@ pub fn try_emergency_cancel_auction(
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
-    let asker_addr = deps.api.human_address(&off.asker)?;
+    //let asker_addr = deps.api.human_address(&off.asker)?;
 
     if info.sender.to_string().ne(&creator) {
         return Err(ContractError::Unauthorized {
@@ -572,17 +605,19 @@ pub fn try_emergency_cancel_auction(
 
     // transfer token back to original owner
     let mut cosmos_msgs = vec![];
-    cosmos_msgs.push(
-        WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&off.contract_addr)?,
-            msg: to_binary(&Cw721HandleMsg::TransferNft {
-                recipient: asker_addr,
-                token_id: off.token_id.clone(),
-            })?,
-            send: vec![],
-        }
-        .into(),
-    );
+
+    /* User approve all transfer made by market, bellow code is unessary  */
+    // cosmos_msgs.push(
+    //     WasmMsg::Execute {
+    //         contract_addr: deps.api.human_address(&off.contract_addr)?,
+    //         msg: to_binary(&Cw721HandleMsg::TransferNft {
+    //             recipient: asker_addr,
+    //             token_id: off.token_id.clone(),
+    //         })?,
+    //         send: vec![],
+    //     }
+    //     .into(),
+    // );
 
     // refund the bidder
     if let Some(bidder) = off.bidder {
