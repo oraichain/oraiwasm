@@ -52,8 +52,9 @@ pub fn try_withdraw(
         //need to transfer funds back to the requester
         // check if amount > 0
         let annotation_price =
-            calculate_annotation_price(off.reward_per_sample, off.number_of_samples)
-                .mul(Decimal::from_ratio(off.max_annotators.u128(), 1u128));
+            calculate_annotation_price(off.reward_per_sample, off.number_of_samples).mul(
+                Decimal::from_ratio(off.max_annotation_per_task.u128(), 1u128),
+            );
         if !annotation_price.is_zero() {
             cosmos_msgs.push(
                 BankMsg::Send {
@@ -96,7 +97,7 @@ pub fn try_execute_request_annotation(
     token_id: String,
     number_of_samples: Uint128,
     reward_per_sample: Uint128,
-    max_annotators: Uint128,
+    max_annotation_per_task: Uint128,
     max_upload_tasks: Uint128,
     reward_per_upload_task: Uint128,
     expired_after: Option<u64>,
@@ -115,7 +116,7 @@ pub fn try_execute_request_annotation(
             reward_per_sample.clone(),
             Uint128::from(number_of_samples.clone().0 + max_upload_tasks.clone().0),
         )
-        .mul(Decimal::from_ratio(max_annotators.u128(), 1u128));
+        .mul(Decimal::from_ratio(max_annotation_per_task.u128(), 1u128));
 
         let upload_reward =
             calculate_annotation_price(reward_per_upload_task.clone(), max_upload_tasks.clone());
@@ -146,7 +147,7 @@ pub fn try_execute_request_annotation(
         requester: info.sender.clone(),
         reward_per_sample: reward_per_sample.clone(),
         number_of_samples: number_of_samples.clone(),
-        max_annotators: max_annotators.clone(),
+        max_annotation_per_task: max_annotation_per_task.clone(),
         expired_block: expired_block_annotation,
         max_upload_tasks,
         reward_per_upload_task,
@@ -170,7 +171,7 @@ pub fn try_execute_request_annotation(
             attr("requester", info.sender.clone()),
             attr("reward_per_sample", reward_per_sample.to_string()),
             attr("number_of_samples", number_of_samples.to_string()),
-            attr("max_annotators", max_annotators.to_string()),
+            attr("max_annotators", max_annotation_per_task.to_string()),
             attr("max_upload_samples", max_upload_tasks.to_string()),
             attr(
                 "reward_per_upload_sample",
@@ -302,7 +303,10 @@ pub fn try_payout(
             annotation.number_of_samples.clone().0 + annotation.max_upload_tasks.clone().0,
         ),
     )
-    .mul(Decimal::from_ratio(annotation.max_annotators.u128(), 1u128));
+    .mul(Decimal::from_ratio(
+        annotation.max_annotation_per_task.u128(),
+        1u128,
+    ));
 
     let upload_reward_bond = calculate_annotation_price(
         annotation.reward_per_upload_task.clone(),

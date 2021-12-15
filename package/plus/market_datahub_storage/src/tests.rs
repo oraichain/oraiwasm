@@ -215,7 +215,7 @@ fn sort_annotations() {
             requester: HumanAddr::from(format!("requester{}", i)),
             reward_per_sample: Uint128::from(1u64),
             number_of_samples: Uint128::from(10u64),
-            max_annotators: Uint128::from(10u64),
+            max_annotation_per_task: Uint128::from(10u64),
             expired_block: 1,
             is_paid: false,
             max_upload_tasks: Uint128::from(10u128),
@@ -328,7 +328,7 @@ fn withdraw_annotations() {
             number_of_samples: Uint128::from(1u64),
             is_paid: false,
             expired_block: 1,
-            max_annotators: Uint128::from(2u64),
+            max_annotation_per_task: Uint128::from(2u64),
             max_upload_tasks: Uint128::from(10u128),
             reward_per_upload_task: Uint128::from(1u128),
         };
@@ -376,7 +376,7 @@ fn sort_annotation_reviewer() {
         number_of_samples: Uint128::from(1u64),
         is_paid: false,
         expired_block: 1,
-        max_annotators: Uint128::from(2u64),
+        max_annotation_per_task: Uint128::from(2u64),
         max_upload_tasks: Uint128::from(10u128),
         reward_per_upload_task: Uint128::from(1u128),
     };
@@ -499,7 +499,7 @@ fn sort_reviewed_upload() {
         number_of_samples: Uint128::from(1u64),
         is_paid: false,
         expired_block: 1,
-        max_annotators: Uint128::from(2u64),
+        max_annotation_per_task: Uint128::from(2u64),
         max_upload_tasks: Uint128::from(10u128),
         reward_per_upload_task: Uint128::from(1u128),
     };
@@ -510,6 +510,12 @@ fn sort_reviewed_upload() {
     let msg = HandleMsg::Msg(DataHubHandleMsg::AddAnnotationReviewer {
         annotation_id: 1,
         reviewer_address: HumanAddr::from("r1"),
+    });
+    let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+    let msg = HandleMsg::Msg(DataHubHandleMsg::AddAnnotationReviewer {
+        annotation_id: 1,
+        reviewer_address: HumanAddr::from("r2"),
     });
     let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 

@@ -45,7 +45,7 @@ pub enum HandleMsg {
         token_id: String,
         number_of_samples: Uint128,
         reward_per_sample: Uint128,
-        max_annotators: Uint128,
+        max_annotation_per_task: Uint128,
         expired_after: Option<u64>,
         max_upload_tasks: Uint128,
         reward_per_upload_task: Uint128,

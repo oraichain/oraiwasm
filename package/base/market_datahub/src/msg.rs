@@ -26,7 +26,7 @@ pub struct Annotation {
     pub token_id: String,
     pub contract_addr: HumanAddr,
     pub requester: HumanAddr,
-    pub max_annotators: Uint128,
+    pub max_annotation_per_task: Uint128,
     pub reward_per_sample: Uint128,
     pub number_of_samples: Uint128,
     pub max_upload_tasks: Uint128,

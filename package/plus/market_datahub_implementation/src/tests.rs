@@ -707,7 +707,7 @@ fn test_request_annotations() {
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(5u64),
             expired_after: None,
-            max_annotators: Uint128::from(2u128),
+            max_annotation_per_task: Uint128::from(2u128),
             max_upload_tasks: Uint128::from(10u64),
             reward_per_upload_task: Uint128::from(1u64),
         };
@@ -781,7 +781,7 @@ fn test_request_annotations_unhappy_path() {
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(50u64),
             expired_after: None,
-            max_annotators: Uint128::from(1u64),
+            max_annotation_per_task: Uint128::from(1u64),
             max_upload_tasks: Uint128::from(10u64),
             reward_per_upload_task: Uint128::from(1u64),
         };
@@ -798,7 +798,7 @@ fn test_request_annotations_unhappy_path() {
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(0u64),
             expired_after: None,
-            max_annotators: Uint128::from(1u64),
+            max_annotation_per_task: Uint128::from(1u64),
             max_upload_tasks: Uint128::from(0u64),
             reward_per_upload_task: Uint128::from(1u64),
         };
@@ -850,7 +850,7 @@ fn test_payout_annotations() {
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(5u64),
             expired_after: None,
-            max_annotators: Uint128::from(2u64),
+            max_annotation_per_task: Uint128::from(2u64),
             max_upload_tasks: Uint128::from(10u64),
             reward_per_upload_task: Uint128::from(1u64),
         };
@@ -984,7 +984,7 @@ fn test_withdraw_annotation() {
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(5u64),
             expired_after: None,
-            max_annotators: Uint128::from(2u64),
+            max_annotation_per_task: Uint128::from(2u64),
             max_upload_tasks: Uint128::from(10u64),
             reward_per_upload_task: Uint128::from(1u64),
         };
@@ -1028,7 +1028,7 @@ fn test_add_annotation_reviewer() {
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(5u64),
             expired_after: None,
-            max_annotators: Uint128::from(2u64),
+            max_annotation_per_task: Uint128::from(2u64),
             max_upload_tasks: Uint128::from(10u64),
             reward_per_upload_task: Uint128::from(1u64),
         };
@@ -1056,14 +1056,6 @@ fn test_add_annotation_reviewer() {
 
         println!("Reviewer 1 {:?}", reviewer);
 
-        // Add reviewer 1
-        let msg = HandleMsg::AddAnnotationReviewer {
-            annotation_id: 1,
-            reviewer_address: HumanAddr::from("r1"),
-        };
-
-        let _res = manager.handle(info.clone(), msg).unwrap();
-
         // Add reviewer 2
         let msg = HandleMsg::AddAnnotationReviewer {
             annotation_id: 1,
@@ -1071,6 +1063,7 @@ fn test_add_annotation_reviewer() {
         };
 
         let _res = manager.handle(info.clone(), msg).unwrap();
+
 
         let msg = QueryMsg::DataHub(DataHubQueryMsg::GetAnnotationReviewerByAnnotationId {
             annotation_id: 1,
@@ -1097,39 +1090,13 @@ fn test_add_annotation_reviewer() {
             annotator_results,
         };
 
-        let res = manager.handle(mock_info("r1", &vec![]), msg.clone());
-        println!("error {:?}", res);
-        assert!(matches!(res, Err(ContractError::Std { .. })));
-        println!(
-            "Annotator's results exceed the annotation's number_of_sample {:?}",
-            res
-        );
-
-        // Successfully add annotation result
-        let annotator_results = vec![
-            AnnotatorResult {
-                annotator_address: HumanAddr::from("a1"),
-                result: vec![true, true, true],
-            },
-            AnnotatorResult {
-                annotator_address: HumanAddr::from("a2"),
-                result: vec![true, false, true, true, false],
-            },
-        ];
-        let msg = HandleMsg::AddAnnotationResult {
-            annotation_id: 1,
-            annotator_results,
-        };
-
-        let _res = manager
-            .handle(mock_info("r1", &vec![]), msg.clone())
-            .unwrap();
+        let _res = manager.handle(mock_info("r1", &vec![]), msg.clone());
 
         // add result for reviewer 2
         let annotator_results = vec![
             AnnotatorResult {
                 annotator_address: HumanAddr::from("a2"),
-                result: vec![true, false, true, true, false],
+                result: vec![true, false, true, true, false, false],
             },
             AnnotatorResult {
                 annotator_address: HumanAddr::from("a1"),
@@ -1185,7 +1152,7 @@ fn test_reviewed_upload() {
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(5u64),
             expired_after: None,
-            max_annotators: Uint128::from(2u64),
+            max_annotation_per_task: Uint128::from(2u64),
             max_upload_tasks: Uint128::from(10u64),
             reward_per_upload_task: Uint128::from(1u64),
         };
