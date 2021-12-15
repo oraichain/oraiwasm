@@ -1,16 +1,9 @@
 const { spawn } = require('child_process');
 
 let array = [
-    'dev1',
-    'dev2',
-    'dev3',
-    'dev4',
-    'dev5',
     'test1',
     'test2',
-    'test3',
-    'test4',
-    'test5'
+    'test3'
 ];
 
 for (let i = 0; i < 10; i++) {
@@ -19,7 +12,7 @@ for (let i = 0; i < 10; i++) {
     //     fileName = 'index-error.js'
     // }
     const ls = spawn('node', [fileName], {
-        env: Object.assign(process.env, { NODE_ENV: array[i], TESTNET: true }),
+        env: Object.assign(process.env, { NODE_ENV: array[i] }),
         cwd: process.cwd()
     });
 
