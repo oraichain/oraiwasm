@@ -44,6 +44,13 @@ pub enum ContractError {
         "Token Id from the original contract is on sale. It must be withdrawn to update royalty"
     )]
     TokenCurrentlyOnSale {},
+
     #[error("Token Id from the original contract has never been sold. It has no royalty yet")]
     TokenNeverBeenSold {},
+
+    #[error("Reviewer is existed for this annotation")]
+    InvalidAnnotationReviewer,
+
+    #[error("Reviewer is not existed for this annotation")]
+    InvalidRemovingAnnotationReviewer,
 }

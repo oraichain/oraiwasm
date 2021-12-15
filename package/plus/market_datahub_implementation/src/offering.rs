@@ -69,23 +69,6 @@ pub fn try_handle_mint(
         }
     }
 
-    let mut co_owner_mint_msg: Vec<CosmosMsg> = vec![];
-
-    if let Some(co_owner_addr) = msg.co_owners {
-        for owner_addr in co_owner_addr.into_iter() {
-            let mut mint_msg = msg.mint.clone();
-            mint_msg.mint.to = owner_addr;
-
-            let message = WasmMsg::Execute {
-                contract_addr: msg.contract_addr.clone(),
-                msg: to_binary(&mint_msg)?,
-                send: vec![],
-            }
-            .into();
-            co_owner_mint_msg.push(message);
-        }
-    }
-
     // force to_addr when mint to info sender
     msg.mint.mint.to = info.sender.to_string();
 
@@ -110,7 +93,6 @@ pub fn try_handle_mint(
         },
     )?;
     cosmos_msgs.push(mint_msg);
-    cosmos_msgs.append(&mut co_owner_mint_msg);
 
     let response = HandleResponse {
         messages: cosmos_msgs,
@@ -213,8 +195,8 @@ pub fn try_buy(
     } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
-    let off: Offering = get_offering(deps.as_ref(), offering_id)?;
-    let seller_addr = off.seller;
+    let mut off: Offering = get_offering(deps.as_ref(), offering_id)?;
+    let seller_addr = off.seller.clone();
 
     let mut cosmos_msgs = vec![];
     // check for enough coins, if has price then payout to all participants
@@ -226,9 +208,7 @@ pub fn try_buy(
             .iter()
             .find(|fund| fund.denom.eq(&contract_info.denom))
         {
-            let price = off
-                .per_price
-                .mul(Decimal::from_ratio(off.amount.u128(), 1u128));
+            let price = off.per_price.clone();
             if sent_fund.amount.lt(&price) {
                 return Err(ContractError::InsufficientFunds {});
             }
@@ -287,31 +267,43 @@ pub fn try_buy(
         }
     }
 
-    // create transfer cw721 msg
+    // create transfer cw1155 msg
     let transfer_cw721_msg = Cw1155ExecuteMsg::SendFrom {
         token_id: off.token_id.clone(),
         from: seller_addr.to_string(),
         to: info.sender.clone().to_string(),
-        value: off.amount,
+        value: Uint128::from(1u64),
         msg: None,
     };
 
     // if everything is fine transfer NFT token to buyer
     cosmos_msgs.push(
         WasmMsg::Execute {
-            contract_addr: off.contract_addr,
+            contract_addr: off.contract_addr.clone(),
             msg: to_binary(&transfer_cw721_msg)?,
             send: vec![],
         }
         .into(),
     );
 
-    // remove offering in the offering storage
-    cosmos_msgs.push(get_handle_msg(
-        governance.as_str(),
-        DATAHUB_STORAGE,
-        DataHubHandleMsg::RemoveOffering { id: offering_id },
-    )?);
+    if off.amount.sub(Uint128::from(1u128))?.is_zero() {
+        // remove offering in the offering storage when left amount is 0
+        cosmos_msgs.push(get_handle_msg(
+            governance.as_str(),
+            DATAHUB_STORAGE,
+            DataHubHandleMsg::RemoveOffering { id: offering_id },
+        )?);
+    } else {
+        // decrease sell amount by 1
+        off.amount = off.amount.sub(Uint128::from(1u64))?;
+        cosmos_msgs.push(get_handle_msg(
+            governance.as_str(),
+            DATAHUB_STORAGE,
+            DataHubHandleMsg::UpdateOffering {
+                offering: off.clone(),
+            },
+        )?);
+    }
 
     Ok(HandleResponse {
         messages: cosmos_msgs,
