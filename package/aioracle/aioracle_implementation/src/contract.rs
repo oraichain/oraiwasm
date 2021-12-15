@@ -1,3 +1,4 @@
+use crate::aggregate::final_aggregate_result;
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO, THRESHOLD};
@@ -206,8 +207,11 @@ fn handle_aggregate(
     if ai_request.reports.len() >= config.threshold as usize
         && ai_request.reports.len() >= threshold as usize
     {
-        // ai_request.status = true;
-        // TODO: aggregate again the list of aggregated result to get the final aggregate result => then ask validators to sign on this.
+        let mut aggregated_results: Vec<Binary> = vec![];
+        for report in &ai_request.reports {
+            aggregated_results.push(report.aggregated_result.clone());
+        }
+        ai_request.final_aggregated_result = Some(final_aggregate_result(&aggregated_results)?);
     }
 
     cosmos_msgs.push(governance.get_handle_msg(

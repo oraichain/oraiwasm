@@ -1,9 +1,70 @@
-use std::{collections::HashMap, num::ParseIntError, ops::Add};
+use std::{
+    collections::HashMap,
+    num::ParseIntError,
+    ops::{Add, Div},
+};
 
 use aioracle::AiOracleQuery;
 use cosmwasm_std::{from_binary, from_slice, to_binary, Binary, StdError, StdResult};
 
-use crate::msg::{Input, Output, QueryMsg};
+use crate::msg::{FinalAggregatedResult, Input, Output, QueryMsg};
+
+fn add(a: &[String], b: &[String]) -> StdResult<Vec<String>> {
+    let mut z: Vec<String> = vec![];
+    if a.len().ne(&b.len()) {
+        return Err(StdError::generic_err("Invalid length"));
+    }
+    for ((zref, aval), bval) in z.iter_mut().zip(a).zip(b) {
+        let anum = aval
+            .parse::<u64>()
+            .map_err(|_| StdError::generic_err("Invalid parse string"))?;
+        let bnum = bval
+            .parse::<u64>()
+            .map_err(|_| StdError::generic_err("Invalid parse string"))?;
+        *zref = (anum + bnum).to_string();
+    }
+    Ok(z)
+}
+
+pub fn final_aggregate_result(aggregated_results: &[Binary]) -> StdResult<Binary> {
+    let mut final_prices_struct: FinalAggregatedResult = FinalAggregatedResult {
+        name: vec![],
+        price: vec![],
+    };
+    let mut final_names: Vec<String> = vec![];
+    let mut final_prices: Vec<String> = vec![];
+    // for aggregate in aggregated_results {
+    //     let FinalAggregatedResult { price, name, .. } = from_slice(aggregate)?;
+    //     if final_prices.len() == 0 {
+    //         final_prices = price;
+    //         final_names = name;
+    //     } else {
+    //         let final_prices_temp = add(&price, &final_prices);
+    //         if final_prices_temp.is_err() {
+    //             continue;
+    //         }
+    //         final_prices = final_prices_temp.unwrap();
+    //         final_names = name;
+    //     }
+    // }
+    // if final_names.is_empty() || final_prices.is_empty() {
+    //     return Err(StdError::generic_err("All aggregated results are invalid"));
+    // }
+    // final_prices_struct.name = final_names;
+    // let final_price_string: Vec<String> = final_prices
+    //     .iter()
+    //     .map(|price| {
+    //         price
+    //             .parse::<u64>()
+    //             .unwrap()
+    //             .div(final_prices.len() as u64)
+    //             .to_string()
+    //     })
+    //     .collect();
+    // final_prices_struct.price = final_price_string;
+    // to_binary(&final_prices_struct)
+    Ok(Binary::from(aggregated_results.first().unwrap().to_vec()))
+}
 
 impl AiOracleQuery for QueryMsg {
     fn aggregate(&self, dsource_results: &Binary) -> StdResult<Binary> {

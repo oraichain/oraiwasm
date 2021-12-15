@@ -88,3 +88,9 @@ pub struct UpdateContractMsg {
     pub dsources: Option<Vec<HumanAddr>>,
     pub tcases: Option<Vec<HumanAddr>>,
 }
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct FinalAggregatedResult {
+    pub name: Vec<String>,
+    pub price: Vec<String>,
+}

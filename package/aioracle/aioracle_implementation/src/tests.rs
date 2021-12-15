@@ -16,6 +16,8 @@ use cosmwasm_std::{Binary, CosmosMsg};
 use cosmwasm_std::{ContractResult, StdResult};
 use cosmwasm_std::{Env, QuerierResult, WasmQuery};
 use cosmwasm_std::{MessageInfo, SystemResult};
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 const CREATOR: &str = "owner";
 const MARKET_ADDR: &str = "market_addr";
