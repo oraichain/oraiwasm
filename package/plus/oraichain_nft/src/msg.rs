@@ -113,7 +113,7 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
 
-    CheckOperatorAllowance {
+    IsApproveForAll {
         owner: HumanAddr,
         operator: HumanAddr,
     },

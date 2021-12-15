@@ -69,11 +69,11 @@ pub enum HandleMsg {
     },
     /// Mint a new NFT, can only be called by the contract minter
     MintNft(MintMsg),
-    MigrateVersion {
-        nft_contract_addr: HumanAddr,
-        token_ids: Vec<String>,
-        new_marketplace: HumanAddr,
-    },
+    // MigrateVersion {
+    //     nft_contract_addr: HumanAddr,
+    //     token_ids: Vec<String>,
+    //     new_marketplace: HumanAddr,
+    // },
     UpdateCreatorRoyalty(RoyaltyMsg),
     // TEMP when need to migrate storage
     UpdateRoyalties {

@@ -123,18 +123,6 @@ pub fn handle(
         HandleMsg::MintNft(msg) => try_handle_mint(deps, info, msg),
         HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, offering_id),
         HandleMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
-        HandleMsg::MigrateVersion {
-            nft_contract_addr,
-            token_ids,
-            new_marketplace,
-        } => try_migrate(
-            deps,
-            info,
-            env,
-            token_ids,
-            nft_contract_addr,
-            new_marketplace,
-        ),
         HandleMsg::UpdateCreatorRoyalty(royalty_msg) => {
             try_update_royalty_creator(deps, info, royalty_msg)
         }
@@ -253,79 +241,81 @@ pub fn try_update_info(
 //     Err(ContractError::NoData {})
 // }
 
-pub fn try_migrate(
-    deps: DepsMut,
-    info: MessageInfo,
-    _env: Env,
-    token_ids: Vec<String>,
-    nft_contract_addr: HumanAddr,
-    new_marketplace: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
-    let ContractInfo { creator, .. } = CONTRACT_INFO.load(deps.storage)?;
-    if info.sender.ne(&HumanAddr(creator.clone())) {
-        return Err(ContractError::Unauthorized {
-            sender: info.sender.to_string(),
-        });
-    }
-    let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
-    for token_id in token_ids.clone() {
-        // check if token_id is currently sold by the requesting address
-        // transfer token back to original owner
-        let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
-            recipient: new_marketplace.clone(),
-            token_id,
-        };
+/* We do not need migrate anymore */
+// pub fn try_migrate(
+//     deps: DepsMut,
+//     info: MessageInfo,
+//     _env: Env,
+//     token_ids: Vec<String>,
+//     nft_contract_addr: HumanAddr,
+//     new_marketplace: HumanAddr,
+// ) -> Result<HandleResponse, ContractError> {
+//     let ContractInfo { creator, .. } = CONTRACT_INFO.load(deps.storage)?;
+//     if info.sender.ne(&HumanAddr(creator.clone())) {
+//         return Err(ContractError::Unauthorized {
+//             sender: info.sender.to_string(),
+//         });
+//     }
+//     let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
+//     for token_id in token_ids.clone() {
+//         // check if token_id is currently sold by the requesting address
+//         // transfer token back to original owner
+//         let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+//             recipient: new_marketplace.clone(),
+//             token_id,
+//         };
 
-        let exec_cw721_transfer = WasmMsg::Execute {
-            contract_addr: nft_contract_addr.clone(),
-            msg: to_binary(&transfer_cw721_msg)?,
-            send: vec![],
-        }
-        .into();
-        cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
-    }
-    Ok(HandleResponse {
-        messages: cw721_transfer_cosmos_msg,
-        attributes: vec![
-            attr("action", "migrate_marketplace"),
-            attr("nft_contract_addr", nft_contract_addr),
-            attr("token_ids", format!("{:?}", token_ids)),
-            attr("new_marketplace", new_marketplace),
-        ],
-        data: None,
-    })
-}
+//         let exec_cw721_transfer = WasmMsg::Execute {
+//             contract_addr: nft_contract_addr.clone(),
+//             msg: to_binary(&transfer_cw721_msg)?,
+//             send: vec![],
+//         }
+//         .into();
+//         cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
+//     }
+//     Ok(HandleResponse {
+//         messages: cw721_transfer_cosmos_msg,
+//         attributes: vec![
+//             attr("action", "migrate_marketplace"),
+//             attr("nft_contract_addr", nft_contract_addr),
+//             attr("token_ids", format!("{:?}", token_ids)),
+//             attr("new_marketplace", new_marketplace),
+//         ],
+//         data: None,
+//     })
+// }
 
-pub fn handle_gift_nft(
-    info: MessageInfo,
-    gift_msg: GiftNft,
-    rcv_msg: Cw721ReceiveMsg,
-) -> Result<HandleResponse, ContractError> {
-    let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
-    let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
-        recipient: gift_msg.recipient.clone(),
-        token_id: rcv_msg.token_id.clone(),
-    };
+/* Alternative: transfering nft directly thought 721 contract */
+// pub fn handle_gift_nft(
+//     info: MessageInfo,
+//     gift_msg: GiftNft,
+//     rcv_msg: Cw721ReceiveMsg,
+// ) -> Result<HandleResponse, ContractError> {
+//     let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
+//     let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+//         recipient: gift_msg.recipient.clone(),
+//         token_id: rcv_msg.token_id.clone(),
+//     };
 
-    let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: info.sender.clone(),
-        msg: to_binary(&transfer_cw721_msg)?,
-        send: vec![],
-    }
-    .into();
-    cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
-    Ok(HandleResponse {
-        messages: cw721_transfer_cosmos_msg,
-        attributes: vec![
-            attr("action", "send_gift_nft"),
-            attr("nft_contract_addr", info.sender),
-            attr("token_id", format!("{:?}", rcv_msg.token_id)),
-            attr("sender", rcv_msg.sender),
-            attr("recipient", gift_msg.recipient),
-        ],
-        data: None,
-    })
-}
+//     let exec_cw721_transfer = WasmMsg::Execute {
+//         contract_addr: info.sender.clone(),
+//         msg: to_binary(&transfer_cw721_msg)?,
+//         send: vec![],
+//     }
+//     .into();
+//     cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
+//     Ok(HandleResponse {
+//         messages: cw721_transfer_cosmos_msg,
+//         attributes: vec![
+//             attr("action", "send_gift_nft"),
+//             attr("nft_contract_addr", info.sender),
+//             attr("token_id", format!("{:?}", rcv_msg.token_id)),
+//             attr("sender", rcv_msg.sender),
+//             attr("recipient", gift_msg.recipient),
+//         ],
+//         data: None,
+//     })
+// }
 
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)

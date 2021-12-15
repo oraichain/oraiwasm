@@ -216,6 +216,7 @@ pub fn try_claim_winner(
             )
             .map_err(|_| ContractError::InvalidGetOfferingRoyalty {})?;
 
+
         // payout for the previous owner
         if offering_royalty.previous_owner.is_some() && offering_royalty.prev_royalty.is_some() {
             let owner_amount = off.price.mul(Decimal::from_ratio(
@@ -343,7 +344,7 @@ pub fn try_handle_ask_aution(
         .querier
         .query_wasm_smart(
             contract_addr.clone(),
-            &Cw721QueryMsg::CheckOperatorAllowance {
+            &Cw721QueryMsg::IsApproveForAll {
                 owner: info.sender.clone(),
                 operator: env.contract.address.clone(),
             },

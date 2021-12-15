@@ -23,7 +23,7 @@ pub enum Cw721QueryMsg {
         start_after: Option<HumanAddr>,
         limit: Option<u32>,
     },
-    CheckOperatorAllowance {
+    IsApproveForAll {
         owner: HumanAddr,
         operator: HumanAddr,
     },

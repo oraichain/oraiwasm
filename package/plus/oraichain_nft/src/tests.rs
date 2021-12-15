@@ -572,6 +572,21 @@ fn approving_all_revoking_all() {
         }
     );
 
+    let result: bool = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::IsApproveForAll {
+                operator: HumanAddr::from("random"),
+                owner: HumanAddr::from("demeter"),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    println!("is Aprrove all {:?}", result);
+
     // random can now transfer
     let random = mock_info("random", &[]);
     let transfer_msg = HandleMsg::TransferNft {

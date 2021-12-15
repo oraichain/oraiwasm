@@ -323,7 +323,7 @@ pub fn try_handle_sell_nft(
         .querier
         .query_wasm_smart(
             contract_addr.clone(),
-            &Cw721QueryMsg::CheckOperatorAllowance {
+            &Cw721QueryMsg::IsApproveForAll {
                 owner: info.sender.clone(),
                 operator: env.contract.address.clone(),
             },
