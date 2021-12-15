@@ -1,5 +1,5 @@
 use crate::{
-    contract::{get_all_members, handle, init, query, query_current},
+    contract::{get_all_members, get_final_signed_message, handle, init, query, query_current},
     msg::{
         DistributedShareData, HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, ShareSigMsg,
         SharedDealerMsg, SharedRowMsg, SharedStatus,
@@ -198,6 +198,16 @@ const ADDRESSES: [&str; NUM_NODE] = [
     "orai17zr98cwzfqdwh69r8v5nrktsalmgs5sawmngxz",
 ];
 
+const _RANDOMESS: [&str; 3] = [
+    "[34, 100, 87, 4, 213, 55, 15, 111, 34, 143, 129, 54, 66, 214, 165, 198, 186, 168, 206, 77, 59, 76, 111, 82, 45, 52, 170, 104, 236, 167, 19, 14]",
+    "
+        [24, 210, 182, 87, 50, 109, 201, 245, 104, 17, 14, 230, 36, 35, 29, 82, 237, 241, 92, 254, 72, 136, 121, 53, 148, 207, 249, 60, 208, 138, 117, 228],
+    ",
+    "
+        [107, 247, 53, 94, 162, 137, 107, 95, 31, 161, 42, 172, 126, 234, 238, 81, 121, 120, 175, 140, 215, 243, 92, 247, 72, 98, 25, 5, 96, 62, 16, 13],
+    ",
+];
+
 fn initialization(deps: DepsMut) -> InitResponse {
     let info = mock_info("creator", &vec![]);
 
@@ -205,7 +215,7 @@ fn initialization(deps: DepsMut) -> InitResponse {
         members: ADDRESSES
             .iter()
             .map(|addr| MemberMsg {
-                pubkey: Binary::from_base64("Ak03yXh95GQAV08DT3ZY091tMwjoD5Df+mAcunLEonFZ")
+                pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
                     .unwrap(), // pubkey is using for encrypt/decrypt on the blockchain
                 address: addr.to_string(),
             })
@@ -327,16 +337,18 @@ fn request_round() {
     while current_round_result.is_ok() {
         let current_round = query_current(deps.as_ref()).unwrap();
         // threshold is 2, so need 3,4,5 as honest member to contribute sig
-        let signed_sig = vec!["1CG1ookmdSI5uLZu7y1sVYtAvhk3zmEQ7vnOqQ+5vuNRT9lbkchwr5SyMJ5UNCog1Vvvdsda0mPJ0vnh+duKGA==","rGR3n+1/zVcWc2Qu+0pojOto3a/BKAZBb31cfTI9qB5ZIZaIzri0VYN1C+0eIn9z31ryfBNq8+L693i2Iq0k+A==","+PU2BLZA5Ki2MscP8mDdzXJtXmAVhq8XD+UiLeR2O8p0S3gJWv57mpp201i7YZeODgQTw77rXNdq5pR04Sr75g=="];
+        // how to collect signed signatures: Collect the randomness constant above. Sign locally each one with the account having public key AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn (in Oraichain it's orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573) and convert the signatures into base64
+        let signed_sig = vec!["OrAJgpK/YfbEJGck6j0p6Z6aJvyndtZHgaTqPeAkvzdZQkEcTwYnxVNTtdJ/ZT85L5cup6Q5vtszE8WdCu37uQ==","jdHKkRfMKtr8Kqy3j+DHKzA8d13trip1csZV/9Ua3q1lLxq1tV3J9u1wz/uLGzFUr3rV2O+Dg917EWiDkbieIA==","BFVEib4v/vxqw8ev3eH5fhZtG4SLQNGiaX/SuHY6V9cuWKvqOZGldOuZ0uiiEnISTnDp2h0t3cXxopBSgg+wUw=="];
         let contributors: Vec<&Member> = [2, 3, 4].iter().map(|i| &members[*i]).collect();
         for contributor in contributors {
             // now can share secret pubkey for contract to verify
             let sk = get_sk_key(contributor, &dealers);
-            println!(
-                "msg after adding round: {}",
-                current_round.input.to_base64()
-            );
+            // println!(
+            //     "msg after adding round: {}",
+            //     current_round.input.to_base64()
+            // );
             let mut msg = current_round.input.to_vec();
+            println!("current round: {}", current_round.round);
             msg.extend(current_round.round.to_be_bytes().to_vec());
             let msg_hash = hash_g2(msg);
             let mut sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
@@ -579,21 +591,34 @@ fn force_next_round() {
 #[test]
 fn test_verify_signed_sig() {
     let mut hasher = Keccak256::new();
-    hasher.update("hello world");
+    let signature = vec![
+        153, 149, 249, 20, 253, 180, 150, 166, 223, 26, 180, 58, 32, 193, 52, 250, 66, 48, 93, 126,
+        191, 253, 176, 151, 158, 36, 16, 159, 91, 23, 104, 138, 227, 138, 49, 227, 57, 138, 87, 69,
+        243, 88, 163, 59, 242, 130, 174, 43, 7, 140, 246, 161, 65, 13, 226, 73, 141, 61, 118, 165,
+        234, 141, 97, 188, 252, 232, 139, 219, 54, 70, 188, 145, 18, 191, 248, 197, 202, 40, 101,
+        69, 17, 5, 255, 214, 151, 0, 178, 236, 176, 37, 81, 17, 132, 189, 133, 20,
+    ];
+    let message = get_final_signed_message(&signature);
+    println!("message: {}", message);
+    hasher.update(message);
     let result = hasher.finalize();
     println!("result: {:?}", result);
-    let signature = vec![
-        121, 132, 11, 107, 83, 130, 225, 24, 62, 29, 44, 7, 36, 119, 15, 135, 209, 214, 106, 218,
-        222, 20, 36, 49, 219, 244, 206, 165, 147, 228, 56, 175, 124, 90, 47, 241, 152, 120, 76, 0,
-        226, 71, 137, 15, 73, 166, 249, 40, 225, 85, 97, 84, 52, 180, 8, 195, 101, 22, 24, 170,
-        117, 192, 61, 100,
+    let mut signed_signature = vec![
+        69, 158, 17, 168, 164, 113, 3, 5, 136, 244, 245, 59, 171, 45, 208, 235, 183, 217, 199, 103,
+        64, 160, 229, 23, 222, 10, 124, 143, 220, 94, 30, 147, 92, 202, 127, 191, 232, 149, 232,
+        132, 186, 211, 140, 141, 237, 173, 109, 207, 172, 10, 63, 82, 107, 209, 147, 230, 111, 228,
+        187, 173, 217, 117, 83, 121, 27,
     ];
+    let last_bytes = signed_signature.pop();
+    assert_eq!(last_bytes.unwrap(), 27u8);
 
     let pubkey = vec![
-        3, 215, 107, 162, 127, 174, 200, 111, 162, 250, 227, 29, 61, 5, 208, 149, 205, 103, 215,
-        235, 96, 191, 152, 206, 119, 214, 70, 156, 239, 128, 174, 198, 93,
+        3, 140, 187, 39, 126, 39, 137, 38, 113, 179, 94, 252, 90, 153, 215, 45, 178, 205, 168, 2,
+        240, 83, 26, 231, 20, 51, 24, 10, 238, 155, 7, 146, 236,
     ];
 
-    let verified = secp256k1_verify(result.to_vec().as_slice(), &signature, &pubkey).unwrap();
+    let verified =
+        secp256k1_verify(result.to_vec().as_slice(), &signed_signature, &pubkey).unwrap();
     println!("verified: {:?}", verified);
+    assert_eq!(verified, true);
 }

@@ -1,18 +1,25 @@
-const { spawn } = require('child_process');
+const exec = require('child_process').execFile;
 
 let array = [
+    'dev1',
+    'dev2',
+    'dev3',
+    'dev4',
+    'dev5',
     'test1',
     'test2',
-    'test3'
+    'test3',
+    'test4',
+    'test5'
 ];
 
 for (let i = 0; i < 10; i++) {
-    let fileName = 'index.js';
+    let fileName = './vrf-runner-linux';
     // if (i > 2) {
     //     fileName = 'index-error.js'
     // }
-    const ls = spawn('node', [fileName], {
-        env: Object.assign(process.env, { NODE_ENV: array[i] }),
+    const ls = exec(fileName, {
+        env: Object.assign(process.env, { NODE_ENV: array[i], TESTNET: true }),
         cwd: process.cwd()
     });
 

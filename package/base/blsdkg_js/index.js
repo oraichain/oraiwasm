@@ -14,9 +14,14 @@ const {
   signSignature
 } = require('./utils');
 
+console.log("testnet: ", process.env.TESTNET)
+const configPath = process.env.TESTNET ? 'config-testnet.yaml' : 'config.yaml';
+const path = process.cwd() + '/' + configPath;
+console.log("path: ", path);
+
 const config = YAML.parse(
   fs
-    .readFileSync(process.env.TESTNET ? 'config-testnet.yaml' : 'config.yaml')
+    .readFileSync(path)
     .toString()
 );
 const message = Cosmos.message;
@@ -254,13 +259,13 @@ const processRequest = async (skShare) => {
   // sign on the sig
   let signedSignature = null;
   if (!roundInfo.signed_combined_sig && roundInfo.combined_sig) {
-    signedSignature = signSignature(Buffer.from(roundInfo.combined_sig, 'base64'), cosmos.getECPairPriv(childKey));
+    signedSignature = signSignature(roundInfo.randomness, cosmos.getECPairPriv(childKey));
   }
 
   const share = {
     sig: Buffer.from(sig).toString('base64'),
     round: roundInfo.round,
-    signed_sig: Buffer.from(signedSignature).toString('base64'),
+    signed_sig: signedSignature ? Buffer.from(signedSignature).toString('base64') : Buffer.from('').toString('base64'),
   };
 
   // console.log(address, shareSig);
@@ -333,7 +338,7 @@ const addPing = async (interval = 5000) => {
   }
 };
 
-console.log('Oraichain VRF, version 3.0');
+console.log('Oraichain VRF, version 3.1');
 runInterval(config.interval);
 addPing(config.ping_interval);
 

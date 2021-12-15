@@ -130,8 +130,8 @@ exports.convertOffset = (offset) => {
   return offset;
 };
 
-exports.signSignature = function (combinedSig, privKey) {
-  const hashedSig = sha3.keccak256(combinedSig);
-  const bufferHashedSig = Uint8Array.from(Buffer.from(hashedSig, 'hex'));
-  return secp256k1.ecdsaSign(bufferHashedSig, privKey).signature;
+exports.signSignature = function (randomness, privKey) {
+  const randomnessBytes = Uint8Array.from(Buffer.from(randomness, 'base64'));
+  const signature = secp256k1.ecdsaSign(randomnessBytes, privKey).signature;
+  return signature;
 }

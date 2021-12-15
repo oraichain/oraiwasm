@@ -1,7 +1,7 @@
 url: http://lcd.orai.io
 chain_id: Oraichain
 denom: orai
-contract: orai1s4ptqk79g5379glas3hwevq73xfm0nye4m0l6h
+contract: orai15lv4hxxqew2jhfayfmad7y40zfr8zmgfulqdxj
 ping_contract: orai14xs56wwfzk3dx5dysvahu0dmkz0wm38lrvn0wq
 interval: 10000
 ping_interval: 30000

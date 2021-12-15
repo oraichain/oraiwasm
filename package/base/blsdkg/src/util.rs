@@ -1,10 +1,18 @@
 use crate::{convert::fr_from_be_bytes, Signature};
 use ff::Field;
 use pairing::bls12_381::Fr;
-use tiny_keccak::{Hasher, Sha3};
+use tiny_keccak::{Hasher, Keccak, Sha3};
 
 pub(crate) fn sha3_256(data: &[u8]) -> [u8; 32] {
     let mut sha3 = Sha3::v256();
+    sha3.update(data);
+    let mut output = [0u8; 32];
+    sha3.finalize(&mut output);
+    output
+}
+
+fn keccak_256(data: &[u8]) -> [u8; 32] {
+    let mut sha3 = Keccak::v256();
     sha3.update(data);
     let mut output = [0u8; 32];
     sha3.finalize(&mut output);
@@ -19,7 +27,7 @@ pub(crate) fn derivation_index_into_fr(v: &[u8]) -> Fr {
 
 /// derive_randomness : gen truly random from signature
 pub fn derive_randomness(signature: &Signature) -> [u8; 32] {
-    sha3_256(&signature.to_bytes())
+    keccak_256(&signature.to_bytes())
 }
 
 /// Signs the given message.

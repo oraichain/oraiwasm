@@ -1,9 +1,11 @@
 use std::fmt;
 
 use crate::annotation::{
-    handle_deposit_annotation, handle_submit_annotation, try_approve_annotation,
-    try_execute_request_annotation, try_update_annotation_annotators,
-    try_withdraw as try_withdraw_annotation, try_withdraw_submit_annotation,
+    try_execute_request_annotation, try_payout, try_withdraw as try_withdraw_annotation,
+};
+use crate::annotation_result::{
+    try_add_annotation_result, try_add_annotation_reviewer, try_add_reviewed_upload,
+    try_remove_annotation_reviewer,
 };
 use crate::offering::{handle_sell_nft, try_buy, try_handle_mint, try_sell, try_withdraw};
 
@@ -93,43 +95,46 @@ pub fn handle(
         ),
         HandleMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
         HandleMsg::RequestAnnotation {
-            contract_addr,
             token_id,
-            amount,
-            price_per_annotation,
+            number_of_samples,
+            reward_per_sample,
+            max_annotation_per_task,
             expired_after,
-            number_of_jobs,
+            max_upload_tasks,
+            reward_per_upload_task,
         } => try_execute_request_annotation(
             deps,
             info,
             env,
-            contract_addr,
             token_id,
-            amount,
-            price_per_annotation,
+            number_of_samples,
+            reward_per_sample,
+            max_annotation_per_task,
+            max_upload_tasks,
+            reward_per_upload_task,
             expired_after,
-            number_of_jobs,
         ),
-        HandleMsg::SubmitAnnotation { annotation_id } => {
-            handle_submit_annotation(deps, info, annotation_id)
-        }
-        HandleMsg::WithdrawSubmitAnnotation { annotation_id } => {
-            try_withdraw_submit_annotation(deps, info, annotation_id)
-        }
-        HandleMsg::DepositAnnotation { annotation_id } => {
-            handle_deposit_annotation(deps, info, annotation_id)
-        }
+        HandleMsg::Payout { annotation_id } => try_payout(deps, env, info, annotation_id),
+
         HandleMsg::WithdrawAnnotation { annotation_id } => {
             try_withdraw_annotation(deps, info, env, annotation_id)
         }
-        HandleMsg::UpdateAnnotationAnnotators {
+        HandleMsg::AddAnnotationResult {
             annotation_id,
-            annotators,
-        } => try_update_annotation_annotators(deps, info, annotation_id, annotators),
-        HandleMsg::ApproveAnnotation {
+            annotator_results,
+        } => try_add_annotation_result(deps, info, env, annotation_id, annotator_results),
+        HandleMsg::AddAnnotationReviewer {
             annotation_id,
-            annotator,
-        } => try_approve_annotation(deps, info, env, annotation_id, annotator),
+            reviewer_address,
+        } => try_add_annotation_reviewer(deps, info, env, annotation_id, reviewer_address),
+        HandleMsg::RemoveAnnotationReviewer {
+            annotation_id,
+            reviewer_address,
+        } => try_remove_annotation_reviewer(deps, info, env, annotation_id, reviewer_address),
+        HandleMsg::AddReviewedUpload {
+            annotation_id,
+            reviewed_upload,
+        } => try_add_reviewed_upload(deps, info, env, annotation_id, reviewed_upload),
         HandleMsg::MigrateVersion {
             nft_contract_addr,
             token_infos,
