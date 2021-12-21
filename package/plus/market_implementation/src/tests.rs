@@ -1,5 +1,5 @@
 use crate::auction::DEFAULT_AUCTION_BLOCK;
-use crate::contract::{handle, init, query, MAX_DECIMAL_POINT, MAX_ROYALTY_PERCENT};
+use crate::contract::{handle, init, query, verify_owner, MAX_DECIMAL_POINT, MAX_ROYALTY_PERCENT};
 use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::ContractInfo;
@@ -9,6 +9,7 @@ use cosmwasm_std::{
     HandleResponse, HumanAddr, MessageInfo, Order, OwnedDeps, QuerierResult, StdResult,
     SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
 };
+use cw721::OwnerOfResponse;
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_auction::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_auction::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
@@ -866,6 +867,118 @@ fn cancel_auction_unhappy_path() {
 }
 
 #[test]
+fn cancel_auction_verify_owner() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        handle_whitelist(manager);
+        // beneficiary can release it
+        let creator_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint = MintMsg {
+            contract_addr: HumanAddr::from(OW721),
+            creator: HumanAddr::from("provider"),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    token_id: String::from("providerNFT"),
+                    owner: HumanAddr::from("provider"),
+                    name: String::from("asbv"),
+                    description: None,
+                    image: String::from("baxv"),
+                },
+            },
+            creator_type: String::from("sacx"),
+            royalty: Some(40 * DECIMAL),
+        };
+        let mint_msg = HandleMsg::MintNft(mint.clone());
+
+        let _result = manager.handle(creator_info.clone(), mint_msg).unwrap();
+
+        let _result = oraichain_nft::contract::handle(
+            manager.ow721.as_mut(),
+            mock_env(OW721),
+            mock_info("provider", &vec![]),
+            oraichain_nft::msg::HandleMsg::ApproveAll {
+                operator: HumanAddr::from(MARKET_ADDR),
+                expires: None,
+            },
+        );
+
+        let sell_msg = HandleMsg::AskNft {
+            contract_addr: HumanAddr::from(OW721),
+            token_id: String::from("providerNFT"),
+            price: Uint128::from(10u64),
+            cancel_fee: Some(10),
+            start: None,
+            end: None,
+            buyout_price: None,
+            start_timestamp: None,
+            end_timestamp: None,
+            step_price: None,
+            royalty: None,
+        };
+
+        let _result = manager.handle(mock_info("provider", &vec![]), sell_msg.clone());
+
+        // verify owner case before sending nft to market
+        assert_eq!(
+            verify_owner(manager.deps.as_ref(), OW721, "providerNFT", MARKET_ADDR).is_err(),
+            true
+        );
+
+        // after asking auction, intentionally transfer nft to market to go into verify owner
+        let _result = oraichain_nft::contract::handle(
+            manager.ow721.as_mut(),
+            mock_env(OW721),
+            mock_info("provider", &vec![]),
+            oraichain_nft::msg::HandleMsg::TransferNft {
+                recipient: HumanAddr::from(MARKET_ADDR),
+                token_id: String::from("providerNFT"),
+            },
+        );
+
+        // verify owner case after sending nft to market. owner should be market
+        assert_eq!(
+            verify_owner(manager.deps.as_ref(), OW721, "providerNFT", MARKET_ADDR).is_err(),
+            false
+        );
+
+        let cancel_auction_msg = HandleMsg::EmergencyCancelAuction { auction_id: 1 };
+        let creator_info = mock_info(CREATOR, &[]);
+        let _res = manager.handle(creator_info, cancel_auction_msg).unwrap();
+
+        // Auction should not be listed
+        let res = manager
+            .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctionsByBidder {
+                bidder: Some("bidder".into()),
+                options: PagingOptions {
+                    limit: None,
+                    offset: None,
+                    order: None,
+                },
+            }))
+            .unwrap();
+        let value: AuctionsResponse = from_binary(&res).unwrap();
+        assert_eq!(0, value.items.len());
+
+        // nft should go back to provider owner
+        // check owner, should get back to provider
+        let result: OwnerOfResponse = from_binary(
+            &oraichain_nft::contract::query(
+                manager.ow721.as_ref(),
+                mock_env(OW721),
+                oraichain_nft::msg::QueryMsg::OwnerOf {
+                    token_id: String::from("providerNFT"),
+                    include_expired: None,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(result.owner, HumanAddr::from("provider"));
+    }
+}
+
+#[test]
 fn cancel_bid_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
@@ -1207,6 +1320,113 @@ fn claim_winner_happy_path() {
     }
 }
 
+#[test]
+fn claim_winner_verify_owner() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        let contract_env = mock_env(MARKET_ADDR);
+        handle_whitelist(manager);
+        // beneficiary can release it
+        //let info = mock_info("anyone", &coins(2, DENOM));
+
+        let creator_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint = MintMsg {
+            contract_addr: HumanAddr::from(OW721),
+            creator: HumanAddr::from("provider"),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    token_id: String::from("providerNFT"),
+                    owner: HumanAddr::from("provider"),
+                    name: String::from("asbv"),
+                    description: None,
+                    image: String::from("baxv"),
+                },
+            },
+            creator_type: String::from("sacx"),
+            royalty: Some(40 * DECIMAL),
+        };
+        let mint_msg = HandleMsg::MintNft(mint.clone());
+
+        let _result = manager.handle(creator_info.clone(), mint_msg).unwrap();
+
+        let _result = oraichain_nft::contract::handle(
+            manager.ow721.as_mut(),
+            mock_env(OW721),
+            mock_info("provider", &vec![]),
+            oraichain_nft::msg::HandleMsg::ApproveAll {
+                operator: HumanAddr::from(MARKET_ADDR),
+                expires: None,
+            },
+        );
+
+        let sell_msg = HandleMsg::AskNft {
+            contract_addr: HumanAddr::from(OW721),
+            token_id: String::from("providerNFT"),
+            price: Uint128::from(10u64),
+            cancel_fee: Some(10),
+            start: Some(contract_env.block.height + 5),
+            end: Some(contract_env.block.height + 100),
+            buyout_price: None,
+            start_timestamp: Some(Uint128::from(contract_env.block.time + 5)),
+            end_timestamp: Some(Uint128::from(contract_env.block.time + 100)),
+            step_price: None,
+            royalty: None,
+        };
+
+        manager
+            .handle(mock_info("provider", &vec![]), sell_msg.clone())
+            .unwrap();
+
+        // verify owner case before sending nft to market
+        assert_eq!(
+            verify_owner(manager.deps.as_ref(), OW721, "providerNFT", MARKET_ADDR).is_err(),
+            true
+        );
+
+        // after asking auction, intentionally transfer nft to market to go into verify owner
+        let _result = oraichain_nft::contract::handle(
+            manager.ow721.as_mut(),
+            mock_env(OW721),
+            mock_info("provider", &vec![]),
+            oraichain_nft::msg::HandleMsg::TransferNft {
+                recipient: HumanAddr::from(MARKET_ADDR),
+                token_id: String::from("providerNFT"),
+            },
+        );
+
+        // verify owner case after sending nft to market. owner should be market
+        assert_eq!(
+            verify_owner(manager.deps.as_ref(), OW721, "providerNFT", MARKET_ADDR).is_err(),
+            false
+        );
+
+        // now claim winner after expired
+        let claim_info = mock_info("claimer", &coins(0, DENOM));
+        let claim_msg = HandleMsg::ClaimWinner { auction_id: 1 };
+        let mut claim_contract_env = contract_env.clone();
+        claim_contract_env.block.time = contract_env.block.time + 100; // > 100 at block end
+        manager
+            .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
+            .unwrap();
+
+        // check owner, should get back to provider
+        let result: OwnerOfResponse = from_binary(
+            &oraichain_nft::contract::query(
+                manager.ow721.as_ref(),
+                mock_env(OW721),
+                oraichain_nft::msg::QueryMsg::OwnerOf {
+                    token_id: String::from("providerNFT"),
+                    include_expired: None,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(result.owner, HumanAddr::from("provider"));
+    }
+}
+
 // // test royalty
 
 #[test]
@@ -1537,6 +1757,105 @@ fn withdraw_offering() {
         )
         .unwrap();
         assert_eq!(0, res2.offerings.len());
+    }
+}
+
+#[test]
+fn withdraw_verify_owner() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        handle_whitelist(manager);
+        // beneficiary can release it
+        let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from(OW721),
+            creator: HumanAddr::from("provider"),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    token_id: String::from("SellableNFT"),
+                    owner: HumanAddr::from("provider"),
+                    name: String::from("asbv"),
+                    description: None,
+                    image: String::from("baxv"),
+                },
+            },
+            creator_type: String::from("sacx"),
+            royalty: Some(40 * DECIMAL),
+        });
+
+        manager.handle(provider_info.clone(), mint_msg).unwrap();
+
+        let _result = oraichain_nft::contract::handle(
+            manager.ow721.as_mut(),
+            mock_env(OW721),
+            mock_info("provider", &vec![]),
+            oraichain_nft::msg::HandleMsg::ApproveAll {
+                operator: HumanAddr::from(MARKET_ADDR),
+                expires: None,
+            },
+        );
+
+        let msg = HandleMsg::SellNft {
+            contract_addr: HumanAddr::from(OW721),
+            token_id: String::from("SellableNFT"),
+            off_price: Uint128::from(10u64),
+            royalty: None,
+        };
+
+        let _res = manager.handle(mock_info("provider", &vec![]), msg).unwrap();
+
+        // after asking auction, intentionally transfer nft to market to go into verify owner
+        let _result = oraichain_nft::contract::handle(
+            manager.ow721.as_mut(),
+            mock_env(OW721),
+            mock_info("provider", &vec![]),
+            oraichain_nft::msg::HandleMsg::TransferNft {
+                recipient: HumanAddr::from(MARKET_ADDR),
+                token_id: String::from("SellableNFT"),
+            },
+        );
+
+        // verify owner case after sending nft to market. owner should be market
+        assert_eq!(
+            verify_owner(manager.deps.as_ref(), OW721, "SellableNFT", MARKET_ADDR).is_err(),
+            false
+        );
+
+        let withdraw_msg = HandleMsg::WithdrawNft { offering_id: 1 };
+
+        // happy path
+        let _res = manager
+            .handle(mock_info("provider", &coins(2, DENOM)), withdraw_msg)
+            .unwrap();
+
+        // Offering should be removed
+        let res2: OfferingsResponse = from_binary(
+            &manager
+                .query(QueryMsg::Offering(OfferingQueryMsg::GetOfferings {
+                    offset: None,
+                    limit: None,
+                    order: None,
+                }))
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(0, res2.offerings.len());
+
+        // nft should go back to provider
+        let result: OwnerOfResponse = from_binary(
+            &oraichain_nft::contract::query(
+                manager.ow721.as_ref(),
+                mock_env(OW721),
+                oraichain_nft::msg::QueryMsg::OwnerOf {
+                    token_id: String::from("SellableNFT"),
+                    include_expired: None,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(result.owner, HumanAddr::from("provider"));
     }
 }
 
