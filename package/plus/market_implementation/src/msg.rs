@@ -33,9 +33,26 @@ pub enum HandleMsg {
     ClaimWinner {
         auction_id: u64,
     },
-    // Ask an NFT for a minimum price, must pay fee for auction maketplace
-    ReceiveNft(Cw721ReceiveMsg),
-
+    AskNft {
+        contract_addr: HumanAddr,
+        token_id: String,
+        price: Uint128,
+        // in permille
+        cancel_fee: Option<u64>,
+        start: Option<u64>,
+        end: Option<u64>,
+        start_timestamp: Option<Uint128>,
+        end_timestamp: Option<Uint128>,
+        buyout_price: Option<Uint128>,
+        step_price: Option<u64>,
+        royalty: Option<u64>,
+    },
+    SellNft {
+        contract_addr: HumanAddr,
+        token_id: String,
+        off_price: Uint128,
+        royalty: Option<u64>,
+    },
     // withdraw funds from auction marketplace to the owner wallet
     WithdrawFunds {
         funds: Coin,
@@ -52,11 +69,11 @@ pub enum HandleMsg {
     },
     /// Mint a new NFT, can only be called by the contract minter
     MintNft(MintMsg),
-    MigrateVersion {
-        nft_contract_addr: HumanAddr,
-        token_ids: Vec<String>,
-        new_marketplace: HumanAddr,
-    },
+    // MigrateVersion {
+    //     nft_contract_addr: HumanAddr,
+    //     token_ids: Vec<String>,
+    //     new_marketplace: HumanAddr,
+    // },
     UpdateCreatorRoyalty(RoyaltyMsg),
     // TEMP when need to migrate storage
     UpdateRoyalties {

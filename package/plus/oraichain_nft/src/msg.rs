@@ -112,6 +112,11 @@ pub enum QueryMsg {
         start_after: Option<HumanAddr>,
         limit: Option<u32>,
     },
+
+    IsApproveForAll {
+        owner: HumanAddr,
+        operator: HumanAddr,
+    },
     /// Total number of tokens issued
     NumTokens {},
 

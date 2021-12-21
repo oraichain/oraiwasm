@@ -51,3 +51,5 @@ market_auction_storage = { path = "../market_auction_storage" }
 market_offering_storage = { path = "../market_offering_storage" }
 market_ai_royalty_storage = { path = "../market_ai_royalty_storage" }
 market_first_level_royalty_storage = { path = "../market_first_level_royalty_storage" }
+oraichain_nft = {path = "../oraichain_nft"}
+
