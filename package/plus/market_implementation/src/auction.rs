@@ -1,19 +1,19 @@
-use crate::contract::get_storage_addr;
+use crate::contract::{get_storage_addr, verify_nft, verify_owner};
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
 // use crate::offering::OFFERING_STORAGE;
 use crate::ai_royalty::get_royalties;
 use crate::offering::{get_offering_handle_msg, OFFERING_STORAGE};
 use crate::state::{ContractInfo, CONTRACT_INFO};
+use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, coins, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{HumanAddr, StdError};
-use cw721::{Cw721HandleMsg, Cw721QueryMsg, OwnerOfResponse};
+use cw721::Cw721HandleMsg;
 use market::{query_proxy, StorageHandleMsg};
-use market_ai_royalty::sanitize_royalty;
-use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, QueryAuctionsResult};
+use market_ai_royalty::{pay_royalties, sanitize_royalty};
+use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg};
 use market_royalty::{OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty};
 // use market_royalty::OfferingQueryMsg;
 use std::ops::{Add, Mul, Sub};
@@ -47,10 +47,10 @@ pub fn try_bid_nft(
     let token_id_event = off.token_id.clone();
 
     // check auction started or finished, both means auction not started anymore
-    if off.start.gt(&env.block.height) {
+    if off.start_timestamp.gt(&Uint128::from(env.block.time)) {
         return Err(ContractError::AuctionNotStarted {});
     }
-    if off.end.lt(&env.block.height) {
+    if off.end_timestamp.lt(&Uint128::from(env.block.time)) {
         return Err(ContractError::AuctionHasEnded {});
     }
 
@@ -154,7 +154,7 @@ pub fn try_claim_winner(
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
     // check is auction finished
-    if off.end.gt(&env.block.height) {
+    if off.end_timestamp.gt(&Uint128::from(env.block.time)) {
         if let Some(buyout_price) = off.buyout_price {
             if off.price.lt(&buyout_price) {
                 return Err(ContractError::AuctionNotFinished {});
@@ -163,6 +163,10 @@ pub fn try_claim_winner(
             return Err(ContractError::AuctionNotFinished {});
         }
     }
+
+    // get royalties
+    let mut rsp = HandleResponse::default();
+    rsp.attributes.extend(vec![attr("action", "claim_winner")]);
 
     let asker_addr = deps.api.human_address(&off.asker)?;
     let contract_addr = deps.api.human_address(&off.contract_addr)?;
@@ -187,22 +191,16 @@ pub fn try_claim_winner(
 
         // pay for creator, ai provider and others
         if let Ok(royalties) = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id) {
-            for royalty in royalties {
-                let provider_amount = off
-                    .price
-                    .mul(Decimal::from_ratio(royalty.royalty, decimal_point));
-                if provider_amount.gt(&Uint128::from(0u128)) {
-                    fund_amount = fund_amount.sub(provider_amount)?;
-                    cosmos_msgs.push(
-                        BankMsg::Send {
-                            from_address: env.contract.address.clone(),
-                            to_address: royalty.creator,
-                            amount: coins(provider_amount.u128(), &denom),
-                        }
-                        .into(),
-                    );
-                }
-            }
+            pay_royalties(
+                &royalties,
+                &off.price,
+                decimal_point,
+                &mut fund_amount,
+                &mut cosmos_msgs,
+                &mut rsp,
+                env.contract.address.as_str(),
+                denom.as_str(),
+            )?;
         }
 
         let mut offering_royalty: OfferingRoyalty = deps
@@ -215,7 +213,6 @@ pub fn try_claim_winner(
                 }) as &ProxyQueryMsg,
             )
             .map_err(|_| ContractError::InvalidGetOfferingRoyalty {})?;
-
 
         // payout for the previous owner
         if offering_royalty.previous_owner.is_some() && offering_royalty.prev_royalty.is_some() {
@@ -261,6 +258,28 @@ pub fn try_claim_winner(
                 .into(),
             );
         }
+    } else {
+        // return nft back to asker. if nft is owned by market address => transfer nft back to asker
+        if verify_owner(
+            deps.as_ref(),
+            &contract_addr,
+            &off.token_id,
+            &env.contract.address,
+        )
+        .is_ok()
+        {
+            cosmos_msgs.push(
+                WasmMsg::Execute {
+                    contract_addr: deps.api.human_address(&off.contract_addr)?,
+                    msg: to_binary(&Cw721HandleMsg::TransferNft {
+                        recipient: asker_addr,
+                        token_id: off.token_id.clone(),
+                    })?,
+                    send: vec![],
+                }
+                .into(),
+            );
+        }
     }
 
     // push save message to auction_storage
@@ -269,30 +288,41 @@ pub fn try_claim_winner(
         AUCTION_STORAGE,
         AuctionHandleMsg::RemoveAuction { id: auction_id },
     )?);
-    let mut handle_response = HandleResponse {
-        messages: cosmos_msgs,
-        attributes: vec![
-            attr("action", "claim_winner"),
-            attr("claimer", info.sender),
-            attr("token_id", off.token_id.clone()),
-            attr("auction_id", auction_id),
-            attr("total_price", off.price),
-            attr("royalty", true),
-        ],
-        data: None,
-    };
 
-    let royalties = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id)
-        .ok()
-        .unwrap_or(vec![]);
-    for royalty in royalties {
-        handle_response.attributes.push(attr(
-            format!("royalty_{}", royalty.creator),
-            royalty.royalty,
-        ));
-    }
+    rsp.messages = cosmos_msgs;
+    rsp.attributes.extend(vec![
+        attr("action", "claim_winner"),
+        attr("claimer", info.sender),
+        attr("token_id", off.token_id.clone()),
+        attr("auction_id", auction_id),
+        attr("total_price", off.price),
+        attr("royalty", true),
+    ]);
 
-    Ok(handle_response)
+    // let mut handle_response = HandleResponse {
+    //     messages: cosmos_msgs,
+    //     attributes: vec![
+    //         attr("action", "claim_winner"),
+    //         attr("claimer", info.sender),
+    //         attr("token_id", off.token_id.clone()),
+    //         attr("auction_id", auction_id),
+    //         attr("total_price", off.price),
+    //         attr("royalty", true),
+    //     ],
+    //     data: None,
+    // };
+
+    // let royalties = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id)
+    //     .ok()
+    //     .unwrap_or(vec![]);
+    // for royalty in royalties {
+    //     handle_response.attributes.push(attr(
+    //         format!("royalty_{}", royalty.creator),
+    //         royalty.royalty,
+    //     ));
+    // }
+
+    Ok(rsp)
 }
 
 pub fn try_handle_ask_aution(
@@ -319,70 +349,32 @@ pub fn try_handle_ask_aution(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
-    let nft_owners: OwnerOfResponse = deps
-        .querier
-        .query_wasm_smart(
-            contract_addr.clone(),
-            &Cw721QueryMsg::OwnerOf {
-                token_id: token_id.clone(),
-                include_expired: None,
-            },
-        )
-        .map_err(|_op| {
-            ContractError::Std(StdError::generic_err(
-                "Invalid getting info of the owner's nft",
-            ))
-        })?;
+    verify_nft(
+        deps.as_ref(),
+        &governance,
+        &contract_addr,
+        &token_id,
+        &info.sender,
+    )?;
 
-    if nft_owners.owner.ne(&info.sender) {
-        return Err(ContractError::Unauthorized {
-            sender: info.sender.to_string(),
-        });
-    }
-
-    let is_market_approved: Option<bool> = deps
-        .querier
-        .query_wasm_smart(
-            contract_addr.clone(),
-            &Cw721QueryMsg::IsApproveForAll {
-                owner: info.sender.clone(),
-                operator: env.contract.address.clone(),
-            },
-        )
-        .ok();
-
-    if let Some(is_market_approved) = is_market_approved {
-        if !is_market_approved {
-            return Err(ContractError::Std(StdError::generic_err(
-                "You must approve all transfers from the market first!",
-            )));
-        }
-    } else {
-        return Err(ContractError::Std(StdError::generic_err(
-            "You must approve all transfers from the market first!",
-        )));
-    }
-
-    // check if auction exists
-    let auction: Option<QueryAuctionsResult> = deps
-        .querier
-        .query_wasm_smart(
-            get_storage_addr(deps.as_ref(), governance.clone(), AUCTION_STORAGE)?,
-            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionByContractTokenId {
-                contract: contract_addr.clone(),
-                token_id: token_id.clone(),
-            }) as &ProxyQueryMsg,
-        )
-        .ok();
-
-    // if there already auction
-    if auction.is_some() {
-        return Err(ContractError::TokenOnAuction {});
-    }
     // get Auctions count
     let asker = deps.api.canonical_address(&info.sender)?;
-    let start_timestamp = start_timestamp.unwrap_or(Uint128::from(env.block.time));
-    let end_timestamp = end_timestamp.unwrap_or(start_timestamp + auction_duration);
+    let start_timestamp = start_timestamp
+        .map(|mut start| {
+            if start.lt(&Uint128::from(env.block.time)) {
+                start = Uint128::from(env.block.time);
+            }
+            start
+        })
+        .unwrap_or(Uint128::from(env.block.time));
+    let end_timestamp = end_timestamp
+        .map(|mut end| {
+            if end.lt(&Uint128::from(env.block.time)) {
+                end = end.add(Uint128::from(auction_duration)).into();
+            }
+            end
+        })
+        .unwrap_or(start_timestamp + auction_duration);
 
     // TODO: does asker need to pay fee for listing?
     let start = start
@@ -403,8 +395,11 @@ pub fn try_handle_ask_aution(
         .unwrap_or(start + DEFAULT_AUCTION_BLOCK);
 
     // verify start and end block, must start in the future
-    if start.lt(&env.block.height) || end.lt(&start) {
-        return Err(ContractError::InvalidBlockNumberArgument { start, end });
+    if start_timestamp.lt(&Uint128::from(env.block.time)) || end_timestamp.lt(&start_timestamp) {
+        return Err(ContractError::InvalidBlockNumberArgument {
+            start_timestamp,
+            end_timestamp,
+        });
     }
 
     // save Auction, waiting for finished
@@ -607,18 +602,27 @@ pub fn try_emergency_cancel_auction(
     // transfer token back to original owner
     let mut cosmos_msgs = vec![];
 
-    /* User approve all transfer made by market, bellow code is unessary  */
-    // cosmos_msgs.push(
-    //     WasmMsg::Execute {
-    //         contract_addr: deps.api.human_address(&off.contract_addr)?,
-    //         msg: to_binary(&Cw721HandleMsg::TransferNft {
-    //             recipient: asker_addr,
-    //             token_id: off.token_id.clone(),
-    //         })?,
-    //         send: vec![],
-    //     }
-    //     .into(),
-    // );
+    // if market address is the owner => transfer back to original owner which is asker
+    if verify_owner(
+        deps.as_ref(),
+        &deps.api.human_address(&off.contract_addr)?,
+        &off.token_id,
+        &env.contract.address,
+    )
+    .is_ok()
+    {
+        cosmos_msgs.push(
+            WasmMsg::Execute {
+                contract_addr: deps.api.human_address(&off.contract_addr)?,
+                msg: to_binary(&Cw721HandleMsg::TransferNft {
+                    recipient: deps.api.human_address(&off.asker)?,
+                    token_id: off.token_id.clone(),
+                })?,
+                send: vec![],
+            }
+            .into(),
+        );
+    }
 
     // refund the bidder
     if let Some(bidder) = off.bidder {

@@ -572,20 +572,28 @@ fn approving_all_revoking_all() {
         }
     );
 
-    let result: bool = from_binary(
+    let result: ApprovedForAllResponse = from_binary(
         &query(
             deps.as_ref(),
             mock_env(),
-            QueryMsg::IsApproveForAll {
-                operator: HumanAddr::from("random"),
+            QueryMsg::ApprovedForAll {
                 owner: HumanAddr::from("demeter"),
+                include_expired: Some(false),
+                start_after: None,
+                limit: None,
             },
         )
         .unwrap(),
     )
     .unwrap();
 
-    println!("is Aprrove all {:?}", result);
+    let filter_result = result
+        .operators
+        .iter()
+        .find(|operator| operator.spender.eq(&HumanAddr::from("random")));
+
+    println!("is Aprrove all {:?}", filter_result);
+    assert_eq!(filter_result.is_some(), true);
 
     // random can now transfer
     let random = mock_info("random", &[]);

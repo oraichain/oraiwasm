@@ -16,6 +16,7 @@ use market_royalty::{
     MintIntermediate, MintMsg, MintStruct, OfferingQueryMsg, OfferingRoyalty, OfferingsResponse,
     QueryOfferingsResult,
 };
+use market_whitelist::MarketWhiteListHandleMsg;
 use std::mem::transmute;
 use std::ops::{Add, Mul};
 use std::ptr::null;
@@ -28,11 +29,13 @@ const AUCTION_ADDR: &str = "auction_addr";
 const OFFERING_ADDR: &str = "offering_addr";
 const AI_ROYALTY_ADDR: &str = "ai_royalty_addr";
 const FIRST_LV_ROYALTY_ADDR: &str = "first_lv_royalty_addr";
+const WHITELIST_ADDR: &str = "whitelist_addr";
 const CONTRACT_NAME: &str = "Auction Marketplace";
 const DENOM: &str = "orai";
 pub const AUCTION_STORAGE: &str = "auction";
 pub const OFFERING_STORAGE: &str = "offering_v1.1";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
+pub const WHITELIST_STORAGE: &str = "whitelist_storage";
 pub const FIRST_LV_ROYALTY_STORAGE: &str = "first_lv_royalty";
 pub const DECIMAL: u64 = MAX_DECIMAL_POINT / 100;
 
@@ -45,6 +48,7 @@ struct DepsManager {
     auction: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     ai_royalty: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     first_lv_royalty: OwnedDeps<MockStorage, MockApi, MockQuerier>,
+    whitelist: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     // main deps
     deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
 }
@@ -82,6 +86,10 @@ impl DepsManager {
                     (
                         FIRST_LV_ROYALTY_STORAGE.to_string(),
                         HumanAddr::from(FIRST_LV_ROYALTY_ADDR),
+                    ),
+                    (
+                        WHITELIST_STORAGE.to_string(),
+                        HumanAddr::from(WHITELIST_ADDR),
                     ),
                 ],
                 implementations: vec![HumanAddr::from(MARKET_ADDR)],
@@ -132,6 +140,18 @@ impl DepsManager {
             mock_env(AI_ROYALTY_ADDR),
             info.clone(),
             market_ai_royalty_storage::msg::InitMsg {
+                governance: HumanAddr::from(HUB_ADDR),
+            },
+        )
+        .unwrap();
+
+        let mut whitelist =
+            mock_dependencies(HumanAddr::from(WHITELIST_ADDR), &[], Self::query_wasm);
+        let _res = market_whitelist_storage::contract::init(
+            whitelist.as_mut(),
+            mock_env(WHITELIST_ADDR),
+            info.clone(),
+            market_whitelist_storage::msg::InitMsg {
                 governance: HumanAddr::from(HUB_ADDR),
             },
         )
@@ -197,6 +217,7 @@ impl DepsManager {
             deps,
             first_lv_royalty,
             ow721,
+            whitelist,
         }
     }
 
@@ -239,6 +260,13 @@ impl DepsManager {
                     AI_ROYALTY_ADDR => market_ai_royalty_storage::contract::handle(
                         self.ai_royalty.as_mut(),
                         mock_env(HUB_ADDR),
+                        mock_info(HUB_ADDR, &[]),
+                        from_slice(msg).unwrap(),
+                    )
+                    .ok(),
+                    WHITELIST_ADDR => market_whitelist_storage::contract::handle(
+                        self.whitelist.as_mut(),
+                        mock_env(WHITELIST_ADDR),
                         mock_info(HUB_ADDR, &[]),
                         from_slice(msg).unwrap(),
                     )
@@ -316,6 +344,12 @@ impl DepsManager {
                             from_slice(msg).unwrap(),
                         )
                         .unwrap_or_default(),
+                        WHITELIST_ADDR => market_whitelist_storage::contract::query(
+                            manager.whitelist.as_ref(),
+                            mock_env(WHITELIST_ADDR),
+                            from_slice(&msg).unwrap(),
+                        )
+                        .unwrap_or_default(),
                         FIRST_LV_ROYALTY_ADDR => {
                             market_first_level_royalty_storage::contract::query(
                                 manager.first_lv_royalty.as_ref(),
@@ -344,10 +378,26 @@ impl DepsManager {
     }
 }
 
+// gotta approve the marketplace to call some handle messages
+fn handle_whitelist(manager: &mut DepsManager) {
+    // add whitelist nft address
+    market_whitelist_storage::contract::handle(
+        manager.whitelist.as_mut(),
+        mock_env(WHITELIST_ADDR),
+        mock_info(CREATOR, &vec![coin(50, DENOM)]),
+        market_whitelist_storage::msg::HandleMsg::Msg(MarketWhiteListHandleMsg::ApproveAll {
+            nft_addr: OW721.to_string(),
+            expires: None,
+        }),
+    )
+    .unwrap();
+}
+
 #[test]
 fn sell_auction_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
+        handle_whitelist(manager);
         // try mint nft to get royalty for provider
         let creator_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint = MintMsg {
@@ -421,6 +471,7 @@ fn sell_auction_happy_path() {
 fn test_royalty_auction_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
+        handle_whitelist(manager);
         let contract_env = mock_env(MARKET_ADDR);
 
         // beneficiary can release it
@@ -462,8 +513,8 @@ fn test_royalty_auction_happy_path() {
             start: Some(contract_env.block.height + 5),
             end: Some(contract_env.block.height + 100),
             buyout_price: Some(Uint128::from(30u64)),
-            start_timestamp: None,
-            end_timestamp: None,
+            start_timestamp: Some(Uint128::from(contract_env.block.time + 5)),
+            end_timestamp: Some(Uint128::from(contract_env.block.time + 100)),
             step_price: Some(10),
             royalty: Some(40 * DECIMAL),
         };
@@ -476,7 +527,7 @@ fn test_royalty_auction_happy_path() {
         let bid_info = mock_info("bidder", &coins(20, DENOM));
         let bid_msg = HandleMsg::BidNft { auction_id: 1 };
         let mut bid_contract_env = contract_env.clone();
-        bid_contract_env.block.height = contract_env.block.height + 15;
+        bid_contract_env.block.time = contract_env.block.time + 15;
         let _res = manager
             .handle_with_env(bid_contract_env, bid_info.clone(), bid_msg)
             .unwrap();
@@ -485,7 +536,7 @@ fn test_royalty_auction_happy_path() {
         let claim_info = mock_info("anyone", &coins(0, DENOM));
         let claim_msg = HandleMsg::ClaimWinner { auction_id: 1 };
         let mut claim_contract_env = contract_env.clone();
-        claim_contract_env.block.height = contract_env.block.height + 100; // > 100 at block end
+        claim_contract_env.block.time = contract_env.block.time + 100; // > 100 at block end
         let res = manager
             .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
             .unwrap();
@@ -516,8 +567,8 @@ fn test_royalty_auction_happy_path() {
             start: Some(contract_env.block.height + 5),
             end: Some(contract_env.block.height + 100),
             buyout_price: Some(Uint128::from(30u64)),
-            start_timestamp: None,
-            end_timestamp: None,
+            start_timestamp: Some(Uint128::from(contract_env.block.time + 5)),
+            end_timestamp: Some(Uint128::from(contract_env.block.time + 100)),
             step_price: Some(10),
             royalty: Some(40 * DECIMAL),
         };
@@ -529,7 +580,7 @@ fn test_royalty_auction_happy_path() {
         // bid to claim winner
         let bid_msg = HandleMsg::BidNft { auction_id: 2 };
         let mut bid_contract_env = contract_env.clone();
-        bid_contract_env.block.height = contract_env.block.height + 15;
+        bid_contract_env.block.time = contract_env.block.time + 15;
         let _res = manager
             .handle_with_env(
                 bid_contract_env,
@@ -572,7 +623,7 @@ fn test_royalty_auction_happy_path() {
         let claim_info = mock_info("anyone", &coins(0, DENOM));
         let claim_msg = HandleMsg::ClaimWinner { auction_id: 2 };
         let mut claim_contract_env = contract_env.clone();
-        claim_contract_env.block.height = contract_env.block.height + DEFAULT_AUCTION_BLOCK; // > 100 at block end
+        claim_contract_env.block.time = contract_env.block.time + DEFAULT_AUCTION_BLOCK; // > 100 at block end
         let results = manager
             .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
             .unwrap();
@@ -611,7 +662,7 @@ fn test_royalty_auction_happy_path() {
 fn update_info_test() {
     unsafe {
         let manager = DepsManager::get_new();
-
+        handle_whitelist(manager);
         // update contract to set fees
         let update_info = UpdateContractMsg {
             name: None,
@@ -651,7 +702,7 @@ fn update_info_test() {
 fn cancel_auction_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
-
+        handle_whitelist(manager);
         // beneficiary can release it
         let creator_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint = MintMsg {
@@ -738,7 +789,7 @@ fn cancel_auction_happy_path() {
 fn cancel_auction_unhappy_path() {
     unsafe {
         let manager = DepsManager::get_new();
-
+        handle_whitelist(manager);
         // beneficiary can release it
         let creator_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint = MintMsg {
@@ -818,7 +869,7 @@ fn cancel_auction_unhappy_path() {
 fn cancel_bid_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
-
+        handle_whitelist(manager);
         // beneficiary can release it
         let creator_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint = MintMsg {
@@ -906,7 +957,7 @@ fn cancel_bid_happy_path() {
 fn cancel_bid_unhappy_path() {
     unsafe {
         let manager = DepsManager::get_new();
-
+        handle_whitelist(manager);
         // beneficiary can release it
         let creator_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint = MintMsg {
@@ -988,7 +1039,7 @@ fn claim_winner_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
         let contract_env = mock_env(MARKET_ADDR);
-
+        handle_whitelist(manager);
         // beneficiary can release it
         //let info = mock_info("anyone", &coins(2, DENOM));
 
@@ -1033,8 +1084,8 @@ fn claim_winner_happy_path() {
             start: Some(contract_env.block.height + 5),
             end: Some(contract_env.block.height + 100),
             buyout_price: None,
-            start_timestamp: None,
-            end_timestamp: None,
+            start_timestamp: Some(Uint128::from(contract_env.block.time + 5)),
+            end_timestamp: Some(Uint128::from(contract_env.block.time + 100)),
             step_price: None,
             royalty: None,
         };
@@ -1056,7 +1107,7 @@ fn claim_winner_happy_path() {
 
         let bid_msg = HandleMsg::BidNft { auction_id: 1 };
         let mut bid_contract_env = contract_env.clone();
-        bid_contract_env.block.height = contract_env.block.height + 15;
+        bid_contract_env.block.time = contract_env.block.time + 15;
 
         // insufficient funds when bid
         assert!(matches!(
@@ -1079,7 +1130,7 @@ fn claim_winner_happy_path() {
         let claim_info = mock_info("claimer", &coins(0, DENOM));
         let claim_msg = HandleMsg::ClaimWinner { auction_id: 1 };
         let mut claim_contract_env = contract_env.clone();
-        claim_contract_env.block.height = contract_env.block.height + 100; // > 100 at block end
+        claim_contract_env.block.time = contract_env.block.time + 100; // > 100 at block end
         let res = manager
             .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
             .unwrap();
@@ -1162,7 +1213,7 @@ fn claim_winner_happy_path() {
 fn test_royalties() {
     unsafe {
         let manager = DepsManager::get_new();
-
+        handle_whitelist(manager);
         // try mint nft to get royalty for provider
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = HandleMsg::MintNft(MintMsg {
@@ -1397,6 +1448,7 @@ fn test_royalties() {
 fn withdraw_offering() {
     unsafe {
         let manager = DepsManager::get_new();
+        handle_whitelist(manager);
         // withdraw offering
         let withdraw_info = mock_info("seller", &coins(2, DENOM));
         // no offering to withdraw case
@@ -1492,7 +1544,7 @@ fn withdraw_offering() {
 fn admin_withdraw_offering() {
     unsafe {
         let manager = DepsManager::get_new();
-
+        handle_whitelist(manager);
         // beneficiary can release it
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = HandleMsg::MintNft(MintMsg {
@@ -1573,7 +1625,7 @@ fn admin_withdraw_offering() {
 fn test_sell_nft_unhappy() {
     unsafe {
         let manager = DepsManager::get_new();
-
+        handle_whitelist(manager);
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = HandleMsg::MintNft(MintMsg {
             contract_addr: HumanAddr::from(OW721),
@@ -1626,6 +1678,7 @@ fn test_sell_nft_unhappy() {
 fn test_buy_nft_unhappy() {
     unsafe {
         let manager = DepsManager::get_new();
+        handle_whitelist(manager);
         let buy_msg = HandleMsg::BuyNft { offering_id: 1 };
         let info_buy = mock_info("buyer", &coins(10, DENOM));
 
@@ -1695,7 +1748,7 @@ fn test_buy_nft_unhappy() {
 fn test_update_decay_royalty() {
     unsafe {
         let manager = DepsManager::get_new();
-
+        handle_whitelist(manager);
         // try mint nft to get royalty for provider
         let creator_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = HandleMsg::MintNft(MintMsg {

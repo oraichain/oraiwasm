@@ -1,5 +1,4 @@
 use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
-use cw721::Cw721ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_auction::{AuctionHandleMsg, AuctionQueryMsg};

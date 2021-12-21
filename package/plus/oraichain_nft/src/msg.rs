@@ -113,10 +113,10 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
 
-    IsApproveForAll {
-        owner: HumanAddr,
-        operator: HumanAddr,
-    },
+    // IsApproveForAll {
+    //     owner: HumanAddr,
+    //     operator: HumanAddr,
+    // },
     /// Total number of tokens issued
     NumTokens {},
 

@@ -524,9 +524,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_after,
             limit,
         )?),
-        QueryMsg::IsApproveForAll { owner, operator } => {
-            to_binary(&try_check_operator_permission(deps, env, operator, owner)?)
-        }
+        // QueryMsg::IsApproveForAll { owner, operator } => {
+        //     to_binary(&try_check_operator_permission(deps, env, operator, owner)?)
+        // }
         QueryMsg::NumTokens {} => to_binary(&query_num_tokens(deps)?),
         QueryMsg::Tokens {
             owner,
@@ -607,22 +607,6 @@ fn parse_approval(api: &dyn Api, item: StdResult<KV<Expiration>>) -> StdResult<c
         let spender = api.human_address(&k.into())?;
         Ok(cw721::Approval { spender, expires })
     })
-}
-
-fn try_check_operator_permission(
-    deps: Deps,
-    env: Env,
-    operator: HumanAddr,
-    owner: HumanAddr,
-) -> StdResult<bool> {
-    let owner = deps.api.canonical_address(&owner)?;
-    let operator = deps.api.canonical_address(&operator)?;
-    let res = OPERATORS.may_load(deps.storage, (&owner, &operator))?;
-    if let Some(expiration) = res {
-        Ok(!expiration.is_expired(&env.block))
-    } else {
-        Ok(false)
-    }
 }
 
 fn query_tokens(
