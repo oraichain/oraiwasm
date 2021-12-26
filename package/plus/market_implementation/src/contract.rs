@@ -5,26 +5,30 @@ use crate::ai_royalty::{
 };
 // use crate::ai_royalty::try_update_royalties;
 use crate::auction::{
-    handle_ask_auction, query_auction, try_bid_nft, try_cancel_bid, try_claim_winner,
-    try_emergency_cancel_auction,
+    query_auction, try_bid_nft, try_cancel_bid, try_claim_winner, try_emergency_cancel_auction,
+    try_handle_ask_aution, AUCTION_STORAGE,
 };
 
-use crate::offering::{handle_sell_nft, query_offering, try_buy, try_handle_mint, try_withdraw};
+use crate::offering::{
+    query_offering, try_buy, try_handle_mint, try_handle_sell_nft, try_withdraw, OFFERING_STORAGE,
+};
 
 use crate::error::ContractError;
 use crate::msg::{
-    AskNftMsg, GiftNft, HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellNft,
-    UpdateContractMsg,
+    GiftNft, HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
-    attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
-    HandleResponse, InitResponse, MessageInfo, StdResult, WasmMsg,
+    attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
+    InitResponse, MessageInfo, StdResult, WasmMsg,
 };
-use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
+use cw721::{Cw721HandleMsg, Cw721QueryMsg, Cw721ReceiveMsg, OwnerOfResponse};
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::sanitize_royalty;
+use market_auction::{AuctionQueryMsg, QueryAuctionsResult};
+use market_royalty::{OfferingQueryMsg, QueryOfferingsResult};
+use market_whitelist::{IsApprovedForAllResponse, MarketWhiteListdQueryMsg};
 use schemars::JsonSchema;
 use serde::Serialize;
 
@@ -33,6 +37,7 @@ pub const MAX_DECIMAL_POINT: u64 = 1_000_000_000;
 pub const MAX_FEE_PERMILLE: u64 = 1000;
 pub const CREATOR_NAME: &str = "creator";
 pub const FIRST_LV_ROYALTY_STORAGE: &str = "first_lv_royalty";
+pub const WHITELIST_STORAGE: &str = "whitelist_storage";
 
 fn sanitize_fee(fee: u64, limit: u64, name: &str) -> Result<u64, ContractError> {
     if fee > limit {
@@ -81,13 +86,46 @@ pub fn handle(
         HandleMsg::EmergencyCancelAuction { auction_id } => {
             try_emergency_cancel_auction(deps, info, env, auction_id)
         }
-        HandleMsg::ReceiveNft(msg) => try_receive_nft(deps, info, env, msg),
+        HandleMsg::AskNft {
+            token_id,
+            contract_addr,
+            price,
+            buyout_price,
+            start,
+            end,
+            end_timestamp,
+            start_timestamp,
+            cancel_fee,
+            royalty,
+            step_price,
+        } => try_handle_ask_aution(
+            deps,
+            info,
+            env,
+            contract_addr,
+            token_id,
+            price,
+            cancel_fee,
+            start,
+            end,
+            start_timestamp,
+            end_timestamp,
+            buyout_price,
+            step_price,
+            royalty,
+        ),
+        HandleMsg::SellNft {
+            contract_addr,
+            token_id,
+            royalty,
+            off_price,
+        } => try_handle_sell_nft(deps, env, info, contract_addr, token_id, off_price, royalty),
         HandleMsg::CancelBid { auction_id } => try_cancel_bid(deps, info, env, auction_id),
         HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
         // royalty
         HandleMsg::MintNft(msg) => try_handle_mint(deps, info, msg),
-        HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, offering_id),
+        HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, env, offering_id),
         HandleMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
         HandleMsg::MigrateVersion {
             nft_contract_addr,
@@ -199,25 +237,25 @@ pub fn try_update_info(
 }
 
 // when user sell NFT to
-pub fn try_receive_nft(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    rcv_msg: Cw721ReceiveMsg,
-) -> Result<HandleResponse, ContractError> {
-    if let Some(msg) = rcv_msg.msg.clone() {
-        if let Ok(ask_msg) = from_binary::<AskNftMsg>(&msg) {
-            return handle_ask_auction(deps, info, env, ask_msg, rcv_msg);
-        }
-        if let Ok(sell_msg) = from_binary::<SellNft>(&msg) {
-            return handle_sell_nft(deps, info, sell_msg, rcv_msg);
-        }
-        if let Ok(gift_msg) = from_binary::<GiftNft>(&msg) {
-            return handle_gift_nft(info, gift_msg, rcv_msg);
-        }
-    }
-    Err(ContractError::NoData {})
-}
+// pub fn try_receive_nft(
+//     deps: DepsMut,
+//     info: MessageInfo,
+//     env: Env,
+//     rcv_msg: Cw721ReceiveMsg,
+// ) -> Result<HandleResponse, ContractError> {
+//     if let Some(msg) = rcv_msg.msg.clone() {
+//         if let Ok(ask_msg) = from_binary::<AskNftMsg>(&msg) {
+//             return handle_ask_auction(deps, info, env, ask_msg, rcv_msg);
+//         }
+//         if let Ok(sell_msg) = from_binary::<SellNft>(&msg) {
+//             return handle_sell_nft(deps, info, sell_msg, rcv_msg);
+//         }
+//         if let Ok(gift_msg) = from_binary::<GiftNft>(&msg) {
+//             return handle_gift_nft(info, gift_msg, rcv_msg);
+//         }
+//     }
+//     Err(ContractError::NoData {})
+// }
 
 pub fn try_migrate(
     deps: DepsMut,
@@ -262,6 +300,7 @@ pub fn try_migrate(
     })
 }
 
+/* Alternative: transfering nft directly thought 721 contract */
 pub fn handle_gift_nft(
     info: MessageInfo,
     gift_msg: GiftNft,
@@ -291,6 +330,93 @@ pub fn handle_gift_nft(
         ],
         data: None,
     })
+}
+
+pub fn verify_owner(
+    deps: Deps,
+    contract_addr: &str,
+    token_id: &str,
+    sender: &str,
+) -> Result<(), ContractError> {
+    let nft_owners: Option<OwnerOfResponse> = deps
+        .querier
+        .query_wasm_smart(
+            contract_addr.clone(),
+            &Cw721QueryMsg::OwnerOf {
+                token_id: token_id.to_string(),
+                include_expired: None,
+            },
+        )
+        .ok();
+
+    if let Some(nft_owners) = nft_owners {
+        if nft_owners.owner.ne(&HumanAddr::from(sender)) {
+            return Err(ContractError::Unauthorized {
+                sender: sender.to_string(),
+            });
+        }
+        Ok(())
+    } else {
+        return Err(ContractError::Unauthorized {
+            sender: sender.to_string(),
+        });
+    }
+}
+
+pub fn verify_nft(
+    deps: Deps,
+    governance: &str,
+    contract_addr: &str,
+    token_id: &str,
+    sender: &str,
+) -> Result<(), ContractError> {
+    // verify ownership of token id
+    verify_owner(deps, contract_addr, token_id, sender)?;
+
+    // verify if the nft contract address is whitelisted. If not => reject
+    let is_approved: IsApprovedForAllResponse = deps.querier.query_wasm_smart(
+        get_storage_addr(deps, HumanAddr::from(governance), WHITELIST_STORAGE)?,
+        &ProxyQueryMsg::Msg(MarketWhiteListdQueryMsg::IsApprovedForAll {
+            nft_addr: contract_addr.to_string(),
+        }),
+    )?;
+
+    if !is_approved.approved {
+        return Err(ContractError::NotWhilteList {});
+    }
+
+    // check if offering exists
+    let offering_result: Result<QueryOfferingsResult, ContractError> = deps
+        .querier
+        .query_wasm_smart(
+            get_storage_addr(deps, HumanAddr::from(governance), OFFERING_STORAGE)?,
+            &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingByContractTokenId {
+                contract: HumanAddr::from(contract_addr),
+                token_id: token_id.to_string(),
+            }) as &ProxyQueryMsg,
+        )
+        .map_err(|_| ContractError::InvalidGetOffering {});
+
+    if offering_result.is_ok() {
+        return Err(ContractError::TokenOnSale {});
+    }
+
+    // check if auction exists
+    let auction: Option<QueryAuctionsResult> = deps
+        .querier
+        .query_wasm_smart(
+            get_storage_addr(deps, HumanAddr::from(governance), AUCTION_STORAGE)?,
+            &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionByContractTokenId {
+                contract: HumanAddr::from(contract_addr),
+                token_id: token_id.to_string(),
+            }) as &ProxyQueryMsg,
+        )
+        .ok();
+
+    if auction.is_some() {
+        return Err(ContractError::TokenOnAuction {});
+    }
+    Ok(())
 }
 
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {

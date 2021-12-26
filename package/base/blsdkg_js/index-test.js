@@ -2,6 +2,8 @@ const fs = require('fs');
 const YAML = require('yaml');
 const Cosmos = require('@oraichain/cosmosjs').default;
 const blsdkgJs = require('./pkg/blsdkg_js');
+const { addRandomness } = require('./solana-bridge');
+const { NETWORK_TYPE, SOLANA_CONFIG } = require('./constants');
 
 const {
   queryWasm,
@@ -10,15 +12,19 @@ const {
   decrypt,
   delay,
   convertOffset,
-  env
+  env,
+  signSignature,
+  tryParseJSONObject
 } = require('./utils');
+
+const configPath = process.env.TESTNET ? 'config-testnet.yaml' : 'config.yaml';
+const path = process.cwd() + '/' + configPath;
 
 const config = YAML.parse(
   fs
-    .readFileSync(process.env.TESTNET ? 'config-testnet.yaml' : 'config.yaml')
+    .readFileSync(path)
     .toString()
 );
-const message = Cosmos.message;
 const cosmos = new Cosmos(config.url, config.chain_id);
 cosmos.setBech32MainPrefix(config.denom || 'orai');
 const childKey = cosmos.getChildKey(env.MNEMONIC);
@@ -30,6 +36,7 @@ let skShare = null;
 let currentMember = null;
 let members = null;
 const run = async () => {
+
   const { status, threshold, total, dealer } = await queryWasm(
     cosmos,
     config.contract,
@@ -37,10 +44,12 @@ const run = async () => {
       contract_info: {}
     }
   );
+  console.log("total before getting members: ", total);
 
   // first time or WaitForRequest
   if (status !== 'WaitForRequest' || !members) {
     members = await getMembers(total);
+    console.log("total: ", members);
     // check wherther we has done sharing ?
     currentMember = members.find((m) => !m.deleted && m.address === address);
     if (!currentMember) {
@@ -85,17 +94,17 @@ const getMembers = async (total) => {
   let offset = convertOffset('');
   let members = [];
   do {
-    let tempMembers = await queryWasm(cosmos, config.contract, {
+    const tempMembers = await queryWasm(cosmos, config.contract, {
       get_members: {
         offset,
         limit: 5
       }
     });
+    if (!tempMembers || tempMembers.code || tempMembers.length === 0) continue;
     members = members.concat(tempMembers);
     offset = convertOffset(members[members.length - 1].address);
-    // throw "some error";
     members = members.filter(
-      (v, i, a) => a.findIndex((t) => t.address === v.address) === i
+      (v, i, a) => a.findIndex((t) => t.index === v.index) === i
     );
     // if no more data, we also need to break
     // if (oldOffset === offset) break;
@@ -168,8 +177,11 @@ const processDealer = async (members, threshold, total) => {
   console.log(response);
 };
 
-const getSkShare = async (members, totalDealer) => {
+const getSkShare = async (members, dealer) => {
   const dealers = await getDealers(members);
+  if (dealers.length !== dealer) {
+    return console.log("The number of dealers is not valid, cannot verify Sk share");
+  }
   const commits = [];
   const rows = [];
   for (const dealer of dealers) {
@@ -228,9 +240,14 @@ const processRequest = async (skShare) => {
   //   );
   // }
 
-  if (roundInfo.sigs.find((sig) => sig.sender === address)) {
+  if (roundInfo.sigs.find((sig) => sig.sender === address) && !roundInfo.combined_sig) {
     return console.log(
-      'You have successfully submitted your signature share, currently waiting for others to submit to finish the round'
+      'You have successfully submitted your signature share, waiting to finish the round'
+    );
+  }
+  if (roundInfo.signed_combined_sig) {
+    return console.log(
+      'The round has finished'
     );
   }
 
@@ -240,9 +257,24 @@ const processRequest = async (skShare) => {
     BigInt(roundInfo.round)
   );
 
+  // sign on the sig
+  let signedSignature = null;
+  if (!roundInfo.signed_combined_sig && roundInfo.combined_sig) {
+    signedSignature = signSignature(roundInfo.randomness, cosmos.getECPairPriv(childKey));
+
+    // check if input contains solana keyword. User input must has a substring of solana
+    const inputType = tryParseJSONObject(Buffer.from(roundInfo.input, 'base64').toString('ascii'));
+    // format: {"message": "foobar", "type":"solana"}
+    if (inputType && inputType.type && inputType.type === NETWORK_TYPE.SOLANA) {
+      const result = await addRandomness(cosmos, roundInfo.round, roundInfo.randomness, childKey.publicKey);
+      console.log("result: ", result);
+    }
+  }
+
   const share = {
     sig: Buffer.from(sig).toString('base64'),
-    round: roundInfo.round
+    round: roundInfo.round,
+    signed_sig: signedSignature ? Buffer.from(signedSignature).toString('base64') : Buffer.from('').toString('base64'),
   };
 
   // console.log(address, shareSig);
@@ -315,8 +347,8 @@ const addPing = async (interval = 5000) => {
   }
 };
 
-console.log('Oraichain VRF, version 3.0');
+console.log('Oraichain VRF, version 3.1');
 runInterval(config.interval);
-// addPing(config.ping_interval);
+addPing(config.ping_interval);
 
 // TODO: add try catch and improve logs

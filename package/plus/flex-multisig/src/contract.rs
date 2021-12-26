@@ -5,7 +5,7 @@ use cosmwasm_std::{
     HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult,
 };
 
-use cw0::{maybe_canonical, Expiration};
+use cw0::{maybe_canonical, Duration, Expiration};
 use cw3::{
     ProposalListResponse, ProposalResponse, Status, ThresholdResponse, Vote, VoteInfo,
     VoteListResponse, VoteResponse, VoterDetail, VoterListResponse, VoterResponse,
@@ -14,7 +14,7 @@ use cw4::{Cw4Contract, MemberChangedHookMsg, MemberDiff};
 use cw_storage_plus::Bound;
 
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, Threshold};
 use crate::state::{
     next_id, parse_id, Ballot, Config, Proposal, Votes, BALLOTS, CONFIG, PROPOSALS,
 };
@@ -62,6 +62,11 @@ pub fn handle(
         HandleMsg::Vote { proposal_id, vote } => handle_vote(deps, env, info, proposal_id, vote),
         HandleMsg::Execute { proposal_id } => handle_execute(deps, env, info, proposal_id),
         HandleMsg::Close { proposal_id } => handle_close(deps, env, info, proposal_id),
+        HandleMsg::EditState {
+            threshold,
+            max_period,
+            group_addr,
+        } => handle_edit(deps, env, info, threshold, max_period, group_addr),
         HandleMsg::MemberChangedHook(MemberChangedHookMsg { diffs }) => {
             handle_membership_hook(deps, env, info, diffs)
         }
@@ -215,6 +220,38 @@ pub fn handle_execute(
             attr("sender", info.sender),
             attr("proposal_id", proposal_id),
         ],
+        data: None,
+    })
+}
+
+pub fn handle_edit(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    threshold: Option<Threshold>,
+    max_period: Option<Duration>,
+    group_addr: Option<HumanAddr>,
+) -> Result<HandleResponse, ContractError> {
+    if info.sender.ne(&env.contract.address) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut config = CONFIG.load(deps.storage)?;
+    if let Some(threshold) = threshold {
+        config.threshold = threshold;
+    }
+    if let Some(max_period) = max_period {
+        config.max_voting_period = max_period;
+    }
+    if let Some(group_addr) = group_addr {
+        config.group_addr = Cw4Contract(group_addr);
+    }
+    CONFIG.save(deps.storage, &config)?;
+
+    // dispatch all proposed messages
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![attr("action", "edit"), attr("sender", info.sender)],
         data: None,
     })
 }

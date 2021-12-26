@@ -757,3 +757,45 @@ fn change_minter() {
     let minter_result: HumanAddr = from_binary(&query_msg).unwrap();
     assert_eq!(minter_result, HumanAddr("hello there".to_string()));
 }
+
+#[test]
+fn change_owner() {
+    let mut deps = mock_dependencies(&[]);
+    let minter = String::from("minter");
+
+    let env = mock_env();
+    let msg = InstantiateMsg {
+        minter: minter.clone(),
+    };
+    let res = init(deps.as_mut(), env.clone(), mock_info("operator", &[]), msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    // unauthorized tx to change minter
+    assert!(matches!(
+        handle(
+            deps.as_mut(),
+            env.clone(),
+            mock_info(HumanAddr(minter.clone()), &[]),
+            Cw1155ExecuteMsg::ChangeOwner {
+                owner: "hello there".to_string()
+            },
+        ),
+        // only match type
+        Err(ContractError::Unauthorized {})
+    ));
+
+    // valid handler to change minter
+    handle(
+        deps.as_mut(),
+        env.clone(),
+        mock_info(HumanAddr("operator".to_string()), &[]),
+        Cw1155ExecuteMsg::ChangeOwner {
+            owner: "hello there".to_string(),
+        },
+    )
+    .unwrap();
+
+    let query_msg = query(deps.as_ref(), mock_env(), Cw1155QueryMsg::Owner {}).unwrap();
+    let owner_result: HumanAddr = from_binary(&query_msg).unwrap();
+    assert_eq!(owner_result, HumanAddr("hello there".to_string()));
+}

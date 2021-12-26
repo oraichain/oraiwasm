@@ -1276,7 +1276,7 @@ fn update_info_test() {
 
         let query_info = QueryMsg::GetContractInfo {};
         let res_info: ContractInfo = from_binary(&manager.query(query_info).unwrap()).unwrap();
-        assert_eq!(res_info.governance.as_str(), HUB_ADDR);
+        assert_eq!(res_info.governance.addr().as_str(), HUB_ADDR);
     }
 }
 

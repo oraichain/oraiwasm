@@ -1,8 +1,10 @@
 use std::env::current_dir;
 use std::fs::create_dir_all;
 
-use aioracle_new::{HandleMsg, InitMsg, QueryMsg};
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
+
+use aioracle_storage::msg::{HandleMsg, InitMsg};
+use aioracle_storage::state::ContractInfo;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -12,5 +14,5 @@ fn main() {
 
     export_schema(&schema_for!(InitMsg), &out_dir);
     export_schema(&schema_for!(HandleMsg), &out_dir);
-    export_schema(&schema_for!(QueryMsg), &out_dir);
+    export_schema(&schema_for!(ContractInfo), &out_dir);
 }

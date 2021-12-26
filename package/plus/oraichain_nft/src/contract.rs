@@ -524,6 +524,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             start_after,
             limit,
         )?),
+        // QueryMsg::IsApproveForAll { owner, operator } => {
+        //     to_binary(&try_check_operator_permission(deps, env, operator, owner)?)
+        // }
         QueryMsg::NumTokens {} => to_binary(&query_num_tokens(deps)?),
         QueryMsg::Tokens {
             owner,
