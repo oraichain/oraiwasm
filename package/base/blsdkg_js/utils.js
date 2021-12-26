@@ -135,3 +135,26 @@ exports.signSignature = function (randomness, privKey) {
   const signature = secp256k1.ecdsaSign(randomnessBytes, privKey).signature;
   return signature;
 }
+
+/**
+ * EG, 'true' -> false
+ *     '123' -> false
+ *     'null' -> false
+ *     '"I'm a string"' -> false
+ */
+exports.tryParseJSONObject = (jsonString) => {
+  try {
+    const o = JSON.parse(jsonString);
+
+    // Handle non-exception-throwing cases:
+    // Neither JSON.parse(false) or JSON.parse(1234) throw errors, hence the type-checking,
+    // but... JSON.parse(null) returns null, and typeof null === "object", 
+    // so we must check for that, too. Thankfully, null is falsey, so this suffices:
+    if (o && typeof o === "object") {
+      return o;
+    }
+  }
+  catch (e) { }
+
+  return undefined;
+};
