@@ -78,6 +78,7 @@ pub enum HandleMsg {
     UpdateRoyalties {
         royalty: Vec<Royalty>,
     },
+    TransferNftDirectly(GiftNft),
     // UpdateOfferingRoyalties {
     //     royalty: Vec<OfferingRoyalty>,
     // },
@@ -107,6 +108,8 @@ pub struct SellNft {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct GiftNft {
+    pub token_id: String,
+    pub contract_addr: HumanAddr,
     pub recipient: HumanAddr,
 }
 
