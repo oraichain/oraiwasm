@@ -192,12 +192,15 @@ pub fn try_claim_winner(
         );
 
         let mut fund_amount = price;
+        // minus market fees
+        fund_amount = fund_amount.mul(Decimal::permille(1000 - fee));
+        let remaining_for_royalties = fund_amount;
 
         // pay for creator, ai provider and others
         if let Ok(royalties) = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id) {
             pay_royalties(
                 &royalties,
-                &price,
+                &remaining_for_royalties,
                 decimal_point,
                 &mut fund_amount,
                 &mut cosmos_msgs,
@@ -206,9 +209,7 @@ pub fn try_claim_winner(
                 denom.as_str(),
             )?;
         }
-
         // send fund the asker
-        fund_amount = fund_amount.mul(Decimal::permille(1000 - fee));
         // only send when fund is greater than zero
         if !fund_amount.is_zero() {
             cosmos_msgs.push(

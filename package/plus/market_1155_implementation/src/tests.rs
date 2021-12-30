@@ -190,7 +190,7 @@ impl DepsManager {
         let msg = InitMsg {
             name: String::from(CONTRACT_NAME),
             denom: DENOM.into(),
-            fee: 1, // 0.1%
+            fee: 20, // 0.1%
             // creator can update storage contract
             governance: HumanAddr::from(HUB_ADDR),
             auction_duration: Uint128::from(10000000000000u64),
@@ -957,6 +957,85 @@ fn claim_winner_happy_path() {
 }
 
 #[test]
+fn claim_winner_with_market_fees() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        let contract_env = mock_env(MARKET_ADDR);
+        handle_approve(manager);
+        // beneficiary can release it
+        let info = mock_info("asker", &coins(2, DENOM));
+
+        let sell_msg = AskNftMsg {
+            per_price: Uint128(3000),
+            cancel_fee: Some(10),
+            start: Some(contract_env.block.height + 15),
+            end: Some(contract_env.block.height + 100),
+            buyout_per_price: Some(Uint128(5000)),
+            start_timestamp: None,
+            end_timestamp: None,
+            step_price: None,
+            amount: Uint128(10),
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            token_id: String::from("BiddableNFT"),
+            asker: None,
+        };
+
+        let msg = HandleMsg::AskAuctionNft(sell_msg.clone());
+        let _res = manager.handle(info, msg).unwrap();
+
+        // bid auction
+        let bid_info = mock_info("bidder", &coins(500000, DENOM));
+
+        let bid_msg = HandleMsg::BidNft {
+            auction_id: 1,
+            per_price: Uint128::from(5000u64),
+        };
+        let mut bid_contract_env = contract_env.clone();
+        bid_contract_env.block.height = contract_env.block.height + 15;
+
+        let _res = manager
+            .handle_with_env(bid_contract_env, bid_info.clone(), bid_msg)
+            .unwrap();
+
+        // now claim winner after expired
+        let claim_info = mock_info("claimer", &coins(0, DENOM));
+        let claim_msg = HandleMsg::ClaimWinner { auction_id: 1 };
+        let mut claim_contract_env = contract_env.clone();
+        claim_contract_env.block.height = contract_env.block.height + 100; // > 100 at block end
+        let _res = manager
+            .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
+            .unwrap();
+        for result in _res {
+            for message in result.clone().messages {
+                if let CosmosMsg::Bank(msg) = message {
+                    // total pay is 50000. Fee is 2% => remaining is 49000. Creator has royalty as 1% => total royalty is 49000 * (1 - 0.01) = 48510. Seller receives 48510
+                    match msg {
+                        cosmwasm_std::BankMsg::Send {
+                            from_address,
+                            to_address,
+                            amount,
+                        } => {
+                            println!("from address: {}", from_address);
+                            println!("to address: {}", to_address);
+                            println!("amount: {:?}", amount);
+                            let amount = amount[0].amount;
+                            if to_address.eq(&HumanAddr::from("creator")) {
+                                assert_eq!(amount, Uint128::from(490u64));
+                            }
+                            if to_address.eq(&HumanAddr::from("asker")) {
+                                assert_eq!(amount, Uint128::from(48510u64));
+                            }
+                            // check royalty sent to seller
+                        }
+                    }
+                } else {
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn claim_winner_unhappy_path() {
     unsafe {
         let manager = DepsManager::get_new();
@@ -1280,8 +1359,6 @@ fn update_info_test() {
     }
 }
 
-// TODO: write auction test cases
-
 // test royalty
 
 #[test]
@@ -1305,7 +1382,7 @@ fn test_royalties() {
                 },
             },
             creator_type: String::from("cxacx"),
-            royalty: Some(10000000),
+            royalty: Some(10000000), // 1%
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -1329,18 +1406,6 @@ fn test_royalties() {
         let offering_first: Offering = from_binary(&offering_bin_first).unwrap();
 
         println!("offering: {:?}", offering_first);
-
-        let result: Vec<Offering> = from_binary(
-            &manager
-                .query(QueryMsg::Offering(MarketQueryMsg::GetOfferings {
-                    offset: None,
-                    limit: None,
-                    order: None,
-                }))
-                .unwrap(),
-        )
-        .unwrap();
-        println!("result {:?}", result);
 
         let buy_msg = HandleMsg::BuyNft {
             offering_id: 1,
@@ -1429,9 +1494,14 @@ fn test_royalties() {
             }
         }
 
+        // query market info to get fees
+        let contract_info: ContractInfo =
+            from_binary(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
+
         let price = offering
             .per_price
             .mul(Decimal::from_ratio(offering.amount.u128(), 1u128));
+        let remaining_for_royalties = price.mul(Decimal::permille(1000 - contract_info.fee));
 
         // increment royalty to total payment
         for royalty in royalties {
@@ -1439,14 +1509,16 @@ fn test_royalties() {
             if let Some(index) = index {
                 let amount = amounts[index];
                 assert_eq!(
-                    price.mul(Decimal::from_ratio(royalty.royalty, MAX_ROYALTY_PERCENT)),
+                    remaining_for_royalties
+                        .mul(Decimal::from_ratio(royalty.royalty, MAX_ROYALTY_PERCENT)),
                     amount
                 );
                 total_payment = total_payment + amount;
             }
         }
 
-        assert_eq!(total_payment, Uint128::from(500u128));
+        // sell total price is 500, minus market fee 2% => remaining = 490. royalty 1% for total price is 490 => total royalty is 4.9 => receive 485.1 ORAI
+        assert_eq!(total_payment, Uint128::from(490u128));
     }
 }
 

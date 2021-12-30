@@ -219,13 +219,14 @@ pub fn try_buy(
             let fee_amount = price.mul(Decimal::permille(contract_info.fee));
             // Rust will automatically floor down the value to 0 if amount is too small => error
             seller_amount = seller_amount.sub(fee_amount)?;
+            let remaining_for_royalties = seller_amount;
             // pay for creator, ai provider and others
             if let Ok(royalties) =
                 get_royalties(deps.as_ref(), off.contract_addr.as_str(), &off.token_id)
             {
                 pay_royalties(
                     &royalties,
-                    &price,
+                    &remaining_for_royalties,
                     decimal_point,
                     &mut seller_amount,
                     &mut cosmos_msgs,

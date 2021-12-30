@@ -78,6 +78,10 @@ pub enum HandleMsg {
     UpdateRoyalties {
         royalty: Vec<Royalty>,
     },
+    ApproveAll {
+        contract_addr: HumanAddr,
+        operator: HumanAddr,
+    },
     TransferNftDirectly(GiftNft),
     // UpdateOfferingRoyalties {
     //     royalty: Vec<OfferingRoyalty>,

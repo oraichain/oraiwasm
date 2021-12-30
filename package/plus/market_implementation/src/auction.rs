@@ -188,12 +188,15 @@ pub fn try_claim_winner(
         );
 
         let mut fund_amount = off.price;
+        // minus market fees
+        fund_amount = fund_amount.mul(Decimal::permille(1000 - fee));
+        let remaining_for_royalties = fund_amount;
 
         // pay for creator, ai provider and others
         if let Ok(royalties) = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id) {
             pay_royalties(
                 &royalties,
-                &off.price,
+                &remaining_for_royalties,
                 decimal_point,
                 &mut fund_amount,
                 &mut cosmos_msgs,
@@ -216,7 +219,7 @@ pub fn try_claim_winner(
 
         // payout for the previous owner
         if offering_royalty.previous_owner.is_some() && offering_royalty.prev_royalty.is_some() {
-            let owner_amount = off.price.mul(Decimal::from_ratio(
+            let owner_amount = remaining_for_royalties.mul(Decimal::from_ratio(
                 offering_royalty.prev_royalty.unwrap(),
                 decimal_point,
             ));
@@ -246,7 +249,6 @@ pub fn try_claim_winner(
         )?);
 
         // send fund the asker
-        fund_amount = fund_amount.mul(Decimal::permille(1000 - fee));
         // only send when fund is greater than zero
         if !fund_amount.is_zero() {
             cosmos_msgs.push(
@@ -291,7 +293,6 @@ pub fn try_claim_winner(
 
     rsp.messages = cosmos_msgs;
     rsp.attributes.extend(vec![
-        attr("action", "claim_winner"),
         attr("claimer", info.sender),
         attr("token_id", off.token_id.clone()),
         attr("auction_id", auction_id),

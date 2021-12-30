@@ -89,12 +89,14 @@ pub fn try_buy(
                 return Err(ContractError::InsufficientFunds {});
             }
 
-            let mut seller_amount = sent_fund.amount;
+            let mut seller_amount = off.price;
 
             // pay for the owner of this minter contract if there is fee set in marketplace
             let fee_amount = off.price.mul(Decimal::permille(contract_info.fee));
             // Rust will automatically floor down the value to 0 if amount is too small => error
             seller_amount = seller_amount.sub(fee_amount)?;
+
+            let remaining_for_royalties = seller_amount;
 
             // pay for creator, ai provider and others
             if let Ok(royalties) =
@@ -102,7 +104,7 @@ pub fn try_buy(
             {
                 pay_royalties(
                     &royalties,
-                    &off.price,
+                    &remaining_for_royalties,
                     decimal_point,
                     &mut seller_amount,
                     &mut cosmos_msgs,
@@ -129,7 +131,7 @@ pub fn try_buy(
             if offering_royalty_result.previous_owner.is_some()
                 && offering_royalty_result.prev_royalty.is_some()
             {
-                let owner_amount = off.price.mul(Decimal::from_ratio(
+                let owner_amount = remaining_for_royalties.mul(Decimal::from_ratio(
                     offering_royalty_result.prev_royalty.unwrap(),
                     decimal_point,
                 ));

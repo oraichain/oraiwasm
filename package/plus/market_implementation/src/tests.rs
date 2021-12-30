@@ -9,7 +9,7 @@ use cosmwasm_std::{
     HandleResponse, HumanAddr, MessageInfo, Order, OwnedDeps, QuerierResult, StdResult,
     SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
 };
-use cw721::OwnerOfResponse;
+use cw721::{ApprovedForAllResponse, OwnerOfResponse};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_auction::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_auction::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
@@ -199,7 +199,7 @@ impl DepsManager {
         let msg = InitMsg {
             name: String::from(CONTRACT_NAME),
             denom: DENOM.into(),
-            fee: 1, // 0.1%
+            fee: 20, // 0.1%
             auction_duration: Uint128::from(10000000000000u64),
             step_price: 1,
             // creator can update storage contract
@@ -1589,6 +1589,13 @@ fn test_royalties() {
         println!("royalties are: {:?}", royalties);
         assert_eq!(royalties.len(), 2);
 
+        // query market info to get fees
+        let contract_info: ContractInfo =
+            from_binary(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
+        let remaining_for_royalties = offering
+            .price
+            .mul(Decimal::permille(1000 - contract_info.fee));
+
         // placeholders to verify royalties
         let mut to_addrs: Vec<HumanAddr> = vec![];
         let mut amounts: Vec<Uint128> = vec![];
@@ -1617,20 +1624,20 @@ fn test_royalties() {
                             if to_address.eq(&result_royalty.previous_owner.clone().unwrap()) {
                                 println!("ready to pay for previous owner\n");
                                 assert_eq!(
-                                    offering.price.mul(Decimal::from_ratio(
+                                    remaining_for_royalties.mul(Decimal::from_ratio(
                                         result_royalty.prev_royalty.unwrap(),
                                         MAX_DECIMAL_POINT
                                     )),
                                     amount
                                 );
-                                total_payment = total_payment + amount;
+                                royatly_marketplace += amount;
                                 flag += 1;
                             }
 
                             if to_address.eq(&HumanAddr::from(contract_info.creator.as_str())) {
-                                royatly_marketplace = amount;
                                 assert_eq!(
-                                    offering.price.mul(Decimal::permille(contract_info.fee)),
+                                    remaining_for_royalties
+                                        .mul(Decimal::permille(contract_info.fee)),
                                     amount
                                 );
                             }
@@ -1648,19 +1655,19 @@ fn test_royalties() {
             if let Some(index) = index {
                 let amount = amounts[index];
                 assert_eq!(
-                    offering
-                        .price
+                    remaining_for_royalties
                         .mul(Decimal::from_ratio(royalty.royalty, MAX_DECIMAL_POINT)),
                     amount
                 );
-                total_payment = total_payment + amount;
+                royatly_marketplace += amount;
             }
         }
 
-        assert_eq!(
-            total_payment + royatly_marketplace,
-            Uint128::from(9000000u128)
-        );
+        // buyer1 sells with total price 50 orai, market fee is 2% => remaining = 49 orai. creator royalty is 40% => royalty creator = 19.6 = 19 orai. previous owner is buyer, royalty is 10% => royalty = 4.9 = 4 orai
+        // seller receive = 49 - 19 - 4 = 26 orai
+
+        assert_eq!(royatly_marketplace, Uint128::from(23u128));
+        assert_eq!(total_payment + royatly_marketplace, Uint128::from(49u128));
     }
 }
 
@@ -2209,5 +2216,59 @@ fn test_transfer_nft_directly() {
         .unwrap();
 
         assert_eq!(result.owner, HumanAddr::from("somebody"));
+    }
+}
+
+#[test]
+fn update_approve_all() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        handle_whitelist(manager);
+        // update contract to set fees
+
+        // random account cannot update info, only creator
+        let info_unauthorized = mock_info("anyone", &vec![coin(5, DENOM)]);
+
+        assert!(matches!(
+            manager.handle(
+                info_unauthorized.clone(),
+                HandleMsg::ApproveAll {
+                    contract_addr: HumanAddr::from(OW721),
+                    operator: HumanAddr::from("foobar"),
+                },
+            ),
+            Err(ContractError::Unauthorized { .. })
+        ));
+
+        manager
+            .handle(
+                mock_info(CREATOR, &vec![coin(5, DENOM)]),
+                HandleMsg::ApproveAll {
+                    contract_addr: HumanAddr::from(OW721),
+                    operator: HumanAddr::from("foobar"),
+                },
+            )
+            .unwrap();
+
+        // query approve all
+        // check owner, should get back to provider
+        let result: ApprovedForAllResponse = from_binary(
+            &oraichain_nft::contract::query(
+                manager.ow721.as_ref(),
+                mock_env(OW721),
+                oraichain_nft::msg::QueryMsg::ApprovedForAll {
+                    owner: HumanAddr::from(MARKET_ADDR),
+                    include_expired: None,
+                    start_after: None,
+                    limit: None,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            result.operators.last().unwrap().spender,
+            HumanAddr::from("foobar")
+        )
     }
 }
