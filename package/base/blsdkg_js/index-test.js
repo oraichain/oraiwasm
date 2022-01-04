@@ -264,9 +264,10 @@ const processRequest = async (skShare) => {
 
     // check if input contains solana keyword. User input must has a substring of solana
     const inputType = tryParseJSONObject(Buffer.from(roundInfo.input, 'base64').toString('ascii'));
-    // format: {"message": "foobar", "type":"solana"}
+    // format: {"requester":"something","message": "foobar", "type":"solana"}
     if (inputType && inputType.type && inputType.type === NETWORK_TYPE.SOLANA) {
-      const result = await addRandomness(cosmos, roundInfo.round, roundInfo.randomness, childKey.publicKey);
+      console.log("input type: ", inputType);
+      const result = await addRandomness(cosmos, roundInfo.round, inputType.message, roundInfo.randomness, childKey.publicKey, inputType.requester);
       console.log("result: ", result);
     }
   }

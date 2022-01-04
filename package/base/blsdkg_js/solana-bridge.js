@@ -20,7 +20,7 @@ const verifyAndGetProof = (tree, oraiPub, solAddr) => {
     return Buffer.concat(proof);
 }
 
-const addRandomness = async (cosmos, roundNum, randomness, oraiPub) => {
+const addRandomness = async (cosmos, roundNum, input, randomness, oraiPub, requester) => {
     // TODO: Need to loop until get all full members
     const data = await queryWasm(cosmos, SOLANA_CONFIG.ORAICHAIN_TESTNET_SOLLIST_ADDR, {
         get_members: {}
@@ -55,19 +55,20 @@ const addRandomness = async (cosmos, roundNum, randomness, oraiPub) => {
     const round = new anchor.BN(roundNum);
     const randomnessBuff = Buffer.from(randomness, 'base64');
 
+    const seed = sha256(
+        Buffer.concat([program.programId.toBuffer(), tree.getRoot(), payer.publicKey.toBuffer(), Buffer.from(requester, 'base64'), Buffer.from(input, 'base64')])
+    );
     const sigAccount = anchor.web3.Keypair.fromSeed(
-        sha256(
-            Buffer.concat([program.programId.toBuffer(), Buffer.from(tree.getRoot(), 'hex'), oraiPub, round.toBuffer()])
-        )
+        seed
     );
 
     // deserialize to sharedSignature
-    const sigRecord = await program.account.signatureData.fetchNullable(
+    const sigRecord = await program.account.randomnessData.fetchNullable(
         sigAccount.publicKey
     );
     if (!sigRecord) {
         const proofBuffer = verifyAndGetProof(tree, oraiPub, payer.publicKey.toString('base64'));
-        return program.rpc.addSignature(
+        return program.rpc.addRandomness(
             Buffer.from(oraiPub, 'base64'),
             tree.getRoot(),
             proofBuffer,
@@ -75,7 +76,7 @@ const addRandomness = async (cosmos, roundNum, randomness, oraiPub) => {
             randomnessBuff,
             {
                 accounts: {
-                    sharedSig: sigAccount.publicKey,
+                    randomnessData: sigAccount.publicKey,
                     user: payer.publicKey,
                     systemProgram: anchor.web3.SystemProgram.programId
                 },

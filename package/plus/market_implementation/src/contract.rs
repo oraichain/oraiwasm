@@ -23,7 +23,7 @@ use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
     InitResponse, MessageInfo, StdResult, WasmMsg,
 };
-use cw721::{Cw721HandleMsg, Cw721QueryMsg, Cw721ReceiveMsg, OwnerOfResponse};
+use cw721::{Cw721HandleMsg, Cw721QueryMsg, OwnerOfResponse};
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::sanitize_royalty;
 use market_auction::{AuctionQueryMsg, QueryAuctionsResult};
@@ -143,9 +143,11 @@ pub fn handle(
             try_update_royalty_creator(deps, info, royalty_msg)
         }
         HandleMsg::UpdateRoyalties { royalty } => try_update_royalties(deps, info, env, royalty),
-        // HandleMsg::UpdateOfferingRoyalties { royalty } => {
-        //     try_update_offering_royalties(deps, info, env, royalty)
-        // }
+        HandleMsg::ApproveAll {
+            contract_addr,
+            operator,
+        } => try_approve_all(deps, info, contract_addr, operator),
+        HandleMsg::TransferNftDirectly(gift_msg) => handle_transfer_nft(deps, info, gift_msg),
     }
 }
 
@@ -251,7 +253,7 @@ pub fn try_update_info(
 //             return handle_sell_nft(deps, info, sell_msg, rcv_msg);
 //         }
 //         if let Ok(gift_msg) = from_binary::<GiftNft>(&msg) {
-//             return handle_gift_nft(info, gift_msg, rcv_msg);
+//             return handle_transfer_nft(info, gift_msg, rcv_msg);
 //         }
 //     }
 //     Err(ContractError::NoData {})
@@ -300,20 +302,35 @@ pub fn try_migrate(
     })
 }
 
-/* Alternative: transfering nft directly thought 721 contract */
-pub fn handle_gift_nft(
+pub fn handle_transfer_nft(
+    deps: DepsMut,
     info: MessageInfo,
     gift_msg: GiftNft,
-    rcv_msg: Cw721ReceiveMsg,
 ) -> Result<HandleResponse, ContractError> {
+    let GiftNft {
+        contract_addr,
+        token_id,
+        recipient,
+        ..
+    } = gift_msg;
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+    // verify owner. Wont allow to transfer if it's not the owner of the nft
+    verify_nft(
+        deps.as_ref(),
+        &governance,
+        &contract_addr,
+        &token_id,
+        &info.sender,
+    )?;
+
     let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
     let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
-        recipient: gift_msg.recipient.clone(),
-        token_id: rcv_msg.token_id.clone(),
+        recipient: recipient.clone(),
+        token_id: token_id.clone(),
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: info.sender.clone(),
+        contract_addr: contract_addr.clone(),
         msg: to_binary(&transfer_cw721_msg)?,
         send: vec![],
     }
@@ -322,11 +339,47 @@ pub fn handle_gift_nft(
     Ok(HandleResponse {
         messages: cw721_transfer_cosmos_msg,
         attributes: vec![
-            attr("action", "send_gift_nft"),
-            attr("nft_contract_addr", info.sender),
-            attr("token_id", format!("{:?}", rcv_msg.token_id)),
-            attr("sender", rcv_msg.sender),
-            attr("recipient", gift_msg.recipient),
+            attr("action", "transfer_nft_directly"),
+            attr("token_id", token_id),
+            attr("sender", info.sender),
+            attr("recipient", recipient),
+        ],
+        data: None,
+    })
+}
+
+pub fn try_approve_all(
+    deps: DepsMut,
+    info: MessageInfo,
+    contract_addr: HumanAddr,
+    operator: HumanAddr,
+) -> Result<HandleResponse, ContractError> {
+    let ContractInfo { creator, .. } = CONTRACT_INFO.load(deps.storage)?;
+    if creator.ne(&info.sender.to_string()) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    }
+
+    let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
+    let transfer_cw721_msg = Cw721HandleMsg::ApproveAll {
+        operator: operator.clone(),
+        expires: None,
+    };
+
+    let exec_cw721_transfer = WasmMsg::Execute {
+        contract_addr: contract_addr.clone(),
+        msg: to_binary(&transfer_cw721_msg)?,
+        send: vec![],
+    }
+    .into();
+    cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
+    Ok(HandleResponse {
+        messages: cw721_transfer_cosmos_msg,
+        attributes: vec![
+            attr("action", "approve_all"),
+            attr("contract_addr", contract_addr),
+            attr("operator", operator),
         ],
         data: None,
     })
