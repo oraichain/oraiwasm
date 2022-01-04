@@ -28,6 +28,9 @@ pub enum ContractError {
     #[error("The auction asker address is invalid")]
     InvalidSellerAddr {},
 
+    #[error("The minter signature is invalid")]
+    InvalidMinter {},
+
     #[error("The auction contract address is invalid")]
     InvalidContractAddr {},
 

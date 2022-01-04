@@ -195,6 +195,8 @@ impl DepsManager {
             governance: HumanAddr::from(HUB_ADDR),
             auction_duration: Uint128::from(10000000000000u64),
             step_price: 1,
+            minter_pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t") // random pub key from oraichain
+                .unwrap(),
         };
 
         let _res = init(deps.as_mut(), mock_env(MARKET_ADDR), info.clone(), msg).unwrap();
@@ -400,7 +402,7 @@ fn handle_approve(manager: &mut DepsManager) {
     }
 
     for token_id in token_ids {
-        let mint_msg = HandleMsg::MintNft(MintMsg {
+        let mut mint_msg = MintMsg {
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             creator: HumanAddr::from("creator"),
             mint: MintIntermediate {
@@ -413,7 +415,15 @@ fn handle_approve(manager: &mut DepsManager) {
             },
             creator_type: String::from("cxacx"),
             royalty: Some(10000000),
-        });
+            minter_signature: Binary::from_base64("uowo76xN8DOpRH17EJYsmH6NU8tO5LHWUURkzghvU41j1Kl5xY3Mj/1Qd6Ux6fi2iGObgmlrjUPLGRDrZWAKEA==").unwrap()
+        };
+
+        // minter signature is collected from signing token id which is hashed using keccak256
+        if token_id.eq(&String::from("BiddableNFT")) {
+            mint_msg.minter_signature = Binary::from_base64("QTcSQf7FQEdEPCRU0WHmi/m7JOlndteYdGKmEffjUqN8QMzhMw7UUSY/hw4V0jdbXa8kl2R42Rk5V9n8ZcjeKQ==").unwrap()
+        }
+
+        let mint_msg = HandleMsg::MintNft(mint_msg);
 
         manager
             .handle(creator_info.clone(), mint_msg.clone())
@@ -1338,6 +1348,7 @@ fn update_info_test() {
             governance: None,
             expired_block: None,
             decimal_point: None,
+            minter_pubkey: None,
         };
         let update_info_msg = HandleMsg::UpdateInfo(update_info);
 
@@ -1383,6 +1394,7 @@ fn test_royalties() {
             },
             creator_type: String::from("cxacx"),
             royalty: Some(10000000), // 1%
+            minter_signature: Binary::from_base64("uowo76xN8DOpRH17EJYsmH6NU8tO5LHWUURkzghvU41j1Kl5xY3Mj/1Qd6Ux6fi2iGObgmlrjUPLGRDrZWAKEA==").unwrap()
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -1781,6 +1793,7 @@ fn test_mint() {
             },
             creator_type: String::from("cxacx"),
             royalty: None,
+            minter_signature: Binary::from_base64("uowo76xN8DOpRH17EJYsmH6NU8tO5LHWUURkzghvU41j1Kl5xY3Mj/1Qd6Ux6fi2iGObgmlrjUPLGRDrZWAKEA==").unwrap()
         };
         let mut mint_msg = HandleMsg::MintNft(mint.clone());
         manager
@@ -1910,6 +1923,7 @@ fn test_change_creator_happy() {
             },
             creator_type: String::from("cxacx"),
             royalty: None,
+            minter_signature: Binary::from_base64("uowo76xN8DOpRH17EJYsmH6NU8tO5LHWUURkzghvU41j1Kl5xY3Mj/1Qd6Ux6fi2iGObgmlrjUPLGRDrZWAKEA==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
         manager
@@ -1980,6 +1994,7 @@ fn test_change_creator_unhappy() {
             },
             creator_type: String::from("cxacx"),
             royalty: None,
+            minter_signature: Binary::from_base64("uowo76xN8DOpRH17EJYsmH6NU8tO5LHWUURkzghvU41j1Kl5xY3Mj/1Qd6Ux6fi2iGObgmlrjUPLGRDrZWAKEA==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
         manager
@@ -2030,6 +2045,7 @@ fn transfer_nft_directly_happy_path() {
             },
             creator_type: String::from("creator"),
             royalty: None,
+            minter_signature: Binary::from_base64("CBAcFPPgvB0dENTEO3suc62/Uu/eE2eDND11JNcjiggGrSS89xhlin9n6SDW5Dlxr/zT+VpxB4JZJuA7AKp4Mg==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
         manager
@@ -2108,6 +2124,7 @@ fn transfer_nft_directly_unhappy_path() {
             },
             creator_type: String::from("creator"),
             royalty: None,
+            minter_signature: Binary::from_base64("CBAcFPPgvB0dENTEO3suc62/Uu/eE2eDND11JNcjiggGrSS89xhlin9n6SDW5Dlxr/zT+VpxB4JZJuA7AKp4Mg==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
         manager

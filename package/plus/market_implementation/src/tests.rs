@@ -205,6 +205,8 @@ impl DepsManager {
             // creator can update storage contract
             governance: HumanAddr::from(HUB_ADDR),
             max_royalty: MAX_ROYALTY_PERCENT,
+            minter_pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t")
+                .unwrap(),
         };
         let info = mock_info(CREATOR, &[]);
         let _res = init(deps.as_mut(), mock_env(MARKET_ADDR), info.clone(), msg).unwrap();
@@ -415,6 +417,7 @@ fn sell_auction_happy_path() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("ucRVO/3WXuP6RSZ6pgSBFnB67oWiETcLyScIveHhlQpnoO9rHShkl6UT0/3iJYed1/ESApeAQucpzPxvEK2WdQ==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
 
@@ -491,6 +494,7 @@ fn test_royalty_auction_happy_path() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("ucRVO/3WXuP6RSZ6pgSBFnB67oWiETcLyScIveHhlQpnoO9rHShkl6UT0/3iJYed1/ESApeAQucpzPxvEK2WdQ==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
 
@@ -643,7 +647,7 @@ fn test_royalty_auction_happy_path() {
                                 flag = 1;
                                 println!("in here ready to pay for prev owner");
                                 assert_eq!(
-                                    Uint128(20).mul(Decimal::from_ratio(
+                                    Uint128(19).mul(Decimal::from_ratio(
                                         result_royalty.prev_royalty.unwrap(),
                                         MAX_DECIMAL_POINT
                                     )),
@@ -676,6 +680,7 @@ fn update_info_test() {
             governance: None,
             decimal_point: None,
             max_royalty: Some(1000),
+            minter_pubkey: None,
         };
         let update_info_msg = HandleMsg::UpdateInfo(update_info);
 
@@ -720,6 +725,7 @@ fn cancel_auction_happy_path() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("ucRVO/3WXuP6RSZ6pgSBFnB67oWiETcLyScIveHhlQpnoO9rHShkl6UT0/3iJYed1/ESApeAQucpzPxvEK2WdQ==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
 
@@ -807,6 +813,7 @@ fn cancel_auction_unhappy_path() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("ucRVO/3WXuP6RSZ6pgSBFnB67oWiETcLyScIveHhlQpnoO9rHShkl6UT0/3iJYed1/ESApeAQucpzPxvEK2WdQ==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
 
@@ -887,6 +894,7 @@ fn cancel_auction_verify_owner() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("ucRVO/3WXuP6RSZ6pgSBFnB67oWiETcLyScIveHhlQpnoO9rHShkl6UT0/3iJYed1/ESApeAQucpzPxvEK2WdQ==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
 
@@ -999,6 +1007,7 @@ fn cancel_bid_happy_path() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("ucRVO/3WXuP6RSZ6pgSBFnB67oWiETcLyScIveHhlQpnoO9rHShkl6UT0/3iJYed1/ESApeAQucpzPxvEK2WdQ==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
 
@@ -1087,6 +1096,7 @@ fn cancel_bid_unhappy_path() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("ucRVO/3WXuP6RSZ6pgSBFnB67oWiETcLyScIveHhlQpnoO9rHShkl6UT0/3iJYed1/ESApeAQucpzPxvEK2WdQ==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
 
@@ -1174,6 +1184,7 @@ fn claim_winner_happy_path() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("ucRVO/3WXuP6RSZ6pgSBFnB67oWiETcLyScIveHhlQpnoO9rHShkl6UT0/3iJYed1/ESApeAQucpzPxvEK2WdQ==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
 
@@ -1271,6 +1282,7 @@ fn claim_winner_happy_path() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("ucRVO/3WXuP6RSZ6pgSBFnB67oWiETcLyScIveHhlQpnoO9rHShkl6UT0/3iJYed1/ESApeAQucpzPxvEK2WdQ==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
 
@@ -1344,6 +1356,7 @@ fn claim_winner_verify_owner() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("ucRVO/3WXuP6RSZ6pgSBFnB67oWiETcLyScIveHhlQpnoO9rHShkl6UT0/3iJYed1/ESApeAQucpzPxvEK2WdQ==").unwrap()
         };
         let mint_msg = HandleMsg::MintNft(mint.clone());
 
@@ -1450,6 +1463,7 @@ fn test_royalties() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("uowo76xN8DOpRH17EJYsmH6NU8tO5LHWUURkzghvU41j1Kl5xY3Mj/1Qd6Ux6fi2iGObgmlrjUPLGRDrZWAKEA==").unwrap()
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -1702,6 +1716,7 @@ fn withdraw_offering() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("uowo76xN8DOpRH17EJYsmH6NU8tO5LHWUURkzghvU41j1Kl5xY3Mj/1Qd6Ux6fi2iGObgmlrjUPLGRDrZWAKEA==").unwrap()
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -1788,6 +1803,7 @@ fn withdraw_verify_owner() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("uowo76xN8DOpRH17EJYsmH6NU8tO5LHWUURkzghvU41j1Kl5xY3Mj/1Qd6Ux6fi2iGObgmlrjUPLGRDrZWAKEA==").unwrap()
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -1887,6 +1903,7 @@ fn admin_withdraw_offering() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("uowo76xN8DOpRH17EJYsmH6NU8tO5LHWUURkzghvU41j1Kl5xY3Mj/1Qd6Ux6fi2iGObgmlrjUPLGRDrZWAKEA==").unwrap()
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -1967,6 +1984,7 @@ fn test_sell_nft_unhappy() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("uowo76xN8DOpRH17EJYsmH6NU8tO5LHWUURkzghvU41j1Kl5xY3Mj/1Qd6Ux6fi2iGObgmlrjUPLGRDrZWAKEA==").unwrap()
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -2030,6 +2048,7 @@ fn test_buy_nft_unhappy() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("uowo76xN8DOpRH17EJYsmH6NU8tO5LHWUURkzghvU41j1Kl5xY3Mj/1Qd6Ux6fi2iGObgmlrjUPLGRDrZWAKEA==").unwrap()
         });
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
@@ -2091,6 +2110,7 @@ fn test_update_decay_royalty() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("uowo76xN8DOpRH17EJYsmH6NU8tO5LHWUURkzghvU41j1Kl5xY3Mj/1Qd6Ux6fi2iGObgmlrjUPLGRDrZWAKEA==").unwrap()
         });
 
         manager.handle(creator_info.clone(), mint_msg).unwrap();
@@ -2162,6 +2182,7 @@ fn test_transfer_nft_directly() {
             },
             creator_type: String::from("sacx"),
             royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("uowo76xN8DOpRH17EJYsmH6NU8tO5LHWUURkzghvU41j1Kl5xY3Mj/1Qd6Ux6fi2iGObgmlrjUPLGRDrZWAKEA==").unwrap()
         });
 
         manager.handle(creator_info.clone(), mint_msg).unwrap();
@@ -2270,5 +2291,36 @@ fn update_approve_all() {
             result.operators.last().unwrap().spender,
             HumanAddr::from("foobar")
         )
+    }
+}
+
+#[test]
+fn test_verify_mint_unhappy() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        handle_whitelist(manager);
+        // try mint nft to get royalty for provider
+        let creator_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from(OW721),
+            creator: HumanAddr::from("provider"),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    token_id: String::from("SellableNFT"),
+                    owner: HumanAddr::from("provider"),
+                    name: String::from("asbv"),
+                    description: None,
+                    image: String::from("baxv"),
+                },
+            },
+            creator_type: String::from("sacx"),
+            royalty: Some(40 * DECIMAL),
+            minter_signature: Binary::from_base64("ly8SVklArwNW7lU7z7alSKq9w+vSjhrt8E/L5W3V7r5eYZ+LAS2m+tZvYfp71SXsye5qzI6EF1RV5QXaI/RVMQ==").unwrap(),
+        });
+
+        assert!(matches!(
+            manager.handle(creator_info.clone(), mint_msg),
+            Err(ContractError::InvalidMinter {})
+        ));
     }
 }

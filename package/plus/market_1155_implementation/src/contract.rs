@@ -11,6 +11,7 @@ use std::fmt;
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO};
+use cosmwasm_crypto::secp256k1_verify;
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
@@ -27,6 +28,7 @@ use market_whitelist::{
 };
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Serialize};
+use tiny_keccak::{Hasher, Keccak};
 
 pub const MAX_ROYALTY_PERCENT: u64 = 1_000_000_000;
 pub const MAX_DECIMAL_POINT: u64 = 1_000_000_000;
@@ -65,6 +67,7 @@ pub fn init(
         decimal_point: MAX_DECIMAL_POINT,
         auction_duration: msg.auction_duration,
         step_price: msg.step_price,
+        minter_pubkey: msg.minter_pubkey,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -187,6 +190,9 @@ pub fn try_update_info(
         }
         if let Some(decimal_point) = msg.decimal_point {
             contract_info.decimal_point = decimal_point;
+        }
+        if let Some(minter_pubkey) = msg.minter_pubkey {
+            contract_info.minter_pubkey = minter_pubkey;
         }
         Ok(contract_info)
     })?;
@@ -423,4 +429,27 @@ pub fn verify_nft(
         }
     }
     Ok(final_seller)
+}
+
+fn keccak_256(data: &[u8]) -> [u8; 32] {
+    let mut sha3 = Keccak::v256();
+    sha3.update(data);
+    let mut output = [0u8; 32];
+    sha3.finalize(&mut output);
+    output
+}
+
+pub fn verify_mint(
+    minter_message: &[u8],
+    minter_signature: &[u8],
+    minter_pubkey: &[u8],
+) -> Result<(), ContractError> {
+    // verify ownership of token id
+    let message_hash = keccak_256(minter_message);
+    let result = secp256k1_verify(&message_hash, minter_signature, minter_pubkey)
+        .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
+    if !result {
+        return Err(ContractError::InvalidMinter {});
+    }
+    Ok(())
 }

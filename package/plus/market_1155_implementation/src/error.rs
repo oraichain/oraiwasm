@@ -29,6 +29,9 @@ pub enum ContractError {
     #[error("Invalid zero amount")]
     InvalidZeroAmount {},
 
+    #[error("The minter signature is invalid")]
+    InvalidMinter {},
+
     #[error("Invalid denom amount")]
     InvalidDenomAmount {},
 

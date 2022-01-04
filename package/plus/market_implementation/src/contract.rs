@@ -18,11 +18,12 @@ use crate::msg::{
     GiftNft, HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
-use cosmwasm_std::HumanAddr;
+use cosmwasm_crypto::secp256k1_verify;
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
     InitResponse, MessageInfo, StdResult, WasmMsg,
 };
+use cosmwasm_std::{HumanAddr, StdError};
 use cw721::{Cw721HandleMsg, Cw721QueryMsg, OwnerOfResponse};
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::sanitize_royalty;
@@ -31,6 +32,7 @@ use market_royalty::{OfferingQueryMsg, QueryOfferingsResult};
 use market_whitelist::{IsApprovedForAllResponse, MarketWhiteListdQueryMsg};
 use schemars::JsonSchema;
 use serde::Serialize;
+use tiny_keccak::{Hasher, Keccak};
 
 pub const MAX_ROYALTY_PERCENT: u64 = 1_000_000_000;
 pub const MAX_DECIMAL_POINT: u64 = 1_000_000_000;
@@ -66,6 +68,7 @@ pub fn init(
         governance: msg.governance,
         max_royalty: sanitize_royalty(msg.max_royalty, MAX_ROYALTY_PERCENT, "max_royalty")?,
         decimal_point: MAX_DECIMAL_POINT,
+        minter_pubkey: msg.minter_pubkey,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
@@ -227,6 +230,9 @@ pub fn try_update_info(
         }
         if let Some(max_royalty) = msg.max_royalty {
             contract_info.max_royalty = max_royalty;
+        }
+        if let Some(minter_pubkey) = msg.minter_pubkey {
+            contract_info.minter_pubkey = minter_pubkey;
         }
         Ok(contract_info)
     })?;
@@ -472,6 +478,21 @@ pub fn verify_nft(
     Ok(())
 }
 
+pub fn verify_mint(
+    minter_message: &[u8],
+    minter_signature: &[u8],
+    minter_pubkey: &[u8],
+) -> Result<(), ContractError> {
+    // verify ownership of token id
+    let message_hash = keccak_256(minter_message);
+    let result = secp256k1_verify(&message_hash, minter_signature, minter_pubkey)
+        .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
+    if !result {
+        return Err(ContractError::InvalidMinter {});
+    }
+    Ok(())
+}
+
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
 }
@@ -503,4 +524,12 @@ where
         send: vec![],
     }
     .into())
+}
+
+fn keccak_256(data: &[u8]) -> [u8; 32] {
+    let mut sha3 = Keccak::v256();
+    sha3.update(data);
+    let mut output = [0u8; 32];
+    sha3.finalize(&mut output);
+    output
 }

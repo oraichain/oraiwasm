@@ -1,4 +1,4 @@
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{Binary, Uint128};
 use market::MarketHubContract;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -19,6 +19,7 @@ pub struct ContractInfo {
     pub step_price: u64,
     pub expired_block: u64,
     pub decimal_point: u64,
+    pub minter_pubkey: Binary,
 }
 
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("contract_info");

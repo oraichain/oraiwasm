@@ -1,4 +1,4 @@
-use cosmwasm_std::{CanonicalAddr, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, CanonicalAddr, HumanAddr, Uint128};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -10,6 +10,7 @@ pub struct MintMsg {
     pub creator: HumanAddr,
     pub creator_type: String,
     pub royalty: Option<u64>,
+    pub minter_signature: Binary,
     pub mint: MintIntermediate,
 }
 

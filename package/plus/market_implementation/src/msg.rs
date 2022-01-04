@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, Coin, Empty, HumanAddr, Uint128};
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_auction::{AuctionHandleMsg, AuctionQueryMsg};
@@ -17,6 +17,7 @@ pub struct InitMsg {
     pub step_price: u64,
     pub governance: HumanAddr,
     pub max_royalty: u64,
+    pub minter_pubkey: Binary,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -128,6 +129,7 @@ pub struct UpdateContractMsg {
     pub governance: Option<HumanAddr>,
     pub decimal_point: Option<u64>,
     pub max_royalty: Option<u64>,
+    pub minter_pubkey: Option<Binary>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

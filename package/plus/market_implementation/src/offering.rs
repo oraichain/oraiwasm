@@ -1,5 +1,7 @@
 use crate::ai_royalty::{add_msg_royalty, get_royalties, AI_ROYALTY_STORAGE};
-use crate::contract::{get_handle_msg, get_storage_addr, verify_nft, verify_owner, CREATOR_NAME};
+use crate::contract::{
+    get_handle_msg, get_storage_addr, verify_mint, verify_nft, verify_owner, CREATOR_NAME,
+};
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO};
@@ -22,7 +24,17 @@ pub fn try_handle_mint(
     info: MessageInfo,
     msg: MintMsg,
 ) -> Result<HandleResponse, ContractError> {
-    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+    let ContractInfo {
+        governance,
+        minter_pubkey,
+        ..
+    } = CONTRACT_INFO.load(deps.storage)?;
+    // backend needs to hash the token id and sign it.
+    verify_mint(
+        msg.mint.mint.token_id.as_bytes(),
+        msg.minter_signature.as_slice(),
+        minter_pubkey.as_slice(),
+    )?;
     let mint_msg = WasmMsg::Execute {
         contract_addr: msg.contract_addr.clone(),
         msg: to_binary(&msg.mint)?,

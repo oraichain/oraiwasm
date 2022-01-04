@@ -1,6 +1,6 @@
 use std::fmt;
 
-use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, Coin, Empty, HumanAddr, Uint128};
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_1155::{MarketQueryMsg, MintMsg};
 use market_ai_royalty::AiRoyaltyQueryMsg;
@@ -15,6 +15,7 @@ pub struct InitMsg {
     pub governance: HumanAddr,
     pub auction_duration: Uint128,
     pub step_price: u64,
+    pub minter_pubkey: Binary,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -109,6 +110,7 @@ pub struct UpdateContractMsg {
     pub governance: Option<HumanAddr>,
     pub expired_block: Option<u64>,
     pub decimal_point: Option<u64>,
+    pub minter_pubkey: Option<Binary>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

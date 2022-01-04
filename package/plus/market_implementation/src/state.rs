@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::{Binary, HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -18,6 +18,7 @@ pub struct ContractInfo {
     pub governance: HumanAddr,
     pub max_royalty: u64,
     pub decimal_point: u64,
+    pub minter_pubkey: Binary,
 }
 
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("contract_info");

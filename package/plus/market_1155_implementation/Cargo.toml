@@ -44,6 +44,8 @@ market_ai_royalty = { path = "../../base/market_ai_royalty" }
 market_auction_extend = { path = "../../base/market_auction_extend" }
 market_rejected = { path = "../../base/market_rejected" }
 market_whitelist = { path = "../../base/market_whitelist" }
+tiny-keccak = { version = "2.0.1", features = ["sha3","keccak"] }
+cosmwasm-crypto = "0.14.0"
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.13.2" }

@@ -1,7 +1,7 @@
 use crate::auction::AUCTION_STORAGE;
 use crate::contract::{
-    get_handle_msg, get_royalties, get_royalty, query_storage, verify_nft, AI_ROYALTY_STORAGE,
-    CREATOR_NAME, STORAGE_1155,
+    get_handle_msg, get_royalties, get_royalty, query_storage, verify_mint, verify_nft,
+    AI_ROYALTY_STORAGE, CREATOR_NAME, STORAGE_1155,
 };
 use crate::error::ContractError;
 use crate::msg::{SellNft, TransferNftDirectlyMsg};
@@ -98,13 +98,24 @@ pub fn try_handle_mint(
     // force to_addr when mint to info sender
     msg.mint.mint.to = info.sender.to_string();
 
+    let ContractInfo {
+        governance,
+        minter_pubkey,
+        ..
+    } = CONTRACT_INFO.load(deps.storage)?;
+
+    verify_mint(
+        msg.mint.mint.token_id.as_bytes(),
+        msg.minter_signature.as_slice(),
+        minter_pubkey.as_slice(),
+    )?;
+
     let mint_msg = WasmMsg::Execute {
         contract_addr: msg.contract_addr.clone(),
         msg: to_binary(&msg.mint)?,
         send: vec![],
     }
     .into();
-    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
     let mut cosmos_msgs = add_msg_royalty(info.sender.as_str(), &governance, msg)?;
     cosmos_msgs.push(mint_msg);
