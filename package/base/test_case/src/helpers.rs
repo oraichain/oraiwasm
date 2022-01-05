@@ -172,10 +172,10 @@ fn query_testcases(
 
     let mut min: Option<Bound> = None;
     let mut max: Option<Bound> = None;
-    let mut order_enum = Order::Descending;
+    let mut order_enum = Order::Ascending;
     if let Some(num) = order {
-        if num == 1 {
-            order_enum = Order::Ascending;
+        if num == 2 {
+            order_enum = Order::Descending;
         }
     }
 
@@ -228,20 +228,15 @@ mod tests {
     #[test]
     fn query_list_test_cases() {
         let mut deps = mock_dependencies(&coins(5, "orai"));
-        let mut test_cases = vec![TestCaseMsg {
-            parameters: vec![String::from("ethereum")],
-            expected_output: String::from("hello"),
-        }];
+        let mut test_cases = vec![];
 
-        let mut i = 0;
-        while i < 1000 {
+        for i in 0..1000 {
             let test_case_msg = TestCaseMsg {
                 parameters: vec![format!("ethereum {}", i)],
-                expected_output: String::from("hello"),
+                expected_output: format!("hello{:?}", i),
             };
             test_cases.push(test_case_msg);
             // code goes here
-            i += 1;
         }
 
         let msg = InitMsg {
@@ -256,7 +251,7 @@ mod tests {
             deps.as_ref(),
             mock_env(),
             QueryMsg::GetTestCases {
-                limit: None,
+                limit: Some(1),
                 offset: None,
                 order: None,
             },
@@ -265,6 +260,30 @@ mod tests {
         .unwrap();
         let value: TestCaseResponse = from_binary(&res).unwrap();
 
-        println!("{:?}", value);
+        assert_eq!(
+            value.test_cases.first().unwrap().expected_output,
+            String::from("hello0")
+        );
+
+        // query with offset
+        let value: TestCaseResponse = from_binary(
+            &query_testcase(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetTestCases {
+                    limit: Some(1),
+                    offset: Some(to_binary(&vec![String::from("ethereum 0")]).unwrap()),
+                    order: None,
+                },
+                assert,
+            )
+            .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            value.test_cases.first().unwrap().expected_output,
+            String::from("hello1")
+        );
     }
 }

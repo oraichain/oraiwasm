@@ -1,9 +1,9 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, StateMsg};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, StateMsg, UpdateServiceFees, UpdateServiceFeesMsg};
 use crate::state::{config, config_read, State, OWNER};
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
-    StdResult,
+    attr, to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr,
+    InitResponse, MessageInfo, StdResult, WasmMsg,
 };
 
 pub fn init_provider(
@@ -30,12 +30,16 @@ pub fn init_provider(
 // And declare a custom Error variant for the ones where you will want to make use of it
 pub fn handle_provider(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
         HandleMsg::SetState(state) => try_set_state(deps, info, state),
+        HandleMsg::SetServiceFees { contract_addr, fee } => {
+            try_set_fees(deps, info, contract_addr, fee)
+        }
+        HandleMsg::WithdrawFees { fee } => try_withdraw_fees(deps, info, env, fee),
         HandleMsg::SetOwner { owner } => try_set_owner(deps, info, owner),
     }
 }
@@ -51,6 +55,53 @@ fn try_set_owner(
     }
     OWNER.save(deps.storage, &HumanAddr::from(owner))?;
     Ok(HandleResponse::default())
+}
+
+fn try_withdraw_fees(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    fees: Coin,
+) -> Result<HandleResponse, ContractError> {
+    let owner: HumanAddr = OWNER.load(deps.storage)?;
+    if !info.sender.eq(&owner) {
+        return Err(ContractError::Unauthorized {});
+    }
+    let cosmos_msg = BankMsg::Send {
+        from_address: env.contract.address,
+        to_address: owner,
+        amount: vec![fees],
+    }
+    .into();
+    Ok(HandleResponse {
+        messages: vec![cosmos_msg],
+        attributes: vec![attr("action", "withdraw_fees")],
+        ..HandleResponse::default()
+    })
+}
+
+fn try_set_fees(
+    deps: DepsMut,
+    info: MessageInfo,
+    contract_addr: HumanAddr,
+    fees: Coin,
+) -> Result<HandleResponse, ContractError> {
+    let owner: HumanAddr = OWNER.load(deps.storage)?;
+    if !info.sender.eq(&owner) {
+        return Err(ContractError::Unauthorized {});
+    }
+    let execute_msg = WasmMsg::Execute {
+        contract_addr,
+        msg: to_binary(&UpdateServiceFeesMsg {
+            update_service_fees: UpdateServiceFees { fees },
+        })
+        .unwrap(),
+        send: vec![],
+    };
+    Ok(HandleResponse {
+        messages: vec![execute_msg.into()],
+        ..HandleResponse::default()
+    })
 }
 
 fn try_set_state(

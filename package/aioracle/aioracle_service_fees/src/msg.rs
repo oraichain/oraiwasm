@@ -1,4 +1,4 @@
-use cosmwasm_std::CustomQuery;
+use cosmwasm_std::{Coin, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -7,31 +7,30 @@ pub struct InitMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct Input {
-    pub image: String,
-    pub model: String,
-    pub name: String,
+pub enum HandleMsg {
+    UpdateServiceFees { fees: Coin },
+    RemoveServiceFees(),
+    UpdateInfo(UpdateContractMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum HandleMsg {}
+pub struct UpdateContractMsg {
+    pub governance: Option<HumanAddr>,
+    pub creator: Option<HumanAddr>,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    Get { input: String },
+    // GetOfferings returns a list of all offerings
+    GetListServiceFees(PagingFeesOptions),
+    GetServiceFees { addr: String },
+    GetContractInfo {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-/// An implementation of QueryRequest::Custom to show this works and can be extended in the contract
-pub enum SpecialQuery {
-    Fetch {
-        url: String,
-        body: String,
-        method: String,
-        authorization: String,
-    },
+pub struct PagingFeesOptions {
+    pub offset: Option<String>,
+    pub limit: Option<u8>,
+    pub order: Option<u8>,
 }
-impl CustomQuery for SpecialQuery {}
