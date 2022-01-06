@@ -36,7 +36,7 @@ pub enum HandleMsg {
     ClaimReward {
         stage: u8,
         report: Binary,
-        proof: Vec<String>,
+        proof: Option<Vec<String>>,
     },
 }
 
@@ -63,7 +63,7 @@ pub enum QueryMsg {
     VerifyData {
         stage: u8,
         data: Binary,
-        proof: Vec<String>,
+        proof: Option<Vec<String>>,
     },
 }
 

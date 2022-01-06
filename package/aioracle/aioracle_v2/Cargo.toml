@@ -41,5 +41,6 @@ aioracle_base = {path = '../../base/aioracle_base'}
 
 [dev-dependencies]
 cosmwasm-schema = "0.13.2"
+provider_demo = {path = '../../price/provider_demo'}
 
 

@@ -1,21 +1,23 @@
 use aioracle_base::{Reward, ServiceMsg};
 use cosmwasm_std::{
-    attr, from_slice, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
-    HumanAddr, InitResponse, MessageInfo, StdError, StdResult, Storage,
+    attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    HandleResponse, HumanAddr, InitResponse, MessageInfo, StdError, StdResult, Storage, Uint128,
 };
 
 use cw_storage_plus::U8Key;
 use sha2::Digest;
 use std::convert::TryInto;
+use std::ops::Mul;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, CurrentStageResponse, GetServiceContracts, GetServiceFees, HandleMsg, InitMsg,
+    CurrentStageResponse, GetServiceContracts, GetServiceFees, HandleMsg, InitMsg,
     IsClaimedResponse, LatestStageResponse, QueryMsg, Report,
 };
 use crate::state::{
     Config, Contracts, Request, Signature, CLAIM, CONFIG, CURRENT_STAGE, LATEST_STAGE, REQUEST,
 };
+use std::collections::HashMap;
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
     let owner = msg.owner.unwrap_or(info.sender);
@@ -141,7 +143,7 @@ pub fn handle_request(
         .iter()
         .find(|fund| fund.denom.eq(&contract_fee.denom))
     {
-        if sent_fund.amount.ne(&contract_fee.amount) {
+        if sent_fund.amount.lt(&contract_fee.amount) {
             return Err(ContractError::InsufficientFunds {});
         }
     }
@@ -156,6 +158,9 @@ pub fn handle_request(
             },
         },
     )?;
+    if !verify_request_fees(&info.sent_funds, &rewards, threshold) {
+        return Err(ContractError::InsufficientFunds {});
+    }
 
     REQUEST.save(
         deps.storage,
@@ -186,7 +191,7 @@ pub fn handle_claim(
     env: Env,
     stage: u8,
     report: Binary,
-    proofs: Vec<String>,
+    proofs: Option<Vec<String>>,
 ) -> Result<HandleResponse, ContractError> {
     // check report legitimacy
     let is_verified = verify_data(deps.as_ref(), stage, report.clone(), proofs)?;
@@ -338,15 +343,24 @@ fn is_submitted(request: &Request, executor: HumanAddr) -> bool {
     false
 }
 
-pub fn verify_data(deps: Deps, stage: u8, data: Binary, proof: Vec<String>) -> StdResult<bool> {
+pub fn verify_data(
+    deps: Deps,
+    stage: u8,
+    data: Binary,
+    proofs: Option<Vec<String>>,
+) -> StdResult<bool> {
     let Request { merkle_root, .. } = REQUEST.load(deps.storage, stage.into())?;
+    let mut final_proofs: Vec<String> = vec![];
+    if let Some(proofs) = proofs {
+        final_proofs = proofs;
+    }
 
     let hash = sha2::Sha256::digest(data.as_slice())
         .as_slice()
         .try_into()
         .map_err(|_| StdError::generic_err("wrong length"))?;
 
-    let hash = proof.into_iter().try_fold(hash, |hash, p| {
+    let hash = final_proofs.into_iter().try_fold(hash, |hash, p| {
         let mut proof_buf = [0; 32];
         hex::decode_to_slice(p, &mut proof_buf)
             .map_err(|_| StdError::generic_err("error decoding"))?;
@@ -368,11 +382,9 @@ pub fn verify_data(deps: Deps, stage: u8, data: Binary, proof: Vec<String>) -> S
     Ok(verified)
 }
 
-pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
+pub fn query_config(deps: Deps) -> StdResult<Config> {
     let cfg = CONFIG.load(deps.storage)?;
-    Ok(ConfigResponse {
-        owner: cfg.owner.map(|o| o.to_string()),
-    })
+    Ok(cfg)
 }
 
 pub fn query_is_submitted(deps: Deps, stage: u8, executor: HumanAddr) -> StdResult<bool> {
@@ -424,4 +436,38 @@ pub fn query_is_claimed(deps: Deps, stage: u8, address: HumanAddr) -> StdResult<
     let resp = IsClaimedResponse { is_claimed };
 
     Ok(resp)
+}
+
+pub fn verify_request_fees(sent_funds: &[Coin], rewards: &[Reward], threshold: u64) -> bool {
+    let mut denoms: HashMap<&str, u128> = HashMap::new();
+    let mut denom_count = 0; // count number of denoms in rewards
+    for reward in rewards {
+        if let Some(amount) = denoms
+            .get(reward.coin.denom.as_str())
+            .and_then(|amount| Some(*amount))
+        {
+            denoms.insert(&reward.coin.denom, amount + reward.coin.amount.u128());
+        } else {
+            denom_count += 1;
+            denoms.insert(&reward.coin.denom, reward.coin.amount.u128());
+        }
+    }
+    let mut num_denoms = 0; // check if fund matches the number of denoms in rewards
+    for fund in sent_funds {
+        if let Some(amount) = denoms.get(fund.denom.as_str()) {
+            num_denoms += 1;
+            // has to multiply funds with threshold since there will be more than one executors handling the request
+            if fund
+                .amount
+                .u128()
+                .lt(&amount.mul(&Uint128::from(threshold).u128()))
+            {
+                return false;
+            }
+        }
+    }
+    if num_denoms.ne(&denom_count) {
+        return false;
+    }
+    return true;
 }

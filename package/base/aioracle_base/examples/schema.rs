@@ -10,16 +10,4 @@ fn main() {
     remove_schemas(&out_dir).unwrap();
 
     export_schema(&schema_for!(aioracle_base::ServiceMsg), &out_dir);
-    export_schema(
-        &schema_for!(aioracle_base::MarketWhiteListdQueryMsg),
-        &out_dir,
-    );
-    export_schema(
-        &schema_for!(aioracle_base::ApprovedForAllResponse),
-        &out_dir,
-    );
-    export_schema(
-        &schema_for!(aioracle_base::IsApprovedForAllResponse),
-        &out_dir,
-    );
 }

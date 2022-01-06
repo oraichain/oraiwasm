@@ -1,23 +1,63 @@
-use crate::contract::{handle, init, query};
+use crate::contract::{handle, init, query, verify_request_fees};
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, CurrentStageResponse, HandleMsg, InitMsg, LatestStageResponse, QueryMsg,
 };
 use crate::state::Request;
 
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{attr, coin, coins, from_binary, from_slice, Binary, HumanAddr};
+use aioracle_base::Reward;
+use cosmwasm_std::testing::{
+    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+};
+use cosmwasm_std::{
+    attr, coin, coins, from_binary, from_slice, Binary, BlockInfo, ContractInfo, Env, HumanAddr,
+    OwnedDeps,
+};
+use provider_demo::state::Contracts;
 use serde::Deserialize;
 
 const DENOM: &str = "ORAI";
+const PROVIDER_DEMO_ADDR: &str = "PROVIDER_DEMO_ADDR";
+
+fn init_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
+    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let info = mock_info("addr0000", &[]);
+    // init provider demo
+    let _res = provider_demo::contract::init(
+        deps.as_mut(),
+        Env {
+            block: BlockInfo {
+                height: 12_345,
+                time: 1_571_797_419,
+                time_nanos: 879305533,
+                chain_id: "cosmos-testnet-14002".to_string(),
+            },
+            contract: ContractInfo {
+                address: HumanAddr::from(PROVIDER_DEMO_ADDR),
+            },
+        },
+        info,
+        provider_demo::msg::InitMsg {
+            service: String::from("something"),
+            service_contracts: Contracts {
+                dsources: vec![],
+                tcases: vec![],
+                oscript: HumanAddr::from("foobar"),
+            },
+        },
+    )
+    .unwrap();
+
+    return deps;
+}
 
 #[test]
 fn proper_instantiation() {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = init_deps();
 
     let msg = InitMsg {
         owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from("something"),
+        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
     };
 
@@ -25,7 +65,7 @@ fn proper_instantiation() {
     let info = mock_info("addr0000", &[]);
 
     // we can just call .unwrap() to assert this was a success
-    let _res = init(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let _res = init(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
     // it worked, let's query the state
     let res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
@@ -39,11 +79,11 @@ fn proper_instantiation() {
 
 #[test]
 fn update_config() {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = init_deps();
 
     let msg = InitMsg {
         owner: None,
-        service_addr: HumanAddr::from("something"),
+        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
     };
 
@@ -77,11 +117,11 @@ fn update_config() {
 
 #[test]
 fn test_request() {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = init_deps();
 
     let msg = InitMsg {
         owner: None,
-        service_addr: HumanAddr::from("something"),
+        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
     };
 
@@ -142,11 +182,11 @@ fn test_request() {
 
 #[test]
 fn register_merkle_root() {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = init_deps();
 
     let msg = InitMsg {
         owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from("something"),
+        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
     };
 
@@ -219,14 +259,14 @@ struct Encoded {
 #[test]
 fn verify_data() {
     // Run test 1
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = init_deps();
     deps.api.canonical_length = 54;
     let test_data: Encoded = from_slice(TEST_DATA_1).unwrap();
 
     // init merkle root
     let msg = InitMsg {
         owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from("something"),
+        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
     };
 
@@ -260,7 +300,7 @@ fn verify_data() {
             QueryMsg::VerifyData {
                 stage: test_data.request_id as u8,
                 data: test_data.data,
-                proof: test_data.proofs,
+                proof: Some(test_data.proofs),
             },
         )
         .unwrap(),
@@ -273,14 +313,14 @@ fn verify_data() {
 #[test]
 fn update_signature() {
     // Run test 1
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = init_deps();
     deps.api.canonical_length = 54;
     let test_data: Encoded = from_slice(TEST_DATA_1).unwrap();
 
     // init merkle root
     let msg = InitMsg {
         owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from("something"),
+        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
     };
 
@@ -334,11 +374,11 @@ fn update_signature() {
 
 #[test]
 fn owner_freeze() {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = init_deps();
 
     let msg = InitMsg {
         owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from("asomething"),
+        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
     };
 
@@ -406,14 +446,14 @@ fn owner_freeze() {
 #[test]
 fn send_reward() {
     // Run test 1
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = init_deps();
     deps.api.canonical_length = 54;
     let test_data: Encoded = from_slice(TEST_DATA_2).unwrap();
 
     // init merkle root
     let msg = InitMsg {
         owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from("something"),
+        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
     };
 
@@ -447,10 +487,56 @@ fn send_reward() {
         HandleMsg::ClaimReward {
             stage: 1,
             report: test_data.data,
-            proof: test_data.proofs,
+            proof: Some(test_data.proofs),
         },
     )
     .unwrap();
 
     println!("res: {:?}", res);
+}
+
+#[test]
+fn verify_fees() {
+    let sent_funds = coins(4, "orai");
+    let rewards = vec![
+        Reward {
+            recipient: HumanAddr::from("foo"),
+            coin: coin(1, "orai"),
+        },
+        Reward {
+            recipient: HumanAddr::from("foo"),
+            coin: coin(1, "orai"),
+        },
+    ];
+    assert_eq!(verify_request_fees(&sent_funds, &rewards, 2u64), true);
+
+    assert_eq!(
+        verify_request_fees(&coins(3, "orai"), &rewards, 2u64),
+        false
+    );
+
+    let rewards = vec![
+        Reward {
+            recipient: HumanAddr::from("foo"),
+            coin: coin(1, "orai"),
+        },
+        Reward {
+            recipient: HumanAddr::from("foo"),
+            coin: coin(1, "orai"),
+        },
+        Reward {
+            recipient: HumanAddr::from("foo"),
+            coin: coin(1, "foobar"),
+        },
+    ];
+
+    assert_eq!(
+        verify_request_fees(&coins(5, "orai"), &rewards, 2u64),
+        false
+    );
+
+    assert_eq!(
+        verify_request_fees(&vec![coin(4, "orai"), coin(2, "foobar")], &rewards, 2u64),
+        true
+    );
 }
