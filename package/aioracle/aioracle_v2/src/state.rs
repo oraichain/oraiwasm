@@ -1,5 +1,5 @@
 use aioracle_base::Reward;
-use cosmwasm_std::{Coin, HumanAddr};
+use cosmwasm_std::{Binary, Coin, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -33,8 +33,8 @@ pub struct Request {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Signature {
-    pub signature: String,
-    pub executor: String,
+    pub signature: Binary,
+    pub executor: Binary,
 }
 
 pub const CONFIG_KEY: &str = "config";
@@ -51,3 +51,6 @@ pub const REQUEST: Map<U8Key, Request> = Map::new(REQUEST_PREFIX);
 
 pub const CLAIM_PREFIX: &str = "claim";
 pub const CLAIM: Map<&[u8], bool> = Map::new(CLAIM_PREFIX);
+
+pub const EXECUTORS_PREFIX: &str = "executors";
+pub const EXECUTORS: Map<&[u8], Vec<Binary>> = Map::new(EXECUTORS_PREFIX);

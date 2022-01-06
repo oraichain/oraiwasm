@@ -15,7 +15,8 @@ use crate::msg::{
     IsClaimedResponse, LatestStageResponse, QueryMsg, Report,
 };
 use crate::state::{
-    Config, Contracts, Request, Signature, CLAIM, CONFIG, CURRENT_STAGE, LATEST_STAGE, REQUEST,
+    Config, Contracts, Request, Signature, CLAIM, CONFIG, CURRENT_STAGE, EXECUTORS, LATEST_STAGE,
+    REQUEST,
 };
 use std::collections::HashMap;
 
@@ -33,6 +34,8 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     LATEST_STAGE.save(deps.storage, &stage)?;
     CURRENT_STAGE.save(deps.storage, &1)?;
 
+    // first nonce
+    EXECUTORS.save(deps.storage, &1u64.to_be_bytes(), &msg.executors)?;
     Ok(InitResponse::default())
 }
 
@@ -44,8 +47,8 @@ pub fn handle(
 ) -> Result<HandleResponse, ContractError> {
     match msg {
         HandleMsg::UpdateConfig { new_owner } => execute_update_config(deps, env, info, new_owner),
-        HandleMsg::UpdateSignature { signature } => {
-            execute_update_signature(deps, env, info, signature)
+        HandleMsg::UpdateSignature { pubkey, signature } => {
+            execute_update_signature(deps, env, info, pubkey, signature)
         }
         HandleMsg::RegisterMerkleRoot { merkle_root } => {
             execute_register_merkle_root(deps, env, info, merkle_root)
@@ -65,23 +68,30 @@ pub fn handle(
 pub fn execute_update_signature(
     deps: DepsMut,
     _env: Env,
-    info: MessageInfo,
-    signature: String,
+    _info: MessageInfo,
+    pubkey: Binary,
+    signature: Binary,
 ) -> Result<HandleResponse, ContractError> {
     let stage = get_current_stage(deps.storage)?;
     // if submitted already => wont allow to submit again
     let request = REQUEST.load(deps.storage, stage.into())?;
     let mut is_finished = false;
-    if is_submitted(&request, info.sender.clone()) {
+    if is_submitted(&request, pubkey.clone()) {
         return Err(ContractError::AlreadySubmitted {});
     }
+    // check if signature is from a valid executor
+    verify_signature(
+        request.merkle_root.as_bytes(),
+        pubkey.as_slice(),
+        signature.as_slice(),
+    )?;
 
     // add executor in the signature list
     REQUEST.update(deps.storage, U8Key::from(stage), |request| {
         if let Some(mut request) = request {
             request.signatures.push(Signature {
                 signature,
-                executor: info.sender.to_string(),
+                executor: pubkey,
             });
             if request.signatures.len().eq(&(request.threshold as usize)) {
                 is_finished = true;
@@ -202,7 +212,7 @@ pub fn handle_claim(
     let report_struct: Report = from_slice(report.as_slice())
         .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
 
-    let mut claim_key = report_struct.executor.clone();
+    let mut claim_key = report_struct.executor.clone().to_base64();
     claim_key.push_str(&stage.to_string());
     let is_claimed = CLAIM.may_load(deps.storage, claim_key.as_bytes())?;
 
@@ -314,6 +324,12 @@ fn get_current_stage(storage: &dyn Storage) -> Result<u8, ContractError> {
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::GetExecutors {
+            nonce,
+            start,
+            end,
+            order,
+        } => to_binary(&query_executors(deps, nonce, start, end, order)?),
         QueryMsg::Request { stage } => to_binary(&query_request(deps, stage)?),
         QueryMsg::LatestStage {} => to_binary(&query_latest_stage(deps)?),
         QueryMsg::GetServiceContracts { stage } => {
@@ -332,11 +348,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn is_submitted(request: &Request, executor: HumanAddr) -> bool {
+fn is_submitted(request: &Request, executor: Binary) -> bool {
     if let Some(_) = request
         .signatures
         .iter()
-        .find(|sig| sig.executor.eq(&executor.to_string()))
+        .find(|sig| sig.executor.eq(&executor))
     {
         return true;
     }
@@ -387,7 +403,30 @@ pub fn query_config(deps: Deps) -> StdResult<Config> {
     Ok(cfg)
 }
 
-pub fn query_is_submitted(deps: Deps, stage: u8, executor: HumanAddr) -> StdResult<bool> {
+pub fn query_executors(
+    deps: Deps,
+    nonce: u64,
+    start: Option<u64>,
+    end: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<Vec<Binary>> {
+    let mut executors = EXECUTORS.load(deps.storage, &nonce.to_be_bytes())?;
+    let start = start.unwrap_or(0);
+    let mut end = end.unwrap_or(executors.len() as u64);
+    if end.lt(&start) {
+        end = start;
+    }
+    let order = order.unwrap_or(1);
+
+    // decending. 1 is ascending
+    if order == 2 {
+        executors.reverse();
+    };
+    let final_executors: Vec<Binary> = executors[start as usize..end as usize].to_vec();
+    Ok(final_executors)
+}
+
+pub fn query_is_submitted(deps: Deps, stage: u8, executor: Binary) -> StdResult<bool> {
     let request = REQUEST.load(deps.storage, stage.into())?;
     Ok(is_submitted(&request, executor))
 }
@@ -470,4 +509,19 @@ pub fn verify_request_fees(sent_funds: &[Coin], rewards: &[Reward], threshold: u
         return false;
     }
     return true;
+}
+
+pub fn verify_signature(
+    raw_msg: &[u8],
+    pubkey: &[u8],
+    signature: &[u8],
+) -> Result<(), ContractError> {
+    let msg_hash_generic = sha2::Sha256::digest(raw_msg);
+    let msg_hash = msg_hash_generic.as_slice();
+    let is_verified = cosmwasm_crypto::secp256k1_verify(msg_hash, &signature, &pubkey)
+        .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
+    if !is_verified {
+        return Err(ContractError::InvalidSignature {});
+    }
+    Ok(())
 }

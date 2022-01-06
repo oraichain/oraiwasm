@@ -25,6 +25,8 @@ pub enum ContractError {
 
     #[error("Invalid input")]
     InvalidInput {},
+    #[error("Invalid signature")]
+    InvalidSignature {},
 
     #[error("Already claimed")]
     Claimed {},

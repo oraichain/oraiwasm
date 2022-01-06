@@ -15,6 +15,7 @@ use cosmwasm_std::{
 };
 use provider_demo::state::Contracts;
 use serde::Deserialize;
+use sha2::Digest;
 
 const DENOM: &str = "ORAI";
 const PROVIDER_DEMO_ADDR: &str = "PROVIDER_DEMO_ADDR";
@@ -59,6 +60,12 @@ fn proper_instantiation() {
         owner: Some("owner0000".into()),
         service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
+        executors: vec![
+            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
+            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
+            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
+            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
+        ],
     };
 
     let env = mock_env();
@@ -85,6 +92,12 @@ fn update_config() {
         owner: None,
         service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
+        executors: vec![
+            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
+            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
+            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
+            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
+        ],
     };
 
     let env = mock_env();
@@ -123,6 +136,12 @@ fn test_request() {
         owner: None,
         service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
+        executors: vec![
+            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
+            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
+            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
+            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
+        ],
     };
 
     let env = mock_env();
@@ -188,6 +207,12 @@ fn register_merkle_root() {
         owner: Some("owner0000".into()),
         service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
+        executors: vec![
+            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
+            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
+            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
+            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
+        ],
     };
 
     let env = mock_env();
@@ -268,6 +293,12 @@ fn verify_data() {
         owner: Some("owner0000".into()),
         service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
+        executors: vec![
+            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
+            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
+            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
+            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
+        ],
     };
 
     let env = mock_env();
@@ -322,6 +353,12 @@ fn update_signature() {
         owner: Some("owner0000".into()),
         service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
+        executors: vec![
+            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
+            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
+            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
+            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
+        ],
     };
 
     let env = mock_env();
@@ -353,7 +390,8 @@ fn update_signature() {
         mock_env(),
         info.clone(),
         HandleMsg::UpdateSignature {
-            signature: "kjkljkljlk".to_string(),
+            signature: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
+            pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
         },
     )
     .unwrap();
@@ -365,7 +403,10 @@ fn update_signature() {
             mock_env(),
             info.clone(),
             HandleMsg::UpdateSignature {
-                signature: "kjkljkljlk".to_string(),
+                signature: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t")
+                    .unwrap(),
+                pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t")
+                    .unwrap()
             }
         ),
         Err(ContractError::AlreadySubmitted {})
@@ -380,6 +421,12 @@ fn owner_freeze() {
         owner: Some("owner0000".into()),
         service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
+        executors: vec![
+            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
+            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
+            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
+            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
+        ],
     };
 
     let env = mock_env();
@@ -455,6 +502,12 @@ fn send_reward() {
         owner: Some("owner0000".into()),
         service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
         contract_fee: coin(1u128, "orai"),
+        executors: vec![
+            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
+            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
+            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
+            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
+        ],
     };
 
     let env = mock_env();
@@ -539,4 +592,147 @@ fn verify_fees() {
         verify_request_fees(&vec![coin(4, "orai"), coin(2, "foobar")], &rewards, 2u64),
         true
     );
+}
+
+#[test]
+fn verify_signature() {
+    let msg = "d57e3a1853860794a754c72c11294cd5d4bedd74dd3d071b71e693a7e7881c73";
+    println!("msg as bytes: {:?}", msg.as_bytes());
+    let msg_hash_generic = sha2::Sha256::digest(msg.as_bytes());
+    let msg_hash = msg_hash_generic.as_slice();
+    println!("hash: {:?}", msg_hash);
+    let signature = Binary::from_base64(
+        "71kw1rI1umhFWm/Po/R1T+J6HJ3ZwoX1pDwRCOncYVd6gK48veFi8oodG/kSIKYa0ouL/lmpX6vzSa0nl0ayqw==",
+    )
+    .unwrap();
+    let pubkey = Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap();
+    let is_verified = cosmwasm_crypto::secp256k1_verify(msg_hash, &signature, &pubkey).unwrap();
+
+    assert_eq!(is_verified, true);
+}
+
+#[test]
+fn query_executors() {
+    let mut deps = init_deps();
+    deps.api.canonical_length = 54;
+    let info = mock_info("addr0000", &[]);
+
+    // init merkle root
+    let msg = InitMsg {
+        owner: Some("owner0000".into()),
+        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
+        contract_fee: coin(1u128, "orai"),
+        executors: vec![
+            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
+            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
+            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
+            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
+        ],
+    };
+
+    let _res = init(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
+    // query executors
+    let executors: Vec<Binary> = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetExecutors {
+                nonce: 1,
+                start: None,
+                end: Some(2),
+                order: None,
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    let executors_base64: Vec<String> = executors
+        .into_iter()
+        .map(|executor| executor.to_base64())
+        .collect();
+
+    assert_eq!(
+        executors_base64,
+        vec![
+            "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
+            "A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA"
+        ]
+    );
+
+    // query executors
+    let executors: Vec<Binary> = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetExecutors {
+                nonce: 1,
+                start: Some(2),
+                end: Some(2),
+                order: None,
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    let executors_base64: Vec<String> = executors
+        .into_iter()
+        .map(|executor| executor.to_base64())
+        .collect();
+
+    assert_eq!(executors_base64, vec![] as Vec<String>);
+
+    // query executors
+    let executors: Vec<Binary> = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetExecutors {
+                nonce: 1,
+                start: Some(0),
+                end: Some(2),
+                order: Some(2),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    let executors_base64: Vec<String> = executors
+        .into_iter()
+        .map(|executor| executor.to_base64())
+        .collect();
+
+    assert_eq!(
+        executors_base64,
+        vec![
+            "Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j",
+            "A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw"
+        ]
+    );
+
+    // query executors
+    let executors: Vec<Binary> = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetExecutors {
+                nonce: 1,
+                start: None,
+                end: None,
+                order: None,
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    let executors_base64: Vec<String> = executors
+        .into_iter()
+        .map(|executor| executor.to_base64())
+        .collect();
+
+    assert_eq!(executors_base64.len(), 4)
 }
