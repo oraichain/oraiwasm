@@ -3,7 +3,7 @@ use cosmwasm_std::{Binary, Coin, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cw_storage_plus::{Item, Map, U8Key};
+use cw_storage_plus::{Item, Map};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -42,15 +42,17 @@ pub const CONFIG_KEY: &str = "config";
 pub const CONFIG: Item<Config> = Item::new(CONFIG_KEY);
 
 pub const LATEST_STAGE_KEY: &str = "stage";
-pub const LATEST_STAGE: Item<u8> = Item::new(LATEST_STAGE_KEY);
+pub const LATEST_STAGE: Item<u64> = Item::new(LATEST_STAGE_KEY);
 
 pub const CURRENT_STAGE_KEY: &str = "current_stage";
-pub const CURRENT_STAGE: Item<u8> = Item::new(CURRENT_STAGE_KEY);
+pub const CURRENT_STAGE: Item<u64> = Item::new(CURRENT_STAGE_KEY);
 
 pub const REQUEST_PREFIX: &str = "request";
-pub const REQUEST: Map<U8Key, Request> = Map::new(REQUEST_PREFIX);
+pub const REQUEST: Map<&[u8], Request> = Map::new(REQUEST_PREFIX);
 
 pub const CLAIM_PREFIX: &str = "claim";
+
+// key: executor in base64 string + stage in string
 pub const CLAIM: Map<&[u8], bool> = Map::new(CLAIM_PREFIX);
 
 pub const EXECUTORS_PREFIX: &str = "executors";

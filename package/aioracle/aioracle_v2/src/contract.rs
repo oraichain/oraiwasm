@@ -4,7 +4,6 @@ use cosmwasm_std::{
     HandleResponse, HumanAddr, InitResponse, MessageInfo, StdError, StdResult, Storage, Uint128,
 };
 
-use cw_storage_plus::U8Key;
 use sha2::Digest;
 use std::convert::TryInto;
 use std::ops::Mul;
@@ -88,7 +87,7 @@ pub fn execute_update_signature(
 ) -> Result<HandleResponse, ContractError> {
     let stage = get_current_stage(deps.storage)?;
     // if submitted already => wont allow to submit again
-    let request = REQUEST.load(deps.storage, stage.into())?;
+    let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
     let mut is_finished = false;
     if is_submitted(&request, pubkey.clone()) {
         return Err(ContractError::AlreadySubmitted {});
@@ -103,7 +102,7 @@ pub fn execute_update_signature(
     )?;
 
     // add executor in the signature list
-    REQUEST.update(deps.storage, U8Key::from(stage), |request| {
+    REQUEST.update(deps.storage, &stage.to_be_bytes(), |request| {
         if let Some(mut request) = request {
             request.signatures.push(Signature {
                 signature,
@@ -208,7 +207,7 @@ pub fn handle_request(
 
     REQUEST.save(
         deps.storage,
-        U8Key::from(stage),
+        &stage.to_be_bytes(),
         &crate::state::Request {
             merkle_root: String::from(""),
             threshold,
@@ -234,7 +233,7 @@ pub fn handle_request(
 pub fn handle_claim(
     deps: DepsMut,
     env: Env,
-    stage: u8,
+    stage: u64,
     report: Binary,
     proofs: Option<Vec<String>>,
 ) -> Result<HandleResponse, ContractError> {
@@ -257,7 +256,7 @@ pub fn handle_claim(
         }
     }
 
-    let request = REQUEST.load(deps.storage, stage.into())?;
+    let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
 
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
@@ -316,13 +315,13 @@ pub fn execute_register_merkle_root(
     hex::decode_to_slice(mroot.to_string(), &mut root_buf)?;
 
     let current_stage = get_current_stage(deps.storage)?;
-    let Request { merkle_root, .. } = REQUEST.load(deps.storage, current_stage.into())?;
+    let Request { merkle_root, .. } = REQUEST.load(deps.storage, &current_stage.to_be_bytes())?;
     if merkle_root.ne("") {
         return Err(ContractError::AlreadyFinished {});
     }
 
     // if merkle root empty then update new
-    REQUEST.update(deps.storage, U8Key::from(current_stage), |request| {
+    REQUEST.update(deps.storage, &current_stage.to_be_bytes(), |request| {
         if let Some(mut request) = request {
             request.merkle_root = mroot.clone();
             {
@@ -346,7 +345,7 @@ pub fn execute_register_merkle_root(
     })
 }
 
-fn get_current_stage(storage: &dyn Storage) -> Result<u8, ContractError> {
+fn get_current_stage(storage: &dyn Storage) -> Result<u64, ContractError> {
     let current_stage = CURRENT_STAGE.load(storage)?;
     let latest_stage = LATEST_STAGE.load(storage)?;
     // there is no round to process, return error
@@ -371,8 +370,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_service_contracts(deps, stage)?)
         }
         QueryMsg::CurrentStage {} => to_binary(&query_current_stage(deps)?),
-        QueryMsg::IsClaimed { stage, address } => {
-            to_binary(&query_is_claimed(deps, stage, address)?)
+        QueryMsg::IsClaimed { stage, executor } => {
+            to_binary(&query_is_claimed(deps, stage, executor)?)
         }
         QueryMsg::IsSubmitted { stage, executor } => {
             to_binary(&query_is_submitted(deps, stage, executor)?)
@@ -396,11 +395,11 @@ fn is_submitted(request: &Request, executor: Binary) -> bool {
 
 pub fn verify_data(
     deps: Deps,
-    stage: u8,
+    stage: u64,
     data: Binary,
     proofs: Option<Vec<String>>,
 ) -> StdResult<bool> {
-    let Request { merkle_root, .. } = REQUEST.load(deps.storage, stage.into())?;
+    let Request { merkle_root, .. } = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
     let mut final_proofs: Vec<String> = vec![];
     if let Some(proofs) = proofs {
         final_proofs = proofs;
@@ -461,19 +460,19 @@ pub fn query_executors(
     Ok(final_executors)
 }
 
-pub fn query_is_submitted(deps: Deps, stage: u8, executor: Binary) -> StdResult<bool> {
-    let request = REQUEST.load(deps.storage, stage.into())?;
+pub fn query_is_submitted(deps: Deps, stage: u64, executor: Binary) -> StdResult<bool> {
+    let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
     Ok(is_submitted(&request, executor))
 }
 
-pub fn query_request(deps: Deps, stage: u8) -> StdResult<Request> {
-    let request = REQUEST.load(deps.storage, U8Key::from(stage))?;
+pub fn query_request(deps: Deps, stage: u64) -> StdResult<Request> {
+    let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
     Ok(request)
 }
 
-pub fn query_service_contracts(deps: Deps, stage: u8) -> StdResult<Contracts> {
+pub fn query_service_contracts(deps: Deps, stage: u64) -> StdResult<Contracts> {
     let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
-    let request = REQUEST.load(deps.storage, U8Key::from(stage))?;
+    let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
     let contracts: Contracts = deps.querier.query_wasm_smart(
         service_addr,
         &GetServiceContracts {
@@ -503,10 +502,12 @@ pub fn query_current_stage(deps: Deps) -> StdResult<CurrentStageResponse> {
     Ok(resp)
 }
 
-pub fn query_is_claimed(deps: Deps, stage: u8, address: HumanAddr) -> StdResult<IsClaimedResponse> {
-    let mut key = deps.api.canonical_address(&address)?.to_vec();
-    key.push(stage);
-    let is_claimed = CLAIM.may_load(deps.storage, &key)?.unwrap_or(false);
+pub fn query_is_claimed(deps: Deps, stage: u64, executor: Binary) -> StdResult<IsClaimedResponse> {
+    let mut claim_key = executor.to_base64();
+    claim_key.push_str(&stage.to_string());
+    let is_claimed = CLAIM
+        .may_load(deps.storage, claim_key.as_bytes())?
+        .unwrap_or(false);
     let resp = IsClaimedResponse { is_claimed };
 
     Ok(resp)

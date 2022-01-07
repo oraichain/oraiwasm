@@ -81,7 +81,7 @@ fn proper_instantiation() {
 
     let res = query(deps.as_ref(), env, QueryMsg::LatestStage {}).unwrap();
     let latest_stage: LatestStageResponse = from_binary(&res).unwrap();
-    assert_eq!(0u8, latest_stage.latest_stage);
+    assert_eq!(0u64, latest_stage.latest_stage);
 }
 
 #[test]
@@ -227,11 +227,11 @@ fn test_request() {
     // current handling should be 1, latest should be 3
     let current_stage: CurrentStageResponse =
         from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::CurrentStage {}).unwrap()).unwrap();
-    assert_eq!(current_stage.current_stage, 1u8);
+    assert_eq!(current_stage.current_stage, 1u64);
 
     let latest_stage: LatestStageResponse =
         from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::LatestStage {}).unwrap()).unwrap();
-    assert_eq!(latest_stage.latest_stage, 3u8);
+    assert_eq!(latest_stage.latest_stage, 3u64);
 }
 
 #[test]
@@ -288,7 +288,7 @@ fn register_merkle_root() {
 
     let res = query(deps.as_ref(), env.clone(), QueryMsg::LatestStage {}).unwrap();
     let latest_stage: LatestStageResponse = from_binary(&res).unwrap();
-    assert_eq!(1u8, latest_stage.latest_stage);
+    assert_eq!(1u64, latest_stage.latest_stage);
 
     let res = query(
         deps.as_ref(),
@@ -364,7 +364,7 @@ fn verify_data() {
             deps.as_ref(),
             mock_env(),
             QueryMsg::VerifyData {
-                stage: test_data.request_id as u8,
+                stage: test_data.request_id as u64,
                 data: test_data.data,
                 proof: Some(test_data.proofs),
             },

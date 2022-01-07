@@ -39,7 +39,7 @@ pub enum HandleMsg {
         threshold: u64,
     },
     ClaimReward {
-        stage: u8,
+        stage: u64,
         report: Binary,
         proof: Option<Vec<String>>,
     },
@@ -56,23 +56,23 @@ pub enum QueryMsg {
         order: Option<u8>,
     },
     Request {
-        stage: u8,
+        stage: u64,
     },
     LatestStage {},
     CurrentStage {},
     GetServiceContracts {
-        stage: u8,
+        stage: u64,
     },
     IsClaimed {
-        stage: u8,
-        address: HumanAddr,
+        stage: u64,
+        executor: Binary,
     },
     IsSubmitted {
-        stage: u8,
+        stage: u64,
         executor: Binary,
     },
     VerifyData {
-        stage: u8,
+        stage: u64,
         data: Binary,
         proof: Option<Vec<String>>,
     },
@@ -106,7 +106,7 @@ pub struct GetServiceFees {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RequestResponse {
-    pub stage: u8,
+    pub stage: u64,
     /// MerkleRoot is hex-encoded merkle root.
     pub merkle_root: String,
     pub threshold: u64,
@@ -114,12 +114,12 @@ pub struct RequestResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct LatestStageResponse {
-    pub latest_stage: u8,
+    pub latest_stage: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct CurrentStageResponse {
-    pub current_stage: u8,
+    pub current_stage: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
