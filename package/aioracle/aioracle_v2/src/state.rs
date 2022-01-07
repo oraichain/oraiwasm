@@ -28,6 +28,7 @@ pub struct Request {
     pub threshold: u64,
     pub service: String,
     pub rewards: Vec<Reward>,
+    pub executors_key: u64,
     pub signatures: Vec<Signature>,
 }
 
@@ -54,3 +55,6 @@ pub const CLAIM: Map<&[u8], bool> = Map::new(CLAIM_PREFIX);
 
 pub const EXECUTORS_PREFIX: &str = "executors";
 pub const EXECUTORS: Map<&[u8], Vec<Binary>> = Map::new(EXECUTORS_PREFIX);
+
+pub const EXECUTOR_NONCE_PREFIX: &str = "executors_nonce";
+pub const EXECUTORS_NONCE: Item<u64> = Item::new(EXECUTOR_NONCE_PREFIX);

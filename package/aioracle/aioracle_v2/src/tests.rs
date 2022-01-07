@@ -3,15 +3,15 @@ use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, CurrentStageResponse, HandleMsg, InitMsg, LatestStageResponse, QueryMsg,
 };
-use crate::state::Request;
+use crate::state::{Config, Request};
 
 use aioracle_base::Reward;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    attr, coin, coins, from_binary, from_slice, Binary, BlockInfo, ContractInfo, Env, HumanAddr,
-    OwnedDeps,
+    attr, coin, coins, from_binary, from_slice, Binary, BlockInfo, Coin, ContractInfo, Env,
+    HumanAddr, OwnedDeps, Uint128,
 };
 use provider_demo::state::Contracts;
 use serde::Deserialize;
@@ -109,6 +109,9 @@ fn update_config() {
     let info = mock_info("owner0000", &[]);
     let msg = HandleMsg::UpdateConfig {
         new_owner: Some("owner0001".into()),
+        new_contract_fee: Some(coin(10u128, "foobar")),
+        new_executors: Some(vec![]),
+        new_service_addr: Some(HumanAddr::from("yolo")),
     };
 
     let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -116,13 +119,45 @@ fn update_config() {
 
     // it worked, let's query the state
     let res = query(deps.as_ref(), env, QueryMsg::Config {}).unwrap();
-    let config: ConfigResponse = from_binary(&res).unwrap();
+    let config: Config = from_binary(&res).unwrap();
     assert_eq!("owner0001", config.owner.unwrap().as_str());
+    assert_eq!(
+        Coin {
+            amount: Uint128::from(10u64),
+            denom: String::from("foobar")
+        },
+        config.contract_fee
+    );
+    assert_eq!(config.service_addr, HumanAddr::from("yolo"));
+
+    // query executor list
+    // query executors
+    let executors: Vec<Binary> = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetExecutors {
+                nonce: 1,
+                start: Some(2),
+                end: Some(2),
+                order: None,
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(executors.len(), 0);
 
     // Unauthorized err
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::UpdateConfig { new_owner: None };
+    let msg = HandleMsg::UpdateConfig {
+        new_owner: None,
+        new_contract_fee: None,
+        new_executors: None,
+        new_service_addr: None,
+    };
 
     let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
@@ -458,6 +493,9 @@ fn owner_freeze() {
     let info = mock_info("owner0000", &[]);
     let msg = HandleMsg::UpdateConfig {
         new_owner: Some("owner0001".into()),
+        new_contract_fee: None,
+        new_executors: None,
+        new_service_addr: None,
     };
 
     let res = handle(deps.as_mut(), env, info, msg).unwrap();
@@ -466,7 +504,12 @@ fn owner_freeze() {
     // freeze contract
     let env = mock_env();
     let info = mock_info("owner0001", &[]);
-    let msg = HandleMsg::UpdateConfig { new_owner: None };
+    let msg = HandleMsg::UpdateConfig {
+        new_owner: None,
+        new_contract_fee: None,
+        new_executors: None,
+        new_service_addr: None,
+    };
 
     let res = handle(deps.as_mut(), env, info, msg).unwrap();
     assert_eq!(0, res.messages.len());

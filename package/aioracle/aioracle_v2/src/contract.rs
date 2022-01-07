@@ -15,8 +15,8 @@ use crate::msg::{
     IsClaimedResponse, LatestStageResponse, QueryMsg, Report,
 };
 use crate::state::{
-    Config, Contracts, Request, Signature, CLAIM, CONFIG, CURRENT_STAGE, EXECUTORS, LATEST_STAGE,
-    REQUEST,
+    Config, Contracts, Request, Signature, CLAIM, CONFIG, CURRENT_STAGE, EXECUTORS,
+    EXECUTORS_NONCE, LATEST_STAGE, REQUEST,
 };
 use std::collections::HashMap;
 
@@ -36,6 +36,7 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
 
     // first nonce
     EXECUTORS.save(deps.storage, &1u64.to_be_bytes(), &msg.executors)?;
+    EXECUTORS_NONCE.save(deps.storage, &1u64)?;
     Ok(InitResponse::default())
 }
 
@@ -46,7 +47,20 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::UpdateConfig { new_owner } => execute_update_config(deps, env, info, new_owner),
+        HandleMsg::UpdateConfig {
+            new_owner,
+            new_contract_fee,
+            new_executors,
+            new_service_addr,
+        } => execute_update_config(
+            deps,
+            env,
+            info,
+            new_owner,
+            new_service_addr,
+            new_contract_fee,
+            new_executors,
+        ),
         HandleMsg::UpdateSignature { pubkey, signature } => {
             execute_update_signature(deps, env, info, pubkey, signature)
         }
@@ -81,9 +95,11 @@ pub fn execute_update_signature(
     }
     // check if signature is from a valid executor
     verify_signature(
+        deps.as_ref(),
         request.merkle_root.as_bytes(),
         pubkey.as_slice(),
         signature.as_slice(),
+        &request.executors_key,
     )?;
 
     // add executor in the signature list
@@ -118,6 +134,9 @@ pub fn execute_update_config(
     _env: Env,
     info: MessageInfo,
     new_owner: Option<HumanAddr>,
+    new_service_addr: Option<HumanAddr>,
+    new_contract_fee: Option<Coin>,
+    new_executors: Option<Vec<Binary>>,
 ) -> Result<HandleResponse, ContractError> {
     // authorize owner
     let cfg = CONFIG.load(deps.storage)?;
@@ -129,8 +148,21 @@ pub fn execute_update_config(
     // if owner some validated to addr, otherwise set to none
     CONFIG.update(deps.storage, |mut exists| -> StdResult<_> {
         exists.owner = new_owner;
+        if let Some(service_addr) = new_service_addr {
+            exists.service_addr = service_addr;
+        }
+        if let Some(contract_fee) = new_contract_fee {
+            exists.contract_fee = contract_fee;
+        }
         Ok(exists)
     })?;
+
+    if let Some(executors) = new_executors {
+        let current_nonce = EXECUTORS_NONCE.load(deps.storage)?;
+        let new_nonce = current_nonce + 1;
+        EXECUTORS.save(deps.storage, &(new_nonce + 1).to_be_bytes(), &executors)?;
+        EXECUTORS_NONCE.save(deps.storage, &new_nonce)?;
+    }
 
     Ok(HandleResponse {
         attributes: vec![attr("action", "update_config")],
@@ -171,6 +203,8 @@ pub fn handle_request(
     if !verify_request_fees(&info.sent_funds, &rewards, threshold) {
         return Err(ContractError::InsufficientFunds {});
     }
+    // this will keep track of the executor list of the request
+    let current_nonce = EXECUTORS_NONCE.load(deps.storage)?;
 
     REQUEST.save(
         deps.storage,
@@ -180,6 +214,7 @@ pub fn handle_request(
             threshold,
             service: service.clone(),
             signatures: vec![],
+            executors_key: current_nonce,
             rewards,
         },
     )?;
@@ -512,10 +547,21 @@ pub fn verify_request_fees(sent_funds: &[Coin], rewards: &[Reward], threshold: u
 }
 
 pub fn verify_signature(
+    deps: Deps,
     raw_msg: &[u8],
     pubkey: &[u8],
     signature: &[u8],
+    executor_nonce: &u64,
 ) -> Result<(), ContractError> {
+    let executors = EXECUTORS.load(deps.storage, &executor_nonce.to_be_bytes())?;
+    if executors
+        .iter()
+        .find(|executor| executor.as_slice().eq(pubkey))
+        .is_none()
+    {
+        return Err(ContractError::Unauthorized {});
+    }
+
     let msg_hash_generic = sha2::Sha256::digest(raw_msg);
     let msg_hash = msg_hash_generic.as_slice();
     let is_verified = cosmwasm_crypto::secp256k1_verify(msg_hash, &signature, &pubkey)

@@ -20,6 +20,9 @@ pub enum HandleMsg {
         /// NewOwner if non sent, contract gets locked. Recipients can receive airdrops
         /// but owner cannot register new stages.
         new_owner: Option<HumanAddr>,
+        new_service_addr: Option<HumanAddr>,
+        new_contract_fee: Option<Coin>,
+        new_executors: Option<Vec<Binary>>,
     },
     UpdateSignature {
         /// NewOwner if non sent, contract gets locked. Recipients can receive airdrops
