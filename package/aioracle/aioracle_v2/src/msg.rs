@@ -61,6 +61,11 @@ pub enum QueryMsg {
     Request {
         stage: u64,
     },
+    GetRequests {
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
     LatestStage {},
     StageInfo {},
     GetServiceContracts {
@@ -92,6 +97,7 @@ pub struct ConfigResponse {
 pub struct StageInfo {
     pub latest_stage: u64,
     pub checkpoint: u64,
+    pub checkpoint_threshold: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

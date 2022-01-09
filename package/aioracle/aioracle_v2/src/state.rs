@@ -12,7 +12,7 @@ pub struct Config {
     pub service_addr: HumanAddr,
     pub contract_fee: Coin,
     /// this threshold is to update the checkpoint stage when current previous checkpoint +
-    pub checkoint_threshold: u64,
+    pub checkpoint_threshold: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

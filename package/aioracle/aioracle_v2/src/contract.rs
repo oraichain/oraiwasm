@@ -1,9 +1,10 @@
 use aioracle_base::{Reward, ServiceMsg};
 use cosmwasm_std::{
     attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, StdError, StdResult, Uint128,
+    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, Uint128,
 };
 
+use cw_storage_plus::Bound;
 use sha2::Digest;
 use std::convert::TryInto;
 use std::ops::Mul;
@@ -20,6 +21,9 @@ use crate::state::{
 use std::collections::HashMap;
 
 pub const CHECKPOINT_THRESHOLD: u64 = 5;
+// settings for pagination
+const MAX_LIMIT: u8 = 50;
+const DEFAULT_LIMIT: u8 = 20;
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
     let owner = msg.owner.unwrap_or(info.sender);
@@ -28,7 +32,7 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
         owner,
         service_addr: msg.service_addr,
         contract_fee: msg.contract_fee,
-        checkoint_threshold: CHECKPOINT_THRESHOLD,
+        checkpoint_threshold: CHECKPOINT_THRESHOLD,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -164,7 +168,7 @@ pub fn execute_update_config(
             exists.contract_fee = contract_fee;
         }
         if let Some(checkoint_threshold) = new_checkpoint {
-            exists.checkoint_threshold = checkoint_threshold;
+            exists.checkpoint_threshold = checkoint_threshold;
         }
         Ok(exists)
     })?;
@@ -316,12 +320,41 @@ pub fn execute_register_merkle_root(
     stage: u64,
     mroot: String,
 ) -> Result<HandleResponse, ContractError> {
-    let cfg = CONFIG.load(deps.storage)?;
+    let Config {
+        owner,
+        checkpoint_threshold,
+        ..
+    } = CONFIG.load(deps.storage)?;
 
     // if owner set validate, otherwise unauthorized
-    let owner = cfg.owner;
     if info.sender != owner {
         return Err(ContractError::Unauthorized {});
+    }
+
+    // check if can increase checkpoint. Can only increase when all requests in range have merkle root
+    let checkpoint_stage = CHECKPOINT.load(deps.storage)?;
+    let latest_stage = LATEST_STAGE.load(deps.storage)?;
+    let next_checkpoint = checkpoint_stage + checkpoint_threshold;
+    // check to boost performance. not everytime we need to query & check
+    if stage.gt(&next_checkpoint) {
+        let requests = query_requests(
+            deps.as_ref(),
+            Some(checkpoint_stage),
+            Some(checkpoint_threshold as u8),
+            Some(1),
+        )?;
+        // if we cannot find an empty merkle root request then increase checkpoint
+        if requests
+            .iter()
+            .find(|req| req.merkle_root.is_empty())
+            .is_none()
+        {
+            CHECKPOINT.save(deps.storage, &next_checkpoint)?;
+        }
+    }
+    // force next checkpoint = latest + 1 => no new request coming
+    if next_checkpoint.ge(&latest_stage) {
+        CHECKPOINT.save(deps.storage, &(latest_stage + 1))?;
     }
 
     // check merkle root length
@@ -378,6 +411,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             order,
         } => to_binary(&query_executors(deps, nonce, start, end, order)?),
         QueryMsg::Request { stage } => to_binary(&query_request(deps, stage)?),
+        QueryMsg::GetRequests {
+            offset,
+            limit,
+            order,
+        } => to_binary(&query_requests(deps, offset, limit, order)?),
         QueryMsg::LatestStage {} => to_binary(&query_latest_stage(deps)?),
         QueryMsg::GetServiceContracts { stage } => {
             to_binary(&query_service_contracts(deps, stage)?)
@@ -399,9 +437,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn get_stage_info(deps: Deps) -> StdResult<StageInfo> {
     let checkpoint = CHECKPOINT.load(deps.storage)?;
     let latest_stage = LATEST_STAGE.load(deps.storage)?;
+    let Config {
+        checkpoint_threshold,
+        ..
+    } = CONFIG.load(deps.storage)?;
     Ok(StageInfo {
         latest_stage,
         checkpoint,
+        checkpoint_threshold,
     })
 }
 
@@ -491,6 +534,47 @@ pub fn query_is_submitted(deps: Deps, stage: u64, executor: Binary) -> StdResult
 pub fn query_request(deps: Deps, stage: u64) -> StdResult<Request> {
     let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
     Ok(request)
+}
+
+fn _get_range_params(
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> (usize, Option<Bound>, Option<Bound>, Order) {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let mut min: Option<Bound> = None;
+    let mut max: Option<Bound> = None;
+    let mut order_enum = Order::Descending;
+    if let Some(num) = order {
+        if num == 1 {
+            order_enum = Order::Ascending;
+        }
+    }
+
+    // if there is offset, assign to min or max
+    if let Some(offset) = offset {
+        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        match order_enum {
+            Order::Ascending => min = offset_value,
+            Order::Descending => max = offset_value,
+        }
+    };
+    (limit, min, max, order_enum)
+}
+
+pub fn query_requests(
+    deps: Deps,
+    offset: Option<u64>,
+    limit: Option<u8>,
+    order: Option<u8>,
+) -> StdResult<Vec<Request>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let requests: StdResult<Vec<Request>> = REQUEST
+        .range(deps.storage, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| kv_item.and_then(|(_, request)| Ok(request)))
+        .collect();
+    Ok(requests?)
 }
 
 pub fn query_service_contracts(deps: Deps, stage: u64) -> StdResult<Contracts> {
