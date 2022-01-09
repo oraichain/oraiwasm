@@ -1,7 +1,7 @@
 use aioracle_base::{Reward, ServiceMsg};
 use cosmwasm_std::{
     attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, StdError, StdResult, Storage, Uint128,
+    HandleResponse, HumanAddr, InitResponse, MessageInfo, StdError, StdResult, Uint128,
 };
 
 use sha2::Digest;
@@ -11,27 +11,30 @@ use std::ops::Mul;
 use crate::error::ContractError;
 use crate::msg::{
     CurrentStageResponse, GetServiceContracts, GetServiceFees, HandleMsg, InitMsg,
-    IsClaimedResponse, LatestStageResponse, QueryMsg, Report,
+    IsClaimedResponse, LatestStageResponse, QueryMsg, Report, StageInfo,
 };
 use crate::state::{
-    Config, Contracts, Request, Signature, CLAIM, CONFIG, CURRENT_STAGE, EXECUTORS,
-    EXECUTORS_NONCE, LATEST_STAGE, REQUEST,
+    Config, Contracts, Request, Signature, CHECKPOINT, CLAIM, CONFIG, EXECUTORS, EXECUTORS_NONCE,
+    LATEST_STAGE, REQUEST,
 };
 use std::collections::HashMap;
+
+pub const CHECKPOINT_THRESHOLD: u64 = 5;
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
     let owner = msg.owner.unwrap_or(info.sender);
 
     let config = Config {
-        owner: Some(owner),
+        owner,
         service_addr: msg.service_addr,
         contract_fee: msg.contract_fee,
+        checkoint_threshold: CHECKPOINT_THRESHOLD,
     };
     CONFIG.save(deps.storage, &config)?;
 
     let stage = 0;
     LATEST_STAGE.save(deps.storage, &stage)?;
-    CURRENT_STAGE.save(deps.storage, &1)?;
+    CHECKPOINT.save(deps.storage, &1)?;
 
     // first nonce
     EXECUTORS.save(deps.storage, &1u64.to_be_bytes(), &msg.executors)?;
@@ -51,6 +54,7 @@ pub fn handle(
             new_contract_fee,
             new_executors,
             new_service_addr,
+            new_checkpoint,
         } => execute_update_config(
             deps,
             env,
@@ -59,12 +63,15 @@ pub fn handle(
             new_service_addr,
             new_contract_fee,
             new_executors,
+            new_checkpoint,
         ),
-        HandleMsg::UpdateSignature { pubkey, signature } => {
-            execute_update_signature(deps, env, info, pubkey, signature)
-        }
-        HandleMsg::RegisterMerkleRoot { merkle_root } => {
-            execute_register_merkle_root(deps, env, info, merkle_root)
+        HandleMsg::UpdateSignature {
+            stage,
+            pubkey,
+            signature,
+        } => execute_update_signature(deps, env, info, stage, pubkey, signature),
+        HandleMsg::RegisterMerkleRoot { stage, merkle_root } => {
+            execute_register_merkle_root(deps, env, info, stage, merkle_root)
         }
         HandleMsg::Request { service, threshold } => {
             handle_request(deps, info, env, service, threshold)
@@ -82,10 +89,10 @@ pub fn execute_update_signature(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
+    stage: u64,
     pubkey: Binary,
     signature: Binary,
 ) -> Result<HandleResponse, ContractError> {
-    let stage = get_current_stage(deps.storage)?;
     // if submitted already => wont allow to submit again
     let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
     let mut is_finished = false;
@@ -118,7 +125,7 @@ pub fn execute_update_signature(
         Err(StdError::generic_err("Invalid request empty"))
     })?;
     if is_finished {
-        CURRENT_STAGE.save(deps.storage, &(stage + 1))?;
+        CHECKPOINT.save(deps.storage, &(stage + 1))?;
     }
 
     Ok(HandleResponse {
@@ -136,22 +143,28 @@ pub fn execute_update_config(
     new_service_addr: Option<HumanAddr>,
     new_contract_fee: Option<Coin>,
     new_executors: Option<Vec<Binary>>,
+    new_checkpoint: Option<u64>,
 ) -> Result<HandleResponse, ContractError> {
     // authorize owner
     let cfg = CONFIG.load(deps.storage)?;
-    let owner = cfg.owner.ok_or(ContractError::Unauthorized {})?;
+    let owner = cfg.owner;
     if info.sender != owner {
         return Err(ContractError::Unauthorized {});
     }
 
     // if owner some validated to addr, otherwise set to none
     CONFIG.update(deps.storage, |mut exists| -> StdResult<_> {
-        exists.owner = new_owner;
+        if let Some(new_owner) = new_owner {
+            exists.owner = new_owner;
+        }
         if let Some(service_addr) = new_service_addr {
             exists.service_addr = service_addr;
         }
         if let Some(contract_fee) = new_contract_fee {
             exists.contract_fee = contract_fee;
+        }
+        if let Some(checkoint_threshold) = new_checkpoint {
+            exists.checkoint_threshold = checkoint_threshold;
         }
         Ok(exists)
     })?;
@@ -300,12 +313,13 @@ pub fn execute_register_merkle_root(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
+    stage: u64,
     mroot: String,
 ) -> Result<HandleResponse, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
     // if owner set validate, otherwise unauthorized
-    let owner = cfg.owner.ok_or(ContractError::Unauthorized {})?;
+    let owner = cfg.owner;
     if info.sender != owner {
         return Err(ContractError::Unauthorized {});
     }
@@ -314,14 +328,13 @@ pub fn execute_register_merkle_root(
     let mut root_buf: [u8; 32] = [0; 32];
     hex::decode_to_slice(mroot.to_string(), &mut root_buf)?;
 
-    let current_stage = get_current_stage(deps.storage)?;
-    let Request { merkle_root, .. } = REQUEST.load(deps.storage, &current_stage.to_be_bytes())?;
+    let Request { merkle_root, .. } = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
     if merkle_root.ne("") {
         return Err(ContractError::AlreadyFinished {});
     }
 
     // if merkle root empty then update new
-    REQUEST.update(deps.storage, &current_stage.to_be_bytes(), |request| {
+    REQUEST.update(deps.storage, &stage.to_be_bytes(), |request| {
         if let Some(mut request) = request {
             request.merkle_root = mroot.clone();
             {
@@ -332,28 +345,28 @@ pub fn execute_register_merkle_root(
     })?;
 
     // // move to a new stage
-    // CURRENT_STAGE.save(deps.storage, &(current_stage + 1))?;
+    // CHECKPOINT.save(deps.storage, &(current_stage + 1))?;
 
     Ok(HandleResponse {
         data: None,
         messages: vec![],
         attributes: vec![
             attr("action", "register_merkle_root"),
-            attr("current_stage", current_stage.to_string()),
+            attr("current_stage", stage.to_string()),
             attr("merkle_root", mroot),
         ],
     })
 }
 
-fn get_current_stage(storage: &dyn Storage) -> Result<u64, ContractError> {
-    let current_stage = CURRENT_STAGE.load(storage)?;
-    let latest_stage = LATEST_STAGE.load(storage)?;
-    // there is no round to process, return error
-    if current_stage.eq(&(latest_stage + 1)) {
-        return Err(ContractError::NoRequest {});
-    }
-    Ok(current_stage)
-}
+// fn get_current_stage(storage: &dyn Storage) -> Result<u64, ContractError> {
+//     let current_stage = CURRENT_STAGE.load(storage)?;
+//     let latest_stage = LATEST_STAGE.load(storage)?;
+//     // there is no round to process, return error
+//     if current_stage.eq(&(latest_stage + 1)) {
+//         return Err(ContractError::NoRequest {});
+//     }
+//     Ok(current_stage)
+// }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -369,7 +382,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetServiceContracts { stage } => {
             to_binary(&query_service_contracts(deps, stage)?)
         }
-        QueryMsg::CurrentStage {} => to_binary(&query_current_stage(deps)?),
+        QueryMsg::StageInfo {} => to_binary(&get_stage_info(deps)?),
+        // QueryMsg::CurrentStage {} => to_binary(&query_current_stage(deps)?),
         QueryMsg::IsClaimed { stage, executor } => {
             to_binary(&query_is_claimed(deps, stage, executor)?)
         }
@@ -380,6 +394,15 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&verify_data(deps, stage, data, proof)?)
         }
     }
+}
+
+pub fn get_stage_info(deps: Deps) -> StdResult<StageInfo> {
+    let checkpoint = CHECKPOINT.load(deps.storage)?;
+    let latest_stage = LATEST_STAGE.load(deps.storage)?;
+    Ok(StageInfo {
+        latest_stage,
+        checkpoint,
+    })
 }
 
 fn is_submitted(request: &Request, executor: Binary) -> bool {
@@ -492,7 +515,7 @@ pub fn query_latest_stage(deps: Deps) -> StdResult<LatestStageResponse> {
 }
 
 pub fn query_current_stage(deps: Deps) -> StdResult<CurrentStageResponse> {
-    let current_stage = CURRENT_STAGE.load(deps.storage)?;
+    let current_stage = CHECKPOINT.load(deps.storage)?;
     let latest_stage = LATEST_STAGE.load(deps.storage)?;
     if current_stage.eq(&(latest_stage + 1)) {
         return Err(StdError::generic_err("No request to handle"));

@@ -8,9 +8,11 @@ use cw_storage_plus::{Item, Map};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     /// Owner If None set, contract is frozen.
-    pub owner: Option<HumanAddr>,
+    pub owner: HumanAddr,
     pub service_addr: HumanAddr,
     pub contract_fee: Coin,
+    /// this threshold is to update the checkpoint stage when current previous checkpoint +
+    pub checkoint_threshold: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -44,8 +46,8 @@ pub const CONFIG: Item<Config> = Item::new(CONFIG_KEY);
 pub const LATEST_STAGE_KEY: &str = "stage";
 pub const LATEST_STAGE: Item<u64> = Item::new(LATEST_STAGE_KEY);
 
-pub const CURRENT_STAGE_KEY: &str = "current_stage";
-pub const CURRENT_STAGE: Item<u64> = Item::new(CURRENT_STAGE_KEY);
+pub const CHECKPOINT_STAGE_KEY: &str = "checkpoint";
+pub const CHECKPOINT: Item<u64> = Item::new(CHECKPOINT_STAGE_KEY);
 
 pub const REQUEST_PREFIX: &str = "request";
 pub const REQUEST: Map<&[u8], Request> = Map::new(REQUEST_PREFIX);

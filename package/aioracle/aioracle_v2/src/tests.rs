@@ -112,6 +112,7 @@ fn update_config() {
         new_contract_fee: Some(coin(10u128, "foobar")),
         new_executors: Some(vec![]),
         new_service_addr: Some(HumanAddr::from("yolo")),
+        new_checkpoint: None,
     };
 
     let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -120,7 +121,7 @@ fn update_config() {
     // it worked, let's query the state
     let res = query(deps.as_ref(), env, QueryMsg::Config {}).unwrap();
     let config: Config = from_binary(&res).unwrap();
-    assert_eq!("owner0001", config.owner.unwrap().as_str());
+    assert_eq!("owner0001", config.owner.as_str());
     assert_eq!(
         Coin {
             amount: Uint128::from(10u64),
@@ -157,6 +158,7 @@ fn update_config() {
         new_contract_fee: None,
         new_executors: None,
         new_service_addr: None,
+        new_checkpoint: None,
     };
 
     let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
@@ -509,6 +511,7 @@ fn owner_freeze() {
         new_contract_fee: None,
         new_executors: None,
         new_service_addr: None,
+        new_checkpoint: None,
     };
 
     let res = handle(deps.as_mut(), env, info, msg).unwrap();
