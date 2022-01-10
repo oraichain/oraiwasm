@@ -1,8 +1,6 @@
-use crate::contract::{handle, init, query, verify_request_fees};
+use crate::contract::{init, query, verify_request_fees};
 use crate::error::ContractError;
-use crate::msg::{
-    ConfigResponse, CurrentStageResponse, HandleMsg, InitMsg, LatestStageResponse, QueryMsg,
-};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, StageInfo};
 use crate::state::{Config, Request};
 
 use aioracle_base::Reward;
@@ -10,15 +8,18 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    attr, coin, coins, from_binary, from_slice, Binary, BlockInfo, Coin, ContractInfo, Env,
-    HumanAddr, OwnedDeps, Uint128,
+    coin, coins, from_binary, from_slice, Binary, BlockInfo, Coin, ContractInfo, Env, HumanAddr,
+    OwnedDeps, Uint128,
 };
+use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
 use provider_demo::state::Contracts;
 use serde::Deserialize;
 use sha2::Digest;
 
 const DENOM: &str = "ORAI";
-const PROVIDER_DEMO_ADDR: &str = "PROVIDER_DEMO_ADDR";
+const AIORACLE_OWNER: &str = "admin0002";
+const PROVIDER_OWNER: &str = "admin0001";
+const CLIENT: &str = "client";
 
 fn init_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
@@ -34,7 +35,7 @@ fn init_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
                 chain_id: "cosmos-testnet-14002".to_string(),
             },
             contract: ContractInfo {
-                address: HumanAddr::from(PROVIDER_DEMO_ADDR),
+                address: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
             },
         },
         info,
@@ -43,7 +44,7 @@ fn init_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
             service_contracts: Contracts {
                 dsources: vec![],
                 tcases: vec![],
-                oscript: HumanAddr::from("foobar"),
+                oscript: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
             },
         },
     )
@@ -52,61 +53,134 @@ fn init_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     return deps;
 }
 
-#[test]
-fn proper_instantiation() {
-    let mut deps = init_deps();
+pub fn contract_aioracle_v2() -> Box<dyn Contract> {
+    let contract = ContractWrapper::new(
+        crate::contract::handle,
+        crate::contract::init,
+        crate::contract::query,
+    );
+    Box::new(contract)
+}
 
+pub fn contract_provider() -> Box<dyn Contract> {
+    let contract = ContractWrapper::new(
+        provider_demo::contract::handle,
+        provider_demo::contract::init,
+        provider_demo::contract::query,
+    );
+    Box::new(contract)
+}
+
+fn mock_app() -> App {
+    let env = mock_env();
+    let api = Box::new(MockApi::default());
+    let bank = SimpleBank {};
+
+    App::new(api, env.block, bank, || Box::new(MockStorage::new()))
+}
+
+// uploads code and returns address of group contract
+fn init_aioracle(
+    app: &mut App,
+    service_addr: HumanAddr,
+    contract_fee: Coin,
+    executors: Vec<Binary>,
+) -> HumanAddr {
+    let group_id = app.store_code(contract_aioracle_v2());
     let msg = InitMsg {
-        owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
-        contract_fee: coin(1u128, "orai"),
-        executors: vec![
+        owner: None,
+        service_addr,
+        contract_fee,
+        executors,
+    };
+
+    app.instantiate_contract(group_id, AIORACLE_OWNER, &msg, &[], "aioracle_v2")
+        .unwrap()
+}
+
+// uploads code and returns address of group contract
+fn init_provider(app: &mut App, service: String, service_contracts: Contracts) -> HumanAddr {
+    let group_id = app.store_code(contract_provider());
+    let msg = provider_demo::msg::InitMsg {
+        service,
+        service_contracts,
+    };
+
+    app.instantiate_contract(group_id, PROVIDER_OWNER, &msg, &[], "provider_demo")
+        .unwrap()
+}
+
+fn setup_test_case(app: &mut App) -> (HumanAddr, HumanAddr) {
+    // 2. Set up Multisig backed by this group
+    let provider_addr = init_provider(
+        app,
+        "price".to_string(),
+        Contracts {
+            dsources: vec![],
+            tcases: vec![],
+            oscript: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
+        },
+    );
+    app.update_block(next_block);
+
+    let aioracle_addr = init_aioracle(
+        app,
+        provider_addr.clone(),
+        coin(1u128, "orai"),
+        vec![
             Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
             Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
             Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
             Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
         ],
-    };
+    );
+    app.update_block(next_block);
 
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
+    // init balance for client
+    app.set_bank_balance(HumanAddr::from(CLIENT), coins(10000000000, "orai"))
+        .unwrap();
+    app.update_block(next_block);
 
-    // we can just call .unwrap() to assert this was a success
-    let _res = init(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    (provider_addr, aioracle_addr)
+}
 
-    // it worked, let's query the state
-    let res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
-    let config: ConfigResponse = from_binary(&res).unwrap();
-    assert_eq!("owner0000", config.owner.unwrap().as_str());
+#[test]
+fn proper_instantiation() {
+    let mut app = mock_app();
+    let (_, aioracle_addr) = setup_test_case(&mut app);
 
-    let res = query(deps.as_ref(), env, QueryMsg::LatestStage {}).unwrap();
-    let latest_stage: LatestStageResponse = from_binary(&res).unwrap();
-    assert_eq!(0u64, latest_stage.latest_stage);
+    // create a new request
+    app.execute_contract(
+        &HumanAddr::from("client"),
+        &aioracle_addr,
+        &HandleMsg::Request {
+            threshold: 1,
+            service: "price".to_string(),
+        },
+        &coins(5u128, "orai"),
+    )
+    .unwrap();
+
+    // try querying service contracts from aioracle addr to provider addr
+    let res: Contracts = app
+        .wrap()
+        .query_wasm_smart(&aioracle_addr, &QueryMsg::GetServiceContracts { stage: 1 })
+        .unwrap();
+
+    println!("res: {:?}", res);
+    assert_eq!(
+        res.oscript,
+        HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj")
+    );
 }
 
 #[test]
 fn update_config() {
-    let mut deps = init_deps();
-
-    let msg = InitMsg {
-        owner: None,
-        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
-        contract_fee: coin(1u128, "orai"),
-        executors: vec![
-            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
-            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
-            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
-            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
-        ],
-    };
-
-    let env = mock_env();
-    let info = mock_info("owner0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let mut app = mock_app();
+    let (_, aioracle_addr) = setup_test_case(&mut app);
 
     // update owner
-    let env = mock_env();
-    let info = mock_info("owner0000", &[]);
+    let info = mock_info(AIORACLE_OWNER, &[]);
     let msg = HandleMsg::UpdateConfig {
         new_owner: Some("owner0001".into()),
         new_contract_fee: Some(coin(10u128, "foobar")),
@@ -115,12 +189,14 @@ fn update_config() {
         new_checkpoint: None,
     };
 
-    let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
-    assert_eq!(0, res.messages.len());
+    app.execute_contract(&info.sender, &aioracle_addr, &msg, &[])
+        .unwrap();
 
     // it worked, let's query the state
-    let res = query(deps.as_ref(), env, QueryMsg::Config {}).unwrap();
-    let config: Config = from_binary(&res).unwrap();
+    let config: Config = app
+        .wrap()
+        .query_wasm_smart(&aioracle_addr, &QueryMsg::Config {})
+        .unwrap();
     assert_eq!("owner0001", config.owner.as_str());
     assert_eq!(
         Coin {
@@ -133,25 +209,22 @@ fn update_config() {
 
     // query executor list
     // query executors
-    let executors: Vec<Binary> = from_binary(
-        &query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::GetExecutors {
+    let executors: Vec<Binary> = app
+        .wrap()
+        .query_wasm_smart(
+            &aioracle_addr,
+            &QueryMsg::GetExecutors {
                 nonce: 1,
                 start: Some(2),
                 end: Some(2),
                 order: None,
             },
         )
-        .unwrap(),
-    )
-    .unwrap();
+        .unwrap();
 
     assert_eq!(executors.len(), 0);
 
     // Unauthorized err
-    let env = mock_env();
     let info = mock_info("owner0000", &[]);
     let msg = HandleMsg::UpdateConfig {
         new_owner: None,
@@ -161,146 +234,105 @@ fn update_config() {
         new_checkpoint: None,
     };
 
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
-    assert_eq!(res, ContractError::Unauthorized {});
+    let res = app
+        .execute_contract(info.sender, aioracle_addr, &msg, &[])
+        .unwrap_err();
+    assert_eq!(res, ContractError::Unauthorized {}.to_string());
 }
 
 #[test]
 fn test_request() {
-    let mut deps = init_deps();
+    let mut app = mock_app();
+    let (_, aioracle_addr) = setup_test_case(&mut app);
 
-    let msg = InitMsg {
-        owner: None,
-        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
-        contract_fee: coin(1u128, "orai"),
-        executors: vec![
-            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
-            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
-            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
-            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
-        ],
-    };
-
-    let env = mock_env();
-    let info = mock_info("owner0000", &[]);
-    let _res = init(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
-
-    // query current handling now will return error
-    // current handling should be 1, latest should be 3
-    let current_stage = query(deps.as_ref(), mock_env(), QueryMsg::CurrentStage {});
-    assert_eq!(current_stage.is_err(), true);
-
-    // create new request
-    handle(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        HandleMsg::Request {
+    // create a new request
+    app.execute_contract(
+        &HumanAddr::from("client"),
+        &aioracle_addr,
+        &HandleMsg::Request {
             threshold: 1,
-            service: String::from("something"),
+            service: "price".to_string(),
         },
+        &coins(5u128, "orai"),
     )
     .unwrap();
 
-    // create new request
-    handle(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        HandleMsg::Request {
+    app.execute_contract(
+        &HumanAddr::from("client"),
+        &aioracle_addr,
+        &HandleMsg::Request {
             threshold: 1,
-            service: String::from("something"),
+            service: "price".to_string(),
         },
-    )
-    .unwrap();
-
-    // create new request
-    handle(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        HandleMsg::Request {
-            threshold: 1,
-            service: String::from("something"),
-        },
+        &coins(5u128, "orai"),
     )
     .unwrap();
 
     // current handling should be 1, latest should be 3
-    let current_stage: CurrentStageResponse =
-        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::CurrentStage {}).unwrap()).unwrap();
-    assert_eq!(current_stage.current_stage, 1u64);
+    let current_stage: StageInfo = app
+        .wrap()
+        .query_wasm_smart(&aioracle_addr, &QueryMsg::StageInfo {})
+        .unwrap();
+    assert_eq!(current_stage.checkpoint, 1u64);
+    assert_eq!(current_stage.latest_stage, 2u64);
 
-    let latest_stage: LatestStageResponse =
-        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::LatestStage {}).unwrap()).unwrap();
-    assert_eq!(latest_stage.latest_stage, 3u64);
+    // for i in 0..4 {
+    //     app.execute_contract(
+    //         &HumanAddr::from("client"),
+    //         &aioracle_addr,
+    //         &HandleMsg::Request {
+    //             threshold: 1,
+    //             service: "price".to_string(),
+    //         },
+    //         &coins(5u128, "orai"),
+    //     )
+    //     .unwrap();
+    // }
+
+    // // current handling should be 1, latest should be 3
+    // let current_stage: StageInfo = app
+    //     .wrap()
+    //     .query_wasm_smart(&aioracle_addr, &QueryMsg::StageInfo {})
+    //     .unwrap();
+    // assert_eq!(current_stage.checkpoint, 5u64);
+    // assert_eq!(current_stage.latest_stage, 6u64);
 }
 
 #[test]
 fn register_merkle_root() {
-    let mut deps = init_deps();
+    let mut app = mock_app();
+    let (_, aioracle_addr) = setup_test_case(&mut app);
 
-    let msg = InitMsg {
-        owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
-        contract_fee: coin(1u128, "orai"),
-        executors: vec![
-            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
-            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
-            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
-            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
-        ],
-    };
-
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
-
-    // create new request
-    handle(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        HandleMsg::Request {
+    // create a new request
+    app.execute_contract(
+        &HumanAddr::from("client"),
+        &aioracle_addr,
+        &HandleMsg::Request {
             threshold: 1,
-            service: String::from("something"),
+            service: "price".to_string(),
         },
+        &coins(5u128, "orai"),
     )
     .unwrap();
 
     // register new merkle root
-    let env = mock_env();
-    let info = mock_info("owner0000", &[]);
     let msg = HandleMsg::RegisterMerkleRoot {
+        stage: 1,
         merkle_root: "4a2e27a2befb41a0655b8fe98d9c1a9f18ece280dc78b442734ead617e6bf3fc".to_string(),
     };
 
-    let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
-    assert_eq!(
-        res.attributes,
-        vec![
-            attr("action", "register_merkle_root"),
-            attr("current_stage", "1"),
-            attr(
-                "merkle_root",
-                "4a2e27a2befb41a0655b8fe98d9c1a9f18ece280dc78b442734ead617e6bf3fc"
-            )
-        ]
-    );
-
-    let res = query(deps.as_ref(), env.clone(), QueryMsg::LatestStage {}).unwrap();
-    let latest_stage: LatestStageResponse = from_binary(&res).unwrap();
-    assert_eq!(1u64, latest_stage.latest_stage);
-
-    let res = query(
-        deps.as_ref(),
-        env,
-        QueryMsg::Request {
-            stage: latest_stage.latest_stage,
-        },
+    app.execute_contract(
+        HumanAddr::from(AIORACLE_OWNER),
+        aioracle_addr.clone(),
+        &msg,
+        &[],
     )
     .unwrap();
-    let merkle_root: Request = from_binary(&res).unwrap();
+
+    let merkle_root: Request = app
+        .wrap()
+        .query_wasm_smart(aioracle_addr, &QueryMsg::Request { stage: 1u64 })
+        .unwrap();
     assert_eq!(
         "4a2e27a2befb41a0655b8fe98d9c1a9f18ece280dc78b442734ead617e6bf3fc".to_string(),
         merkle_root.merkle_root
@@ -309,6 +341,7 @@ fn register_merkle_root() {
 
 const TEST_DATA_1: &[u8] = include_bytes!("../testdata/report_list_1_test_data.json");
 const TEST_DATA_2: &[u8] = include_bytes!("../testdata/report_list_with_rewards.json");
+const TEST_DATA_3: &[u8] = include_bytes!("../testdata/report_list_with_rewards_2.json");
 
 #[derive(Deserialize, Debug)]
 struct Encoded {
@@ -321,277 +354,198 @@ struct Encoded {
 #[test]
 fn verify_data() {
     // Run test 1
-    let mut deps = init_deps();
-    deps.api.canonical_length = 54;
     let test_data: Encoded = from_slice(TEST_DATA_1).unwrap();
 
-    // init merkle root
-    let msg = InitMsg {
-        owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
-        contract_fee: coin(1u128, "orai"),
-        executors: vec![
-            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
-            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
-            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
-            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
-        ],
-    };
+    let mut app = mock_app();
+    let (_, aioracle_addr) = setup_test_case(&mut app);
 
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
-
-    // create new request
-    handle(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        HandleMsg::Request {
+    // create a new request
+    app.execute_contract(
+        &HumanAddr::from("client"),
+        &aioracle_addr,
+        &HandleMsg::Request {
             threshold: 1,
-            service: String::from("something"),
+            service: "price".to_string(),
         },
+        &coins(5u128, "orai"),
     )
     .unwrap();
 
-    let env = mock_env();
-    let info = mock_info("owner0000", &[]);
+    // register new merkle root
     let msg = HandleMsg::RegisterMerkleRoot {
+        stage: 1,
         merkle_root: test_data.root,
     };
-    let _res = handle(deps.as_mut(), env, info, msg).unwrap();
 
-    let verified: bool = from_binary(
-        &query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::VerifyData {
+    app.execute_contract(
+        HumanAddr::from(AIORACLE_OWNER),
+        aioracle_addr.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    let verified: bool = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr,
+            &QueryMsg::VerifyData {
                 stage: test_data.request_id as u64,
                 data: test_data.data,
                 proof: Some(test_data.proofs),
             },
         )
-        .unwrap(),
-    )
-    .unwrap();
+        .unwrap();
 
     assert_eq!(verified, true);
 }
 
 #[test]
 fn update_signature() {
-    // Run test 1
-    let mut deps = init_deps();
-    deps.api.canonical_length = 54;
-    let test_data: Encoded = from_slice(TEST_DATA_1).unwrap();
-
-    // init merkle root
-    let msg = InitMsg {
-        owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
-        contract_fee: coin(1u128, "orai"),
-        executors: vec![
-            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
-            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
-            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
-            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
-        ],
-    };
-
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
-
-    // create new request
-    handle(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        HandleMsg::Request {
-            threshold: 2,
-            service: String::from("something"),
-        },
-    )
-    .unwrap();
-
-    let env = mock_env();
-    let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
-        merkle_root: test_data.root,
-    };
-    let _res = handle(deps.as_mut(), env, info.clone(), msg).unwrap();
-
-    // submit signature
-    handle(
-        deps.as_mut(),
-        mock_env(),
-        info.clone(),
-        HandleMsg::UpdateSignature {
-            signature: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
-            pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
-        },
-    )
-    .unwrap();
-
-    // 2nd submit will give error
-    assert!(matches!(
-        handle(
-            deps.as_mut(),
-            mock_env(),
-            info.clone(),
-            HandleMsg::UpdateSignature {
-                signature: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t")
-                    .unwrap(),
-                pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t")
-                    .unwrap()
-            }
-        ),
-        Err(ContractError::AlreadySubmitted {})
-    ));
-}
-
-#[test]
-fn owner_freeze() {
-    let mut deps = init_deps();
-
-    let msg = InitMsg {
-        owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
-        contract_fee: coin(1u128, "orai"),
-        executors: vec![
-            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
-            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
-            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
-            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
-        ],
-    };
-
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
-
-    // create new request
-    handle(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        HandleMsg::Request {
-            threshold: 1,
-            service: String::from("something"),
-        },
-    )
-    .unwrap();
-
-    // can register merkle root
-    let env = mock_env();
-    let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
-        merkle_root: "5d4f48f147cb6cb742b376dce5626b2a036f69faec10cd73631c791780e150fc".to_string(),
-    };
-    let _res = handle(deps.as_mut(), env, info, msg).unwrap();
-
-    // can update owner
-    let env = mock_env();
-    let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::UpdateConfig {
-        new_owner: Some("owner0001".into()),
-        new_contract_fee: None,
-        new_executors: None,
-        new_service_addr: None,
-    };
-
-    let res = handle(deps.as_mut(), env, info, msg).unwrap();
-    assert_eq!(0, res.messages.len());
-
-    // freeze contract
-    let env = mock_env();
-    let info = mock_info("owner0001", &[]);
-    let msg = HandleMsg::UpdateConfig {
-        new_owner: None,
-        new_contract_fee: None,
-        new_executors: None,
-        new_service_addr: None,
-        new_checkpoint: None,
-    };
-
-    let res = handle(deps.as_mut(), env, info, msg).unwrap();
-    assert_eq!(0, res.messages.len());
-
-    // cannot register new drop
-    let env = mock_env();
-    let info = mock_info("owner0001", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
-        merkle_root: "ebaa83c7eaf7467c378d2f37b5e46752d904d2d17acd380b24b02e3b398b3e5a".to_string(),
-    };
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
-    assert_eq!(res, ContractError::Unauthorized {});
-
-    // cannot update config
-    let env = mock_env();
-    let info = mock_info("owner0001", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
-        merkle_root: "ebaa83c7eaf7467c378d2f37b5e46752d904d2d17acd380b24b02e3b398b3e5a".to_string(),
-    };
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
-    assert_eq!(res, ContractError::Unauthorized {});
-}
-
-#[test]
-fn send_reward() {
-    // Run test 1
+    // Run test 2
     let mut deps = init_deps();
     deps.api.canonical_length = 54;
     let test_data: Encoded = from_slice(TEST_DATA_2).unwrap();
 
-    // init merkle root
-    let msg = InitMsg {
-        owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
-        contract_fee: coin(1u128, "orai"),
-        executors: vec![
-            Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
-            Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
-            Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
-            Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
-        ],
-    };
+    let mut app = mock_app();
+    let (_, aioracle_addr) = setup_test_case(&mut app);
 
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
-
-    // create new request
-    handle(
-        deps.as_mut(),
-        env.clone(),
-        info.clone(),
-        HandleMsg::Request {
+    // create a new request
+    app.execute_contract(
+        &HumanAddr::from("client"),
+        &aioracle_addr,
+        &HandleMsg::Request {
             threshold: 1,
-            service: String::from("something"),
+            service: "price".to_string(),
         },
+        &coins(5u128, "orai"),
     )
     .unwrap();
 
-    let env = mock_env();
-    let info = mock_info("owner0000", &[]);
+    // register new merkle root
     let msg = HandleMsg::RegisterMerkleRoot {
+        stage: 1,
         merkle_root: test_data.root,
     };
-    let _res = handle(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
-    let res = handle(
-        deps.as_mut(),
-        env,
-        info,
-        HandleMsg::ClaimReward {
+    app.execute_contract(
+        HumanAddr::from(AIORACLE_OWNER),
+        aioracle_addr.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    // submit signature
+    app.execute_contract(
+        HumanAddr::from(CLIENT),
+        aioracle_addr.clone(),
+        &HandleMsg::UpdateSignature {
+            stage: 1,
+            signature: Binary::from_base64("R3TySBJNVUes61nYJGDvEhgRsyWeqI985cIlcl4rW6wy0VCC5F3HqgGUWvjd85WH+UTpnnLBHszqpSTpqbr/cw==").unwrap(),
+            pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    assert_eq!(
+        app.execute_contract(
+            HumanAddr::from(CLIENT),
+            aioracle_addr,
+            &HandleMsg::UpdateSignature {
+                stage: 1,
+                signature: Binary::from_base64("R3TySBJNVUes61nYJGDvEhgRsyWeqI985cIlcl4rW6wy0VCC5F3HqgGUWvjd85WH+UTpnnLBHszqpSTpqbr/cw==")
+                    .unwrap(),
+                pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t")
+                    .unwrap(),
+            },
+            &[],
+        )
+        .unwrap_err(),
+        ContractError::AlreadySubmitted {}.to_string()
+    );
+}
+
+#[test]
+fn send_reward() {
+    // Run test 2
+    let test_data: Encoded = from_slice(TEST_DATA_3).unwrap();
+
+    let mut app = mock_app();
+    let (_, aioracle_addr) = setup_test_case(&mut app);
+
+    // create a new request
+    app.execute_contract(
+        &HumanAddr::from("client"),
+        &aioracle_addr,
+        &HandleMsg::Request {
+            threshold: 1,
+            service: "price".to_string(),
+        },
+        &coins(5u128, "orai"),
+    )
+    .unwrap();
+
+    // register new merkle root
+    let msg = HandleMsg::RegisterMerkleRoot {
+        stage: 1,
+        merkle_root: test_data.root,
+    };
+
+    app.execute_contract(
+        HumanAddr::from(AIORACLE_OWNER),
+        aioracle_addr.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    // error because no signature yet
+    assert_eq!(
+        app.execute_contract(
+            HumanAddr::from(CLIENT),
+            aioracle_addr.clone(),
+            &HandleMsg::ClaimReward {
+                stage: 1,
+                report: test_data.data.clone(),
+                proof: Some(test_data.proofs.clone()),
+            },
+            &[],
+        )
+        .unwrap_err(),
+        ContractError::InvalidClaim {
+            threshold: 1,
+            signatures: 0
+        }
+        .to_string(),
+    );
+
+    // submit signature
+    app.execute_contract(
+        HumanAddr::from(CLIENT),
+        aioracle_addr.clone(),
+        &HandleMsg::UpdateSignature {
+            stage: 1,
+            signature: Binary::from_base64("3z8HnsjyJTNn+BhLOr2bamiDaUuCw1SIdnRGSe40eeFGDcfctdu8DdGCyOawKKDM2ByL8cNNiyoWZ7lZ/X6QOg==").unwrap(),
+            pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // successfully claim
+    app.execute_contract(
+        HumanAddr::from(CLIENT),
+        aioracle_addr.clone(),
+        &HandleMsg::ClaimReward {
             stage: 1,
             report: test_data.data,
             proof: Some(test_data.proofs),
         },
+        &[],
     )
     .unwrap();
-
-    println!("res: {:?}", res);
 }
 
 #[test]
@@ -642,13 +596,13 @@ fn verify_fees() {
 
 #[test]
 fn verify_signature() {
-    let msg = "d57e3a1853860794a754c72c11294cd5d4bedd74dd3d071b71e693a7e7881c73";
+    let msg = "d0d45cf5bf7b662627d177a4b66e431eeb894db1816fe34fe04b506049648aaf";
     println!("msg as bytes: {:?}", msg.as_bytes());
     let msg_hash_generic = sha2::Sha256::digest(msg.as_bytes());
     let msg_hash = msg_hash_generic.as_slice();
     println!("hash: {:?}", msg_hash);
     let signature = Binary::from_base64(
-        "71kw1rI1umhFWm/Po/R1T+J6HJ3ZwoX1pDwRCOncYVd6gK48veFi8oodG/kSIKYa0ouL/lmpX6vzSa0nl0ayqw==",
+        "3z8HnsjyJTNn+BhLOr2bamiDaUuCw1SIdnRGSe40eeFGDcfctdu8DdGCyOawKKDM2ByL8cNNiyoWZ7lZ/X6QOg==",
     )
     .unwrap();
     let pubkey = Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap();
@@ -666,7 +620,7 @@ fn query_executors() {
     // init merkle root
     let msg = InitMsg {
         owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from(PROVIDER_DEMO_ADDR),
+        service_addr: HumanAddr::from("foobar"),
         contract_fee: coin(1u128, "orai"),
         executors: vec![
             Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),

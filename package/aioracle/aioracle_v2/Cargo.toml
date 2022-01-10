@@ -45,3 +45,4 @@ cosmwasm-schema = "0.13.2"
 provider_demo = {path = '../../price/provider_demo'}
 sha2 = { version = "0.9.5", default-features = false }
 cosmwasm-crypto = "0.14.0"
+cw-multi-test = { version = "0.5.0" }

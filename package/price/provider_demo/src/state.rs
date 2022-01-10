@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, HumanAddr};
+use cosmwasm_std::HumanAddr;
 use cw_storage_plus::Map;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

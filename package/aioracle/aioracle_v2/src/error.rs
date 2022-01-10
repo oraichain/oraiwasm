@@ -22,6 +22,8 @@ pub enum ContractError {
 
     #[error("Invalid reward from executor")]
     InvalidReward {},
+    #[error("The request has not had enough signatures to be fully verified. Cannot claim now. Total signatures needed: {threshold}; currently have:{signatures}")]
+    InvalidClaim { threshold: u64, signatures: u64 },
 
     #[error("Invalid input")]
     InvalidInput {},

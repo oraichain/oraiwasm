@@ -274,6 +274,12 @@ pub fn handle_claim(
     }
 
     let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
+    if request.signatures.len().lt(&(request.threshold as usize)) {
+        return Err(ContractError::InvalidClaim {
+            threshold: request.threshold,
+            signatures: request.signatures.len() as u64,
+        });
+    }
 
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
