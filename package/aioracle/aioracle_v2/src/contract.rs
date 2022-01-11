@@ -472,6 +472,11 @@ pub fn verify_data(
     proofs: Option<Vec<String>>,
 ) -> StdResult<bool> {
     let Request { merkle_root, .. } = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
+    if merkle_root.is_empty() {
+        return Err(StdError::generic_err(
+            "No merkle root found for this request",
+        ));
+    }
     let mut final_proofs: Vec<String> = vec![];
     if let Some(proofs) = proofs {
         final_proofs = proofs;

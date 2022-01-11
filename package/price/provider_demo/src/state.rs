@@ -1,5 +1,5 @@
 use cosmwasm_std::HumanAddr;
-use cw_storage_plus::Map;
+use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -12,3 +12,5 @@ pub struct Contracts {
 }
 
 pub const SERVICE_CONTRACTS: Map<&[u8], Contracts> = Map::new("service_contracts");
+
+pub const OWNER: Item<HumanAddr> = Item::new("owner");

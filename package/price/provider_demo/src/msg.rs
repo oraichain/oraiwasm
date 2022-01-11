@@ -1,4 +1,4 @@
-use cosmwasm_std::Binary;
+use cosmwasm_std::{Binary, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -27,7 +27,12 @@ pub struct Response {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {}
+pub enum HandleMsg {
+    UpdateServiceContracts {
+        service: String,
+        contracts: Contracts,
+    },
+}
 
 // this TestCase does not have input
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
