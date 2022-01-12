@@ -1,6 +1,6 @@
 use crate::contract::{init, query, verify_request_fees};
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, StageInfo};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, RequestResponse, StageInfo};
 use crate::state::{Config, Request};
 
 use aioracle_base::Reward;
@@ -403,8 +403,6 @@ fn verify_data() {
 #[test]
 fn update_signature() {
     // Run test 2
-    let mut deps = init_deps();
-    deps.api.canonical_length = 54;
     let test_data: Encoded = from_slice(TEST_DATA_2).unwrap();
 
     let mut app = mock_app();
@@ -465,6 +463,142 @@ fn update_signature() {
         .unwrap_err(),
         ContractError::AlreadySubmitted {}.to_string()
     );
+}
+
+#[test]
+fn test_checkpoint() {
+    // Run test 2
+    let test_data: Encoded = from_slice(TEST_DATA_2).unwrap();
+
+    let mut app = mock_app();
+    let (_, aioracle_addr) = setup_test_case(&mut app);
+
+    for i in 1..8 {
+        println!("request: {:?}", i);
+        // create a new request
+        app.execute_contract(
+            &HumanAddr::from("client"),
+            &aioracle_addr,
+            &HandleMsg::Request {
+                threshold: 1,
+                service: "price".to_string(),
+            },
+            &coins(5u128, "orai"),
+        )
+        .unwrap();
+        if i.eq(&2) || i.eq(&7) {
+            continue;
+        }
+
+        // register new merkle root
+        let msg = HandleMsg::RegisterMerkleRoot {
+            stage: i as u64,
+            merkle_root: test_data.root.clone(),
+        };
+
+        app.execute_contract(
+            HumanAddr::from(AIORACLE_OWNER),
+            aioracle_addr.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
+
+        // submit signature
+        app.execute_contract(
+        HumanAddr::from(CLIENT),
+        aioracle_addr.clone(),
+        &HandleMsg::UpdateSignature {
+            stage: i as u64,
+            signature: Binary::from_base64("R3TySBJNVUes61nYJGDvEhgRsyWeqI985cIlcl4rW6wy0VCC5F3HqgGUWvjd85WH+UTpnnLBHszqpSTpqbr/cw==").unwrap(),
+            pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
+        },
+        &[],
+    )
+    .unwrap();
+    }
+
+    // query requests
+    let requests: Vec<RequestResponse> = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr.clone(),
+            &QueryMsg::GetRequests {
+                offset: Some(0),
+                limit: Some(10),
+                order: Some(1),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(
+        requests
+            .iter()
+            .find(|req| req.merkle_root.is_empty())
+            .is_none(),
+        false
+    );
+
+    // query stage info
+    let stage_info: StageInfo = app
+        .wrap()
+        .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::StageInfo {})
+        .unwrap();
+    println!("stage info: {:?}", stage_info);
+    assert_eq!(stage_info.checkpoint, 1u64);
+
+    // finish stage 2
+    app.execute_contract(
+        HumanAddr::from(AIORACLE_OWNER),
+        aioracle_addr.clone(),
+        &HandleMsg::RegisterMerkleRoot {
+            stage: 2u64,
+            merkle_root: test_data.root.clone(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // must finish stage 7 to trigger update checkpoint
+    app.execute_contract(
+        HumanAddr::from(AIORACLE_OWNER),
+        aioracle_addr.clone(),
+        &HandleMsg::RegisterMerkleRoot {
+            stage: 7u64,
+            merkle_root: test_data.root.clone(),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // query requests, This time all requests must have merkle root
+    let requests: Vec<RequestResponse> = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr.clone(),
+            &QueryMsg::GetRequests {
+                offset: Some(0),
+                limit: Some(10),
+                order: Some(1),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(
+        requests
+            .iter()
+            .find(|req| req.merkle_root.is_empty())
+            .is_none(),
+        true
+    );
+
+    // query stage info again
+    let stage_info: StageInfo = app
+        .wrap()
+        .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::StageInfo {})
+        .unwrap();
+    println!("stage info: {:?}", stage_info);
+    assert_eq!(stage_info.checkpoint, 6u64);
 }
 
 #[test]

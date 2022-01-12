@@ -1,7 +1,7 @@
 use aioracle_base::{Reward, ServiceMsg};
 use cosmwasm_std::{
     attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, Uint128,
+    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, Uint128, KV,
 };
 
 use cw_storage_plus::Bound;
@@ -12,7 +12,7 @@ use std::ops::Mul;
 use crate::error::ContractError;
 use crate::msg::{
     CurrentStageResponse, GetServiceContracts, GetServiceFees, HandleMsg, InitMsg,
-    IsClaimedResponse, LatestStageResponse, QueryMsg, Report, StageInfo,
+    IsClaimedResponse, LatestStageResponse, QueryMsg, Report, RequestResponse, StageInfo,
 };
 use crate::state::{
     Config, Contracts, Request, Signature, CHECKPOINT, CLAIM, CONFIG, EXECUTORS, EXECUTORS_NONCE,
@@ -99,7 +99,6 @@ pub fn execute_update_signature(
 ) -> Result<HandleResponse, ContractError> {
     // if submitted already => wont allow to submit again
     let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
-    let mut is_finished = false;
     if is_submitted(&request, pubkey.clone()) {
         return Err(ContractError::AlreadySubmitted {});
     }
@@ -119,18 +118,12 @@ pub fn execute_update_signature(
                 signature,
                 executor: pubkey,
             });
-            if request.signatures.len().eq(&(request.threshold as usize)) {
-                is_finished = true;
-            }
             {
                 return Ok(request);
             }
         }
         Err(StdError::generic_err("Invalid request empty"))
     })?;
-    if is_finished {
-        CHECKPOINT.save(deps.storage, &(stage + 1))?;
-    }
 
     Ok(HandleResponse {
         attributes: vec![attr("action", "update_signature")],
@@ -342,10 +335,10 @@ pub fn execute_register_merkle_root(
     let latest_stage = LATEST_STAGE.load(deps.storage)?;
     let next_checkpoint = checkpoint_stage + checkpoint_threshold;
     // check to boost performance. not everytime we need to query & check
-    if stage.gt(&next_checkpoint) {
+    if stage.eq(&latest_stage) {
         let requests = query_requests(
             deps.as_ref(),
-            Some(checkpoint_stage),
+            Some(checkpoint_stage - 1),
             Some(checkpoint_threshold as u8),
             Some(1),
         )?;
@@ -355,12 +348,13 @@ pub fn execute_register_merkle_root(
             .find(|req| req.merkle_root.is_empty())
             .is_none()
         {
-            CHECKPOINT.save(deps.storage, &next_checkpoint)?;
+            if next_checkpoint.gt(&(latest_stage + 1)) {
+                // force next checkpoint = latest + 1 => no new request coming
+                CHECKPOINT.save(deps.storage, &(latest_stage + 1))?;
+            } else {
+                CHECKPOINT.save(deps.storage, &next_checkpoint)?;
+            }
         }
-    }
-    // force next checkpoint = latest + 1 => no new request coming
-    if next_checkpoint.ge(&latest_stage) {
-        CHECKPOINT.save(deps.storage, &(latest_stage + 1))?;
     }
 
     // check merkle root length
@@ -555,10 +549,10 @@ fn _get_range_params(
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min: Option<Bound> = None;
     let mut max: Option<Bound> = None;
-    let mut order_enum = Order::Descending;
+    let mut order_enum = Order::Ascending;
     if let Some(num) = order {
-        if num == 1 {
-            order_enum = Order::Ascending;
+        if num == 2 {
+            order_enum = Order::Descending;
         }
     }
 
@@ -573,17 +567,37 @@ fn _get_range_params(
     (limit, min, max, order_enum)
 }
 
+fn parse_request<'a>(item: StdResult<KV<Request>>) -> StdResult<RequestResponse> {
+    item.and_then(|(k, request)| {
+        // will panic if length is greater than 8, but we can make sure it is u64
+        // try_into will box vector to fixed array
+        let value = k
+            .try_into()
+            .map_err(|_| StdError::generic_err("Cannot parse offering key"))?;
+        let id: u64 = u64::from_be_bytes(value);
+        Ok(RequestResponse {
+            stage: id,
+            merkle_root: request.merkle_root,
+            threshold: request.threshold,
+            service: request.service,
+            rewards: request.rewards,
+            executors_key: request.executors_key,
+            signatures: request.signatures,
+        })
+    })
+}
+
 pub fn query_requests(
     deps: Deps,
     offset: Option<u64>,
     limit: Option<u8>,
     order: Option<u8>,
-) -> StdResult<Vec<Request>> {
+) -> StdResult<Vec<RequestResponse>> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
-    let requests: StdResult<Vec<Request>> = REQUEST
+    let requests: StdResult<Vec<RequestResponse>> = REQUEST
         .range(deps.storage, min, max, order_enum)
         .take(limit)
-        .map(|kv_item| kv_item.and_then(|(_, request)| Ok(request)))
+        .map(|kv_item| parse_request(kv_item))
         .collect();
     Ok(requests?)
 }

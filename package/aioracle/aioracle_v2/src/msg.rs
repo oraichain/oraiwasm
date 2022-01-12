@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Binary, Coin, HumanAddr};
 
+use crate::state::Signature;
+
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InitMsg {
     /// Owner if none set to info.sender.
@@ -123,9 +125,13 @@ pub struct GetServiceFees {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RequestResponse {
     pub stage: u64,
-    /// MerkleRoot is hex-encoded merkle root.
+    /// Owner If None set, contract is frozen.
     pub merkle_root: String,
     pub threshold: u64,
+    pub service: String,
+    pub rewards: Vec<Reward>,
+    pub executors_key: u64,
+    pub signatures: Vec<Signature>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
