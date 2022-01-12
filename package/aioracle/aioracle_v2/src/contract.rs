@@ -330,33 +330,6 @@ pub fn execute_register_merkle_root(
         return Err(ContractError::Unauthorized {});
     }
 
-    // check if can increase checkpoint. Can only increase when all requests in range have merkle root
-    let checkpoint_stage = CHECKPOINT.load(deps.storage)?;
-    let latest_stage = LATEST_STAGE.load(deps.storage)?;
-    let next_checkpoint = checkpoint_stage + checkpoint_threshold;
-    // check to boost performance. not everytime we need to query & check
-    if stage.eq(&latest_stage) {
-        let requests = query_requests(
-            deps.as_ref(),
-            Some(checkpoint_stage - 1),
-            Some(checkpoint_threshold as u8),
-            Some(1),
-        )?;
-        // if we cannot find an empty merkle root request then increase checkpoint
-        if requests
-            .iter()
-            .find(|req| req.merkle_root.is_empty())
-            .is_none()
-        {
-            if next_checkpoint.gt(&(latest_stage + 1)) {
-                // force next checkpoint = latest + 1 => no new request coming
-                CHECKPOINT.save(deps.storage, &(latest_stage + 1))?;
-            } else {
-                CHECKPOINT.save(deps.storage, &next_checkpoint)?;
-            }
-        }
-    }
-
     // check merkle root length
     let mut root_buf: [u8; 32] = [0; 32];
     hex::decode_to_slice(mroot.to_string(), &mut root_buf)?;
@@ -376,6 +349,35 @@ pub fn execute_register_merkle_root(
         }
         Err(StdError::generic_err("Invalid request empty"))
     })?;
+
+    // check if can increase checkpoint. Can only increase when all requests in range have merkle root
+    let checkpoint_stage = CHECKPOINT.load(deps.storage)?;
+    let latest_stage = LATEST_STAGE.load(deps.storage)?;
+    let next_checkpoint = checkpoint_stage + checkpoint_threshold;
+    // check to boost performance. not everytime we need to query & check
+    if stage.eq(&latest_stage) {
+        let requests = query_requests(
+            deps.as_ref(),
+            Some(checkpoint_stage - 1),
+            Some(checkpoint_threshold as u8),
+            Some(1),
+        )?;
+        println!("requests: {:?}", requests);
+        // if we cannot find an empty merkle root request then increase checkpoint
+        if requests
+            .iter()
+            .find(|req| req.merkle_root.is_empty())
+            .is_none()
+        {
+            println!("in here");
+            if next_checkpoint.gt(&(latest_stage + 1)) {
+                // force next checkpoint = latest + 1 => no new request coming
+                CHECKPOINT.save(deps.storage, &(latest_stage + 1))?;
+            } else {
+                CHECKPOINT.save(deps.storage, &next_checkpoint)?;
+            }
+        }
+    }
 
     // // move to a new stage
     // CHECKPOINT.save(deps.storage, &(current_stage + 1))?;

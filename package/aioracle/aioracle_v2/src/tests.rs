@@ -602,6 +602,50 @@ fn test_checkpoint() {
 }
 
 #[test]
+fn test_checkpoint_no_new_request() {
+    // Run test 2
+    let test_data: Encoded = from_slice(TEST_DATA_2).unwrap();
+
+    let mut app = mock_app();
+    let (_, aioracle_addr) = setup_test_case(&mut app);
+
+    // create a new request
+    app.execute_contract(
+        &HumanAddr::from("client"),
+        &aioracle_addr,
+        &HandleMsg::Request {
+            threshold: 1,
+            service: "price".to_string(),
+        },
+        &coins(5u128, "orai"),
+    )
+    .unwrap();
+
+    // register new merkle root
+    let msg = HandleMsg::RegisterMerkleRoot {
+        stage: 1,
+        merkle_root: test_data.root.clone(),
+    };
+
+    app.execute_contract(
+        HumanAddr::from(AIORACLE_OWNER),
+        aioracle_addr.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
+    // check stage info. Checkpoint must be 2
+    // query stage info again
+    let stage_info: StageInfo = app
+        .wrap()
+        .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::StageInfo {})
+        .unwrap();
+    println!("stage info: {:?}", stage_info);
+    assert_eq!(stage_info.checkpoint, 2u64);
+}
+
+#[test]
 fn send_reward() {
     // Run test 2
     let test_data: Encoded = from_slice(TEST_DATA_3).unwrap();
