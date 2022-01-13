@@ -1,8 +1,8 @@
 {
     "request_id": 1,
-    "data": "eyJleGVjdXRvciI6IkFpcFFDdWRobEhwV25IalNnVktaK1NvU2ljdmpIN01wNWdDRnlEZGxuUXRuIiwiZGF0YSI6IlcxMEsiLCJyZXdhcmRzIjpbeyJyZWNpcGllbnQiOiJvcmFpMW5jNmVxdm5jem10cXE4a2VwbHlyaGE5ejd2bmQ1djl2dnN4eGdqIiwiY29pbiI6eyJkZW5vbSI6Im9yYWkiLCJhbW91bnQiOiIxIn19XX0=",
-    "root": "db1af9c9f5584cbd08fc5ed7f694a78cc4b31f0120c4a277b654ec3e8dfd4686",
+    "data": "eyJleGVjdXRvciI6IkFpcFFDdWRobEhwV25IalNnVktaK1NvU2ljdmpIN01wNWdDRnlEZGxuUXRuIiwiZGF0YSI6ImQ1ODNjNWE1N2FmMmYxMzI5Y2RhMDg2NzI5YmI0MWIzNDY0YzcyYWZhNmFiZDhjMTg1M2VjNmRjMDkzZTQ5MTgiLCJyZXdhcmRzIjpbWyJvcmFpMW5jNmVxdm5jem10cXE4a2VwbHlyaGE5ejd2bmQ1djl2dnN4eGdqIiwib3JhaSIsIjEiXV19",
+    "root": "4daed887abf6178bbd2d8614c264f56d9043d01b2cf237153732c7838d2360e9",
     "proofs": [
-        "dd7635ee037dbbb3a58b5e3eb7100491266cd5bbc2010e2aaf915abe8890bee9"
+        "931bebd6e04ca101a81ff78fa530a583b84f0db86cb1c256c1d12eeb61be6c95"
     ]
 }

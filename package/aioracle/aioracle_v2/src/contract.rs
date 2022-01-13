@@ -15,7 +15,7 @@ use crate::msg::{
     IsClaimedResponse, LatestStageResponse, QueryMsg, Report, RequestResponse, StageInfo,
 };
 use crate::state::{
-    Config, Contracts, Request, Signature, CHECKPOINT, CLAIM, CONFIG, EXECUTORS, EXECUTORS_NONCE,
+    Config, Contracts, Request, CHECKPOINT, CLAIM, CONFIG, EXECUTORS, EXECUTORS_NONCE,
     LATEST_STAGE, REQUEST,
 };
 use std::collections::HashMap;
@@ -135,10 +135,7 @@ pub fn execute_update_signature(
     // add executor in the signature list
     REQUEST.update(deps.storage, &stage.to_be_bytes(), |request| {
         if let Some(mut request) = request {
-            request.signatures.push(Signature {
-                signature,
-                executor: pubkey,
-            });
+            request.signatures.push((signature, pubkey));
             {
                 return Ok(request);
             }
@@ -302,11 +299,7 @@ pub fn handle_claim(
         if request
             .rewards
             .iter()
-            .find(|rew| {
-                rew.recipient.eq(&reward.recipient)
-                    && rew.coin.amount.eq(&reward.coin.amount)
-                    && rew.coin.denom.eq(&reward.coin.denom)
-            })
+            .find(|rew| rew.0.eq(&reward.0) && rew.2.eq(&reward.2) && rew.1.eq(&reward.1))
             .is_none()
         {
             return Err(ContractError::InvalidReward {});
@@ -315,8 +308,11 @@ pub fn handle_claim(
         // send rewards to participants
         let send_msg = BankMsg::Send {
             from_address: env.contract.address.clone(),
-            to_address: reward.recipient,
-            amount: vec![reward.coin],
+            to_address: reward.0,
+            amount: vec![Coin {
+                denom: reward.1,
+                amount: reward.2,
+            }],
         };
         cosmos_msgs.push(send_msg.into());
     }
@@ -383,14 +379,12 @@ pub fn execute_register_merkle_root(
             Some(checkpoint_threshold as u8),
             Some(1),
         )?;
-        println!("requests: {:?}", requests);
         // if we cannot find an empty merkle root request then increase checkpoint
         if requests
             .iter()
             .find(|req| req.merkle_root.is_empty())
             .is_none()
         {
-            println!("in here");
             if next_checkpoint.gt(&(latest_stage + 1)) {
                 // force next checkpoint = latest + 1 => no new request coming
                 CHECKPOINT.save(deps.storage, &(latest_stage + 1))?;
@@ -472,11 +466,7 @@ pub fn get_stage_info(deps: Deps) -> StdResult<StageInfo> {
 }
 
 fn is_submitted(request: &Request, executor: Binary) -> bool {
-    if let Some(_) = request
-        .signatures
-        .iter()
-        .find(|sig| sig.executor.eq(&executor))
-    {
+    if let Some(_) = request.signatures.iter().find(|sig| sig.1.eq(&executor)) {
         return true;
     }
     false
@@ -673,13 +663,13 @@ pub fn verify_request_fees(sent_funds: &[Coin], rewards: &[Reward], threshold: u
     let mut denom_count = 0; // count number of denoms in rewards
     for reward in rewards {
         if let Some(amount) = denoms
-            .get(reward.coin.denom.as_str())
+            .get(reward.1.as_str())
             .and_then(|amount| Some(*amount))
         {
-            denoms.insert(&reward.coin.denom, amount + reward.coin.amount.u128());
+            denoms.insert(&reward.1, amount + reward.2.u128());
         } else {
             denom_count += 1;
-            denoms.insert(&reward.coin.denom, reward.coin.amount.u128());
+            denoms.insert(&reward.1, reward.2.u128());
         }
     }
     let mut num_denoms = 0; // check if fund matches the number of denoms in rewards

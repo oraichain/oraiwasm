@@ -4,7 +4,7 @@ use crate::state::{Contracts, OWNER, SERVICE_CONTRACTS};
 use aioracle_base::Reward;
 use cosmwasm_std::{
     coin, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
-    StdResult,
+    StdResult, Uint128,
 };
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
@@ -58,9 +58,6 @@ fn get_service_contracts(deps: Deps, service: String) -> StdResult<Contracts> {
 fn get_service_fees(deps: Deps, service: String) -> StdResult<Vec<Reward>> {
     let contracts = SERVICE_CONTRACTS.load(deps.storage, service.as_bytes())?;
     // fake rewards. TODO: collect from actual service contracts
-    let rewards = vec![Reward {
-        recipient: contracts.oscript,
-        coin: coin(1u128, "orai"),
-    }];
+    let rewards = vec![(contracts.oscript, "orai".to_string(), Uint128::from(1u64))];
     Ok(rewards)
 }

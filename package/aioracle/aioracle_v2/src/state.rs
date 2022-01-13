@@ -34,11 +34,8 @@ pub struct Request {
     pub signatures: Vec<Signature>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Signature {
-    pub signature: Binary,
-    pub executor: Binary,
-}
+// 0: signature, 1: executor
+pub type Signature = (Binary, Binary);
 
 pub const CONFIG_KEY: &str = "config";
 pub const CONFIG: Item<Config> = Item::new(CONFIG_KEY);

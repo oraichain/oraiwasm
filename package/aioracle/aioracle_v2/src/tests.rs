@@ -3,7 +3,6 @@ use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, RequestResponse, StageInfo};
 use crate::state::{Config, Request};
 
-use aioracle_base::Reward;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
@@ -440,7 +439,7 @@ fn update_signature() {
         aioracle_addr.clone(),
         &HandleMsg::UpdateSignature {
             stage: 1,
-            signature: Binary::from_base64("R3TySBJNVUes61nYJGDvEhgRsyWeqI985cIlcl4rW6wy0VCC5F3HqgGUWvjd85WH+UTpnnLBHszqpSTpqbr/cw==").unwrap(),
+            signature: Binary::from_base64("ClTIiR7wP1m8s9U4CzT/bpEZX3+VEdNtbop1g6kWP1UkQ1fHOpkbvuW0OfkJOK4UPoEW/TJas8jufE03EKYgjg==").unwrap(),
             pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
         },
         &[],
@@ -453,7 +452,7 @@ fn update_signature() {
             aioracle_addr,
             &HandleMsg::UpdateSignature {
                 stage: 1,
-                signature: Binary::from_base64("R3TySBJNVUes61nYJGDvEhgRsyWeqI985cIlcl4rW6wy0VCC5F3HqgGUWvjd85WH+UTpnnLBHszqpSTpqbr/cw==")
+                signature: Binary::from_base64("ClTIiR7wP1m8s9U4CzT/bpEZX3+VEdNtbop1g6kWP1UkQ1fHOpkbvuW0OfkJOK4UPoEW/TJas8jufE03EKYgjg==")
                     .unwrap(),
                 pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t")
                     .unwrap(),
@@ -510,7 +509,7 @@ fn test_checkpoint() {
         aioracle_addr.clone(),
         &HandleMsg::UpdateSignature {
             stage: i as u64,
-            signature: Binary::from_base64("R3TySBJNVUes61nYJGDvEhgRsyWeqI985cIlcl4rW6wy0VCC5F3HqgGUWvjd85WH+UTpnnLBHszqpSTpqbr/cw==").unwrap(),
+            signature: Binary::from_base64("ClTIiR7wP1m8s9U4CzT/bpEZX3+VEdNtbop1g6kWP1UkQ1fHOpkbvuW0OfkJOK4UPoEW/TJas8jufE03EKYgjg==").unwrap(),
             pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
         },
         &[],
@@ -545,7 +544,7 @@ fn test_checkpoint() {
         .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::StageInfo {})
         .unwrap();
     println!("stage info: {:?}", stage_info);
-    assert_eq!(stage_info.checkpoint, 1u64);
+    assert_eq!(stage_info.checkpoint, 2u64); // 2 because the first stage has finished => increment to stage 2
 
     // finish stage 2
     app.execute_contract(
@@ -598,7 +597,7 @@ fn test_checkpoint() {
         .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::StageInfo {})
         .unwrap();
     println!("stage info: {:?}", stage_info);
-    assert_eq!(stage_info.checkpoint, 6u64);
+    assert_eq!(stage_info.checkpoint, 7u64);
 }
 
 #[test]
@@ -705,7 +704,7 @@ fn send_reward() {
         aioracle_addr.clone(),
         &HandleMsg::UpdateSignature {
             stage: 1,
-            signature: Binary::from_base64("3z8HnsjyJTNn+BhLOr2bamiDaUuCw1SIdnRGSe40eeFGDcfctdu8DdGCyOawKKDM2ByL8cNNiyoWZ7lZ/X6QOg==").unwrap(),
+            signature: Binary::from_base64("F6IPmSK5PQkYcQ7dCllYeqSd0KSpp0BqzTHLbzSPDKdR5Cb4X2uxiBeLnyN/qx/5JLHASTeiozNSYbGVJaQKQw==").unwrap(),
             pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
         },
         &[],
@@ -730,14 +729,16 @@ fn send_reward() {
 fn verify_fees() {
     let sent_funds = coins(4, "orai");
     let rewards = vec![
-        Reward {
-            recipient: HumanAddr::from("foo"),
-            coin: coin(1, "orai"),
-        },
-        Reward {
-            recipient: HumanAddr::from("foo"),
-            coin: coin(1, "orai"),
-        },
+        (
+            HumanAddr::from("foo"),
+            "orai".to_string(),
+            Uint128::from(1u64),
+        ),
+        (
+            HumanAddr::from("foo"),
+            "orai".to_string(),
+            Uint128::from(1u64),
+        ),
     ];
     assert_eq!(verify_request_fees(&sent_funds, &rewards, 2u64), true);
 
@@ -747,18 +748,21 @@ fn verify_fees() {
     );
 
     let rewards = vec![
-        Reward {
-            recipient: HumanAddr::from("foo"),
-            coin: coin(1, "orai"),
-        },
-        Reward {
-            recipient: HumanAddr::from("foo"),
-            coin: coin(1, "orai"),
-        },
-        Reward {
-            recipient: HumanAddr::from("foo"),
-            coin: coin(1, "foobar"),
-        },
+        (
+            HumanAddr::from("foo"),
+            "orai".to_string(),
+            Uint128::from(1u64),
+        ),
+        (
+            HumanAddr::from("foo"),
+            "orai".to_string(),
+            Uint128::from(1u64),
+        ),
+        (
+            HumanAddr::from("foo"),
+            "foobar".to_string(),
+            Uint128::from(1u64),
+        ),
     ];
 
     assert_eq!(
