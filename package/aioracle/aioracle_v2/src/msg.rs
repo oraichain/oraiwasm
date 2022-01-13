@@ -2,7 +2,7 @@ use aioracle_base::{Reward, ServiceMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Binary, Coin, HumanAddr};
+use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
 
 use crate::state::Signature;
 
@@ -47,6 +47,10 @@ pub enum HandleMsg {
         stage: u64,
         report: Binary,
         proof: Option<Vec<String>>,
+    },
+    WithdrawFees {
+        amount: Uint128,
+        denom: String,
     },
 }
 

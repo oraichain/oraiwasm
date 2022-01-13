@@ -85,7 +85,28 @@ pub fn handle(
             report,
             proof,
         } => handle_claim(deps, env, stage, report, proof),
+        HandleMsg::WithdrawFees { amount, denom } => handle_withdraw_fees(deps, env, amount, denom),
     }
+}
+
+pub fn handle_withdraw_fees(
+    deps: DepsMut,
+    env: Env,
+    amount: Uint128,
+    denom: String,
+) -> Result<HandleResponse, ContractError> {
+    let Config { owner, .. } = CONFIG.load(deps.storage)?;
+    let cosmos_msgs: Vec<CosmosMsg> = vec![BankMsg::Send {
+        from_address: env.contract.address.clone(),
+        to_address: owner,
+        amount: vec![Coin { amount, denom }],
+    }
+    .into()];
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "withdraw_fees")],
+        messages: cosmos_msgs,
+        data: None,
+    })
 }
 
 // TODO: the signature must match the round's merkle root
