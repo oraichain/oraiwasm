@@ -186,6 +186,7 @@ fn update_config() {
         new_executors: Some(vec![]),
         new_service_addr: Some(HumanAddr::from("yolo")),
         new_checkpoint: None,
+        new_max_req_threshold: None,
     };
 
     app.execute_contract(&info.sender, &aioracle_addr, &msg, &[])
@@ -231,6 +232,7 @@ fn update_config() {
         new_executors: None,
         new_service_addr: None,
         new_checkpoint: None,
+        new_max_req_threshold: None,
     };
 
     let res = app
@@ -274,6 +276,21 @@ fn test_request() {
         .unwrap();
     assert_eq!(current_stage.checkpoint, 1u64);
     assert_eq!(current_stage.latest_stage, 2u64);
+
+    // fail when threshold reach above 2/3 executors
+    assert_eq!(
+        app.execute_contract(
+            &HumanAddr::from("client"),
+            &aioracle_addr,
+            &HandleMsg::Request {
+                threshold: 3,
+                service: "price".to_string(),
+            },
+            &coins(5u128, "orai"),
+        )
+        .unwrap_err(),
+        ContractError::InvalidThreshold {}.to_string()
+    );
 
     // for i in 0..4 {
     //     app.execute_contract(

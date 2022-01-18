@@ -13,6 +13,7 @@ pub struct Config {
     pub contract_fee: Coin,
     /// this threshold is to update the checkpoint stage when current previous checkpoint +
     pub checkpoint_threshold: u64,
+    pub max_req_threshold: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

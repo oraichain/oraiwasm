@@ -27,6 +27,8 @@ pub enum ContractError {
 
     #[error("Invalid input")]
     InvalidInput {},
+    #[error("Invalid threshold")]
+    InvalidThreshold {},
     #[error("Invalid signature")]
     InvalidSignature {},
 

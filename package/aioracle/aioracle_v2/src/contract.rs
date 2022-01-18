@@ -1,6 +1,6 @@
 use aioracle_base::{Reward, ServiceMsg};
 use cosmwasm_std::{
-    attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, Uint128, KV,
 };
 
@@ -21,6 +21,7 @@ use crate::state::{
 use std::collections::HashMap;
 
 pub const CHECKPOINT_THRESHOLD: u64 = 5;
+pub const MAXIMUM_REQ_THRESHOLD: u64 = 67;
 // settings for pagination
 const MAX_LIMIT: u8 = 50;
 const DEFAULT_LIMIT: u8 = 20;
@@ -33,6 +34,7 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
         service_addr: msg.service_addr,
         contract_fee: msg.contract_fee,
         checkpoint_threshold: CHECKPOINT_THRESHOLD,
+        max_req_threshold: MAXIMUM_REQ_THRESHOLD,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -59,6 +61,7 @@ pub fn handle(
             new_executors,
             new_service_addr,
             new_checkpoint,
+            new_max_req_threshold,
         } => execute_update_config(
             deps,
             env,
@@ -68,6 +71,7 @@ pub fn handle(
             new_contract_fee,
             new_executors,
             new_checkpoint,
+            new_max_req_threshold,
         ),
         HandleMsg::UpdateSignature {
             stage,
@@ -163,6 +167,7 @@ pub fn execute_update_config(
     new_contract_fee: Option<Coin>,
     new_executors: Option<Vec<Binary>>,
     new_checkpoint: Option<u64>,
+    new_max_req_threshold: Option<u64>,
 ) -> Result<HandleResponse, ContractError> {
     // authorize owner
     let cfg = CONFIG.load(deps.storage)?;
@@ -184,6 +189,9 @@ pub fn execute_update_config(
         }
         if let Some(checkoint_threshold) = new_checkpoint {
             exists.checkpoint_threshold = checkoint_threshold;
+        }
+        if let Some(max_req_threshold) = new_max_req_threshold {
+            exists.max_req_threshold = max_req_threshold;
         }
         Ok(exists)
     })?;
@@ -210,7 +218,11 @@ pub fn handle_request(
     threshold: u64,
 ) -> Result<HandleResponse, ContractError> {
     let stage = LATEST_STAGE.update(deps.storage, |stage| -> StdResult<_> { Ok(stage + 1) })?;
-    let Config { contract_fee, .. } = CONFIG.load(deps.storage)?;
+    let Config {
+        contract_fee,
+        max_req_threshold,
+        ..
+    } = CONFIG.load(deps.storage)?;
     if let Some(sent_fund) = info
         .sent_funds
         .iter()
@@ -236,6 +248,18 @@ pub fn handle_request(
     }
     // this will keep track of the executor list of the request
     let current_nonce = EXECUTORS_NONCE.load(deps.storage)?;
+
+    // won't allow the threshold to reach above the 2/3 executor list
+    let executors = EXECUTORS.load(deps.storage, &current_nonce.to_be_bytes())?;
+    if Uint128::from(executors.len() as u64)
+        .mul(Decimal::from_ratio(
+            Uint128::from(max_req_threshold).u128(),
+            100u128,
+        ))
+        .lt(&Uint128::from(threshold))
+    {
+        return Err(ContractError::InvalidThreshold {});
+    }
 
     requests().save(
         deps.storage,
