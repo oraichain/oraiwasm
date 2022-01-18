@@ -15,8 +15,8 @@ use crate::msg::{
     IsClaimedResponse, LatestStageResponse, QueryMsg, Report, RequestResponse, StageInfo,
 };
 use crate::state::{
-    Config, Contracts, Request, CHECKPOINT, CLAIM, CONFIG, EXECUTORS, EXECUTORS_NONCE,
-    LATEST_STAGE, REQUEST,
+    requests, Config, Contracts, Request, CHECKPOINT, CLAIM, CONFIG, EXECUTORS, EXECUTORS_NONCE,
+    LATEST_STAGE,
 };
 use std::collections::HashMap;
 
@@ -119,7 +119,7 @@ pub fn execute_update_signature(
     signature: Binary,
 ) -> Result<HandleResponse, ContractError> {
     // if submitted already => wont allow to submit again
-    let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
+    let request = requests().load(deps.storage, &stage.to_be_bytes())?;
     if is_submitted(&request, pubkey.clone()) {
         return Err(ContractError::AlreadySubmitted {});
     }
@@ -133,9 +133,9 @@ pub fn execute_update_signature(
     )?;
 
     // add executor in the signature list
-    REQUEST.update(deps.storage, &stage.to_be_bytes(), |request| {
+    requests().update(deps.storage, &stage.to_be_bytes(), |request| {
         if let Some(mut request) = request {
-            request.signatures.push((signature, pubkey));
+            request.signatures.push((signature, pubkey.clone()));
             {
                 return Ok(request);
             }
@@ -144,7 +144,11 @@ pub fn execute_update_signature(
     })?;
 
     Ok(HandleResponse {
-        attributes: vec![attr("action", "update_signature")],
+        attributes: vec![
+            attr("action", "update_signature"),
+            attr("stage", stage),
+            attr("executor", pubkey),
+        ],
         messages: vec![],
         data: None,
     })
@@ -233,7 +237,7 @@ pub fn handle_request(
     // this will keep track of the executor list of the request
     let current_nonce = EXECUTORS_NONCE.load(deps.storage)?;
 
-    REQUEST.save(
+    requests().save(
         deps.storage,
         &stage.to_be_bytes(),
         &crate::state::Request {
@@ -284,7 +288,7 @@ pub fn handle_claim(
         }
     }
 
-    let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
+    let request = requests().load(deps.storage, &stage.to_be_bytes())?;
     if request.signatures.len().lt(&(request.threshold as usize)) {
         return Err(ContractError::InvalidClaim {
             threshold: request.threshold,
@@ -351,13 +355,13 @@ pub fn execute_register_merkle_root(
     let mut root_buf: [u8; 32] = [0; 32];
     hex::decode_to_slice(mroot.to_string(), &mut root_buf)?;
 
-    let Request { merkle_root, .. } = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
+    let Request { merkle_root, .. } = requests().load(deps.storage, &stage.to_be_bytes())?;
     if merkle_root.ne("") {
         return Err(ContractError::AlreadyFinished {});
     }
 
     // if merkle root empty then update new
-    REQUEST.update(deps.storage, &stage.to_be_bytes(), |request| {
+    requests().update(deps.storage, &stage.to_be_bytes(), |request| {
         if let Some(mut request) = request {
             request.merkle_root = mroot.clone();
             {
@@ -433,6 +437,38 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             order,
         } => to_binary(&query_requests(deps, offset, limit, order)?),
+        QueryMsg::GetRequestsByService {
+            service,
+            offset,
+            limit,
+            order,
+        } => to_binary(&query_requests_by_service(
+            deps, service, offset, limit, order,
+        )?),
+        QueryMsg::GetRequestsByMerkleRoot {
+            merkle_root,
+            offset,
+            limit,
+            order,
+        } => to_binary(&query_requests_by_merkle_root(
+            deps,
+            merkle_root,
+            offset,
+            limit,
+            order,
+        )?),
+        QueryMsg::GetRequestsByExecutorsKey {
+            executors_key,
+            offset,
+            limit,
+            order,
+        } => to_binary(&query_requests_by_executors_key(
+            deps,
+            executors_key,
+            offset,
+            limit,
+            order,
+        )?),
         QueryMsg::LatestStage {} => to_binary(&query_latest_stage(deps)?),
         QueryMsg::GetServiceContracts { stage } => {
             to_binary(&query_service_contracts(deps, stage)?)
@@ -478,7 +514,7 @@ pub fn verify_data(
     data: Binary,
     proofs: Option<Vec<String>>,
 ) -> StdResult<bool> {
-    let Request { merkle_root, .. } = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
+    let Request { merkle_root, .. } = requests().load(deps.storage, &stage.to_be_bytes())?;
     if merkle_root.is_empty() {
         return Err(StdError::generic_err(
             "No merkle root found for this request",
@@ -545,12 +581,12 @@ pub fn query_executors(
 }
 
 pub fn query_is_submitted(deps: Deps, stage: u64, executor: Binary) -> StdResult<bool> {
-    let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
+    let request = requests().load(deps.storage, &stage.to_be_bytes())?;
     Ok(is_submitted(&request, executor))
 }
 
 pub fn query_request(deps: Deps, stage: u64) -> StdResult<Request> {
-    let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
+    let request = requests().load(deps.storage, &stage.to_be_bytes())?;
     Ok(request)
 }
 
@@ -607,7 +643,7 @@ pub fn query_requests(
     order: Option<u8>,
 ) -> StdResult<Vec<RequestResponse>> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
-    let requests: StdResult<Vec<RequestResponse>> = REQUEST
+    let requests: StdResult<Vec<RequestResponse>> = requests()
         .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_request(kv_item))
@@ -615,9 +651,69 @@ pub fn query_requests(
     Ok(requests?)
 }
 
+pub fn query_requests_by_service(
+    deps: Deps,
+    service: String,
+    offset: Option<u64>,
+    limit: Option<u8>,
+    order: Option<u8>,
+) -> StdResult<Vec<RequestResponse>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let request_responses: StdResult<Vec<RequestResponse>> = requests()
+        .idx
+        .service
+        .items(deps.storage, service.as_bytes(), min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| parse_request(kv_item))
+        .collect();
+    Ok(request_responses?)
+}
+
+pub fn query_requests_by_merkle_root(
+    deps: Deps,
+    merkle_root: String,
+    offset: Option<u64>,
+    limit: Option<u8>,
+    order: Option<u8>,
+) -> StdResult<Vec<RequestResponse>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let request_responses: StdResult<Vec<RequestResponse>> = requests()
+        .idx
+        .merkle_root
+        .items(deps.storage, merkle_root.as_bytes(), min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| parse_request(kv_item))
+        .collect();
+    Ok(request_responses?)
+}
+
+pub fn query_requests_by_executors_key(
+    deps: Deps,
+    executors_key: u64,
+    offset: Option<u64>,
+    limit: Option<u8>,
+    order: Option<u8>,
+) -> StdResult<Vec<RequestResponse>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let request_responses: StdResult<Vec<RequestResponse>> = requests()
+        .idx
+        .executors_key
+        .items(
+            deps.storage,
+            &executors_key.to_be_bytes(),
+            min,
+            max,
+            order_enum,
+        )
+        .take(limit)
+        .map(|kv_item| parse_request(kv_item))
+        .collect();
+    Ok(request_responses?)
+}
+
 pub fn query_service_contracts(deps: Deps, stage: u64) -> StdResult<Contracts> {
     let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
-    let request = REQUEST.load(deps.storage, &stage.to_be_bytes())?;
+    let request = requests().load(deps.storage, &stage.to_be_bytes())?;
     let contracts: Contracts = deps.querier.query_wasm_smart(
         service_addr,
         &GetServiceContracts {

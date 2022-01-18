@@ -3,7 +3,7 @@ use cosmwasm_std::{Binary, Coin, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cw_storage_plus::{Item, Map};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
@@ -46,9 +46,6 @@ pub const LATEST_STAGE: Item<u64> = Item::new(LATEST_STAGE_KEY);
 pub const CHECKPOINT_STAGE_KEY: &str = "checkpoint";
 pub const CHECKPOINT: Item<u64> = Item::new(CHECKPOINT_STAGE_KEY);
 
-pub const REQUEST_PREFIX: &str = "request";
-pub const REQUEST: Map<&[u8], Request> = Map::new(REQUEST_PREFIX);
-
 pub const CLAIM_PREFIX: &str = "claim";
 
 // key: executor in base64 string + stage in string
@@ -59,3 +56,41 @@ pub const EXECUTORS: Map<&[u8], Vec<Binary>> = Map::new(EXECUTORS_PREFIX);
 
 pub const EXECUTOR_NONCE_PREFIX: &str = "executors_nonce";
 pub const EXECUTORS_NONCE: Item<u64> = Item::new(EXECUTOR_NONCE_PREFIX);
+
+// indexes requests
+// for structures
+pub struct RequestIndexes<'a> {
+    pub service: MultiIndex<'a, Request>,
+    pub merkle_root: MultiIndex<'a, Request>,
+    pub executors_key: MultiIndex<'a, Request>,
+}
+
+impl<'a> IndexList<Request> for RequestIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Request>> + '_> {
+        let v: Vec<&dyn Index<Request>> =
+            vec![&self.service, &self.merkle_root, &self.executors_key];
+        Box::new(v.into_iter())
+    }
+}
+
+// this IndexedMap instance has a lifetime
+pub fn requests<'a>() -> IndexedMap<'a, &'a [u8], Request, RequestIndexes<'a>> {
+    let indexes = RequestIndexes {
+        service: MultiIndex::new(
+            |d| d.service.to_string().into_bytes(),
+            "requests",
+            "requests_service",
+        ),
+        merkle_root: MultiIndex::new(
+            |d| d.merkle_root.to_string().into_bytes(),
+            "requests",
+            "requests_merkle_root",
+        ),
+        executors_key: MultiIndex::new(
+            |d| d.executors_key.to_be_bytes().to_vec(),
+            "requests",
+            "requests_executors_key",
+        ),
+    };
+    IndexedMap::new("requests", indexes)
+}

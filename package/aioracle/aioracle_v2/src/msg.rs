@@ -72,6 +72,24 @@ pub enum QueryMsg {
         limit: Option<u8>,
         order: Option<u8>,
     },
+    GetRequestsByService {
+        service: String,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
+    GetRequestsByMerkleRoot {
+        merkle_root: String,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
+    GetRequestsByExecutorsKey {
+        executors_key: u64,
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
     LatestStage {},
     StageInfo {},
     GetServiceContracts {

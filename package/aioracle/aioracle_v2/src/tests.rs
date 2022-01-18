@@ -918,3 +918,124 @@ fn query_executors() {
 
     assert_eq!(executors_base64.len(), 4)
 }
+
+#[test]
+fn test_query_requests_indexes() {
+    let mut app = mock_app();
+    let (provider_addr, aioracle_addr) = setup_test_case(&mut app);
+
+    // create a new request
+    for i in 1..10 {
+        // intentional to get identical service & merkle root
+        app.execute_contract(
+            &HumanAddr::from(PROVIDER_OWNER),
+            &provider_addr,
+            &provider_demo::msg::HandleMsg::UpdateServiceContracts {
+                service: format!("price{:?}", i),
+                contracts: provider_demo::state::Contracts {
+                    dsources: vec![],
+                    tcases: vec![],
+                    oscript: HumanAddr::from("foobar"),
+                },
+            },
+            &[],
+        )
+        .unwrap();
+
+        let mut service = format!("price{:?}", i);
+        let mut msg = format!("{:?}", i);
+        // intentional to get identical service & merkle root
+        if i == 9 {
+            service = format!("price{:?}", 8);
+            msg = format!("{:?}", 8);
+        }
+        app.execute_contract(
+            &HumanAddr::from("client"),
+            &aioracle_addr,
+            &HandleMsg::Request {
+                threshold: 1,
+                service,
+            },
+            &coins(5u128, "orai"),
+        )
+        .unwrap();
+
+        // register new merkle root
+        let msg_hash_generic = sha2::Sha256::digest(msg.as_bytes());
+        let msg_hash = msg_hash_generic.as_slice();
+
+        let msg = HandleMsg::RegisterMerkleRoot {
+            stage: i as u64,
+            merkle_root: hex::encode(msg_hash),
+        };
+
+        app.execute_contract(
+            HumanAddr::from(AIORACLE_OWNER),
+            aioracle_addr.clone(),
+            &msg,
+            &[],
+        )
+        .unwrap();
+    }
+
+    // test query requests by service
+    let requests_by_services: Vec<RequestResponse> = app
+        .wrap()
+        .query_wasm_smart(
+            &aioracle_addr,
+            &QueryMsg::GetRequestsByService {
+                service: "price8".to_string(),
+                offset: Some(8),
+                limit: None,
+                order: None,
+            },
+        )
+        .unwrap();
+
+    println!("request response by service: {:?}", requests_by_services);
+    assert_eq!(requests_by_services.len(), 1);
+    assert_eq!(requests_by_services.last().unwrap().stage, 9);
+
+    // test query requests by merkle root
+    let requests_by_merkle_root: Vec<RequestResponse> = app
+        .wrap()
+        .query_wasm_smart(
+            &aioracle_addr,
+            &QueryMsg::GetRequestsByMerkleRoot {
+                merkle_root: "2c624232cdd221771294dfbb310aca000a0df6ac8b66b696d90ef06fdefb64a3"
+                    .to_string(),
+                offset: Some(8),
+                limit: None,
+                order: None,
+            },
+        )
+        .unwrap();
+
+    println!(
+        "request response by merkle root: {:?}",
+        requests_by_merkle_root
+    );
+    assert_eq!(requests_by_merkle_root.len(), 1);
+    assert_eq!(requests_by_merkle_root.last().unwrap().stage, 9);
+
+    // test query requests by executors key
+    let requests_by_executors_key: Vec<RequestResponse> = app
+        .wrap()
+        .query_wasm_smart(
+            &aioracle_addr,
+            &QueryMsg::GetRequestsByExecutorsKey {
+                executors_key: 1u64,
+                offset: Some(5),
+                limit: Some(10),
+                order: None,
+            },
+        )
+        .unwrap();
+
+    println!(
+        "request response by executors key: {:?}",
+        requests_by_executors_key
+    );
+    assert_eq!(requests_by_executors_key.len(), 4);
+    assert_eq!(requests_by_executors_key.last().unwrap().stage, 9);
+}
