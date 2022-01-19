@@ -199,7 +199,7 @@ pub fn execute_update_config(
     if let Some(executors) = new_executors {
         let current_nonce = EXECUTORS_NONCE.load(deps.storage)?;
         let new_nonce = current_nonce + 1;
-        EXECUTORS.save(deps.storage, &(new_nonce + 1).to_be_bytes(), &executors)?;
+        EXECUTORS.save(deps.storage, &new_nonce.to_be_bytes(), &executors)?;
         EXECUTORS_NONCE.save(deps.storage, &new_nonce)?;
     }
 
@@ -400,7 +400,7 @@ pub fn execute_register_merkle_root(
     let latest_stage = LATEST_STAGE.load(deps.storage)?;
     let next_checkpoint = checkpoint_stage + checkpoint_threshold;
     // check to boost performance. not everytime we need to query & check
-    if stage.eq(&latest_stage) {
+    if stage.eq(&latest_stage) || next_checkpoint.lt(&latest_stage) {
         let requests = query_requests(
             deps.as_ref(),
             Some(checkpoint_stage - 1),
