@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, HumanAddr, Uint128};
+use cosmwasm_std::{HumanAddr, Uint128};
 
 // #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 // #[serde(rename_all = "snake_case")]

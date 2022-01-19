@@ -18,6 +18,7 @@ use sha2::Digest;
 const DENOM: &str = "ORAI";
 const AIORACLE_OWNER: &str = "admin0002";
 const PROVIDER_OWNER: &str = "admin0001";
+const AIORACLE_SERVICE_FEES_OWNER: &str = "admin0003";
 const CLIENT: &str = "client";
 
 fn init_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
@@ -41,10 +42,15 @@ fn init_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
         provider_demo::msg::InitMsg {
             service: String::from("something"),
             service_contracts: Contracts {
-                dsources: vec![],
-                tcases: vec![],
+                dsources: vec![HumanAddr::from(
+                    "orai188efpndge9hqayll4cp9gzv0dw6rvj25e4slkp",
+                )],
+                tcases: vec![HumanAddr::from(
+                    "orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt",
+                )],
                 oscript: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
             },
+            service_fees_contract: HumanAddr::from("orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt"),
         },
     )
     .unwrap();
@@ -66,6 +72,15 @@ pub fn contract_provider() -> Box<dyn Contract> {
         provider_demo::contract::handle,
         provider_demo::contract::init,
         provider_demo::contract::query,
+    );
+    Box::new(contract)
+}
+
+pub fn contract_service_fees() -> Box<dyn Contract> {
+    let contract = ContractWrapper::new(
+        aioracle_service_fees::contract::handle,
+        aioracle_service_fees::contract::init,
+        aioracle_service_fees::contract::query,
     );
     Box::new(contract)
 }
@@ -98,27 +113,54 @@ fn init_aioracle(
 }
 
 // uploads code and returns address of group contract
-fn init_provider(app: &mut App, service: String, service_contracts: Contracts) -> HumanAddr {
+fn init_provider(
+    app: &mut App,
+    service: String,
+    service_contracts: Contracts,
+    service_fees_contract: HumanAddr,
+) -> HumanAddr {
     let group_id = app.store_code(contract_provider());
     let msg = provider_demo::msg::InitMsg {
         service,
         service_contracts,
+        service_fees_contract,
     };
 
     app.instantiate_contract(group_id, PROVIDER_OWNER, &msg, &[], "provider_demo")
         .unwrap()
 }
 
-fn setup_test_case(app: &mut App) -> (HumanAddr, HumanAddr) {
+// uploads code and returns address of group contract
+fn init_service_fees(app: &mut App) -> HumanAddr {
+    let group_id = app.store_code(contract_service_fees());
+    let msg = aioracle_service_fees::msg::InitMsg {};
+
+    app.instantiate_contract(
+        group_id,
+        AIORACLE_SERVICE_FEES_OWNER,
+        &msg,
+        &[],
+        "aioracle_service_fees",
+    )
+    .unwrap()
+}
+
+fn setup_test_case(app: &mut App) -> (HumanAddr, HumanAddr, HumanAddr) {
     // 2. Set up Multisig backed by this group
+    let service_fees_addr = init_service_fees(app);
     let provider_addr = init_provider(
         app,
         "price".to_string(),
         Contracts {
-            dsources: vec![],
-            tcases: vec![],
+            dsources: vec![HumanAddr::from(
+                "orai188efpndge9hqayll4cp9gzv0dw6rvj25e4slkp",
+            )],
+            tcases: vec![HumanAddr::from(
+                "orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt",
+            )],
             oscript: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
         },
+        service_fees_addr.clone(),
     );
     app.update_block(next_block);
 
@@ -140,13 +182,43 @@ fn setup_test_case(app: &mut App) -> (HumanAddr, HumanAddr) {
         .unwrap();
     app.update_block(next_block);
 
-    (provider_addr, aioracle_addr)
+    app.execute_contract(
+        HumanAddr::from("orai188efpndge9hqayll4cp9gzv0dw6rvj25e4slkp"),
+        service_fees_addr.clone(),
+        &aioracle_service_fees::msg::HandleMsg::UpdateServiceFees {
+            fees: coin(1u128, "orai"),
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        HumanAddr::from("orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt"),
+        service_fees_addr.clone(),
+        &aioracle_service_fees::msg::HandleMsg::UpdateServiceFees {
+            fees: coin(2u128, "orai"),
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
+        service_fees_addr.clone(),
+        &aioracle_service_fees::msg::HandleMsg::UpdateServiceFees {
+            fees: coin(1u128, "orai"),
+        },
+        &[],
+    )
+    .unwrap();
+
+    (service_fees_addr.clone(), provider_addr, aioracle_addr)
 }
 
 #[test]
 fn proper_instantiation() {
     let mut app = mock_app();
-    let (_, aioracle_addr) = setup_test_case(&mut app);
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
 
     // create a new request
     app.execute_contract(
@@ -176,7 +248,7 @@ fn proper_instantiation() {
 #[test]
 fn update_config() {
     let mut app = mock_app();
-    let (_, aioracle_addr) = setup_test_case(&mut app);
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
 
     // update owner
     let info = mock_info(AIORACLE_OWNER, &[]);
@@ -244,7 +316,7 @@ fn update_config() {
 #[test]
 fn test_request() {
     let mut app = mock_app();
-    let (_, aioracle_addr) = setup_test_case(&mut app);
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
 
     // create a new request
     app.execute_contract(
@@ -286,7 +358,7 @@ fn test_request() {
                 threshold: 3,
                 service: "price".to_string(),
             },
-            &coins(5u128, "orai"),
+            &coins(12u128, "orai"),
         )
         .unwrap_err(),
         ContractError::InvalidThreshold {}.to_string()
@@ -317,7 +389,7 @@ fn test_request() {
 #[test]
 fn register_merkle_root() {
     let mut app = mock_app();
-    let (_, aioracle_addr) = setup_test_case(&mut app);
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
 
     // create a new request
     app.execute_contract(
@@ -373,7 +445,7 @@ fn verify_data() {
     let test_data: Encoded = from_slice(TEST_DATA_1).unwrap();
 
     let mut app = mock_app();
-    let (_, aioracle_addr) = setup_test_case(&mut app);
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
 
     // create a new request
     app.execute_contract(
@@ -422,7 +494,7 @@ fn update_signature() {
     let test_data: Encoded = from_slice(TEST_DATA_2).unwrap();
 
     let mut app = mock_app();
-    let (_, aioracle_addr) = setup_test_case(&mut app);
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
 
     // create a new request
     app.execute_contract(
@@ -487,7 +559,7 @@ fn test_checkpoint() {
     let test_data: Encoded = from_slice(TEST_DATA_2).unwrap();
 
     let mut app = mock_app();
-    let (_, aioracle_addr) = setup_test_case(&mut app);
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
 
     for i in 1..8 {
         println!("request: {:?}", i);
@@ -623,7 +695,7 @@ fn test_checkpoint_no_new_request() {
     let test_data: Encoded = from_slice(TEST_DATA_2).unwrap();
 
     let mut app = mock_app();
-    let (_, aioracle_addr) = setup_test_case(&mut app);
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
 
     // create a new request
     app.execute_contract(
@@ -667,7 +739,7 @@ fn send_reward() {
     let test_data: Encoded = from_slice(TEST_DATA_3).unwrap();
 
     let mut app = mock_app();
-    let (_, aioracle_addr) = setup_test_case(&mut app);
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
 
     // create a new request
     app.execute_contract(
@@ -939,7 +1011,7 @@ fn query_executors() {
 #[test]
 fn test_query_requests_indexes() {
     let mut app = mock_app();
-    let (provider_addr, aioracle_addr) = setup_test_case(&mut app);
+    let (_, provider_addr, aioracle_addr) = setup_test_case(&mut app);
 
     // create a new request
     for i in 1..10 {
@@ -952,7 +1024,7 @@ fn test_query_requests_indexes() {
                 contracts: provider_demo::state::Contracts {
                     dsources: vec![],
                     tcases: vec![],
-                    oscript: HumanAddr::from("foobar"),
+                    oscript: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
                 },
             },
             &[],

@@ -1,3 +1,4 @@
+use aioracle_base::GetServiceFeesMsg;
 use cosmwasm_std::{Binary, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -8,6 +9,7 @@ use crate::state::Contracts;
 pub struct InitMsg {
     pub service: String,
     pub service_contracts: Contracts,
+    pub service_fees_contract: HumanAddr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -32,6 +34,10 @@ pub enum HandleMsg {
         service: String,
         contracts: Contracts,
     },
+    UpdateConfig {
+        owner: Option<HumanAddr>,
+        service_fees_contract: Option<HumanAddr>,
+    },
 }
 
 // this TestCase does not have input
@@ -47,4 +53,10 @@ pub enum QueryMsg {
 #[serde(rename_all = "snake_case")]
 pub enum DataSourceQueryMsg {
     Get { input: String },
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct GetServiceFees {
+    pub get_service_fees: GetServiceFeesMsg,
 }
