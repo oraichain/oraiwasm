@@ -1,18 +1,37 @@
-use cosmwasm_std::{HumanAddr, Uint128};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, PkOwned, U8Key, UniqueIndex};
+use cosmwasm_std::{Binary, HumanAddr, StdResult, Storage, Uint128};
+use cw_storage_plus::{
+    Index, IndexList, IndexedMap, Item, Map, MultiIndex, PkOwned, U8Key, UniqueIndex,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("contract_info");
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct ContractInfo {
-    pub creator: HumanAddr,
-    pub verifier_addr: HumanAddr,
+pub const COLLECTION_STAKER_INFO_COUNT: Item<u64> = Item::new("collection_staker_info_count");
+
+pub const COLLECTION_POOL_INFO: Map<&[u8], CollectionPoolInfo> =
+    Map::new("collection_pool_info_map");
+
+pub fn num_collection_stakers(storage: &dyn Storage) -> StdResult<u64> {
+    Ok(COLLECTION_STAKER_INFO_COUNT
+        .may_load(storage)?
+        .unwrap_or_default())
+}
+
+pub fn increment_collection_stakers(storage: &mut dyn Storage) -> StdResult<u64> {
+    let val = num_collection_stakers(storage)? + 1;
+    COLLECTION_STAKER_INFO_COUNT.save(storage, &val)?;
+    Ok(val)
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct CollectionPoolingInfo {
+pub struct ContractInfo {
+    pub creator: HumanAddr,
+    pub verifier_pubkey: Binary,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct CollectionPoolInfo {
     pub collection_id: String,
     pub reward_per_block: Uint128,
     pub total_nfts: Option<Uint128>,
@@ -21,32 +40,9 @@ pub struct CollectionPoolingInfo {
     pub nft_721_contract_addr: HumanAddr,
 }
 
-pub struct CollectionPoolingIndexes<'a> {
-    pub collection: UniqueIndex<'a, PkOwned, CollectionPoolingInfo>,
-}
-
-impl<'a> IndexList<CollectionPoolingInfo> for CollectionPoolingIndexes<'a> {
-    fn get_indexes(
-        &'_ self,
-    ) -> Box<dyn Iterator<Item = &'_ dyn cw_storage_plus::Index<CollectionPoolingInfo>> + '_> {
-        let v: Vec<&dyn Index<CollectionPoolingInfo>> = vec![&self.collection];
-        Box::new(v.into_iter())
-    }
-}
-
-pub fn collection_pooling_infos<'a>(
-) -> IndexedMap<'a, &'a [u8], CollectionPoolingInfo, CollectionPoolingIndexes<'a>> {
-    let indexes = CollectionPoolingIndexes {
-        collection: UniqueIndex::new(
-            |c| PkOwned(c.collection_id.as_bytes().to_vec()),
-            "collection_pooling_collection",
-        ),
-    };
-    IndexedMap::new("collection_pooling_infos", indexes)
-}
-
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct CollectionStakerInfo {
+    pub id: Option<u64>,
     pub staker_addr: HumanAddr,
     pub collection_id: String,
     pub total_staked: Uint128,
@@ -68,4 +64,48 @@ pub struct CollectionStakedTokenInfo {
 pub enum ContractType {
     V721,
     V1155,
+}
+
+pub struct CollectionStakerInfoIndexes<'a> {
+    pub collection: MultiIndex<'a, CollectionStakerInfo>,
+    pub staker: MultiIndex<'a, CollectionStakerInfo>,
+    pub unique_collection_staker: UniqueIndex<'a, PkOwned, CollectionStakerInfo>,
+}
+
+impl<'a> IndexList<CollectionStakerInfo> for CollectionStakerInfoIndexes<'a> {
+    fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<CollectionStakerInfo>> + '_> {
+        let v: Vec<&dyn Index<CollectionStakerInfo>> = vec![
+            &self.collection,
+            &self.staker,
+            &self.unique_collection_staker,
+        ];
+        Box::new(v.into_iter())
+    }
+}
+
+pub fn get_unique_collection_staker(collection_id: String, staker_addr: HumanAddr) -> PkOwned {
+    let mut vec = collection_id.as_bytes().to_vec();
+    vec.extend(staker_addr.as_bytes());
+    PkOwned(vec)
+}
+
+pub fn collection_staker_infos<'a>(
+) -> IndexedMap<'a, &'a [u8], CollectionStakerInfo, CollectionStakerInfoIndexes<'a>> {
+    let indexes = CollectionStakerInfoIndexes {
+        collection: MultiIndex::new(
+            |ct| ct.collection_id.as_bytes().to_vec(),
+            "collection_staker_info",
+            "collection_staker_info_collection",
+        ),
+        staker: MultiIndex::new(
+            |ct| ct.staker_addr.as_bytes().to_vec(),
+            "collection_staker_info",
+            "collection_staker_info_staker",
+        ),
+        unique_collection_staker: UniqueIndex::new(
+            |ct| get_unique_collection_staker(ct.collection_id.clone(), ct.staker_addr.clone()),
+            "collection_staker_info_unique",
+        ),
+    };
+    IndexedMap::new("collection_staker_infos", indexes)
 }
