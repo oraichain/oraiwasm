@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, HumanAddr, Uint128};
+use cosmwasm_std::{HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -6,13 +6,13 @@ use crate::state::CollectionStakedTokenInfo;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InitMsg {
-    pub verifier_pubkey: Binary,
+    pub verifier_pubkey_base64: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    UpdateContractInfo { verifier_pubkey: Binary },
+    UpdateContractInfo { verifier_pubkey_base64: String },
     CreateCollectionPool(CreateCollectionPoolMsg),
     UpdateCollectionPool(UpdateCollectionPoolMsg),
     //Stake(StakeMsg),
@@ -48,5 +48,23 @@ pub struct StakeMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetContractInfo {},
-    GetCollectionPoolInfo { collection_id: String },
+    GetCollectionPoolInfo {
+        collection_id: String,
+    },
+    GetUniqueCollectionStakerInfo {
+        collection_id: String,
+        staker_addr: HumanAddr,
+    },
+    GetCollectionStakerInfoByCollection {
+        collection_id: String,
+        limit: Option<u8>,
+        offset: Option<u64>,
+        order: Option<u8>,
+    },
+    GetCollectionStakerInfoByStaker {
+        staker_addr: HumanAddr,
+        limit: Option<u8>,
+        offset: Option<u64>,
+        order: Option<u8>,
+    },
 }

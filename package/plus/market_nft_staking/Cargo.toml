@@ -31,6 +31,7 @@ cw1155 = { path = "../../base/cw1155" }
 cw721 = {path = "../../base/cw721"}
 market = { path = "../../base/market" }
 cosmwasm-crypto = "0.14.0"
+base64 = {version = "0.13.0"}
 sha2 = { version = "0.9.5", default-features = false }
 tiny-keccak = { version = "2.0.1", features = ["sha3","keccak"] }
 schemars = "0.7"

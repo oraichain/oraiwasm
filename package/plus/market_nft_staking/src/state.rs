@@ -27,15 +27,16 @@ pub fn increment_collection_stakers(storage: &mut dyn Storage) -> StdResult<u64>
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
     pub creator: HumanAddr,
-    pub verifier_pubkey: Binary,
+    pub verifier_pubkey_base64: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct CollectionPoolInfo {
     pub collection_id: String,
     pub reward_per_block: Uint128,
-    pub total_nfts: Option<Uint128>,
-    pub acc_per_share: Option<Uint128>,
+    pub total_nfts: Uint128,
+    pub acc_per_share: Uint128,
+    pub last_reward_block: u64,
     pub nft_1155_contract_addr: HumanAddr,
     pub nft_721_contract_addr: HumanAddr,
 }
@@ -46,9 +47,9 @@ pub struct CollectionStakerInfo {
     pub staker_addr: HumanAddr,
     pub collection_id: String,
     pub total_staked: Uint128,
-    pub reward_debt: Option<Uint128>,
-    pub pending: Option<Uint128>,
-    pub total_earned: Option<Uint128>,
+    pub reward_debt: Uint128,
+    pub pending: Uint128,
+    pub total_earned: Uint128,
     pub staked_tokens: Vec<CollectionStakedTokenInfo>,
 }
 
