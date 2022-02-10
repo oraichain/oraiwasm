@@ -7,40 +7,45 @@ use test_case::msg::AssertOutput;
 
 use crate::msg::AssertInput;
 use crate::msg::Data;
+use crate::msg::Output;
 
 create_contract_with_assert!(assert);
 
 pub fn assert(assert_inputs: &[String]) -> StdResult<Binary> {
     let mut result = AssertOutput {
-        tcase_status: false,
+        tcase_status: true,
         dsource_status: false,
     };
+    let mut flag = true;
 
     for assert_input_str in assert_inputs {
         let AssertInput {
-            output,
-            expected_output,
+            output: output_str,
+            expected_output: expected_output_str,
         } = from_slice(assert_input_str.as_bytes())?;
-
-        if output.data.len() > 0 {
-            if expected_output.data.len() > 0 {
-                result.tcase_status = true;
-                // only compare the first data element since it has the highest score
-                let list_data: Vec<Data> = expected_output
-                    .data
-                    .into_iter()
-                    .filter(|data| data.label.eq(&output.data.first().unwrap().label))
-                    .collect();
-                if list_data.len() != 0 {
-                    // atm we ignore the score. Only care abt if there exists a matching label
-                    result.dsource_status = true;
+        let output: Vec<Output> = from_slice(output_str.as_bytes())?;
+        let expected_output: Vec<Output> = from_slice(expected_output_str.as_bytes())?;
+        // assume that the output runs all the test cases successfully, then the length should be equal
+        if output.len().eq(&expected_output.len()) {
+            for (i, res) in output.iter().enumerate() {
+                if res.data.len() > 0 && expected_output[i].data.len() > 0 {
+                    // only compare the first data element since it has the highest score
+                    let list_data: Vec<Data> = expected_output[i]
+                        .data
+                        .clone()
+                        .into_iter()
+                        .filter(|data| data.label.eq(&res.data.first().unwrap().label))
+                        .collect();
+                    if list_data.len() == 0 {
+                        // atm we ignore the score. Only care abt if there exists a matching label. If cannot find any => mark as false
+                        flag = false;
+                    }
                 }
-            } else {
-                result.dsource_status = true;
             }
-        } else {
-            result.tcase_status = true;
         }
+    }
+    if flag == true {
+        result.dsource_status = true;
     }
 
     Ok(to_binary(&result)?)
@@ -59,7 +64,7 @@ mod tests {
     fn test_assert_happy() {
         let deps = mock_dependencies(&[]);
 
-        let result = format!("{{\"output\":{{\"data\":[{{\"label\":\"anthurium\",\"score\":21}},{{\"label\":\"fritillary\",\"score\":21}},{{\"label\":\"blackberry lily\",\"score\":13}}],\"status\":\"success\"}},\"expected_output\":{{\"data\":[{{\"label\":\"blackberry lily\",\"score\":13}},{{\"label\":\"anthurium\",\"score\":40}}],\"status\":\"success\"}}}}");
+        let result = format!("{{\"output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"sunflower\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\",\"expected_output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"sunflower\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\"}}");
 
         let mut results: Vec<String> = Vec::new();
         results.push(result);
@@ -73,7 +78,7 @@ mod tests {
     fn test_assert_unhappy() {
         let deps = mock_dependencies(&[]);
 
-        let result = format!("{{\"output\":{{\"data\":[{{\"label\":\"anthurium\",\"score\":21}},{{\"label\":\"fritillary\",\"score\":21}},{{\"label\":\"blackberry lily\",\"score\":13}}],\"status\":\"success\"}},\"expected_output\":{{\"data\":[{{\"label\":\"blackberry lily\",\"score\":13}}],\"status\":\"success\"}}}}");
+        let result = format!("{{\"output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"sunflower\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\",\"expected_output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"sunflower\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\"}}");
 
         let mut results: Vec<String> = Vec::new();
         results.push(result);
