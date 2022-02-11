@@ -42,6 +42,12 @@ pub fn assert(assert_inputs: &[String]) -> StdResult<Binary> {
                     }
                 }
             }
+        } else {
+            if expected_output.len() == 0 {
+                result.tcase_status = false;
+            } else {
+                flag = false;
+            }
         }
     }
     if flag == true {
@@ -78,7 +84,8 @@ mod tests {
     fn test_assert_unhappy() {
         let deps = mock_dependencies(&[]);
 
-        let result = format!("{{\"output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"sunflower\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\",\"expected_output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"sunflower\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\"}}");
+        // dsource does has a different label from the test case
+        let result = format!("{{\"output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"foobar\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\",\"expected_output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"sunflower\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\"}}");
 
         let mut results: Vec<String> = Vec::new();
         results.push(result);
@@ -88,7 +95,8 @@ mod tests {
         assert_eq!(assert_output.tcase_status, true);
 
         // empty output case
-        let result = format!("{{\"output\":{{\"data\":[],\"status\":\"success\"}},\"expected_output\":{{\"data\":[{{\"label\":\"blackberry lily\",\"score\":13}}],\"status\":\"success\"}}}}");
+        // dsource does has a different label from the test case
+        let result = format!("{{\"output\":\"[]\",\"expected_output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"sunflower\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\"}}");
 
         let mut results: Vec<String> = Vec::new();
         results.push(result);
@@ -98,7 +106,7 @@ mod tests {
         assert_eq!(assert_output.tcase_status, true);
 
         // empty expected output case
-        let result = format!("{{\"output\":{{\"data\":[{{\"label\":\"anthurium\",\"score\":21}},{{\"label\":\"fritillary\",\"score\":21}},{{\"label\":\"blackberry lily\",\"score\":13}}],\"status\":\"success\"}},\"expected_output\":{{\"data\":[],\"status\":\"success\"}}}}");
+        let result = format!("{{\"output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"foobar\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\",\"expected_output\":\"[]\"}}");
 
         let mut results: Vec<String> = Vec::new();
         results.push(result);

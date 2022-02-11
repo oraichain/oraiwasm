@@ -97,6 +97,9 @@ pub enum QueryMsg {
         data: Binary,
         proof: Option<Vec<String>>,
     },
+    GetServiceFees {
+        service: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

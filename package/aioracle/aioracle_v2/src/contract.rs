@@ -186,16 +186,8 @@ pub fn handle_request(
         }
     }
 
-    let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
     // collect fees
-    let rewards: Vec<Reward> = deps.querier.query_wasm_smart(
-        service_addr,
-        &GetServiceFees {
-            service_fee_msg: ServiceMsg {
-                service: service.clone(),
-            },
-        },
-    )?;
+    let rewards = get_service_fees(deps.as_ref(), &service)?;
     if !verify_request_fees(&info.sent_funds, &rewards, threshold) {
         return Err(ContractError::InsufficientFunds {});
     }
@@ -452,7 +444,25 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::VerifyData { stage, data, proof } => {
             to_binary(&verify_data(deps, stage, data, proof)?)
         }
+        QueryMsg::GetServiceFees { service } => to_binary(&query_service_fees(deps, service)?),
     }
+}
+
+fn get_service_fees(deps: Deps, service: &str) -> StdResult<Vec<Reward>> {
+    let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
+    let rewards: Vec<Reward> = deps.querier.query_wasm_smart(
+        service_addr,
+        &GetServiceFees {
+            service_fee_msg: ServiceMsg {
+                service: service.to_string(),
+            },
+        },
+    )?;
+    Ok(rewards)
+}
+
+pub fn query_service_fees(deps: Deps, service: String) -> StdResult<Vec<Reward>> {
+    Ok(get_service_fees(deps, &service)?)
 }
 
 pub fn get_stage_info(deps: Deps) -> StdResult<StageInfo> {
