@@ -8,13 +8,16 @@ use cosmwasm_std::{
     InitResponse, MessageInfo, Order, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
     KV,
 };
+use cw1155::Cw1155ReceiveMsg;
+use cw721::Cw721ReceiveMsg;
 use cw_storage_plus::{Bound, Endian};
 use schemars::_serde_json::json;
 
 use crate::{
     error::{ContractError, DivideByZeroError, OverflowError, OverflowOperation},
     msg::{
-        CreateCollectionPoolMsg, HandleMsg, InitMsg, QueryMsg, StakeMsg, UpdateCollectionPoolMsg,
+        CreateCollectionPoolMsg, DepositeMsg, HandleMsg, InitMsg, QueryMsg, StakeMsgDetail,
+        UpdateCollectionPoolMsg, UpdateContractInfoMsg,
     },
     state::{
         collection_staker_infos, get_unique_collection_staker, increment_collection_stakers,
@@ -62,6 +65,8 @@ pub fn init(
     let info = ContractInfo {
         creator: info.sender,
         verifier_pubkey_base64: msg.verifier_pubkey_base64,
+        nft_1155_contract_addr: msg.nft_1155_contract_addr,
+        nft_721_contract_addr: msg.nft_721_contract_addr,
     };
 
     CONTRACT_INFO.save(deps.storage, &info)?;
@@ -70,20 +75,20 @@ pub fn init(
 
 pub fn handle(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::UpdateContractInfo {
-            verifier_pubkey_base64,
-        } => handle_update_contract_info(deps, info, verifier_pubkey_base64),
+        HandleMsg::UpdateContractInfo(msg) => handle_update_contract_info(deps, info, msg),
         HandleMsg::CreateCollectionPool(msg) => handle_create_collection_pool_info(deps, info, msg),
         HandleMsg::UpdateCollectionPool(msg) => handle_update_collection_pool_info(deps, info, msg),
+        HandleMsg::Receive(receive_msg) => handle_receive_1155(deps, env, info, receive_msg),
+        HandleMsg::ReceiveNft(receive_msg) => handle_receive_721(deps, env, info, receive_msg),
     }
 }
 
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
         QueryMsg::GetCollectionPoolInfo { collection_id } => {
@@ -94,8 +99,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             collection_id,
         } => to_binary(&query_unique_collection_staker_info(
             deps,
+            env,
             staker_addr,
             collection_id,
+            true,
         )?),
         QueryMsg::GetCollectionStakerInfoByCollection {
             collection_id,
@@ -104,6 +111,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             order,
         } => to_binary(&query_collection_staker_info_by_collection(
             deps,
+            env,
             collection_id,
             limit,
             offset,
@@ -116,6 +124,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             order,
         } => to_binary(&query_collection_staker_info_by_staker(
             deps,
+            env,
             staker_addr,
             limit,
             offset,
@@ -140,14 +149,22 @@ fn check_admin_permission(deps: Deps, address: &HumanAddr) -> Result<(), Contrac
 pub fn handle_update_contract_info(
     deps: DepsMut,
     info: MessageInfo,
-    verifier_pubkey_base64: String,
+    msg: UpdateContractInfoMsg,
 ) -> Result<HandleResponse, ContractError> {
     check_admin_permission(deps.as_ref(), &info.sender)?;
 
     let new_contract_info = CONTRACT_INFO.update(
         deps.storage,
         |mut old_info| -> Result<ContractInfo, ContractError> {
-            old_info.verifier_pubkey_base64 = verifier_pubkey_base64;
+            if let Some(verifier_pubkey_base64) = msg.verifier_pubkey_base64 {
+                old_info.verifier_pubkey_base64 = verifier_pubkey_base64;
+            }
+            if let Some(nft_1155_contract_addr) = msg.nft_1155_contract_addr {
+                old_info.nft_1155_contract_addr = nft_1155_contract_addr;
+            }
+            if let Some(nft_721_contract_addr) = msg.nft_721_contract_addr {
+                old_info.nft_721_contract_addr = nft_721_contract_addr;
+            }
             Ok(old_info)
         },
     )?;
@@ -176,8 +193,6 @@ pub fn handle_create_collection_pool_info(
         &CollectionPoolInfo {
             collection_id: msg.collection_id.clone(),
             reward_per_block: msg.reward_per_block.clone(),
-            nft_1155_contract_addr: msg.nft_1155_contract_addr.clone(),
-            nft_721_contract_addr: msg.nft_721_contract_addr.clone(),
             total_nfts: Uint128(0u128),
             acc_per_share: Uint128(0u128),
             last_reward_block: 0u64,
@@ -191,8 +206,6 @@ pub fn handle_create_collection_pool_info(
             attr("action", "create_collection_pool"),
             attr("collection_id", msg.collection_id),
             attr("reward_per_block", msg.reward_per_block),
-            attr("nft_1155_contract_addr", msg.nft_1155_contract_addr),
-            attr("nft_721_contract_addr", msg.nft_721_contract_addr),
         ],
     })
 }
@@ -212,12 +225,6 @@ pub fn handle_update_collection_pool_info(
                 }
                 collection_pool_info.reward_per_block = reward_per_block
             }
-            if let Some(nft_1155_contract_addr) = msg.nft_1155_contract_addr.clone() {
-                collection_pool_info.nft_1155_contract_addr = nft_1155_contract_addr
-            }
-            if let Some(nft_721_contract_addr) = msg.nft_721_contract_addr.clone() {
-                collection_pool_info.nft_721_contract_addr = nft_721_contract_addr
-            }
 
             return Ok(collection_pool_info);
         } else {
@@ -234,23 +241,130 @@ pub fn handle_update_collection_pool_info(
             attr("action", "update_collection_pool_info"),
             attr("collection_id", msg.collection_id),
             attr("reward_per_block", msg.reward_per_block.unwrap_or_default()),
-            attr(
-                "nft_1155_contract_addr",
-                msg.nft_1155_contract_addr.unwrap_or_default(),
-            ),
-            attr(
-                "nft_721_contract_addr",
-                msg.nft_721_contract_addr.unwrap_or_default(),
-            ),
         ],
     })
 }
 
-pub fn handle_stake(
+pub fn handle_receive_1155(
     deps: DepsMut,
-    info: MessageInfo,
     env: Env,
-    msg: StakeMsg,
+    info: MessageInfo,
+    receive_msg: Cw1155ReceiveMsg,
+) -> Result<HandleResponse, ContractError> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+
+    if info.sender.ne(&contract_info.nft_1155_contract_addr) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.clone().to_string(),
+        });
+    }
+
+    let deposit_msg = from_binary::<DepositeMsg>(&receive_msg.msg)?;
+
+    //println!("deposit_msg {:?}", deposit_msg);
+    let stake_msg = StakeMsgDetail {
+        collection_id: deposit_msg.collection_id,
+        withdraw_rewards: deposit_msg.withdraw_rewards,
+        nft: CollectionStakedTokenInfo {
+            token_id: receive_msg.token_id,
+            amount: receive_msg.amount,
+            contract_type: crate::state::ContractType::V1155,
+        },
+    };
+
+    //println!("stake_msg {:?}", stake_msg);
+    handle_stake(
+        deps,
+        env,
+        HumanAddr::from(receive_msg.operator),
+        stake_msg,
+        deposit_msg.signature_hash,
+    )
+}
+
+pub fn handle_receive_721(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    receive_msg: Cw721ReceiveMsg,
+) -> Result<HandleResponse, ContractError> {
+    let contract_info = CONTRACT_INFO.load(deps.storage)?;
+
+    if info.sender.ne(&contract_info.nft_721_contract_addr) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    }
+
+    let deposit_msg = from_binary::<DepositeMsg>(&receive_msg.msg.unwrap())?;
+
+    let stake_msg = StakeMsgDetail {
+        collection_id: deposit_msg.collection_id,
+        withdraw_rewards: deposit_msg.withdraw_rewards,
+        nft: CollectionStakedTokenInfo {
+            token_id: receive_msg.token_id,
+            amount: Uint128::from(1u128),
+            contract_type: crate::state::ContractType::V721,
+        },
+    };
+
+    handle_stake(
+        deps,
+        env,
+        HumanAddr::from(receive_msg.sender),
+        stake_msg,
+        deposit_msg.signature_hash,
+    )
+}
+
+pub fn handle_claim(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    collection_id: String,
+) -> Result<HandleResponse, ContractError> {
+    let collection_staker_info = query_unique_collection_staker_info(
+        deps.as_ref(),
+        env,
+        info.sender.clone(),
+        collection_id.clone(),
+        true,
+    )?;
+
+    match collection_staker_info {
+        Some(staker_info) => {
+            let mut claim_amount = Uint128::from(0u128);
+            collection_staker_infos().update(
+                deps.storage,
+                &staker_info.id.unwrap().to_be_bytes(),
+                |data| {
+                    if let Some(mut old_info) = data {
+                        old_info.total_earned.add_assign(old_info.pending);
+                        claim_amount = old_info.pending.clone();
+                        old_info.pending = Uint128::from(0u128);
+                        Ok(old_info)
+                    } else {
+                        Err(StdError::generic_err(
+                            "Invalid update collection staker info",
+                        ))
+                    }
+                },
+            )?;
+            Ok(HandleResponse {
+                data: None,
+                messages: vec![],
+                attributes: vec![attr("action", "claim_reward"), attr("amount", claim_amount)],
+            })
+        }
+        None => Err(ContractError::InvalidClaim {}),
+    }
+}
+
+fn handle_stake(
+    deps: DepsMut,
+    env: Env,
+    operator: HumanAddr,
+    msg: StakeMsgDetail,
     signature_hash: String,
 ) -> Result<HandleResponse, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage).unwrap();
@@ -271,25 +385,16 @@ pub fn handle_stake(
             return Err(ContractError::InvalidCollection {});
         }
 
-        let collection_pool_info = collection_pool_info.unwrap();
-
-        // Check nft transfer permission
-        check_can_transfer(
-            deps.as_ref(),
-            &collection_pool_info,
-            info.sender.clone(),
-            env.contract.address.clone(),
-        )?;
-
         let collection_staker_info_response = query_unique_collection_staker_info(
             deps.as_ref(),
-            info.sender.clone(),
+            env.clone(),
+            operator.clone(),
             msg.collection_id.clone(),
+            false,
         )
         .unwrap();
 
-        let mut staker_info: CollectionStakerInfo;
-        let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+        let staker_info: CollectionStakerInfo;
 
         //If this is the first time staker stake, initialize a new staker
         if collection_staker_info_response.is_none() {
@@ -300,13 +405,13 @@ pub fn handle_stake(
                 reward_debt: Uint128(0u128),
                 total_staked: Uint128(0u128),
                 total_earned: Uint128(0u128),
-                staker_addr: info.sender.clone(),
+                staker_addr: operator.clone(),
                 staked_tokens: vec![],
             };
 
             collection_staker_infos().save(
                 deps.storage,
-                msg.collection_id.clone().as_bytes(),
+                &staker_info.id.unwrap().to_be_bytes(),
                 &staker_info,
             )?;
         } else {
@@ -314,132 +419,103 @@ pub fn handle_stake(
         }
 
         // Start staking process.....
-        //1. Update collection pool last_reward_block and accumulate_per_share first
+        // Update collection pool last_reward_block and accumulate_per_share first
         let collection_pool_info =
             update_collection_pool(deps.storage, env.clone(), msg.collection_id.clone())?;
 
-        //2. Transering stake nft to this contract
-        if msg.staked_nfts.len() > 0 {
-            let mut nft_1155s: Vec<CollectionStakedTokenInfo> = vec![];
-            let mut total_of_nft_editions = Uint128(0u128);
+        // If There were nfts staked before, then update pending amount for this staker
+        if staker_info.total_staked.gt(&Uint128(0u128)) {
+            // pending = ((total_staked_nft_editions * accumulate_per_share) / 10^12) - reward_debt + current_pending
+            let pending = checked_sub(
+                staker_info.total_staked.multiply_ratio(
+                    collection_pool_info.acc_per_share.clone(),
+                    Uint128::from(10u64.pow(12)),
+                ),
+                staker_info.reward_debt.clone(),
+            )?
+            .add(&staker_info.pending.clone());
 
-            for nft in msg.staked_nfts.clone().into_iter() {
-                match nft.contract_type {
-                    crate::state::ContractType::V1155 => {
-                        total_of_nft_editions.add_assign(&Uint128::from(nft.amount));
-                        nft_1155s.push(nft);
-                    }
-                    crate::state::ContractType::V721 => {
-                        // Because There is no Batch Transfer transaction in 721 contract
-                        cosmos_msgs.push(
-                            WasmMsg::Execute {
-                                contract_addr: collection_pool_info.nft_721_contract_addr.clone(),
-                                msg: to_binary(&cw721::Cw721HandleMsg::TransferNft {
-                                    token_id: nft.token_id.clone(),
-                                    recipient: env.contract.address.clone(),
-                                })?,
-                                send: vec![],
+            println!(
+                "pending {:?}, stake {:?}, acc_per_share {:?}",
+                pending,
+                staker_info.total_staked.clone(),
+                collection_pool_info.acc_per_share.clone()
+            );
+            if pending.gt(&Uint128::from(0u128)) {
+                //println!("staker_info {:?}", staker_info);
+                collection_staker_infos().update(
+                    deps.storage,
+                    &staker_info.id.unwrap().to_be_bytes(),
+                    |data| {
+                        if let Some(mut staker_info) = data {
+                            // If user want to withdraw when deposit then update total earned and reset pending to 0
+                            if msg.withdraw_rewards {
+                                staker_info.total_earned.add_assign(pending.clone());
+                                staker_info.pending = Uint128::from(0u128);
+                            } else {
+                                staker_info.pending = pending;
                             }
-                            .into(),
-                        );
-                        total_of_nft_editions.add_assign(&Uint128::from(1u128))
-                    }
+                            Ok(staker_info)
+                        } else {
+                            return Err(StdError::generic_err(
+                                "Invalid update collection staker info",
+                            ));
+                        }
+                    },
+                )?;
+            }
+        }
+
+        // Update the total_staked_nft_editions for collection pool
+        COLLECTION_POOL_INFO.update(
+            deps.storage,
+            msg.collection_id.clone().as_bytes(),
+            |data| {
+                if let Some(mut collection_info) = data {
+                    collection_info
+                        .total_nfts
+                        .add_assign(Uint128::from(msg.nft.amount.clone()));
+                    Ok(collection_info)
+                } else {
+                    return Err(StdError::generic_err("Invalid update collection info"));
                 }
-            }
+            },
+        )?;
 
-            // Batch transfer 1155 nfts
-            if nft_1155s.len() > 0 {
-                cosmos_msgs.push(
-                    WasmMsg::Execute {
-                        contract_addr: collection_pool_info.nft_1155_contract_addr.clone(),
-                        msg: to_binary(&cw1155::Cw1155ExecuteMsg::BatchSendFrom {
-                            from: info.sender.clone().to_string(),
-                            to: env.contract.address.clone().to_string(),
-                            batch: vec![],
-                            msg: None,
-                        })?,
-                        send: vec![],
-                    }
-                    .into(),
-                )
-            }
+        //4. Update staker's total_staked_nft_editions and reward debt and staked_nft
 
-            //3. Update peding reward (and total_earned if user want to withdraw)
-            if staker_info.total_staked.gt(&Uint128(0u128)) {
-                // pending = ((total_staked_nft_editions * accumulate_per_share) / 10^12) - reward_debt + current_pending
-                let pending = checked_sub(
-                    staker_info.total_staked.multiply_ratio(
+        collection_staker_infos().update(
+            deps.storage,
+            &staker_info.id.unwrap().to_be_bytes(),
+            |data| {
+                if let Some(mut user_info) = data {
+                    user_info.total_staked =
+                        user_info.total_staked.add(&Uint128::from(msg.nft.amount));
+                    user_info.reward_debt = user_info.total_staked.multiply_ratio(
                         collection_pool_info.acc_per_share.clone(),
                         Uint128::from(10u64.pow(12)),
-                    ),
-                    staker_info.reward_debt.clone(),
-                )?
-                .add(&staker_info.pending.clone());
-
-                if pending.gt(&Uint128::from(0u128)) {
-                    staker_info = collection_staker_infos().update(
-                        deps.storage,
-                        &staker_info.id.unwrap().to_be_bytes(),
-                        |data| {
-                            if let Some(mut staker_info) = data {
-                                // If user want to withdraw when deposit then update total earned and reset pending to 0
-                                if msg.withdraw_rewards {
-                                    staker_info.total_earned =
-                                        staker_info.total_earned.add(staker_info.pending.clone());
-                                    staker_info.pending = Uint128::from(0u128);
-                                }
-                                staker_info.pending = pending;
-                                Ok(staker_info)
-                            } else {
-                                return Err(StdError::generic_err(
-                                    "Invalid update collection staker info",
-                                ));
-                            }
-                        },
-                    )?;
+                    );
+                    user_info.staked_tokens.push(msg.nft.clone());
+                    Ok(user_info)
+                } else {
+                    return Err(StdError::generic_err(
+                        "Invalid update collection staker info",
+                    ));
                 }
-            }
+            },
+        )?;
 
-            //4. Update staker's total_staked_nft_editions and reward debt
-            collection_staker_infos().update(
-                deps.storage,
-                &staker_info.id.unwrap().to_be_bytes(),
-                |data| {
-                    if let Some(mut user_info) = data {
-                        user_info.total_staked =
-                            user_info.total_staked.add(&total_of_nft_editions.clone());
-                        user_info.reward_debt = user_info.total_staked.multiply_ratio(
-                            collection_pool_info.acc_per_share.clone(),
-                            Uint128::from(10u64.pow(12)),
-                        );
-                        Ok(user_info)
-                    } else {
-                        return Err(StdError::generic_err(
-                            "Invalid update collection staker info",
-                        ));
-                    }
-                },
-            )?;
-            let mut attributes = vec![
+        Ok(HandleResponse {
+            data: None,
+            messages: vec![],
+            attributes: vec![
                 attr("action", "stake_nft"),
                 attr("collection_id", msg.collection_id),
-                attr("staker_addr", info.sender),
-            ];
-
-            for nft in msg.staked_nfts {
-                attributes.push(attr("nft", json!(nft)));
-            }
-
-            Ok(HandleResponse {
-                data: None,
-                messages: cosmos_msgs,
-                attributes,
-            })
-        } else {
-            return Err(ContractError::InvalidStake {});
-        }
+                attr("staker_addr", operator),
+                attr("nft", json!(msg.nft)),
+            ],
+        })
     }
-    //Ok(HandleResponse::default())
 }
 
 fn update_collection_pool(
@@ -498,60 +574,87 @@ fn update_collection_pool(
     }
 }
 
-// Check nft transfering permission for this contract
-pub fn check_can_transfer(
+fn current_pending(
     deps: Deps,
-    collection_pool_info: &CollectionPoolInfo,
-    owner: HumanAddr,
-    operator: HumanAddr,
-) -> StdResult<bool> {
-    let res: cw1155::IsApprovedForAllResponse = deps.querier.query(
-        &WasmQuery::Smart {
-            contract_addr: collection_pool_info.nft_1155_contract_addr.clone(),
-            msg: to_binary(&cw1155::Cw1155QueryMsg::IsApprovedForAll {
-                owner: owner.clone().to_string(),
-                operator: operator.clone().to_string(),
-            })?,
-        }
-        .into(),
-    )?;
-
-    if !res.approved {
-        return Err(StdError::generic_err(
-            "You must approved this contract for 1155 transfering permission before you staked!",
-        ));
+    env: Env,
+    collection_id: String,
+    staker_info: &CollectionStakerInfo,
+) -> StdResult<Uint128> {
+    let collection_pool_info = COLLECTION_POOL_INFO
+        .load(deps.storage, collection_id.clone().as_bytes())
+        .unwrap();
+    let mut acc_per_share_view = collection_pool_info.acc_per_share.clone();
+    if env.block.height > collection_pool_info.last_reward_block
+        && collection_pool_info.total_nfts.ne(&Uint128::from(0u128))
+    {
+        let multiplier = env.block.height - collection_pool_info.last_reward_block;
+        let airi_reward = checked_mul(
+            collection_pool_info.reward_per_block,
+            Uint128::from(multiplier),
+        )?;
+        acc_per_share_view.add_assign(
+            airi_reward.multiply_ratio(10u64.pow(12), collection_pool_info.total_nfts.clone()),
+        );
     }
-
-    let res: cw721::ApprovedForAllResponse = deps.querier.query(
-        &WasmQuery::Smart {
-            contract_addr: collection_pool_info.nft_721_contract_addr.clone(),
-            msg: to_binary(&cw721::Cw721QueryMsg::ApprovedForAll {
-                owner: owner.clone(),
-                include_expired: None,
-                limit: None,
-                start_after: None,
-            })?,
-        }
-        .into(),
-    )?;
-
-    let mut is_approved_for_721 = false;
-
-    for item in res.operators {
-        if item.spender.eq(&operator.clone()) {
-            is_approved_for_721 = true;
-            break;
-        }
-    }
-
-    if !is_approved_for_721 {
-        return Err(StdError::generic_err(
-            "you must approved this contract for 721 transfering permission before you staked!",
-        ));
-    }
-
-    Ok(true)
+    return Ok(checked_sub(
+        staker_info
+            .total_staked
+            .multiply_ratio(acc_per_share_view, 10u64.pow(12)),
+        staker_info.reward_debt,
+    )?
+    .add(staker_info.pending));
 }
+
+// Check nft transfering permission for this contract
+// pub fn check_can_transfer(deps: Deps, owner: HumanAddr, operator: HumanAddr) -> StdResult<bool> {
+//     let contract_info = CONTRACT_INFO.load(deps.storage)?;
+//     let res: cw1155::IsApprovedForAllResponse = deps.querier.query(
+//         &WasmQuery::Smart {
+//             contract_addr: contract_info.nft_1155_contract_addr.clone(),
+//             msg: to_binary(&cw1155::Cw1155QueryMsg::IsApprovedForAll {
+//                 owner: owner.clone().to_string(),
+//                 operator: operator.clone().to_string(),
+//             })?,
+//         }
+//         .into(),
+//     )?;
+
+//     if !res.approved {
+//         return Err(StdError::generic_err(
+//             "You must approved this contract for 1155 transfering permission before you staked!",
+//         ));
+//     }
+
+//     let res: cw721::ApprovedForAllResponse = deps.querier.query(
+//         &WasmQuery::Smart {
+//             contract_addr: contract_info.nft_721_contract_addr.clone(),
+//             msg: to_binary(&cw721::Cw721QueryMsg::ApprovedForAll {
+//                 owner: owner.clone(),
+//                 include_expired: None,
+//                 limit: None,
+//                 start_after: None,
+//             })?,
+//         }
+//         .into(),
+//     )?;
+
+//     let mut is_approved_for_721 = false;
+
+//     for item in res.operators {
+//         if item.spender.eq(&operator.clone()) {
+//             is_approved_for_721 = true;
+//             break;
+//         }
+//     }
+
+//     if !is_approved_for_721 {
+//         return Err(StdError::generic_err(
+//             "you must approved this contract for 721 transfering permission before you staked!",
+//         ));
+//     }
+
+//     Ok(true)
+// }
 
 // ==================================== Query Handlers   ======================================== //
 
@@ -568,8 +671,10 @@ pub fn query_collection_pool_info(
 
 pub fn query_unique_collection_staker_info(
     deps: Deps,
+    env: Env,
     staker_addr: HumanAddr,
     collection_id: String,
+    get_real_current_pending: bool,
 ) -> StdResult<Option<CollectionStakerInfo>> {
     let collection_staker = collection_staker_infos()
         .idx
@@ -580,7 +685,19 @@ pub fn query_unique_collection_staker_info(
         )?;
 
     if collection_staker.is_some() {
-        Ok(collection_staker.map(|c| c.1))
+        let collection_staker_info = collection_staker.map(|(k, mut info)| {
+            let value = k
+                .try_into()
+                .map_err(|_| StdError::generic_err("Cannot parse offering key"))
+                .unwrap();
+            let id: u64 = u64::from_be_bytes(value);
+            info.id = Some(id);
+            if get_real_current_pending {
+                info.pending = current_pending(deps, env, collection_id.clone(), &info).unwrap();
+            }
+            info
+        });
+        Ok(collection_staker_info)
     } else {
         Ok(None)
     }
@@ -588,6 +705,7 @@ pub fn query_unique_collection_staker_info(
 
 pub fn query_collection_staker_info_by_collection(
     deps: Deps,
+    env: Env,
     collection_id: String,
     limit: Option<u8>,
     offset: Option<u64>,
@@ -602,11 +720,18 @@ pub fn query_collection_staker_info_by_collection(
         .map(|kv_item| parse_collection_staker_info(kv_item))
         .collect();
 
-    result
+    result.map(|mut collection_info| {
+        for item in collection_info.iter_mut() {
+            item.pending =
+                current_pending(deps, env.clone(), item.collection_id.clone(), item).unwrap();
+        }
+        collection_info
+    })
 }
 
 pub fn query_collection_staker_info_by_staker(
     deps: Deps,
+    env: Env,
     staker_addr: HumanAddr,
     limit: Option<u8>,
     offset: Option<u64>,
@@ -621,7 +746,13 @@ pub fn query_collection_staker_info_by_staker(
         .map(|kv_item| parse_collection_staker_info(kv_item))
         .collect();
 
-    result
+    result.map(|mut collection_info| {
+        for item in collection_info.iter_mut() {
+            item.pending =
+                current_pending(deps, env.clone(), item.collection_id.clone(), item).unwrap();
+        }
+        collection_info
+    })
 }
 
 // ================================ HELPERS ==========================

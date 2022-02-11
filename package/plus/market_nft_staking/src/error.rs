@@ -20,6 +20,9 @@ pub enum ContractError {
     #[error("There must be least 1 nft to stake")]
     InvalidStake {},
 
+    #[error("You have not staken any nfts to this collection")]
+    InvalidClaim {},
+
     #[error("Overflow")]
     Overflow {
         source: OverflowError,

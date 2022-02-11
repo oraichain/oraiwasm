@@ -28,6 +28,8 @@ pub fn increment_collection_stakers(storage: &mut dyn Storage) -> StdResult<u64>
 pub struct ContractInfo {
     pub creator: HumanAddr,
     pub verifier_pubkey_base64: String,
+    pub nft_1155_contract_addr: HumanAddr,
+    pub nft_721_contract_addr: HumanAddr,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -37,8 +39,6 @@ pub struct CollectionPoolInfo {
     pub total_nfts: Uint128,
     pub acc_per_share: Uint128,
     pub last_reward_block: u64,
-    pub nft_1155_contract_addr: HumanAddr,
-    pub nft_721_contract_addr: HumanAddr,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -57,7 +57,7 @@ pub struct CollectionStakerInfo {
 #[serde(rename_all = "snake_case")]
 pub struct CollectionStakedTokenInfo {
     pub token_id: String,
-    pub amount: u64,
+    pub amount: Uint128,
     pub contract_type: ContractType,
 }
 
@@ -95,12 +95,12 @@ pub fn collection_staker_infos<'a>(
     let indexes = CollectionStakerInfoIndexes {
         collection: MultiIndex::new(
             |ct| ct.collection_id.as_bytes().to_vec(),
-            "collection_staker_info",
+            "collection_staker_infos",
             "collection_staker_info_collection",
         ),
         staker: MultiIndex::new(
             |ct| ct.staker_addr.as_bytes().to_vec(),
-            "collection_staker_info",
+            "collection_staker_infos",
             "collection_staker_info_staker",
         ),
         unique_collection_staker: UniqueIndex::new(

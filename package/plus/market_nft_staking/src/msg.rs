@@ -1,4 +1,6 @@
 use cosmwasm_std::{HumanAddr, Uint128};
+use cw1155::Cw1155ReceiveMsg;
+use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -7,15 +9,26 @@ use crate::state::CollectionStakedTokenInfo;
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InitMsg {
     pub verifier_pubkey_base64: String,
+    pub nft_1155_contract_addr: HumanAddr,
+    pub nft_721_contract_addr: HumanAddr,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    UpdateContractInfo { verifier_pubkey_base64: String },
+    UpdateContractInfo(UpdateContractInfoMsg),
     CreateCollectionPool(CreateCollectionPoolMsg),
     UpdateCollectionPool(UpdateCollectionPoolMsg),
-    //Stake(StakeMsg),
+    ReceiveNft(Cw721ReceiveMsg),
+    Receive(Cw1155ReceiveMsg),
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct UpdateContractInfoMsg {
+    pub verifier_pubkey_base64: Option<String>,
+    pub nft_1155_contract_addr: Option<HumanAddr>,
+    pub nft_721_contract_addr: Option<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -23,8 +36,6 @@ pub enum HandleMsg {
 pub struct CreateCollectionPoolMsg {
     pub collection_id: String,
     pub reward_per_block: Uint128,
-    pub nft_1155_contract_addr: HumanAddr,
-    pub nft_721_contract_addr: HumanAddr,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -32,16 +43,22 @@ pub struct CreateCollectionPoolMsg {
 pub struct UpdateCollectionPoolMsg {
     pub collection_id: String,
     pub reward_per_block: Option<Uint128>,
-    pub nft_1155_contract_addr: Option<HumanAddr>,
-    pub nft_721_contract_addr: Option<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub struct StakeMsg {
+pub struct DepositeMsg {
     pub collection_id: String,
-    pub staked_nfts: Vec<CollectionStakedTokenInfo>,
     pub withdraw_rewards: bool,
+    pub signature_hash: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct StakeMsgDetail {
+    pub collection_id: String,
+    pub withdraw_rewards: bool,
+    pub nft: CollectionStakedTokenInfo,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
