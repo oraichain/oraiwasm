@@ -1,16 +1,12 @@
-use std::{
-    arch,
-    ops::{Add, AddAssign, Mul},
-};
+use std::ops::{Add, AddAssign};
 
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, Order, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
-    KV,
+    InitResponse, MessageInfo, Order, StdError, StdResult, Storage, Uint128, WasmMsg, KV,
 };
 use cw1155::Cw1155ReceiveMsg;
 use cw721::Cw721ReceiveMsg;
-use cw_storage_plus::{Bound, Endian};
+use cw_storage_plus::Bound;
 use schemars::_serde_json::json;
 
 use crate::{
@@ -85,6 +81,11 @@ pub fn handle(
         HandleMsg::UpdateCollectionPool(msg) => handle_update_collection_pool_info(deps, info, msg),
         HandleMsg::Receive(receive_msg) => handle_receive_1155(deps, env, info, receive_msg),
         HandleMsg::ReceiveNft(receive_msg) => handle_receive_721(deps, env, info, receive_msg),
+        HandleMsg::Withdraw {
+            collection_id,
+            withdraw_rewards,
+        } => handle_withdraw(deps, env, info, collection_id, withdraw_rewards),
+        HandleMsg::Claim { collection_id } => handle_claim(deps, env, info, collection_id),
     }
 }
 
@@ -317,49 +318,6 @@ pub fn handle_receive_721(
     )
 }
 
-pub fn handle_claim(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    collection_id: String,
-) -> Result<HandleResponse, ContractError> {
-    let collection_staker_info = query_unique_collection_staker_info(
-        deps.as_ref(),
-        env,
-        info.sender.clone(),
-        collection_id.clone(),
-        true,
-    )?;
-
-    match collection_staker_info {
-        Some(staker_info) => {
-            let mut claim_amount = Uint128::from(0u128);
-            collection_staker_infos().update(
-                deps.storage,
-                &staker_info.id.unwrap().to_be_bytes(),
-                |data| {
-                    if let Some(mut old_info) = data {
-                        old_info.total_earned.add_assign(old_info.pending);
-                        claim_amount = old_info.pending.clone();
-                        old_info.pending = Uint128::from(0u128);
-                        Ok(old_info)
-                    } else {
-                        Err(StdError::generic_err(
-                            "Invalid update collection staker info",
-                        ))
-                    }
-                },
-            )?;
-            Ok(HandleResponse {
-                data: None,
-                messages: vec![],
-                attributes: vec![attr("action", "claim_reward"), attr("amount", claim_amount)],
-            })
-        }
-        None => Err(ContractError::InvalidClaim {}),
-    }
-}
-
 fn handle_stake(
     deps: DepsMut,
     env: Env,
@@ -377,6 +335,13 @@ fn handle_stake(
             "Stake Transaction verfication failed!",
         )));
     } else {
+        let mut attributes = vec![
+            attr("action", "stake_nft"),
+            attr("collection_id", msg.collection_id.clone()),
+            attr("staker_addr", operator.clone()),
+            attr("nft", json!(msg.nft.clone())),
+        ];
+
         let collection_pool_info = COLLECTION_POOL_INFO
             .may_load(deps.storage, msg.collection_id.clone().as_bytes())
             .unwrap();
@@ -435,12 +400,6 @@ fn handle_stake(
             )?
             .add(&staker_info.pending.clone());
 
-            println!(
-                "pending {:?}, stake {:?}, acc_per_share {:?}",
-                pending,
-                staker_info.total_staked.clone(),
-                collection_pool_info.acc_per_share.clone()
-            );
             if pending.gt(&Uint128::from(0u128)) {
                 //println!("staker_info {:?}", staker_info);
                 collection_staker_infos().update(
@@ -450,6 +409,7 @@ fn handle_stake(
                         if let Some(mut staker_info) = data {
                             // If user want to withdraw when deposit then update total earned and reset pending to 0
                             if msg.withdraw_rewards {
+                                attributes.push(attr("claimed", pending.clone()));
                                 staker_info.total_earned.add_assign(pending.clone());
                                 staker_info.pending = Uint128::from(0u128);
                             } else {
@@ -508,12 +468,7 @@ fn handle_stake(
         Ok(HandleResponse {
             data: None,
             messages: vec![],
-            attributes: vec![
-                attr("action", "stake_nft"),
-                attr("collection_id", msg.collection_id),
-                attr("staker_addr", operator),
-                attr("nft", json!(msg.nft)),
-            ],
+            attributes,
         })
     }
 }
@@ -571,6 +526,232 @@ fn update_collection_pool(
                 }
             })?;
         Ok(updated_collection_pool_info)
+    }
+}
+
+pub fn handle_withdraw(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    collection_id: String,
+    withdraw_rewards: bool,
+) -> Result<HandleResponse, ContractError> {
+    let collection_staker_info = query_unique_collection_staker_info(
+        deps.as_ref(),
+        env.clone(),
+        info.sender.clone(),
+        collection_id.clone(),
+        false,
+    )?;
+
+    match collection_staker_info {
+        Some(staker_info) => {
+            if staker_info.total_staked.le(&Uint128::from(0u128)) {
+                return Err(ContractError::Std(StdError::generic_err(
+                    "You have not stake any nft editions to this collection",
+                )));
+            }
+            let contract_info = CONTRACT_INFO.load(deps.storage)?;
+
+            let mut attributes = vec![
+                attr("action", "withdraw_nfts"),
+                attr("collection_id", collection_id.clone()),
+                attr("staker", info.sender.clone()),
+            ];
+
+            let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+
+            let collection_pool_info =
+                update_collection_pool(deps.storage, env.clone(), collection_id.clone())?;
+
+            //Update or claim current pending
+            let current_pending = checked_sub(
+                staker_info.total_staked.multiply_ratio(
+                    collection_pool_info.acc_per_share.clone(),
+                    Uint128::from(10u64.pow(12)),
+                ),
+                staker_info.reward_debt.clone(),
+            )?
+            .add(&staker_info.pending.clone());
+
+            if current_pending.gt(&Uint128::from(0u128)) {
+                collection_staker_infos().update(
+                    deps.storage,
+                    &staker_info.id.unwrap().to_be_bytes(),
+                    |data| {
+                        if let Some(mut old_info) = data {
+                            if withdraw_rewards {
+                                attributes.push(attr("claimed", current_pending.clone()));
+                                old_info.total_earned.add_assign(current_pending.clone());
+                                old_info.pending = Uint128::from(0u128);
+                            } else {
+                                old_info.pending = current_pending.clone();
+                            }
+                            Ok(old_info)
+                        } else {
+                            Err(ContractError::Std(StdError::generic_err(
+                                "Invalid update collection staker",
+                            )))
+                        }
+                    },
+                )?;
+            }
+
+            // Transfer nfts back to staker
+            let mut nft_1155s: Vec<CollectionStakedTokenInfo> = vec![];
+
+            for nft in staker_info.staked_tokens {
+                match nft.contract_type {
+                    crate::state::ContractType::V721 => {
+                        cosmos_msgs.push(
+                            WasmMsg::Execute {
+                                contract_addr: contract_info.nft_721_contract_addr.clone(),
+                                msg: to_binary(&cw721::Cw721HandleMsg::TransferNft {
+                                    recipient: info.sender.clone(),
+                                    token_id: nft.token_id.clone(),
+                                })?,
+                                send: vec![],
+                            }
+                            .into(),
+                        );
+                    }
+                    crate::state::ContractType::V1155 => {
+                        nft_1155s.push(nft);
+                    }
+                }
+            }
+            if nft_1155s.len() > 0 {
+                cosmos_msgs.push(
+                    WasmMsg::Execute {
+                        contract_addr: contract_info.nft_1155_contract_addr.clone(),
+                        msg: to_binary(&cw1155::Cw1155ExecuteMsg::BatchSendFrom {
+                            from: env.contract.address.clone().to_string(),
+                            to: info.sender.clone().to_string(),
+                            batch: nft_1155s
+                                .into_iter()
+                                .map(|nft| (nft.token_id, nft.amount))
+                                .collect(),
+                            msg: None,
+                        })?,
+                        send: vec![],
+                    }
+                    .into(),
+                );
+            }
+
+            collection_staker_infos().update(
+                deps.storage,
+                &staker_info.id.unwrap().to_be_bytes(),
+                |data| {
+                    if let Some(mut old_info) = data {
+                        old_info.reward_debt = old_info.total_staked.multiply_ratio(
+                            collection_pool_info.acc_per_share,
+                            Uint128::from(10u64.pow(12)),
+                        );
+                        Ok(old_info)
+                    } else {
+                        Err(ContractError::Std(StdError::generic_err(
+                            "Invalid update staker info",
+                        )))
+                    }
+                },
+            )?;
+
+            Ok(HandleResponse {
+                data: None,
+                messages: cosmos_msgs,
+                attributes,
+            })
+        }
+        None => Err(ContractError::Std(StdError::generic_err(
+            "You have not stake any nft editions to this collection",
+        ))),
+    }
+}
+
+pub fn handle_claim(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    collection_id: String,
+) -> Result<HandleResponse, ContractError> {
+    let collection_staker_info = query_unique_collection_staker_info(
+        deps.as_ref(),
+        env.clone(),
+        info.sender.clone(),
+        collection_id.clone(),
+        false,
+    )?;
+
+    match collection_staker_info {
+        Some(staker_info) => {
+            let collection_pool_info =
+                update_collection_pool(deps.storage, env, collection_id.clone())?;
+
+            let mut claim_amount = Uint128::from(0u128);
+
+            //Update or claim pending
+            let current_pending = checked_sub(
+                staker_info.total_staked.multiply_ratio(
+                    collection_pool_info.acc_per_share.clone(),
+                    Uint128::from(10u64.pow(12)),
+                ),
+                staker_info.reward_debt.clone(),
+            )?
+            .add(&staker_info.pending.clone());
+
+            if current_pending.gt(&Uint128::from(0u128)) {
+                collection_staker_infos().update(
+                    deps.storage,
+                    &staker_info.id.unwrap().to_be_bytes(),
+                    |data| {
+                        if let Some(mut old_info) = data {
+                            claim_amount = old_info.pending.clone();
+                            //Update total_earnded and reset pending
+                            old_info.total_earned.add_assign(old_info.pending);
+                            old_info.pending = Uint128::from(0u128);
+
+                            Ok(old_info)
+                        } else {
+                            Err(StdError::generic_err(
+                                "Invalid update collection staker info",
+                            ))
+                        }
+                    },
+                )?;
+            }
+
+            // Update reward_debt
+            collection_staker_infos().update(
+                deps.storage,
+                &staker_info.id.unwrap().to_le_bytes(),
+                |data| {
+                    if let Some(mut old_info) = data {
+                        old_info.reward_debt = old_info.total_staked.multiply_ratio(
+                            collection_pool_info.acc_per_share,
+                            Uint128::from(10u64.pow(12)),
+                        );
+                        Ok(old_info)
+                    } else {
+                        Err(StdError::generic_err(
+                            "Invalid update collection staker info",
+                        ))
+                    }
+                },
+            )?;
+
+            Ok(HandleResponse {
+                data: None,
+                messages: vec![],
+                attributes: vec![
+                    attr("action", "claim_reward"),
+                    attr("collection_id", collection_id),
+                    attr("staker", info.sender),
+                    attr("amount", claim_amount),
+                ],
+            })
+        }
+        None => Err(ContractError::InvalidClaim {}),
     }
 }
 

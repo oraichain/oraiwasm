@@ -21,6 +21,13 @@ pub enum HandleMsg {
     UpdateCollectionPool(UpdateCollectionPoolMsg),
     ReceiveNft(Cw721ReceiveMsg),
     Receive(Cw1155ReceiveMsg),
+    Withdraw {
+        collection_id: String,
+        withdraw_rewards: bool,
+    },
+    Claim {
+        collection_id: String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
