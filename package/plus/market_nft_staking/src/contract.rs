@@ -1,4 +1,7 @@
-use std::ops::{Add, AddAssign};
+use std::{
+    convert::TryInto,
+    ops::{Add, AddAssign},
+};
 
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse, HumanAddr,
@@ -7,7 +10,6 @@ use cosmwasm_std::{
 use cw1155::Cw1155ReceiveMsg;
 use cw721::Cw721ReceiveMsg;
 use cw_storage_plus::Bound;
-use schemars::_serde_json::json;
 
 use crate::{
     error::{ContractError, DivideByZeroError, OverflowError, OverflowOperation},
@@ -86,6 +88,10 @@ pub fn handle(
             withdraw_rewards,
         } => handle_withdraw(deps, env, info, collection_id, withdraw_rewards),
         HandleMsg::Claim { collection_id } => handle_claim(deps, env, info, collection_id),
+        HandleMsg::ResetEarnedRewards {
+            collection_id,
+            staker,
+        } => handle_reset_earned_rewards(deps, env, info, collection_id, staker),
     }
 }
 
@@ -339,7 +345,7 @@ fn handle_stake(
             attr("action", "stake_nft"),
             attr("collection_id", msg.collection_id.clone()),
             attr("staker_addr", operator.clone()),
-            attr("nft", json!(msg.nft.clone())),
+            attr("nft", to_binary(&msg.nft)?),
         ];
 
         let collection_pool_info = COLLECTION_POOL_INFO
@@ -385,17 +391,17 @@ fn handle_stake(
 
         // Start staking process.....
         // Update collection pool last_reward_block and accumulate_per_share first
-        let collection_pool_info =
+        let mut collection_pool_info =
             update_collection_pool(deps.storage, env.clone(), msg.collection_id.clone())?;
 
         // If There were nfts staked before, then update pending amount for this staker
         if staker_info.total_staked.gt(&Uint128(0u128)) {
-            // pending = ((total_staked_nft_editions * accumulate_per_share) / 10^12) - reward_debt + current_pending
+            // pending = ((total_staked_nft_editions * accumulate_per_share)) - reward_debt + current_pending
             let pending = checked_sub(
-                staker_info.total_staked.multiply_ratio(
+                checked_mul(
+                    staker_info.total_staked,
                     collection_pool_info.acc_per_share.clone(),
-                    Uint128::from(10u64.pow(12)),
-                ),
+                )?,
                 staker_info.reward_debt.clone(),
             )?
             .add(&staker_info.pending.clone());
@@ -427,7 +433,7 @@ fn handle_stake(
         }
 
         // Update the total_staked_nft_editions for collection pool
-        COLLECTION_POOL_INFO.update(
+        collection_pool_info = COLLECTION_POOL_INFO.update(
             deps.storage,
             msg.collection_id.clone().as_bytes(),
             |data| {
@@ -449,12 +455,13 @@ fn handle_stake(
             &staker_info.id.unwrap().to_be_bytes(),
             |data| {
                 if let Some(mut user_info) = data {
-                    user_info.total_staked =
-                        user_info.total_staked.add(&Uint128::from(msg.nft.amount));
-                    user_info.reward_debt = user_info.total_staked.multiply_ratio(
+                    user_info
+                        .total_staked
+                        .add_assign(Uint128::from(msg.nft.amount));
+                    user_info.reward_debt = checked_mul(
+                        user_info.total_staked,
                         collection_pool_info.acc_per_share.clone(),
-                        Uint128::from(10u64.pow(12)),
-                    );
+                    )?;
                     user_info.staked_tokens.push(msg.nft.clone());
                     Ok(user_info)
                 } else {
@@ -514,10 +521,7 @@ fn update_collection_pool(
                 if let Some(mut old_info) = data {
                     old_info.acc_per_share = checked_add(
                         old_info.acc_per_share,
-                        airi_reward.multiply_ratio(
-                            Uint128::from(10u64.pow(12)),
-                            collection_pool_info.total_nfts.clone(),
-                        ),
+                        checked_div(airi_reward, collection_pool_info.total_nfts.clone())?,
                     )?;
                     old_info.last_reward_block = env.block.height;
                     return Ok(old_info);
@@ -566,10 +570,10 @@ pub fn handle_withdraw(
 
             //Update or claim current pending
             let current_pending = checked_sub(
-                staker_info.total_staked.multiply_ratio(
+                checked_mul(
+                    staker_info.total_staked,
                     collection_pool_info.acc_per_share.clone(),
-                    Uint128::from(10u64.pow(12)),
-                ),
+                )?,
                 staker_info.reward_debt.clone(),
             )?
             .add(&staker_info.pending.clone());
@@ -644,10 +648,11 @@ pub fn handle_withdraw(
                 &staker_info.id.unwrap().to_be_bytes(),
                 |data| {
                     if let Some(mut old_info) = data {
-                        old_info.reward_debt = old_info.total_staked.multiply_ratio(
-                            collection_pool_info.acc_per_share,
-                            Uint128::from(10u64.pow(12)),
-                        );
+                        old_info.reward_debt = checked_mul(
+                            staker_info.total_staked,
+                            collection_pool_info.acc_per_share.clone(),
+                        )?;
+                        old_info.total_staked = Uint128::from(0u128);
                         old_info.staked_tokens = vec![];
                         Ok(old_info)
                     } else {
@@ -693,10 +698,10 @@ pub fn handle_claim(
 
             //Update or claim pending
             let current_pending = checked_sub(
-                staker_info.total_staked.multiply_ratio(
+                checked_mul(
+                    staker_info.total_staked,
                     collection_pool_info.acc_per_share.clone(),
-                    Uint128::from(10u64.pow(12)),
-                ),
+                )?,
                 staker_info.reward_debt.clone(),
             )?
             .add(&staker_info.pending.clone());
@@ -729,10 +734,10 @@ pub fn handle_claim(
                 &staker_info.id.unwrap().to_be_bytes(),
                 |data| {
                     if let Some(mut old_info) = data {
-                        old_info.reward_debt = old_info.total_staked.multiply_ratio(
-                            collection_pool_info.acc_per_share,
-                            Uint128::from(10u64.pow(12)),
-                        );
+                        old_info.reward_debt = checked_mul(
+                            staker_info.total_staked,
+                            collection_pool_info.acc_per_share.clone(),
+                        )?;
                         Ok(old_info)
                     } else {
                         Err(StdError::generic_err(
@@ -757,6 +762,57 @@ pub fn handle_claim(
     }
 }
 
+pub fn handle_reset_earned_rewards(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    collection_id: String,
+    staker: HumanAddr,
+) -> Result<HandleResponse, ContractError> {
+    check_admin_permission(deps.as_ref(), &info.sender)?;
+
+    let collection_staker_info = query_unique_collection_staker_info(
+        deps.as_ref(),
+        env,
+        staker.clone(),
+        collection_id.clone(),
+        false,
+    )?;
+
+    match collection_staker_info {
+        Some(staker_info) => {
+            let mut attributes = vec![
+                attr("action", "reset_earned_rewards"),
+                attr("staker", staker.clone()),
+            ];
+            collection_staker_infos().update(
+                deps.storage,
+                &staker_info.id.unwrap().to_be_bytes(),
+                |data| {
+                    if let Some(mut old_info) = data {
+                        attributes.push(attr("amount", old_info.total_earned.clone()));
+                        old_info.total_earned = Uint128::from(0u128);
+                        Ok(old_info)
+                    } else {
+                        Err(ContractError::Std(StdError::generic_err(
+                            "Invalid update collection staker info",
+                        )))
+                    }
+                },
+            )?;
+            Ok(HandleResponse {
+                data: None,
+                messages: vec![],
+                attributes,
+            })
+        }
+        None => Err(ContractError::Std(StdError::generic_err(format!(
+            "User {} have not staked any nfts in this collection",
+            staker.clone()
+        )))),
+    }
+}
+
 fn current_pending(
     deps: Deps,
     env: Env,
@@ -775,14 +831,13 @@ fn current_pending(
             collection_pool_info.reward_per_block,
             Uint128::from(multiplier),
         )?;
-        acc_per_share_view.add_assign(
-            airi_reward.multiply_ratio(10u64.pow(12), collection_pool_info.total_nfts.clone()),
-        );
+        acc_per_share_view.add_assign(checked_div(
+            airi_reward,
+            collection_pool_info.total_nfts.clone(),
+        )?);
     }
     return Ok(checked_sub(
-        staker_info
-            .total_staked
-            .multiply_ratio(acc_per_share_view, 10u64.pow(12)),
+        checked_mul(staker_info.total_staked, acc_per_share_view)?,
         staker_info.reward_debt,
     )?
     .add(staker_info.pending));
@@ -945,6 +1000,7 @@ fn parse_collection_staker_info<'a>(
 ) -> StdResult<CollectionStakerInfo> {
     item.and_then(|(k, collection_staker_info)| {
         let value = k
+            .as_slice()
             .try_into()
             .map_err(|_| StdError::generic_err("Cannot parse offering key"))?;
         let id: u64 = u64::from_be_bytes(value);

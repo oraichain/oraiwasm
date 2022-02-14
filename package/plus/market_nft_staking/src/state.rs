@@ -1,7 +1,5 @@
-use cosmwasm_std::{Binary, HumanAddr, StdResult, Storage, Uint128};
-use cw_storage_plus::{
-    Index, IndexList, IndexedMap, Item, Map, MultiIndex, PkOwned, U8Key, UniqueIndex,
-};
+use cosmwasm_std::{HumanAddr, StdResult, Storage, Uint128};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, PkOwned, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

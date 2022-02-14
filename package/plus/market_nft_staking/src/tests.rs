@@ -2,10 +2,10 @@ use crate::{
     contract::{handle, init, query},
     error::ContractError,
     msg::{
-        CreateCollectionPoolMsg, DepositeMsg, HandleMsg, InitMsg, QueryMsg, StakeMsgDetail,
+        CreateCollectionPoolMsg, DepositeMsg, HandleMsg, InitMsg, QueryMsg,
         UpdateCollectionPoolMsg, UpdateContractInfoMsg,
     },
-    state::{CollectionPoolInfo, CollectionStakedTokenInfo, CollectionStakerInfo, ContractInfo},
+    state::{CollectionPoolInfo, CollectionStakerInfo, ContractInfo},
 };
 use cosmwasm_std::{
     coins, from_binary, from_slice,
@@ -357,7 +357,7 @@ fn create_collection_pool_test() {
 fn update_collection_pool_info_test() {
     unsafe {
         let manager = DepsManager::get_new();
-        create_collection_pool_info_helper(manager, "1".to_string(), Uint128::from(100u128));
+        create_collection_pool_info_helper(manager, "1".to_string(), Uint128::from(1736u64*10u64.pow(9)));
 
         // Default value
         let res = manager
@@ -456,7 +456,7 @@ fn update_collection_pool_info_test() {
 fn stake_nft_test() {
     unsafe {
         let manager = DepsManager::get_new();
-        create_collection_pool_info_helper(manager, String::from("1"), Uint128::from(100u128));
+        create_collection_pool_info_helper(manager, "1".to_string(), Uint128::from(1736u64*10u64.pow(9)));
         create_mock_nft_for_user(manager, "staker_1".to_string());
         create_mock_nft_for_user(manager, "staker_2".to_string());
 
@@ -501,7 +501,7 @@ fn stake_nft_test() {
           })
         );
 
-        // 20 blocks since first stake block
+        //20 blocks since first stake block
         contract_env.block.height = contract_env.block.height + 10;
 
         let res = manager
@@ -542,28 +542,28 @@ fn stake_nft_test() {
           }),
       );
 
-      // 30 blocks since first stake block
-      contract_env.block.height = contract_env.block.height + 10;
+      // // 30 blocks since first stake block
+      // contract_env.block.height = contract_env.block.height + 10;
 
-      let res = manager
-      .query(contract_env.clone(),QueryMsg::GetCollectionPoolInfo {
-          collection_id: "1".to_string(),
-      })
-      .unwrap();
-      let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
-      println!("new collecion pool info after staked {:?}", new_collection_pool_info);
+      // let res = manager
+      // .query(contract_env.clone(),QueryMsg::GetCollectionPoolInfo {
+      //     collection_id: "1".to_string(),
+      // })
+      // .unwrap();
+      // let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+      // println!("new collecion pool info after staked {:?}", new_collection_pool_info);
 
-      let res = manager
-              .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
-                  collection_id: "1".to_string(),
-                  limit: None,
-                  offset: None,
-                  order: None,
-              })
-              .unwrap();
+      // let res = manager
+      //         .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
+      //             collection_id: "1".to_string(),
+      //             limit: None,
+      //             offset: None,
+      //             order: None,
+      //         })
+      //         .unwrap();
 
-          let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
-          println!("stakers info {:?}", new_staker_info);
+      //     let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+      //     println!("stakers info {:?}", new_staker_info);
     }
 }
 
@@ -571,7 +571,7 @@ fn stake_nft_test() {
 fn claim_test(){
   unsafe {
       let manager = DepsManager::get_new();
-        create_collection_pool_info_helper(manager, String::from("1"), Uint128::from(100u128));
+      create_collection_pool_info_helper(manager, "1".to_string(), Uint128::from(1736u64*10u64.pow(9)));
         create_mock_nft_for_user(manager, "staker_1".to_string());
         create_mock_nft_for_user(manager, "staker_2".to_string());
 
@@ -650,7 +650,7 @@ fn claim_test(){
 fn withdraw_nfts_test(){
   unsafe {
     let manager = DepsManager::get_new();
-    create_collection_pool_info_helper(manager, String::from("1"), Uint128::from(100u128));
+    create_collection_pool_info_helper(manager, "1".to_string(), Uint128::from(1736u64*10u64.pow(9)));
     create_mock_nft_for_user(manager, "staker_1".to_string());
     create_mock_nft_for_user(manager, "staker_2".to_string());
 

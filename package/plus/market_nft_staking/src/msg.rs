@@ -28,6 +28,10 @@ pub enum HandleMsg {
     Claim {
         collection_id: String,
     },
+    ResetEarnedRewards {
+        collection_id: String,
+        staker: HumanAddr,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
