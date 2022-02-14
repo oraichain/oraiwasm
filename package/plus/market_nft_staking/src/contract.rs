@@ -648,6 +648,7 @@ pub fn handle_withdraw(
                             collection_pool_info.acc_per_share,
                             Uint128::from(10u64.pow(12)),
                         );
+                        old_info.staked_tokens = vec![];
                         Ok(old_info)
                     } else {
                         Err(ContractError::Std(StdError::generic_err(
@@ -684,7 +685,7 @@ pub fn handle_claim(
     )?;
 
     match collection_staker_info {
-        Some(staker_info) => {
+        Some(mut staker_info) => {
             let collection_pool_info =
                 update_collection_pool(deps.storage, env, collection_id.clone())?;
 
@@ -701,20 +702,21 @@ pub fn handle_claim(
             .add(&staker_info.pending.clone());
 
             if current_pending.gt(&Uint128::from(0u128)) {
-                collection_staker_infos().update(
+                println!("current_pending {:?}", current_pending.clone());
+                staker_info = collection_staker_infos().update(
                     deps.storage,
                     &staker_info.id.unwrap().to_be_bytes(),
                     |data| {
                         if let Some(mut old_info) = data {
-                            claim_amount = old_info.pending.clone();
+                            claim_amount = current_pending.clone();
                             //Update total_earnded and reset pending
-                            old_info.total_earned.add_assign(old_info.pending);
+                            old_info.total_earned.add_assign(current_pending);
                             old_info.pending = Uint128::from(0u128);
 
                             Ok(old_info)
                         } else {
                             Err(StdError::generic_err(
-                                "Invalid update collection staker info",
+                                "Invalid update collection staker info 1",
                             ))
                         }
                     },
@@ -724,7 +726,7 @@ pub fn handle_claim(
             // Update reward_debt
             collection_staker_infos().update(
                 deps.storage,
-                &staker_info.id.unwrap().to_le_bytes(),
+                &staker_info.id.unwrap().to_be_bytes(),
                 |data| {
                     if let Some(mut old_info) = data {
                         old_info.reward_debt = old_info.total_staked.multiply_ratio(
@@ -734,7 +736,7 @@ pub fn handle_claim(
                         Ok(old_info)
                     } else {
                         Err(StdError::generic_err(
-                            "Invalid update collection staker info",
+                            "Invalid update collection staker info 2",
                         ))
                     }
                 },
