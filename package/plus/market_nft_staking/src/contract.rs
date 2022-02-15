@@ -836,11 +836,15 @@ fn current_pending(
             collection_pool_info.total_nfts.clone(),
         )?);
     }
-    return Ok(checked_sub(
-        checked_mul(staker_info.total_staked, acc_per_share_view)?,
-        staker_info.reward_debt,
-    )?
-    .add(staker_info.pending));
+    if staker_info.total_staked.gt(&Uint128::from(0u128)) {
+        Ok(checked_sub(
+            checked_mul(staker_info.total_staked, acc_per_share_view)?,
+            staker_info.reward_debt,
+        )?
+        .add(staker_info.pending))
+    } else {
+        Ok(staker_info.pending)
+    }
 }
 
 // Check nft transfering permission for this contract
