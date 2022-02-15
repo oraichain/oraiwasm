@@ -4,8 +4,9 @@ use std::{
 };
 
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, Order, StdError, StdResult, Storage, Uint128, WasmMsg, KV,
+    attr, entry_point, from_binary, to_binary, Binary, CosmosMsg, Deps, DepsMut, Empty, Env,
+    HandleResponse, HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError,
+    StdResult, Storage, Uint128, WasmMsg, KV,
 };
 use cw1155::Cw1155ReceiveMsg;
 use cw721::Cw721ReceiveMsg;
@@ -92,6 +93,9 @@ pub fn handle(
             collection_id,
             staker,
         } => handle_reset_earned_rewards(deps, env, info, collection_id, staker),
+        // HandleMsg::Migrate { new_contract_addr } => {
+        //     handle_migrate(deps, env, info, new_contract_addr)
+        // }
     }
 }
 
@@ -811,6 +815,73 @@ pub fn handle_reset_earned_rewards(
             staker.clone()
         )))),
     }
+}
+
+#[entry_point]
+pub fn migrate(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    // new_contract_addr: HumanAddr,
+    _msg: Empty,
+) -> Result<MigrateResponse, ContractError> {
+    // check_admin_permission(deps.as_ref(), &info.sender)?;
+
+    // let contract_info = CONTRACT_INFO.load(deps.storage)?;
+
+    // let collection_staker_infos: StdResult<Vec<CollectionStakerInfo>> = collection_staker_infos()
+    //     .range(deps.storage, None, None, Order::Ascending)
+    //     .map(|kv_item| parse_collection_staker_info(kv_item))
+    //     .collect();
+
+    // let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+    // let mut nft_1155: Vec<CollectionStakedTokenInfo> = vec![];
+    // for staker_info in collection_staker_infos.unwrap().into_iter() {
+    //     if staker_info.staked_tokens.len() > 0 {
+    //         for token in staker_info.staked_tokens.into_iter() {
+    //             match token.contract_type {
+    //                 crate::state::ContractType::V1155 => {
+    //                     nft_1155.push(token.clone());
+    //                 }
+    //                 crate::state::ContractType::V721 => cosmos_msgs.push(
+    //                     WasmMsg::Execute {
+    //                         contract_addr: contract_info.nft_721_contract_addr.clone(),
+    //                         send: vec![],
+    //                         msg: to_binary(&cw721::Cw721HandleMsg::TransferNft {
+    //                             recipient: new_contract_addr.clone(),
+    //                             token_id: token.token_id.clone(),
+    //                         })?,
+    //                     }
+    //                     .into(),
+    //                 ),
+    //             }
+    //         }
+    //     }
+    // }
+
+    // if nft_1155.len() > 0 {
+    //     cosmos_msgs.push(
+    //         WasmMsg::Execute {
+    //             contract_addr: contract_info.nft_1155_contract_addr.clone(),
+    //             send: vec![],
+    //             msg: to_binary(&cw1155::Cw1155ExecuteMsg::BatchSendFrom {
+    //                 from: env.contract.address.to_string(),
+    //                 to: new_contract_addr.clone().to_string(),
+    //                 batch: nft_1155
+    //                     .into_iter()
+    //                     .map(|nft| (nft.token_id, nft.amount))
+    //                     .collect(),
+    //                 msg: None,
+    //             })?,
+    //         }
+    //         .into(),
+    //     );
+    // }
+    Ok(MigrateResponse {
+        data: None,
+        messages: vec![],
+        attributes: vec![attr("action", "migrate")],
+    })
 }
 
 fn current_pending(

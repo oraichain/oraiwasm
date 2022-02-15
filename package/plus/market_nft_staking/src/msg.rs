@@ -95,4 +95,5 @@ pub enum QueryMsg {
         offset: Option<u64>,
         order: Option<u8>,
     },
+    //TestQuery {},
 }
