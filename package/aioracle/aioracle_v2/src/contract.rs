@@ -61,6 +61,7 @@ pub fn handle(
             new_executors,
             new_service_addr,
             new_checkpoint,
+            new_checkpoint_threshold,
             new_max_req_threshold,
         } => execute_update_config(
             deps,
@@ -71,6 +72,7 @@ pub fn handle(
             new_contract_fee,
             new_executors,
             new_checkpoint,
+            new_checkpoint_threshold,
             new_max_req_threshold,
         ),
         HandleMsg::RegisterMerkleRoot { stage, merkle_root } => {
@@ -119,6 +121,7 @@ pub fn execute_update_config(
     new_contract_fee: Option<Coin>,
     new_executors: Option<Vec<Binary>>,
     new_checkpoint: Option<u64>,
+    new_checkpoint_threshold: Option<u64>,
     new_max_req_threshold: Option<u64>,
 ) -> Result<HandleResponse, ContractError> {
     // authorize owner
@@ -139,7 +142,7 @@ pub fn execute_update_config(
         if let Some(contract_fee) = new_contract_fee {
             exists.contract_fee = contract_fee;
         }
-        if let Some(checkoint_threshold) = new_checkpoint {
+        if let Some(checkoint_threshold) = new_checkpoint_threshold {
             exists.checkpoint_threshold = checkoint_threshold;
         }
         if let Some(max_req_threshold) = new_max_req_threshold {
@@ -147,6 +150,10 @@ pub fn execute_update_config(
         }
         Ok(exists)
     })?;
+
+    if let Some(new_checkpoint) = new_checkpoint {
+        CHECKPOINT.save(deps.storage, &new_checkpoint)?;
+    }
 
     if let Some(executors) = new_executors {
         let current_nonce = EXECUTORS_NONCE.load(deps.storage)?;

@@ -260,6 +260,7 @@ fn update_config() {
         new_executors: Some(vec![]),
         new_service_addr: Some(HumanAddr::from("yolo")),
         new_checkpoint: None,
+        new_checkpoint_threshold: None,
         new_max_req_threshold: None,
     };
 
@@ -306,6 +307,7 @@ fn update_config() {
         new_executors: None,
         new_service_addr: None,
         new_checkpoint: None,
+        new_checkpoint_threshold: None,
         new_max_req_threshold: None,
     };
 

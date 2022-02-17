@@ -24,6 +24,7 @@ pub enum HandleMsg {
         new_contract_fee: Option<Coin>,
         new_executors: Option<Vec<Binary>>,
         new_checkpoint: Option<u64>,
+        new_checkpoint_threshold: Option<u64>,
         new_max_req_threshold: Option<u64>,
     },
     RegisterMerkleRoot {
