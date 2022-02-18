@@ -1,5 +1,4 @@
 use std::{
-    borrow::Borrow,
     convert::TryInto,
     ops::{Add, AddAssign},
 };
@@ -116,6 +115,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::GetCollectionPoolInfo { collection_id } => {
             to_binary(&query_collection_pool_info(deps, collection_id)?)
         }
+        QueryMsg::GetCollectionPoolInfos {
+            limit,
+            offset,
+            order,
+        } => to_binary(&query_collection_pool_infos(deps, limit, offset, order)?),
         QueryMsg::GetUniqueCollectionStakerInfo {
             staker_addr,
             collection_id,
@@ -209,6 +213,16 @@ pub fn handle_create_collection_pool_info(
     if msg.reward_per_block.le(&Uint128(0u128)) {
         return Err(ContractError::InvalidRewardPerBlock {});
     }
+
+    let existed_collection_info =
+        COLLECTION_POOL_INFO.may_load(deps.storage, &msg.collection_id.clone().as_bytes())?;
+
+    if existed_collection_info.is_some() {
+        return Err(ContractError::Std(StdError::generic_err(
+            "Collection info already existed",
+        )));
+    }
+
     let mut new_collection_info = CollectionPoolInfo {
         collection_id: msg.collection_id.clone(),
         reward_per_block: msg.reward_per_block.clone(),
@@ -235,7 +249,10 @@ pub fn handle_create_collection_pool_info(
             attr("action", "create_collection_pool"),
             attr("collection_id", msg.collection_id),
             attr("reward_per_block", msg.reward_per_block),
-            attr("expired_block", new_collection_info.expired_block.unwrap()),
+            attr(
+                "expired_block",
+                new_collection_info.expired_block.unwrap_or_default(),
+            ),
         ],
     })
 }
@@ -1063,6 +1080,24 @@ pub fn query_collection_pool_info(
     COLLECTION_POOL_INFO.may_load(deps.storage, collection_id.as_bytes())
 }
 
+pub fn query_collection_pool_infos(
+    deps: Deps,
+    limit: Option<u8>,
+    offset: Option<u64>,
+    order: Option<u8>,
+) -> StdResult<Vec<CollectionPoolInfo>> {
+    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
+    let result: StdResult<Vec<CollectionPoolInfo>> = COLLECTION_POOL_INFO
+        .range(deps.storage, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| {
+            let (_, item) = kv_item?;
+            Ok(item)
+        })
+        .collect();
+    result
+}
+
 pub fn query_unique_collection_staker_info(
     deps: Deps,
     env: Env,
@@ -1158,7 +1193,7 @@ fn parse_collection_staker_info<'a>(
         let value = k
             .as_slice()
             .try_into()
-            .map_err(|_| StdError::generic_err("Cannot parse offering key"))?;
+            .map_err(|_| StdError::generic_err("Cannot parse collection staker info key"))?;
         let id: u64 = u64::from_be_bytes(value);
         Ok(CollectionStakerInfo {
             id: Some(id),

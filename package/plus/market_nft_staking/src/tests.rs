@@ -724,6 +724,11 @@ fn withdraw_nfts_test(){
       mock_info("staker_1",&[]), contract_env.clone(), HandleMsg::Withdraw {collection_id: "1".to_string(), withdraw_rewards: true, withdraw_nft_ids: vec!["staker_1_1155_1".to_string()]});
     
     println!("res {:?}",res);
+
+    let res = manager.query(contract_env.clone(), QueryMsg::GetCollectionPoolInfos{limit:None,offset:None,order:None}).unwrap();
+    let data = from_binary::<Vec<CollectionPoolInfo>>(&res).unwrap();
+
+    println!("collection infos {:?}",data);
     
     // contract_env.block.height = contract_env.block.height + 10;
 
@@ -750,57 +755,3 @@ fn withdraw_nfts_test(){
 }
 
 
-#[test]
-fn migrate_test(){
-  unsafe {
-    let manager = DepsManager::get_new();
-    create_collection_pool_info_helper(manager, "1".to_string(), Uint128::from(1736u64*10u64.pow(9)));
-    create_mock_nft_for_user(manager, "staker_1".to_string());
-    create_mock_nft_for_user(manager, "staker_2".to_string());
-
-    let mut contract_env = mock_env(CONTRACT_ADDR);
-
-    // Staker_1 stake 4 nft editions at block 12345, Now: last_reward_block = 0, acc_per_share = 0, total_stake_nft_editions = 4
-    
-    let _ = manager.handle(
-        mock_info(OW_1155_ADDR, &[]),
-        contract_env.clone(),
-        HandleMsg::Receive(Cw1155ReceiveMsg {
-            operator: "staker_1".to_string(),
-            from: None,
-            token_id: "staker_1_1155_1".to_string(),
-            amount: Uint128::from(4u128),
-            msg: to_binary(&DepositeMsg {
-                collection_id: "1".to_string(),
-                withdraw_rewards: false,
-                signature_hash: "SA2aNAT9dkIo+bVy5jHoZl77HLY/FVUOYPe40JVSPydElbJ77zmbc3RJiViznZO5zHL93dF51TFJu8WkYR4keg==".to_string(),
-            })
-            .unwrap(),
-        }),
-    );
-
-    // 10 blocks
-    // acc_per_share = (reward_per_block / total_staked_nft_editions)*(this.block - last_reward_block)
-    // After 10 block, staker_2 stake 1 nft editions. Now: last_reward_block: 12355, acc_per_share= (100/4)*10 = 250
-    // The total_staked_nft_edition = 4 +1 = 5
-    contract_env.block.height = contract_env.block.height + 10;
-
-    let _res = manager.handle(
-      mock_info(OW_721_ADDR, &[]), 
-      contract_env.clone(),
-      HandleMsg::ReceiveNft(Cw721ReceiveMsg{
-        sender: HumanAddr::from("staker_2"),
-        token_id: "staker_2_721_1".to_string(),
-        msg: Some(to_binary(&DepositeMsg{
-          collection_id: "1".to_string(),
-          withdraw_rewards: false,
-          signature_hash: "IMjsODn9zFJ381wQbtyTg6LNhlM1nL42u4DHZkD9BLsjVTQVvzYyK6IVMvpeqsqj3Dq6wGl8cF165scHHTZmXg==".to_string()
-        }).unwrap())
-      })
-    );
-
-    // let res = manager.handle(mock_info(CREATOR, &[]), contract_env.clone(), HandleMsg::Migrate {new_contract_addr: HumanAddr::from("new_collection")});
-
-    // println!("res {:?}",res);
-  }
-}

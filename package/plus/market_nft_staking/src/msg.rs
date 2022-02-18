@@ -81,6 +81,11 @@ pub enum QueryMsg {
     GetCollectionPoolInfo {
         collection_id: String,
     },
+    GetCollectionPoolInfos {
+        limit: Option<u8>,
+        offset: Option<u64>,
+        order: Option<u8>,
+    },
     GetUniqueCollectionStakerInfo {
         collection_id: String,
         staker_addr: HumanAddr,
