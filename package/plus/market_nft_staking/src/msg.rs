@@ -24,6 +24,7 @@ pub enum HandleMsg {
     Withdraw {
         collection_id: String,
         withdraw_rewards: bool,
+        withdraw_nft_ids: Vec<String>,
     },
     Claim {
         collection_id: String,
@@ -47,6 +48,7 @@ pub struct UpdateContractInfoMsg {
 pub struct CreateCollectionPoolMsg {
     pub collection_id: String,
     pub reward_per_block: Uint128,
+    pub expired_after: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

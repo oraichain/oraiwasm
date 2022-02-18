@@ -37,6 +37,7 @@ pub struct CollectionPoolInfo {
     pub total_nfts: Uint128,
     pub acc_per_share: Uint128,
     pub last_reward_block: u64,
+    pub expired_block: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

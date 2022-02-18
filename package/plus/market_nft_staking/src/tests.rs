@@ -200,6 +200,7 @@ fn create_collection_pool_info_helper(
     let msg = CreateCollectionPoolMsg {
         collection_id,
         reward_per_block,
+        expired_after: None
     };
     let _ = manager.handle(
         mock_info(CREATOR, &[]),
@@ -327,6 +328,7 @@ fn create_collection_pool_test() {
         let mut msg = CreateCollectionPoolMsg {
             collection_id: String::from("1"),
             reward_per_block: Uint128::from(0u128),
+            expired_after: None
         };
 
         // Failed 'cause of reward_per_block <= 0
@@ -712,33 +714,38 @@ fn withdraw_nfts_test(){
 
     //let _res = manager.handle(mock_info(CREATOR, &[]), contract_env.clone(), HandleMsg::Migrate {new_contract_addr: HumanAddr::from("new_collection")});
 
-    //println!("res{}")
+    // Invalid withdraw
     let res = manager.handle(
-      mock_info("staker_1",&[]), contract_env.clone(), HandleMsg::Withdraw {collection_id: 1.to_string(), withdraw_rewards: true}).unwrap();
+      mock_info("staker_1",&[]), contract_env.clone(), HandleMsg::Withdraw {collection_id: "1".to_string(), withdraw_rewards: true, withdraw_nft_ids: vec!["staker_1_1155_2".to_string()]});
+    
+    println!("res {:?}",res);
+
+    let res = manager.handle(
+      mock_info("staker_1",&[]), contract_env.clone(), HandleMsg::Withdraw {collection_id: "1".to_string(), withdraw_rewards: true, withdraw_nft_ids: vec!["staker_1_1155_1".to_string()]});
     
     println!("res {:?}",res);
     
-    contract_env.block.height = contract_env.block.height + 10;
+    // contract_env.block.height = contract_env.block.height + 10;
 
-    let res = manager
-      .query(contract_env.clone(),QueryMsg::GetCollectionPoolInfo {
-          collection_id: "1".to_string(),
-      })
-      .unwrap();
-    let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
-    println!("new collecion pool info after staked {:?}", new_collection_pool_info);
+    // let res = manager
+    //   .query(contract_env.clone(),QueryMsg::GetCollectionPoolInfo {
+    //       collection_id: "1".to_string(),
+    //   })
+    //   .unwrap();
+    // let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+    // println!("new collecion pool info after staked {:?}", new_collection_pool_info);
 
-    let res = manager
-              .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
-                  collection_id: "1".to_string(),
-                  limit: None,
-                  offset: None,
-                  order: None,
-              })
-              .unwrap();
+    // let res = manager
+    //           .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
+    //               collection_id: "1".to_string(),
+    //               limit: None,
+    //               offset: None,
+    //               order: None,
+    //           })
+    //           .unwrap();
 
-    let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
-    println!("stakers info {:?}", new_staker_info);
+    // let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+    // println!("stakers info {:?}", new_staker_info);
   }
 }
 

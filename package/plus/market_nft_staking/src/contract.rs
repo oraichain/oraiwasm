@@ -1,4 +1,5 @@
 use std::{
+    borrow::Borrow,
     convert::TryInto,
     ops::{Add, AddAssign},
 };
@@ -80,14 +81,24 @@ pub fn handle(
 ) -> Result<HandleResponse, ContractError> {
     match msg {
         HandleMsg::UpdateContractInfo(msg) => handle_update_contract_info(deps, info, msg),
-        HandleMsg::CreateCollectionPool(msg) => handle_create_collection_pool_info(deps, info, msg),
+        HandleMsg::CreateCollectionPool(msg) => {
+            handle_create_collection_pool_info(deps, env, info, msg)
+        }
         HandleMsg::UpdateCollectionPool(msg) => handle_update_collection_pool_info(deps, info, msg),
         HandleMsg::Receive(receive_msg) => handle_receive_1155(deps, env, info, receive_msg),
         HandleMsg::ReceiveNft(receive_msg) => handle_receive_721(deps, env, info, receive_msg),
         HandleMsg::Withdraw {
             collection_id,
             withdraw_rewards,
-        } => handle_withdraw(deps, env, info, collection_id, withdraw_rewards),
+            withdraw_nft_ids,
+        } => handle_withdraw(
+            deps,
+            env,
+            info,
+            collection_id,
+            withdraw_rewards,
+            withdraw_nft_ids,
+        ),
         HandleMsg::Claim { collection_id } => handle_claim(deps, env, info, collection_id),
         HandleMsg::ResetEarnedRewards {
             collection_id,
@@ -189,6 +200,7 @@ pub fn handle_update_contract_info(
 
 pub fn handle_create_collection_pool_info(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     msg: CreateCollectionPoolMsg,
 ) -> Result<HandleResponse, ContractError> {
@@ -197,17 +209,23 @@ pub fn handle_create_collection_pool_info(
     if msg.reward_per_block.le(&Uint128(0u128)) {
         return Err(ContractError::InvalidRewardPerBlock {});
     }
+    let mut new_collection_info = CollectionPoolInfo {
+        collection_id: msg.collection_id.clone(),
+        reward_per_block: msg.reward_per_block.clone(),
+        total_nfts: Uint128(0u128),
+        acc_per_share: Uint128(0u128),
+        last_reward_block: 0u64,
+        expired_block: None,
+    };
+
+    if let Some(expired_after) = msg.expired_after {
+        new_collection_info.expired_block = Some(env.block.height + expired_after);
+    }
 
     COLLECTION_POOL_INFO.save(
         deps.storage,
         msg.collection_id.clone().as_bytes(),
-        &CollectionPoolInfo {
-            collection_id: msg.collection_id.clone(),
-            reward_per_block: msg.reward_per_block.clone(),
-            total_nfts: Uint128(0u128),
-            acc_per_share: Uint128(0u128),
-            last_reward_block: 0u64,
-        },
+        &new_collection_info,
     )?;
 
     Ok(HandleResponse {
@@ -217,6 +235,7 @@ pub fn handle_create_collection_pool_info(
             attr("action", "create_collection_pool"),
             attr("collection_id", msg.collection_id),
             attr("reward_per_block", msg.reward_per_block),
+            attr("expired_block", new_collection_info.expired_block.unwrap()),
         ],
     })
 }
@@ -328,6 +347,22 @@ pub fn handle_receive_721(
     )
 }
 
+fn check_collection_is_expired(
+    env: Env,
+    collection_pool_info: &CollectionPoolInfo,
+) -> Result<bool, ContractError> {
+    //let collection_pool_info = COLLECTION_POOL_INFO.load(store, k)
+    match collection_pool_info.expired_block {
+        Some(expired_block) => {
+            if env.block.height >= expired_block {
+                return Err(ContractError::ExpiredCollection {});
+            }
+            Ok(true)
+        }
+        None => Ok(true),
+    }
+}
+
 fn handle_stake(
     deps: DepsMut,
     env: Env,
@@ -359,6 +394,8 @@ fn handle_stake(
         if collection_pool_info.is_none() {
             return Err(ContractError::InvalidCollection {});
         }
+
+        check_collection_is_expired(env.clone(), &collection_pool_info.clone().unwrap())?;
 
         let collection_staker_info_response = query_unique_collection_staker_info(
             deps.as_ref(),
@@ -543,6 +580,7 @@ pub fn handle_withdraw(
     info: MessageInfo,
     collection_id: String,
     withdraw_rewards: bool,
+    withdraw_nft_ids: Vec<String>,
 ) -> Result<HandleResponse, ContractError> {
     let collection_staker_info = query_unique_collection_staker_info(
         deps.as_ref(),
@@ -605,10 +643,34 @@ pub fn handle_withdraw(
                 )?;
             }
 
-            // Transfer nfts back to staker
             let mut nft_1155s: Vec<CollectionStakedTokenInfo> = vec![];
+            let mut withdraw_nfts: Vec<CollectionStakedTokenInfo> = vec![];
+            let mut left_nfts: Vec<CollectionStakedTokenInfo> = vec![];
 
-            for nft in staker_info.staked_tokens {
+            staker_info
+                .clone()
+                .staked_tokens
+                .into_iter()
+                .for_each(|token| {
+                    let res = withdraw_nft_ids
+                        .clone()
+                        .into_iter()
+                        .find(|n| n.eq(&token.token_id.clone()));
+                    match res {
+                        Some(..) => withdraw_nfts.push(token),
+                        None => left_nfts.push(token),
+                    }
+                });
+
+            if withdraw_nfts.len() != withdraw_nft_ids.len() {
+                return  Err(ContractError::Std(StdError::generic_err("Invalid withdraw: You are trying to withdraw some nfts that you haven't staken!")));
+            }
+
+            let mut num_of_withdraw_editions = Uint128::from(0u128);
+
+            // Transfer nfts back to staker
+            for nft in withdraw_nfts {
+                num_of_withdraw_editions.add_assign(nft.clone().amount);
                 match nft.contract_type {
                     crate::state::ContractType::V721 => {
                         cosmos_msgs.push(
@@ -656,13 +718,32 @@ pub fn handle_withdraw(
                             staker_info.total_staked,
                             collection_pool_info.acc_per_share.clone(),
                         )?;
-                        old_info.total_staked = Uint128::from(0u128);
-                        old_info.staked_tokens = vec![];
+                        old_info.total_staked = checked_sub(
+                            old_info.total_staked.clone(),
+                            num_of_withdraw_editions.clone(),
+                        )?;
+                        old_info.staked_tokens = left_nfts;
                         Ok(old_info)
                     } else {
                         Err(ContractError::Std(StdError::generic_err(
                             "Invalid update staker info",
                         )))
+                    }
+                },
+            )?;
+
+            COLLECTION_POOL_INFO.update(
+                deps.storage,
+                collection_pool_info.collection_id.as_bytes(),
+                |data| {
+                    if let Some(mut old_info) = data {
+                        old_info.total_nfts =
+                            checked_sub(old_info.total_nfts, num_of_withdraw_editions)?;
+                        Ok(old_info)
+                    } else {
+                        return Err(ContractError::Std(StdError::generic_err(
+                            "Invalid update collection pool info",
+                        )));
                     }
                 },
             )?;

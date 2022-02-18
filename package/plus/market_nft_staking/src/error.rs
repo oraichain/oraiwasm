@@ -10,6 +10,8 @@ pub enum ContractError {
 
     #[error("Unauthorized datahub storage with sender: {sender}")]
     Unauthorized { sender: String },
+    #[error("Collection expired")]
+    ExpiredCollection {},
 
     #[error("Reward per block must be greater than 0")]
     InvalidRewardPerBlock {},
