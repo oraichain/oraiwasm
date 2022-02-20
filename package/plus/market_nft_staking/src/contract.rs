@@ -113,13 +113,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
         QueryMsg::GetCollectionPoolInfo { collection_id } => {
-            to_binary(&query_collection_pool_info(deps, collection_id)?)
+            to_binary(&query_collection_pool_info(deps, env, collection_id, true)?)
         }
         QueryMsg::GetCollectionPoolInfos {
             limit,
             offset,
             order,
-        } => to_binary(&query_collection_pool_infos(deps, limit, offset, order)?),
+        } => to_binary(&query_collection_pool_infos(
+            deps, env, true, limit, offset, order,
+        )?),
         QueryMsg::GetUniqueCollectionStakerInfo {
             staker_addr,
             collection_id,
@@ -1075,13 +1077,44 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
 
 pub fn query_collection_pool_info(
     deps: Deps,
+    env: Env,
     collection_id: String,
+    get_real_acc_per_share: bool,
 ) -> StdResult<Option<CollectionPoolInfo>> {
-    COLLECTION_POOL_INFO.may_load(deps.storage, collection_id.as_bytes())
+    let collection_pool_info =
+        COLLECTION_POOL_INFO.may_load(deps.storage, collection_id.as_bytes())?;
+    if collection_pool_info.is_some() && get_real_acc_per_share {
+        let collection_pool_info = collection_pool_info.unwrap();
+        let mut acc_per_share_view = collection_pool_info.acc_per_share.clone();
+
+        if env.block.height > collection_pool_info.last_reward_block
+            && collection_pool_info.total_nfts.ne(&Uint128::from(0u128))
+        {
+            let multiplier = env.block.height - collection_pool_info.last_reward_block;
+            let airi_reward = checked_mul(
+                collection_pool_info.reward_per_block,
+                Uint128::from(multiplier),
+            )?;
+            acc_per_share_view.add_assign(checked_div(
+                airi_reward,
+                collection_pool_info.total_nfts.clone(),
+            )?);
+
+            return Ok(Some(CollectionPoolInfo {
+                acc_per_share: acc_per_share_view,
+                ..collection_pool_info
+            }));
+        } else {
+            return Ok(Some(collection_pool_info));
+        }
+    }
+    Ok(collection_pool_info)
 }
 
 pub fn query_collection_pool_infos(
     deps: Deps,
+    env: Env,
+    get_real_acc_per_share: bool,
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
@@ -1092,6 +1125,20 @@ pub fn query_collection_pool_infos(
         .take(limit)
         .map(|kv_item| {
             let (_, item) = kv_item?;
+            if get_real_acc_per_share
+                && env.block.height > item.last_reward_block
+                && item.total_nfts.ne(&Uint128::from(0u128))
+            {
+                let mut acc_per_share_view = item.acc_per_share.clone();
+                let multiplier = env.block.height - item.last_reward_block;
+                let airi_reward = checked_mul(item.reward_per_block, Uint128::from(multiplier))?;
+                acc_per_share_view.add_assign(checked_div(airi_reward, item.total_nfts.clone())?);
+
+                return Ok(CollectionPoolInfo {
+                    acc_per_share: acc_per_share_view,
+                    ..item
+                });
+            }
             Ok(item)
         })
         .collect();
