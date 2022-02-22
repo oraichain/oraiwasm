@@ -563,7 +563,7 @@ fn update_collection_pool(
         .unwrap();
 
     if collection_pool_info.last_reward_block > 0
-        && env.block.height < collection_pool_info.last_reward_block
+        && env.block.height <= collection_pool_info.last_reward_block
     {
         return Ok(collection_pool_info);
     }
@@ -689,8 +689,8 @@ pub fn handle_withdraw(
                         .into_iter()
                         .find(|n| n.eq(&token.token_id.clone()));
                     match res {
-                        Some(..) => withdraw_nfts.push(token),
-                        None => left_nfts.push(token),
+                        Some(..) => withdraw_nfts.push(token.clone()),
+                        None => left_nfts.push(token.clone()),
                     }
                 });
 
@@ -718,7 +718,7 @@ pub fn handle_withdraw(
                         );
                     }
                     crate::state::ContractType::V1155 => {
-                        nft_1155s.push(nft);
+                        nft_1155s.push(nft.clone());
                     }
                 }
             }
@@ -746,13 +746,16 @@ pub fn handle_withdraw(
                 &staker_info.id.unwrap().to_be_bytes(),
                 |data| {
                     if let Some(mut old_info) = data {
-                        old_info.reward_debt = checked_mul(
-                            staker_info.total_staked,
-                            collection_pool_info.acc_per_share.clone(),
-                        )?;
+                        // Subtract total of staked first
                         old_info.total_staked = checked_sub(
                             old_info.total_staked.clone(),
                             num_of_withdraw_editions.clone(),
+                        )?;
+
+                        // Then update reward_debt base on new total_staked
+                        old_info.reward_debt = checked_mul(
+                            old_info.total_staked.clone(),
+                            collection_pool_info.acc_per_share.clone(),
                         )?;
                         old_info.staked_tokens = left_nfts;
                         Ok(old_info)
@@ -1022,10 +1025,9 @@ fn current_pending(
     }
     if staker_info.total_staked.gt(&Uint128::from(0u128)) {
         Ok(checked_sub(
-            checked_mul(staker_info.total_staked, acc_per_share_view)?,
+            checked_mul(staker_info.total_staked, acc_per_share_view)?.add(staker_info.pending),
             staker_info.reward_debt,
-        )?
-        .add(staker_info.pending))
+        )?)
     } else {
         Ok(staker_info.pending)
     }

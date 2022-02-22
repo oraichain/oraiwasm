@@ -729,11 +729,47 @@ fn withdraw_nfts_test(){
       })
     );
 
-    //let _res = manager.handle(mock_info(CREATOR, &[]), contract_env.clone(), HandleMsg::Migrate {new_contract_addr: HumanAddr::from("new_collection")});
+    let _ = manager.handle(
+      mock_info(OW_1155_ADDR, &[]),
+      contract_env.clone(),
+      HandleMsg::Receive(Cw1155ReceiveMsg {
+          operator: "staker_1".to_string(),
+          from: None,
+          token_id: "staker_1_1155_2".to_string(),
+          amount: Uint128::from(4u128),
+          msg: to_binary(&DepositeMsg {
+              collection_id: "1".to_string(),
+              withdraw_rewards: true,
+              signature_hash: "ZvH0AsLpKULxPuGjEb+THuaElOhc9QFA/Uu6qMr72ro5OmwmJvH/mUF3kMzdSeJf5Jo00zdFXZcFaal2urwwYg==".to_string(),
+          })
+          .unwrap(),
+      }),
+  );
+
+    // After 2nd wave of stake
+    let res = manager.query(contract_env.clone(), QueryMsg::GetCollectionPoolInfos{limit:None,offset:None,order:None}).unwrap();
+    let data = from_binary::<Vec<CollectionPoolInfo>>(&res).unwrap();
+
+    println!("collection infos {:?}",data);
+
+    let res = manager
+    .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
+        collection_id: "1".to_string(),
+        limit: None,
+        offset: None,
+        order: None,
+    })
+    .unwrap();
+
+    let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+    println!("stakers info {:?}", new_staker_info);
+
+
+    contract_env.block.height = contract_env.block.height + 10;
 
     // Invalid withdraw
     let res = manager.handle(
-      mock_info("staker_1",&[]), contract_env.clone(), HandleMsg::Withdraw {collection_id: "1".to_string(), withdraw_rewards: true, withdraw_nft_ids: vec!["staker_1_1155_2".to_string()]});
+      mock_info("staker_1",&[]), contract_env.clone(), HandleMsg::Withdraw {collection_id: "1".to_string(), withdraw_rewards: true, withdraw_nft_ids: vec!["staker_1_1155_3".to_string()]});
     
     println!("res {:?}",res);
 
@@ -746,6 +782,18 @@ fn withdraw_nfts_test(){
     let data = from_binary::<Vec<CollectionPoolInfo>>(&res).unwrap();
 
     println!("collection infos {:?}",data);
+
+    let res = manager
+    .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
+        collection_id: "1".to_string(),
+        limit: None,
+        offset: None,
+        order: None,
+    })
+    .unwrap();
+
+    let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+    println!("stakers info {:?}", new_staker_info);
     
     // contract_env.block.height = contract_env.block.height + 10;
 
