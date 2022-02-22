@@ -544,6 +544,23 @@ fn stake_nft_test() {
           }),
       );
 
+      let _ = manager.handle(
+        mock_info(OW_1155_ADDR, &[]),
+        contract_env.clone(),
+        HandleMsg::Receive(Cw1155ReceiveMsg {
+            operator: "staker_1".to_string(),
+            from: None,
+            token_id: "staker_1_1155_1".to_string(),
+            amount: Uint128::from(4u128),
+            msg: to_binary(&DepositeMsg {
+                collection_id: "1".to_string(),
+                withdraw_rewards: false,
+                signature_hash: "SA2aNAT9dkIo+bVy5jHoZl77HLY/FVUOYPe40JVSPydElbJ77zmbc3RJiViznZO5zHL93dF51TFJu8WkYR4keg==".to_string(),
+            })
+            .unwrap(),
+        }),
+    );
+
       // 30 blocks since first stake block
       contract_env.block.height = contract_env.block.height + 10;
 

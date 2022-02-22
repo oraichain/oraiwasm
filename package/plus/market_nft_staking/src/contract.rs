@@ -522,7 +522,20 @@ fn handle_stake(
                         user_info.total_staked,
                         collection_pool_info.acc_per_share.clone(),
                     )?;
-                    user_info.staked_tokens.push(msg.nft.clone());
+                    if msg.nft.contract_type.eq(&crate::state::ContractType::V1155) {
+                        let token = user_info
+                            .staked_tokens
+                            .iter_mut()
+                            .find(|token| token.token_id.eq(&msg.nft.token_id.clone()));
+                        match token {
+                            Some(token) => token.amount.add_assign(msg.nft.amount.clone()),
+                            None => {
+                                user_info.staked_tokens.push(msg.nft.clone());
+                            }
+                        }
+                    } else {
+                        user_info.staked_tokens.push(msg.nft.clone());
+                    }
                     Ok(user_info)
                 } else {
                     return Err(StdError::generic_err(
