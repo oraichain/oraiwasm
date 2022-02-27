@@ -9,8 +9,8 @@ use crate::state::CollectionStakedTokenInfo;
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InitMsg {
     pub verifier_pubkey_base64: String,
-    pub nft_1155_contract_addr: HumanAddr,
-    pub nft_721_contract_addr: HumanAddr,
+    pub nft_1155_contract_addr_whitelist: Vec<HumanAddr>,
+    pub nft_721_contract_addr_whitelist: Vec<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -39,8 +39,8 @@ pub enum HandleMsg {
 #[serde(rename_all = "snake_case")]
 pub struct UpdateContractInfoMsg {
     pub verifier_pubkey_base64: Option<String>,
-    pub nft_1155_contract_addr: Option<HumanAddr>,
-    pub nft_721_contract_addr: Option<HumanAddr>,
+    pub nft_1155_contract_addr_whitelist: Option<Vec<HumanAddr>>,
+    pub nft_721_contract_addr_whitelist: Option<Vec<HumanAddr>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

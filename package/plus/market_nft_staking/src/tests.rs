@@ -80,8 +80,8 @@ impl DepsManager {
 
         let msg = InitMsg {
             verifier_pubkey_base64: String::from("A0ff/7Xp0Gx+9+MOhezAP3WFQ2NWBYuq4Mg3TaW1adBr"),
-            nft_1155_contract_addr: HumanAddr::from(OW_1155_ADDR),
-            nft_721_contract_addr: HumanAddr::from(OW_721_ADDR),
+            nft_1155_contract_addr_whitelist: vec![HumanAddr::from(OW_1155_ADDR)],
+            nft_721_contract_addr_whitelist: vec![HumanAddr::from(OW_721_ADDR)],
         };
 
         let _ = init(
@@ -296,8 +296,8 @@ fn update_info_test() {
             mock_env(CONTRACT_ADDR),
             HandleMsg::UpdateContractInfo(UpdateContractInfoMsg {
                 verifier_pubkey_base64: Some("new_verifier_pubkey".to_string()),
-                nft_1155_contract_addr: None,
-                nft_721_contract_addr: None,
+                nft_1155_contract_addr_whitelist: Some(vec![HumanAddr::from("new_1155")]),
+                nft_721_contract_addr_whitelist:Some(vec![HumanAddr::from("new721")]),
             }),
         );
         assert!(matches!(res, Err(ContractError::Unauthorized { .. })));
@@ -308,8 +308,8 @@ fn update_info_test() {
             mock_env(CONTRACT_ADDR),
             HandleMsg::UpdateContractInfo(UpdateContractInfoMsg {
                 verifier_pubkey_base64: Some("new_verifier_pubkey".to_string()),
-                nft_1155_contract_addr: None,
-                nft_721_contract_addr: None,
+                nft_1155_contract_addr_whitelist: Some(vec![HumanAddr::from("new_1155")]),
+                nft_721_contract_addr_whitelist:Some(vec![HumanAddr::from("new721")]),
             }),
         );
         let res = manager.query(mock_env(CONTRACT_ADDR),QueryMsg::GetContractInfo {}).unwrap();
@@ -458,7 +458,7 @@ fn update_collection_pool_info_test() {
 fn stake_nft_test() {
     unsafe {
         let manager = DepsManager::get_new();
-        create_collection_pool_info_helper(manager, "1".to_string(), Uint128::from(1736u64*10u64.pow(9)));
+        create_collection_pool_info_helper(manager, "1".to_string(), Uint128::from(1000u64*10u64.pow(9)));
         create_mock_nft_for_user(manager, "staker_1".to_string());
         create_mock_nft_for_user(manager, "staker_2".to_string());
 
@@ -503,30 +503,51 @@ fn stake_nft_test() {
           })
         );
 
-        //20 blocks since first stake block
-        contract_env.block.height = contract_env.block.height + 10;
+          let res = manager
+          .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
+              collection_id: "1".to_string(),
+              limit: None,
+              offset: None,
+              order: None,
+          })
+          .unwrap();
 
-        let res = manager
-        .query(contract_env.clone(),QueryMsg::GetCollectionPoolInfo {
+          let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+          println!("stakers info {:?}", new_staker_info);
+
+              let res = manager
+            .query(contract_env.clone(),QueryMsg::GetCollectionPoolInfo {
+                collection_id: "1".to_string(),
+            })
+            .unwrap();
+            let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+            println!("new collecion pool info after staker2 staked {:?}", new_collection_pool_info);
+
+
+            println!("AAAAAAAAAAAAAAAAAAAAAAA");
+          contract_env.block.height = contract_env.block.height + 10;
+
+          let res = manager
+        .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
             collection_id: "1".to_string(),
+            limit: None,
+            offset: None,
+            order: None,
         })
         .unwrap();
-        let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
-        println!("new collecion pool info after staker2 staked {:?}", new_collection_pool_info);
 
-        let res = manager
-                .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
-                    collection_id: "1".to_string(),
-                    limit: None,
-                    offset: None,
-                    order: None,
-                })
-                .unwrap();
+        let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+        println!("stakers info {:?}", new_staker_info);
 
-            let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
-            println!("stakers info {:?}", new_staker_info);
-        
-        //Staker_1 continue to stake 5 nft edition but withdraw reward this time
+            let res = manager
+          .query(contract_env.clone(),QueryMsg::GetCollectionPoolInfo {
+              collection_id: "1".to_string(),
+          })
+          .unwrap();
+          let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+          println!("new collecion pool info after staker2 staked {:?}", new_collection_pool_info);
+
+               //Staker_1 continue to stake 5 nft edition but withdraw reward this time
         let _res = manager.handle(
           mock_info(OW_1155_ADDR, &[]),
           contract_env.clone(),
@@ -544,45 +565,109 @@ fn stake_nft_test() {
           }),
       );
 
-      let _ = manager.handle(
-        mock_info(OW_1155_ADDR, &[]),
-        contract_env.clone(),
-        HandleMsg::Receive(Cw1155ReceiveMsg {
-            operator: "staker_1".to_string(),
-            from: None,
-            token_id: "staker_1_1155_1".to_string(),
-            amount: Uint128::from(4u128),
-            msg: to_binary(&DepositeMsg {
-                collection_id: "1".to_string(),
-                withdraw_rewards: false,
-                signature_hash: "SA2aNAT9dkIo+bVy5jHoZl77HLY/FVUOYPe40JVSPydElbJ77zmbc3RJiViznZO5zHL93dF51TFJu8WkYR4keg==".to_string(),
-            })
-            .unwrap(),
-        }),
-    );
+      println!("AAAAAAAAAAAAAAAAAAAAAAA");
+          contract_env.block.height = contract_env.block.height + 10;
 
-      // 30 blocks since first stake block
-      contract_env.block.height = contract_env.block.height + 10;
+          let res = manager
+        .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
+            collection_id: "1".to_string(),
+            limit: None,
+            offset: None,
+            order: None,
+        })
+        .unwrap();
 
-      let res = manager
-      .query(contract_env.clone(),QueryMsg::GetCollectionPoolInfo {
-          collection_id: "1".to_string(),
-      })
-      .unwrap();
-      let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
-      println!("new collecion pool info after staked {:?}", new_collection_pool_info);
+        let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+        println!("stakers info {:?}", new_staker_info);
 
-      let res = manager
-              .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
-                  collection_id: "1".to_string(),
-                  limit: None,
-                  offset: None,
-                  order: None,
-              })
-              .unwrap();
+            let res = manager
+          .query(contract_env.clone(),QueryMsg::GetCollectionPoolInfo {
+              collection_id: "1".to_string(),
+          })
+          .unwrap();
+          let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+          println!("new collecion pool info after staker2 staked {:?}", new_collection_pool_info);
 
-          let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
-          println!("stakers info {:?}", new_staker_info);
+    //     //20 blocks since first stake block
+    //     contract_env.block.height = contract_env.block.height + 10;
+
+    //     let res = manager
+    //     .query(contract_env.clone(),QueryMsg::GetCollectionPoolInfo {
+    //         collection_id: "1".to_string(),
+    //     })
+    //     .unwrap();
+    //     let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+    //     println!("new collecion pool info after staker2 staked {:?}", new_collection_pool_info);
+
+    //     let res = manager
+    //             .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
+    //                 collection_id: "1".to_string(),
+    //                 limit: None,
+    //                 offset: None,
+    //                 order: None,
+    //             })
+    //             .unwrap();
+
+    //         let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+    //         println!("stakers info {:?}", new_staker_info);
+        
+    //     //Staker_1 continue to stake 5 nft edition but withdraw reward this time
+    //     let _res = manager.handle(
+    //       mock_info(OW_1155_ADDR, &[]),
+    //       contract_env.clone(),
+    //       HandleMsg::Receive(Cw1155ReceiveMsg {
+    //           operator: "staker_1".to_string(),
+    //           from: None,
+    //           token_id: "staker_1_1155_2".to_string(),
+    //           amount: Uint128::from(5u128),
+    //           msg: to_binary(&DepositeMsg {
+    //               collection_id: "1".to_string(),
+    //               withdraw_rewards: true,
+    //               signature_hash: "2ZdYPbrvDRKiwFxozU+mQFDDmRKin6PU2j6qqh/HYG4f4Vhgw+ZB1al2QNAhIpCqMrbfXsopsipFuIWoJtJDhg==".to_string(),
+    //           })
+    //           .unwrap(),
+    //       }),
+    //   );
+
+    //   let _ = manager.handle(
+    //     mock_info(OW_1155_ADDR, &[]),
+    //     contract_env.clone(),
+    //     HandleMsg::Receive(Cw1155ReceiveMsg {
+    //         operator: "staker_1".to_string(),
+    //         from: None,
+    //         token_id: "staker_1_1155_1".to_string(),
+    //         amount: Uint128::from(4u128),
+    //         msg: to_binary(&DepositeMsg {
+    //             collection_id: "1".to_string(),
+    //             withdraw_rewards: false,
+    //             signature_hash: "SA2aNAT9dkIo+bVy5jHoZl77HLY/FVUOYPe40JVSPydElbJ77zmbc3RJiViznZO5zHL93dF51TFJu8WkYR4keg==".to_string(),
+    //         })
+    //         .unwrap(),
+    //     }),
+    // );
+
+    //   // 30 blocks since first stake block
+    //   contract_env.block.height = contract_env.block.height + 10;
+
+    //   let res = manager
+    //   .query(contract_env.clone(),QueryMsg::GetCollectionPoolInfo {
+    //       collection_id: "1".to_string(),
+    //   })
+    //   .unwrap();
+    //   let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+    //   println!("new collecion pool info after staked {:?}", new_collection_pool_info);
+
+    //   let res = manager
+    //           .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
+    //               collection_id: "1".to_string(),
+    //               limit: None,
+    //               offset: None,
+    //               order: None,
+    //           })
+    //           .unwrap();
+
+    //       let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+    //       println!("stakers info {:?}", new_staker_info);
     }
 }
 

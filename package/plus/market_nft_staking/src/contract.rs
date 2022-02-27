@@ -64,8 +64,8 @@ pub fn init(
     let info = ContractInfo {
         creator: info.sender,
         verifier_pubkey_base64: msg.verifier_pubkey_base64,
-        nft_1155_contract_addr: msg.nft_1155_contract_addr,
-        nft_721_contract_addr: msg.nft_721_contract_addr,
+        nft_1155_contract_addr_whitelist: msg.nft_1155_contract_addr_whitelist,
+        nft_721_contract_addr_whitelist: msg.nft_721_contract_addr_whitelist,
     };
 
     CONTRACT_INFO.save(deps.storage, &info)?;
@@ -187,11 +187,27 @@ pub fn handle_update_contract_info(
             if let Some(verifier_pubkey_base64) = msg.verifier_pubkey_base64 {
                 old_info.verifier_pubkey_base64 = verifier_pubkey_base64;
             }
-            if let Some(nft_1155_contract_addr) = msg.nft_1155_contract_addr {
-                old_info.nft_1155_contract_addr = nft_1155_contract_addr;
+            if let Some(whitelist) = msg.nft_1155_contract_addr_whitelist {
+                for addr in whitelist.into_iter() {
+                    let existed = old_info
+                        .nft_1155_contract_addr_whitelist
+                        .iter()
+                        .find(|a| a.eq(&&addr));
+                    if existed.is_none() {
+                        old_info.nft_1155_contract_addr_whitelist.push(addr);
+                    }
+                }
             }
-            if let Some(nft_721_contract_addr) = msg.nft_721_contract_addr {
-                old_info.nft_721_contract_addr = nft_721_contract_addr;
+            if let Some(whitelist) = msg.nft_721_contract_addr_whitelist {
+                for addr in whitelist.into_iter() {
+                    let existed = old_info
+                        .nft_721_contract_addr_whitelist
+                        .iter()
+                        .find(|a| a.eq(&&addr));
+                    if existed.is_none() {
+                        old_info.nft_721_contract_addr_whitelist.push(addr);
+                    }
+                }
             }
             Ok(old_info)
         },
@@ -302,7 +318,12 @@ pub fn handle_receive_1155(
 ) -> Result<HandleResponse, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
-    if info.sender.ne(&contract_info.nft_1155_contract_addr) {
+    let result = contract_info
+        .nft_1155_contract_addr_whitelist
+        .into_iter()
+        .find(|addr| addr.eq(&info.sender));
+
+    if result.is_none() {
         return Err(ContractError::Unauthorized {
             sender: info.sender.clone().to_string(),
         });
@@ -318,6 +339,7 @@ pub fn handle_receive_1155(
             token_id: receive_msg.token_id,
             amount: receive_msg.amount,
             contract_type: crate::state::ContractType::V1155,
+            contract_addr: info.sender.clone(),
         },
     };
 
@@ -339,7 +361,12 @@ pub fn handle_receive_721(
 ) -> Result<HandleResponse, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
-    if info.sender.ne(&contract_info.nft_721_contract_addr) {
+    let result = contract_info
+        .nft_721_contract_addr_whitelist
+        .into_iter()
+        .find(|addr| addr.eq(&info.sender));
+
+    if result.is_none() {
         return Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
         });
@@ -354,6 +381,7 @@ pub fn handle_receive_721(
             token_id: receive_msg.token_id,
             amount: Uint128::from(1u128),
             contract_type: crate::state::ContractType::V721,
+            contract_addr: info.sender,
         },
     };
 
@@ -629,7 +657,6 @@ pub fn handle_withdraw(
                     "You have not stake any nft editions to this collection",
                 )));
             }
-            let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
             let mut attributes = vec![
                 attr("action", "withdraw_nfts"),
@@ -675,7 +702,6 @@ pub fn handle_withdraw(
                 )?;
             }
 
-            let mut nft_1155s: Vec<CollectionStakedTokenInfo> = vec![];
             let mut withdraw_nfts: Vec<CollectionStakedTokenInfo> = vec![];
             let mut left_nfts: Vec<CollectionStakedTokenInfo> = vec![];
 
@@ -707,7 +733,7 @@ pub fn handle_withdraw(
                     crate::state::ContractType::V721 => {
                         cosmos_msgs.push(
                             WasmMsg::Execute {
-                                contract_addr: contract_info.nft_721_contract_addr.clone(),
+                                contract_addr: nft.contract_addr.clone(),
                                 msg: to_binary(&cw721::Cw721HandleMsg::TransferNft {
                                     recipient: info.sender.clone(),
                                     token_id: nft.token_id.clone(),
@@ -718,27 +744,22 @@ pub fn handle_withdraw(
                         );
                     }
                     crate::state::ContractType::V1155 => {
-                        nft_1155s.push(nft.clone());
+                        cosmos_msgs.push(
+                            WasmMsg::Execute {
+                                contract_addr: nft.contract_addr.clone(),
+                                msg: to_binary(&cw1155::Cw1155ExecuteMsg::SendFrom {
+                                    from: env.contract.address.clone().to_string(),
+                                    to: info.sender.clone().to_string(),
+                                    token_id: nft.token_id.clone(),
+                                    value: nft.amount.clone(),
+                                    msg: None,
+                                })?,
+                                send: vec![],
+                            }
+                            .into(),
+                        );
                     }
                 }
-            }
-            if nft_1155s.len() > 0 {
-                cosmos_msgs.push(
-                    WasmMsg::Execute {
-                        contract_addr: contract_info.nft_1155_contract_addr.clone(),
-                        msg: to_binary(&cw1155::Cw1155ExecuteMsg::BatchSendFrom {
-                            from: env.contract.address.clone().to_string(),
-                            to: info.sender.clone().to_string(),
-                            batch: nft_1155s
-                                .into_iter()
-                                .map(|nft| (nft.token_id, nft.amount))
-                                .collect(),
-                            msg: None,
-                        })?,
-                        send: vec![],
-                    }
-                    .into(),
-                );
             }
 
             collection_staker_infos().update(
