@@ -82,6 +82,7 @@ impl DepsManager {
             verifier_pubkey_base64: String::from("A0ff/7Xp0Gx+9+MOhezAP3WFQ2NWBYuq4Mg3TaW1adBr"),
             nft_1155_contract_addr_whitelist: vec![HumanAddr::from(OW_1155_ADDR)],
             nft_721_contract_addr_whitelist: vec![HumanAddr::from(OW_721_ADDR)],
+            admin: None
         };
 
         let _ = init(
@@ -298,6 +299,7 @@ fn update_info_test() {
                 verifier_pubkey_base64: Some("new_verifier_pubkey".to_string()),
                 nft_1155_contract_addr_whitelist: Some(vec![HumanAddr::from("new_1155")]),
                 nft_721_contract_addr_whitelist:Some(vec![HumanAddr::from("new721")]),
+                admin: Some(HumanAddr::from("new_admin"))
             }),
         );
         assert!(matches!(res, Err(ContractError::Unauthorized { .. })));
@@ -310,6 +312,7 @@ fn update_info_test() {
                 verifier_pubkey_base64: Some("new_verifier_pubkey".to_string()),
                 nft_1155_contract_addr_whitelist: Some(vec![HumanAddr::from("new_1155")]),
                 nft_721_contract_addr_whitelist:Some(vec![HumanAddr::from("new721")]),
+                admin: Some(HumanAddr::from("new_admin"))
             }),
         );
         let res = manager.query(mock_env(CONTRACT_ADDR),QueryMsg::GetContractInfo {}).unwrap();

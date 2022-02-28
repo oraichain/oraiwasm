@@ -11,6 +11,7 @@ pub struct InitMsg {
     pub verifier_pubkey_base64: String,
     pub nft_1155_contract_addr_whitelist: Vec<HumanAddr>,
     pub nft_721_contract_addr_whitelist: Vec<HumanAddr>,
+    pub admin: Option<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -41,6 +42,7 @@ pub struct UpdateContractInfoMsg {
     pub verifier_pubkey_base64: Option<String>,
     pub nft_1155_contract_addr_whitelist: Option<Vec<HumanAddr>>,
     pub nft_721_contract_addr_whitelist: Option<Vec<HumanAddr>>,
+    pub admin: Option<HumanAddr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

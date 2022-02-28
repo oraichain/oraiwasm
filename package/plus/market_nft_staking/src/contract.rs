@@ -61,8 +61,12 @@ pub fn init(
     info: MessageInfo,
     msg: InitMsg,
 ) -> Result<InitResponse, ContractError> {
+    let mut admin = info.sender;
+    if msg.admin.is_some() {
+        admin = msg.admin.unwrap();
+    }
     let info = ContractInfo {
-        creator: info.sender,
+        admin,
         verifier_pubkey_base64: msg.verifier_pubkey_base64,
         nft_1155_contract_addr_whitelist: msg.nft_1155_contract_addr_whitelist,
         nft_721_contract_addr_whitelist: msg.nft_721_contract_addr_whitelist,
@@ -163,7 +167,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 fn check_admin_permission(deps: Deps, address: &HumanAddr) -> Result<(), ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
-    if !contract_info.creator.eq(address) {
+    if !contract_info.admin.eq(address) {
         return Err(ContractError::Unauthorized {
             sender: address.to_string(),
         });
@@ -184,6 +188,9 @@ pub fn handle_update_contract_info(
     let new_contract_info = CONTRACT_INFO.update(
         deps.storage,
         |mut old_info| -> Result<ContractInfo, ContractError> {
+            if let Some(admin) = msg.admin {
+                old_info.admin = admin;
+            }
             if let Some(verifier_pubkey_base64) = msg.verifier_pubkey_base64 {
                 old_info.verifier_pubkey_base64 = verifier_pubkey_base64;
             }

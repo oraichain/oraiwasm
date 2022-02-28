@@ -24,7 +24,7 @@ pub fn increment_collection_stakers(storage: &mut dyn Storage) -> StdResult<u64>
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
-    pub creator: HumanAddr,
+    pub admin: HumanAddr,
     pub verifier_pubkey_base64: String,
     pub nft_1155_contract_addr_whitelist: Vec<HumanAddr>,
     pub nft_721_contract_addr_whitelist: Vec<HumanAddr>,
