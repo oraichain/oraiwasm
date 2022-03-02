@@ -37,6 +37,15 @@ pub struct ExecuteEnv<'a> {
     info: MessageInfo,
 }
 
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: MigrateMsg,
+) -> StdResult<MigrateResponse> {
+    Ok(MigrateResponse::default())
+}
+
 pub fn handle(
     deps: DepsMut,
     env: Env,
