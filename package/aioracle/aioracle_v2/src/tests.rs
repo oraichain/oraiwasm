@@ -3,6 +3,7 @@ use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, RequestResponse, StageInfo};
 use crate::state::{Config, Request};
 
+use aioracle_base::Reward;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
@@ -259,6 +260,7 @@ fn update_config() {
         new_executors: Some(vec![]),
         new_service_addr: Some(HumanAddr::from("yolo")),
         new_checkpoint: None,
+        new_checkpoint_threshold: None,
         new_max_req_threshold: None,
     };
 
@@ -305,6 +307,7 @@ fn update_config() {
         new_executors: None,
         new_service_addr: None,
         new_checkpoint: None,
+        new_checkpoint_threshold: None,
         new_max_req_threshold: None,
     };
 
@@ -1045,4 +1048,23 @@ fn test_query_requests_indexes() {
     );
     assert_eq!(requests_by_executors_key.len(), 4);
     assert_eq!(requests_by_executors_key.last().unwrap().stage, 9);
+}
+
+#[test]
+fn test_get_service_fees() {
+    let mut app = mock_app();
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
+
+    let rewards: Vec<Reward> = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr,
+            &QueryMsg::GetServiceFees {
+                service: String::from("price"),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(rewards.len(), 3 as usize);
+    println!("rewards: {:?}", rewards)
 }
