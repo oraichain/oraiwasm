@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
-    HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, Uint128, KV,
+    HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError, StdResult, Uint128, KV,
 };
 use cw_storage_plus::Bound;
 
@@ -12,7 +12,7 @@ use cw1155::{
 };
 
 use crate::error::{ContractError, DivideByZeroError, OverflowError, OverflowOperation};
-use crate::msg::InstantiateMsg;
+use crate::msg::{InstantiateMsg, MigrateMsg};
 use crate::state::{APPROVES, BALANCES, MINTER, OWNER, TOKENS};
 
 const DEFAULT_LIMIT: u32 = 10;
