@@ -1,5 +1,5 @@
 use aioracle_base::Reward;
-use cosmwasm_std::{Binary, Coin, HumanAddr};
+use cosmwasm_std::{Coin, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -32,7 +32,6 @@ pub struct Request {
     pub service: String,
     pub input: Option<String>,
     pub rewards: Vec<Reward>,
-    pub executors_key: u64,
 }
 
 pub const CONFIG_KEY: &str = "config";
@@ -50,23 +49,21 @@ pub const CLAIM_PREFIX: &str = "claim";
 pub const CLAIM: Map<&[u8], bool> = Map::new(CLAIM_PREFIX);
 
 pub const EXECUTORS_PREFIX: &str = "executors";
-pub const EXECUTORS: Map<&[u8], Vec<Binary>> = Map::new(EXECUTORS_PREFIX);
+pub const EXECUTORS: Map<&[u8], bool> = Map::new(EXECUTORS_PREFIX);
 
-pub const EXECUTOR_NONCE_PREFIX: &str = "executors_nonce";
-pub const EXECUTORS_NONCE: Item<u64> = Item::new(EXECUTOR_NONCE_PREFIX);
+pub const EXECUTORS_SIZE_PREFIX: &str = "executors_size";
+pub const EXECUTOR_SIZE: Item<u64> = Item::new(EXECUTORS_SIZE_PREFIX);
 
 // indexes requests
 // for structures
 pub struct RequestIndexes<'a> {
     pub service: MultiIndex<'a, Request>,
     pub merkle_root: MultiIndex<'a, Request>,
-    pub executors_key: MultiIndex<'a, Request>,
 }
 
 impl<'a> IndexList<Request> for RequestIndexes<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Request>> + '_> {
-        let v: Vec<&dyn Index<Request>> =
-            vec![&self.service, &self.merkle_root, &self.executors_key];
+        let v: Vec<&dyn Index<Request>> = vec![&self.service, &self.merkle_root];
         Box::new(v.into_iter())
     }
 }
@@ -83,11 +80,6 @@ pub fn requests<'a>() -> IndexedMap<'a, &'a [u8], Request, RequestIndexes<'a>> {
             |d| d.merkle_root.to_string().into_bytes(),
             "requests",
             "requests_merkle_root",
-        ),
-        executors_key: MultiIndex::new(
-            |d| d.executors_key.to_be_bytes().to_vec(),
-            "requests",
-            "requests_executors_key",
         ),
     };
     IndexedMap::new("requests", indexes)

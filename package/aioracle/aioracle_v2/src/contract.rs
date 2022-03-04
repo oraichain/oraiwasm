@@ -1,7 +1,8 @@
 use aioracle_base::{Reward, ServiceMsg};
 use cosmwasm_std::{
     attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, Uint128, KV,
+    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, Storage,
+    Uint128, KV,
 };
 
 use cw_storage_plus::Bound;
@@ -15,7 +16,7 @@ use crate::msg::{
     IsClaimedResponse, LatestStageResponse, QueryMsg, Report, RequestResponse, StageInfo,
 };
 use crate::state::{
-    requests, Config, Contracts, Request, CHECKPOINT, CLAIM, CONFIG, EXECUTORS, EXECUTORS_NONCE,
+    requests, Config, Contracts, Request, CHECKPOINT, CLAIM, CONFIG, EXECUTORS, EXECUTOR_SIZE,
     LATEST_STAGE,
 };
 use std::collections::HashMap;
@@ -43,9 +44,31 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     CHECKPOINT.save(deps.storage, &1)?;
 
     // first nonce
-    EXECUTORS.save(deps.storage, &1u64.to_be_bytes(), &msg.executors)?;
-    EXECUTORS_NONCE.save(deps.storage, &1u64)?;
+    EXECUTOR_SIZE.save(deps.storage, &(msg.executors.len() as u64))?;
+    save_executors(deps.storage, msg.executors)?;
     Ok(InitResponse::default())
+}
+
+pub fn save_executors(storage: &mut dyn Storage, executors: Vec<Binary>) -> StdResult<()> {
+    for executor in executors {
+        EXECUTORS.save(storage, executor.as_slice(), &true)?
+    }
+    Ok(())
+}
+
+pub fn remove_executors(storage: &mut dyn Storage, executors: Vec<Binary>) -> StdResult<()> {
+    for executor in executors {
+        EXECUTORS.update(storage, executor.as_slice(), |is_active| {
+            if let Some(_) = is_active {
+                return Ok(false);
+            }
+            Err(StdError::generic_err(format!(
+                "Invalid executor: {} is not in the mapping list",
+                executor.to_base64()
+            )))
+        })?;
+    }
+    Ok(())
 }
 
 pub fn handle(
@@ -59,6 +82,7 @@ pub fn handle(
             new_owner,
             new_contract_fee,
             new_executors,
+            old_executors,
             new_service_addr,
             new_checkpoint,
             new_checkpoint_threshold,
@@ -71,6 +95,7 @@ pub fn handle(
             new_service_addr,
             new_contract_fee,
             new_executors,
+            old_executors,
             new_checkpoint,
             new_checkpoint_threshold,
             new_max_req_threshold,
@@ -120,6 +145,7 @@ pub fn execute_update_config(
     new_service_addr: Option<HumanAddr>,
     new_contract_fee: Option<Coin>,
     new_executors: Option<Vec<Binary>>,
+    old_executors: Option<Vec<Binary>>,
     new_checkpoint: Option<u64>,
     new_checkpoint_threshold: Option<u64>,
     new_max_req_threshold: Option<u64>,
@@ -155,12 +181,18 @@ pub fn execute_update_config(
         CHECKPOINT.save(deps.storage, &new_checkpoint)?;
     }
 
+    let mut executors_size = EXECUTOR_SIZE.load(deps.storage)?;
     if let Some(executors) = new_executors {
-        let current_nonce = EXECUTORS_NONCE.load(deps.storage)?;
-        let new_nonce = current_nonce + 1;
-        EXECUTORS.save(deps.storage, &new_nonce.to_be_bytes(), &executors)?;
-        EXECUTORS_NONCE.save(deps.storage, &new_nonce)?;
+        let executors_len = executors.len();
+        save_executors(deps.storage, executors)?;
+        executors_size += executors_len as u64;
     }
+    if let Some(executors) = old_executors {
+        let executors_len = executors.len();
+        remove_executors(deps.storage, executors)?;
+        executors_size -= executors_len as u64;
+    }
+    EXECUTOR_SIZE.save(deps.storage, &executors_size)?;
 
     Ok(HandleResponse {
         attributes: vec![attr("action", "update_config")],
@@ -199,11 +231,9 @@ pub fn handle_request(
         return Err(ContractError::InsufficientFunds {});
     }
     // this will keep track of the executor list of the request
-    let current_nonce = EXECUTORS_NONCE.load(deps.storage)?;
+    let current_size = EXECUTOR_SIZE.load(deps.storage)?;
 
-    // won't allow the threshold to reach above the 2/3 executor list
-    let executors = EXECUTORS.load(deps.storage, &current_nonce.to_be_bytes())?;
-    if Uint128::from(executors.len() as u64)
+    if Uint128::from(current_size)
         .mul(Decimal::from_ratio(
             Uint128::from(max_req_threshold).u128(),
             100u128,
@@ -221,7 +251,6 @@ pub fn handle_request(
             threshold,
             service: service.clone(),
             input,
-            executors_key: current_nonce,
             rewards,
         },
     )?;
@@ -396,11 +425,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::GetExecutors {
-            nonce,
-            start,
-            end,
+            offset,
+            limit,
             order,
-        } => to_binary(&query_executors(deps, nonce, start, end, order)?),
+        } => to_binary(&query_executors(deps, offset, limit, order)?),
+        QueryMsg::GetExecutor { pubkey } => to_binary(&query_executor(deps, pubkey)?),
+        QueryMsg::GetExecutorSize {} => to_binary(&query_executor_size(deps)?),
         QueryMsg::Request { stage } => to_binary(&query_request(deps, stage)?),
         QueryMsg::GetRequests {
             offset,
@@ -427,18 +457,6 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             order,
         )?),
-        QueryMsg::GetRequestsByExecutorsKey {
-            executors_key,
-            offset,
-            limit,
-            order,
-        } => to_binary(&query_requests_by_executors_key(
-            deps,
-            executors_key,
-            offset,
-            limit,
-            order,
-        )?),
         QueryMsg::LatestStage {} => to_binary(&query_latest_stage(deps)?),
         QueryMsg::GetServiceContracts { stage } => {
             to_binary(&query_service_contracts(deps, stage)?)
@@ -453,6 +471,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::GetServiceFees { service } => to_binary(&query_service_fees(deps, service)?),
     }
+}
+
+pub fn query_executor(deps: Deps, pubkey: Binary) -> StdResult<bool> {
+    let is_active = EXECUTORS.may_load(deps.storage, pubkey.as_slice())?;
+    if is_active.is_none() || !is_active.unwrap() {
+        return Ok(false);
+    }
+    Ok(true)
 }
 
 fn get_service_fees(deps: Deps, service: &str) -> StdResult<Vec<Reward>> {
@@ -535,27 +561,56 @@ pub fn query_config(deps: Deps) -> StdResult<Config> {
     Ok(cfg)
 }
 
+// ============================== Query Handlers ==============================
+
+fn get_executors_params(
+    offset: Option<Binary>,
+    limit: Option<u8>,
+    order: Option<u8>,
+) -> (usize, Option<Bound>, Option<Bound>, Order) {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    // let mut max: Option<Bound> = None;
+    let mut order_enum = Order::Ascending;
+    let mut min: Option<Bound> = None;
+    let mut max: Option<Bound> = None;
+    if let Some(num) = order {
+        if num == 2 {
+            order_enum = Order::Descending;
+        }
+    }
+    let offset_value = offset
+        .as_ref()
+        .map(|offset| Bound::Exclusive(offset.to_vec()));
+
+    // if there is offset, assign to min or max
+    match order_enum {
+        Order::Ascending => min = offset_value,
+        Order::Descending => max = offset_value,
+    }
+
+    (limit, min, max, order_enum)
+}
+
 pub fn query_executors(
     deps: Deps,
-    nonce: u64,
-    start: Option<u64>,
-    end: Option<u64>,
+    offset: Option<Binary>,
+    limit: Option<u8>,
     order: Option<u8>,
 ) -> StdResult<Vec<Binary>> {
-    let mut executors = EXECUTORS.load(deps.storage, &nonce.to_be_bytes())?;
-    let start = start.unwrap_or(0);
-    let mut end = end.unwrap_or(executors.len() as u64);
-    if end.lt(&start) {
-        end = start;
-    }
-    let order = order.unwrap_or(1);
+    let (limit, min, max, order_enum) = get_executors_params(offset, limit, order);
 
-    // decending. 1 is ascending
-    if order == 2 {
-        executors.reverse();
-    };
-    let final_executors: Vec<Binary> = executors[start as usize..end as usize].to_vec();
-    Ok(final_executors)
+    let res: StdResult<Vec<Binary>> = EXECUTORS
+        .range(deps.storage, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| {
+            kv_item.and_then(|(pub_vec, _)| {
+                // will panic if length is greater than 8, but we can make sure it is u64
+                // try_into will box vector to fixed array
+                Ok(Binary::from(pub_vec))
+            })
+        })
+        .collect();
+    res
 }
 
 pub fn query_request(deps: Deps, stage: u64) -> StdResult<Request> {
@@ -603,7 +658,6 @@ fn parse_request<'a>(item: StdResult<KV<Request>>) -> StdResult<RequestResponse>
             threshold: request.threshold,
             service: request.service,
             rewards: request.rewards,
-            executors_key: request.executors_key,
         })
     })
 }
@@ -653,30 +707,6 @@ pub fn query_requests_by_merkle_root(
         .idx
         .merkle_root
         .items(deps.storage, merkle_root.as_bytes(), min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| parse_request(kv_item))
-        .collect();
-    Ok(request_responses?)
-}
-
-pub fn query_requests_by_executors_key(
-    deps: Deps,
-    executors_key: u64,
-    offset: Option<u64>,
-    limit: Option<u8>,
-    order: Option<u8>,
-) -> StdResult<Vec<RequestResponse>> {
-    let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
-    let request_responses: StdResult<Vec<RequestResponse>> = requests()
-        .idx
-        .executors_key
-        .items(
-            deps.storage,
-            &executors_key.to_be_bytes(),
-            min,
-            max,
-            order_enum,
-        )
         .take(limit)
         .map(|kv_item| parse_request(kv_item))
         .collect();
@@ -760,28 +790,6 @@ pub fn verify_request_fees(sent_funds: &[Coin], rewards: &[Reward], threshold: u
     return true;
 }
 
-pub fn verify_signature(
-    deps: Deps,
-    raw_msg: &[u8],
-    pubkey: &[u8],
-    signature: &[u8],
-    executor_nonce: &u64,
-) -> Result<(), ContractError> {
-    let executors = EXECUTORS.load(deps.storage, &executor_nonce.to_be_bytes())?;
-    if executors
-        .iter()
-        .find(|executor| executor.as_slice().eq(pubkey))
-        .is_none()
-    {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let msg_hash_generic = sha2::Sha256::digest(raw_msg);
-    let msg_hash = msg_hash_generic.as_slice();
-    let is_verified = cosmwasm_crypto::secp256k1_verify(msg_hash, &signature, &pubkey)
-        .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
-    if !is_verified {
-        return Err(ContractError::InvalidSignature {});
-    }
-    Ok(())
+pub fn query_executor_size(deps: Deps) -> StdResult<u64> {
+    EXECUTOR_SIZE.load(deps.storage)
 }

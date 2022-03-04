@@ -258,6 +258,7 @@ fn update_config() {
         new_owner: Some("owner0001".into()),
         new_contract_fee: Some(coin(10u128, "foobar")),
         new_executors: Some(vec![]),
+        old_executors: Some(vec![]),
         new_service_addr: Some(HumanAddr::from("yolo")),
         new_checkpoint: None,
         new_checkpoint_threshold: None,
@@ -282,23 +283,6 @@ fn update_config() {
     );
     assert_eq!(config.service_addr, HumanAddr::from("yolo"));
 
-    // query executor list
-    // query executors
-    let executors: Vec<Binary> = app
-        .wrap()
-        .query_wasm_smart(
-            &aioracle_addr,
-            &QueryMsg::GetExecutors {
-                nonce: 1,
-                start: Some(2),
-                end: Some(2),
-                order: None,
-            },
-        )
-        .unwrap();
-
-    assert_eq!(executors.len(), 0);
-
     // Unauthorized err
     let info = mock_info("owner0000", &[]);
     let msg = HandleMsg::UpdateConfig {
@@ -306,6 +290,7 @@ fn update_config() {
         new_contract_fee: None,
         new_executors: None,
         new_service_addr: None,
+        old_executors: None,
         new_checkpoint: None,
         new_checkpoint_threshold: None,
         new_max_req_threshold: None,
@@ -829,9 +814,33 @@ fn query_executors() {
             deps.as_ref(),
             mock_env(),
             QueryMsg::GetExecutors {
-                nonce: 1,
-                start: None,
-                end: Some(2),
+                offset: None,
+                limit: None,
+                order: None,
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    let executors_base64: Vec<String> = executors
+        .into_iter()
+        .map(|executor| executor.to_base64())
+        .collect();
+
+    println!("executors: {:?}", executors_base64);
+    assert_eq!(executors_base64.len(), 4);
+
+    // query executors
+    let executors: Vec<Binary> = from_binary(
+        &query(
+            deps.as_ref(),
+            mock_env(),
+            QueryMsg::GetExecutors {
+                offset: Some(
+                    Binary::from_base64("A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA").unwrap(),
+                ),
+                limit: Some(2),
                 order: None,
             },
         )
@@ -848,84 +857,9 @@ fn query_executors() {
         executors_base64,
         vec![
             "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
-            "A3PR7VXxp/lU5cQRctmDRjmyuMi50M+qiy1lKl3GYgeA"
-        ]
-    );
-
-    // query executors
-    let executors: Vec<Binary> = from_binary(
-        &query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::GetExecutors {
-                nonce: 1,
-                start: Some(2),
-                end: Some(2),
-                order: None,
-            },
-        )
-        .unwrap(),
-    )
-    .unwrap();
-
-    let executors_base64: Vec<String> = executors
-        .into_iter()
-        .map(|executor| executor.to_base64())
-        .collect();
-
-    assert_eq!(executors_base64, vec![] as Vec<String>);
-
-    // query executors
-    let executors: Vec<Binary> = from_binary(
-        &query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::GetExecutors {
-                nonce: 1,
-                start: Some(0),
-                end: Some(2),
-                order: Some(2),
-            },
-        )
-        .unwrap(),
-    )
-    .unwrap();
-
-    let executors_base64: Vec<String> = executors
-        .into_iter()
-        .map(|executor| executor.to_base64())
-        .collect();
-
-    assert_eq!(
-        executors_base64,
-        vec![
-            "Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j",
             "A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw"
         ]
     );
-
-    // query executors
-    let executors: Vec<Binary> = from_binary(
-        &query(
-            deps.as_ref(),
-            mock_env(),
-            QueryMsg::GetExecutors {
-                nonce: 1,
-                start: None,
-                end: None,
-                order: None,
-            },
-        )
-        .unwrap(),
-    )
-    .unwrap();
-
-    let executors_base64: Vec<String> = executors
-        .into_iter()
-        .map(|executor| executor.to_base64())
-        .collect();
-
-    assert_eq!(executors_base64.len(), 4)
 }
 
 #[test]
@@ -1027,27 +961,6 @@ fn test_query_requests_indexes() {
     );
     assert_eq!(requests_by_merkle_root.len(), 1);
     assert_eq!(requests_by_merkle_root.last().unwrap().stage, 9);
-
-    // test query requests by executors key
-    let requests_by_executors_key: Vec<RequestResponse> = app
-        .wrap()
-        .query_wasm_smart(
-            &aioracle_addr,
-            &QueryMsg::GetRequestsByExecutorsKey {
-                executors_key: 1u64,
-                offset: Some(5),
-                limit: Some(10),
-                order: None,
-            },
-        )
-        .unwrap();
-
-    println!(
-        "request response by executors key: {:?}",
-        requests_by_executors_key
-    );
-    assert_eq!(requests_by_executors_key.len(), 4);
-    assert_eq!(requests_by_executors_key.last().unwrap().stage, 9);
 }
 
 #[test]
@@ -1067,4 +980,131 @@ fn test_get_service_fees() {
 
     assert_eq!(rewards.len(), 3 as usize);
     println!("rewards: {:?}", rewards)
+}
+
+#[test]
+fn test_query_executor() {
+    let mut app = mock_app();
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
+
+    // happy path, executor exists
+    let is_alive: bool = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr.clone(),
+            &QueryMsg::GetExecutor {
+                pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t")
+                    .unwrap(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(is_alive, true);
+
+    // dont exist path
+
+    let is_alive: bool = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr.clone(),
+            &QueryMsg::GetExecutor {
+                pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
+                    .unwrap(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(is_alive, false);
+
+    // inactive path
+
+    let info = mock_info(AIORACLE_OWNER, &[]);
+    let msg = HandleMsg::UpdateConfig {
+        new_owner: Some("owner0001".into()),
+        new_contract_fee: Some(coin(10u128, "foobar")),
+        new_executors: None,
+        old_executors: Some(vec![Binary::from_base64(
+            "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
+        )
+        .unwrap()]),
+        new_service_addr: Some(HumanAddr::from("yolo")),
+        new_checkpoint: None,
+        new_checkpoint_threshold: None,
+        new_max_req_threshold: None,
+    };
+
+    app.execute_contract(&info.sender, &aioracle_addr, &msg, &[])
+        .unwrap();
+
+    let is_alive: bool = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr,
+            &QueryMsg::GetExecutor {
+                pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t")
+                    .unwrap(),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(is_alive, false);
+}
+
+#[test]
+fn test_executor_size() {
+    let mut app = mock_app();
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
+
+    let size: u64 = app
+        .wrap()
+        .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::GetExecutorSize {})
+        .unwrap();
+    assert_eq!(size, 4);
+
+    let info = mock_info(AIORACLE_OWNER, &[]);
+    let msg = HandleMsg::UpdateConfig {
+        new_owner: None,
+        new_contract_fee: Some(coin(10u128, "foobar")),
+        new_executors: None,
+        old_executors: Some(vec![Binary::from_base64(
+            "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
+        )
+        .unwrap()]),
+        new_service_addr: Some(HumanAddr::from("yolo")),
+        new_checkpoint: None,
+        new_checkpoint_threshold: None,
+        new_max_req_threshold: None,
+    };
+
+    app.execute_contract(&info.sender, &aioracle_addr, &msg, &[])
+        .unwrap();
+
+    let size: u64 = app
+        .wrap()
+        .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::GetExecutorSize {})
+        .unwrap();
+    assert_eq!(size, 3);
+
+    let msg = HandleMsg::UpdateConfig {
+        new_owner: Some("owner0001".into()),
+        new_contract_fee: Some(coin(10u128, "foobar")),
+        new_executors: Some(vec![Binary::from_base64(
+            "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
+        )
+        .unwrap()]),
+        old_executors: None,
+        new_service_addr: Some(HumanAddr::from("yolo")),
+        new_checkpoint: None,
+        new_checkpoint_threshold: None,
+        new_max_req_threshold: None,
+    };
+
+    app.execute_contract(&info.sender, &aioracle_addr, &msg, &[])
+        .unwrap();
+
+    let size: u64 = app
+        .wrap()
+        .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::GetExecutorSize {})
+        .unwrap();
+    assert_eq!(size, 4);
 }

@@ -23,6 +23,7 @@ pub enum HandleMsg {
         new_service_addr: Option<HumanAddr>,
         new_contract_fee: Option<Coin>,
         new_executors: Option<Vec<Binary>>,
+        old_executors: Option<Vec<Binary>>,
         new_checkpoint: Option<u64>,
         new_checkpoint_threshold: Option<u64>,
         new_max_req_threshold: Option<u64>,
@@ -53,11 +54,14 @@ pub enum HandleMsg {
 pub enum QueryMsg {
     Config {},
     GetExecutors {
-        nonce: u64,
-        start: Option<u64>,
-        end: Option<u64>,
+        offset: Option<Binary>,
+        limit: Option<u8>,
         order: Option<u8>,
     },
+    GetExecutor {
+        pubkey: Binary,
+    },
+    GetExecutorSize {},
     Request {
         stage: u64,
     },
@@ -74,12 +78,6 @@ pub enum QueryMsg {
     },
     GetRequestsByMerkleRoot {
         merkle_root: String,
-        offset: Option<u64>,
-        limit: Option<u8>,
-        order: Option<u8>,
-    },
-    GetRequestsByExecutorsKey {
-        executors_key: u64,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
@@ -145,7 +143,6 @@ pub struct RequestResponse {
     pub threshold: u64,
     pub service: String,
     pub rewards: Vec<Reward>,
-    pub executors_key: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
