@@ -1,19 +1,25 @@
-use aioracle_base::{Reward, ServiceMsg};
+use aioracle_base::{GetServiceFeesMsg, Reward, ServiceMsg};
 use cosmwasm_std::{
     attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, Storage,
-    Uint128, KV,
+    HandleResponse, HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError,
+    StdResult, Storage, Uint128, KV,
 };
 
+use cw2::set_contract_version;
+
+use bech32::{self, ToBase32, Variant};
 use cw_storage_plus::Bound;
+use ripemd::{Digest as RipeDigest, Ripemd160};
 use sha2::Digest;
 use std::convert::TryInto;
 use std::ops::Mul;
 
 use crate::error::ContractError;
+use crate::migrations::migrate_v01_to_v02;
 use crate::msg::{
-    CurrentStageResponse, GetServiceContracts, GetServiceFees, HandleMsg, InitMsg,
-    IsClaimedResponse, LatestStageResponse, QueryMsg, Report, RequestResponse, StageInfo,
+    CurrentStageResponse, GetParticipantFee, GetServiceContracts, GetServiceFees, HandleMsg,
+    InitMsg, IsClaimedResponse, LatestStageResponse, MigrateMsg, QueryMsg, Report, RequestResponse,
+    StageInfo, UpdateConfigMsg,
 };
 use crate::state::{
     requests, Config, Contracts, Request, CHECKPOINT, CLAIM, CONFIG, EXECUTORS, EXECUTOR_SIZE,
@@ -23,6 +29,11 @@ use std::collections::HashMap;
 
 pub const CHECKPOINT_THRESHOLD: u64 = 5;
 pub const MAXIMUM_REQ_THRESHOLD: u64 = 67;
+// 7 days in seconds
+pub const TRUSTING_PERIOD: u64 = 604800;
+// version info for migration info
+const CONTRACT_NAME: &str = "crates.io:aioracle-v2";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 // settings for pagination
 const MAX_LIMIT: u8 = 50;
 const DEFAULT_LIMIT: u8 = 20;
@@ -33,9 +44,11 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     let config = Config {
         owner,
         service_addr: msg.service_addr,
+        ping_contract: msg.ping_addr,
         contract_fee: msg.contract_fee,
         checkpoint_threshold: CHECKPOINT_THRESHOLD,
         max_req_threshold: MAXIMUM_REQ_THRESHOLD,
+        trusting_period: TRUSTING_PERIOD,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -46,6 +59,7 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     // first nonce
     EXECUTOR_SIZE.save(deps.storage, &(msg.executors.len() as u64))?;
     save_executors(deps.storage, msg.executors)?;
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(InitResponse::default())
 }
 
@@ -78,28 +92,9 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::UpdateConfig {
-            new_owner,
-            new_contract_fee,
-            new_executors,
-            old_executors,
-            new_service_addr,
-            new_checkpoint,
-            new_checkpoint_threshold,
-            new_max_req_threshold,
-        } => execute_update_config(
-            deps,
-            env,
-            info,
-            new_owner,
-            new_service_addr,
-            new_contract_fee,
-            new_executors,
-            old_executors,
-            new_checkpoint,
-            new_checkpoint_threshold,
-            new_max_req_threshold,
-        ),
+        HandleMsg::UpdateConfig { update_config_msg } => {
+            execute_update_config(deps, env, info, update_config_msg)
+        }
         HandleMsg::RegisterMerkleRoot { stage, merkle_root } => {
             execute_register_merkle_root(deps, env, info, stage, merkle_root)
         }
@@ -115,6 +110,32 @@ pub fn handle(
         } => handle_claim(deps, env, stage, report, proof),
         HandleMsg::WithdrawFees { amount, denom } => handle_withdraw_fees(deps, env, amount, denom),
     }
+}
+
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    msg: MigrateMsg,
+) -> StdResult<MigrateResponse> {
+    // // if old_version.version != CONTRACT_VERSION {
+    // //     return Err(StdError::generic_err(format!(
+    // //         "This is {}, cannot migrate from {}",
+    // //         CONTRACT_VERSION, old_version.version
+    // //     )));
+    // // }
+
+    migrate_v01_to_v02(deps.storage, msg)?;
+
+    // once we have "migrated", set the new version and return success
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    Ok(MigrateResponse {
+        attributes: vec![
+            attr("new_contract_name", CONTRACT_NAME),
+            attr("new_contract_version", CONTRACT_VERSION),
+        ],
+        ..MigrateResponse::default()
+    })
 }
 
 pub fn handle_withdraw_fees(
@@ -141,16 +162,21 @@ pub fn execute_update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    new_owner: Option<HumanAddr>,
-    new_service_addr: Option<HumanAddr>,
-    new_contract_fee: Option<Coin>,
-    new_executors: Option<Vec<Binary>>,
-    old_executors: Option<Vec<Binary>>,
-    new_checkpoint: Option<u64>,
-    new_checkpoint_threshold: Option<u64>,
-    new_max_req_threshold: Option<u64>,
+    update_config_msg: UpdateConfigMsg,
 ) -> Result<HandleResponse, ContractError> {
     // authorize owner
+    let UpdateConfigMsg {
+        new_owner,
+        new_service_addr,
+        new_contract_fee,
+        new_executors,
+        old_executors,
+        new_checkpoint,
+        new_checkpoint_threshold,
+        new_max_req_threshold,
+        new_ping_contract,
+        new_trust_period,
+    } = update_config_msg;
     let cfg = CONFIG.load(deps.storage)?;
     let owner = cfg.owner;
     if info.sender != owner {
@@ -173,6 +199,12 @@ pub fn execute_update_config(
         }
         if let Some(max_req_threshold) = new_max_req_threshold {
             exists.max_req_threshold = max_req_threshold;
+        }
+        if let Some(trusting_period) = new_trust_period {
+            exists.trusting_period = trusting_period;
+        }
+        if let Some(ping_contract) = new_ping_contract {
+            exists.ping_contract = ping_contract;
         }
         Ok(exists)
     })?;
@@ -275,6 +307,7 @@ pub fn handle_claim(
     proofs: Option<Vec<String>>,
 ) -> Result<HandleResponse, ContractError> {
     // check report legitimacy
+    let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
     let is_verified = verify_data(deps.as_ref(), stage, report.clone(), proofs)?;
     if !is_verified {
         return Err(ContractError::Unauthorized {});
@@ -297,12 +330,58 @@ pub fn handle_claim(
 
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
+    let executor_addr = pubkey_to_address(report_struct.executor)?;
+
+    let max_executor_fee = request
+        .rewards
+        .clone()
+        .into_iter()
+        .find(|reward| reward.0.eq("placeholder"))
+        .unwrap_or((
+            HumanAddr::from("placeholder"),
+            String::from("orai"),
+            Uint128::from(1u64),
+        ));
+    let executor_reward: Coin = deps
+        .querier
+        .query_wasm_smart(
+            service_addr.clone(),
+            &GetParticipantFee {
+                get_participant_fee: GetServiceFeesMsg {
+                    addr: executor_addr.clone(),
+                },
+            },
+        )
+        .unwrap_or(Coin {
+            denom: max_executor_fee.1,
+            amount: Uint128::from(0u64),
+        });
+
+    if !executor_reward.amount.is_zero() {
+        cosmos_msgs.push(
+            BankMsg::Send {
+                from_address: env.contract.address.clone(),
+                to_address: executor_addr,
+                amount: vec![Coin {
+                    denom: executor_reward.denom,
+                    amount: executor_reward.amount,
+                }],
+            }
+            .into(),
+        );
+    }
+
     for reward in report_struct.rewards {
         // verify if reward is valid (matches an element in the list of rewards stored in request)
         if request
             .rewards
             .iter()
-            .find(|rew| rew.0.eq(&reward.0) && rew.2.eq(&reward.2) && rew.1.eq(&reward.1))
+            .find(|rew| {
+                rew.0.ne(&HumanAddr::from("placeholder"))
+                    && rew.0.eq(&reward.0)
+                    && rew.2.eq(&reward.2)
+                    && rew.1.eq(&reward.1)
+            })
             .is_none()
         {
             return Err(ContractError::InvalidReward {});
@@ -396,9 +475,6 @@ pub fn execute_register_merkle_root(
             }
         }
     }
-
-    // // move to a new stage
-    // CHECKPOINT.save(deps.storage, &(current_stage + 1))?;
 
     Ok(HandleResponse {
         data: None,
@@ -792,4 +868,16 @@ pub fn verify_request_fees(sent_funds: &[Coin], rewards: &[Reward], threshold: u
 
 pub fn query_executor_size(deps: Deps) -> StdResult<u64> {
     EXECUTOR_SIZE.load(deps.storage)
+}
+
+pub fn pubkey_to_address(pubkey: Binary) -> Result<HumanAddr, ContractError> {
+    let msg_hash_generic = sha2::Sha256::digest(pubkey.as_slice());
+    let msg_hash = msg_hash_generic.as_slice();
+    let mut hasher = Ripemd160::new();
+    hasher.update(msg_hash);
+    let result = hasher.finalize();
+    let result_slice = result.as_slice();
+    let encoded = bech32::encode("orai", result_slice.to_base32(), Variant::Bech32)
+        .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
+    Ok(HumanAddr::from(encoded))
 }

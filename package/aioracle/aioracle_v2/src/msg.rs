@@ -1,4 +1,4 @@
-use aioracle_base::{Reward, ServiceMsg};
+use aioracle_base::{GetServiceFeesMsg, Reward, ServiceMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -9,6 +9,7 @@ pub struct InitMsg {
     /// Owner if none set to info.sender.
     pub owner: Option<HumanAddr>,
     pub service_addr: HumanAddr,
+    pub ping_addr: HumanAddr,
     pub contract_fee: Coin,
     pub executors: Vec<Binary>,
 }
@@ -17,16 +18,7 @@ pub struct InitMsg {
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     UpdateConfig {
-        /// NewOwner if non sent, contract gets locked. Recipients can receive airdrops
-        /// but owner cannot register new stages.
-        new_owner: Option<HumanAddr>,
-        new_service_addr: Option<HumanAddr>,
-        new_contract_fee: Option<Coin>,
-        new_executors: Option<Vec<Binary>>,
-        old_executors: Option<Vec<Binary>>,
-        new_checkpoint: Option<u64>,
-        new_checkpoint_threshold: Option<u64>,
-        new_max_req_threshold: Option<u64>,
+        update_config_msg: UpdateConfigMsg,
     },
     RegisterMerkleRoot {
         /// MerkleRoot is hex-encoded merkle root.
@@ -135,6 +127,12 @@ pub struct GetServiceFees {
     pub service_fee_msg: ServiceMsg,
 }
 
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct GetParticipantFee {
+    pub get_participant_fee: GetServiceFeesMsg,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RequestResponse {
     pub stage: u64,
@@ -161,4 +159,21 @@ pub struct IsClaimedResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {}
+pub struct MigrateMsg {
+    pub trusting_period: Option<u64>,
+    pub ping_addr: HumanAddr,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct UpdateConfigMsg {
+    pub new_owner: Option<HumanAddr>,
+    pub new_service_addr: Option<HumanAddr>,
+    pub new_contract_fee: Option<Coin>,
+    pub new_executors: Option<Vec<Binary>>,
+    pub old_executors: Option<Vec<Binary>>,
+    pub new_checkpoint: Option<u64>,
+    pub new_checkpoint_threshold: Option<u64>,
+    pub new_max_req_threshold: Option<u64>,
+    pub new_ping_contract: Option<HumanAddr>,
+    pub new_trust_period: Option<u64>,
+}

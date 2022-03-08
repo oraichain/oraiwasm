@@ -3,7 +3,7 @@ use crate::state::Contracts;
 
 use aioracle_base::Reward;
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{coin, coins, HumanAddr};
+use cosmwasm_std::{coin, coins, HumanAddr, Uint128};
 use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
 
 const PROVIDER_OWNER: &str = "admin0001";
@@ -48,6 +48,7 @@ fn init_provider(
         service,
         service_contracts,
         service_fees_contract,
+        max_executor_fee: Uint128::from(1u64),
     };
 
     app.instantiate_contract(group_id, PROVIDER_OWNER, &msg, &[], "provider_bridge")

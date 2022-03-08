@@ -1,9 +1,12 @@
+use std::hash::Hash;
+
 use crate::contract::{init, query, verify_request_fees};
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, RequestResponse, StageInfo};
+use crate::msg::{HandleMsg, InitMsg, QueryMsg, RequestResponse, StageInfo, UpdateConfigMsg};
 use crate::state::{Config, Request};
 
 use aioracle_base::Reward;
+use bech32::{self, FromBase32, ToBase32, Variant};
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
@@ -13,6 +16,7 @@ use cosmwasm_std::{
 };
 use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
 use provider_bridge::state::Contracts;
+use ripemd::{Digest as RipeDigest, Ripemd160};
 use serde::Deserialize;
 use sha2::Digest;
 
@@ -21,6 +25,21 @@ const AIORACLE_OWNER: &str = "admin0002";
 const PROVIDER_OWNER: &str = "admin0001";
 const AIORACLE_SERVICE_FEES_OWNER: &str = "admin0003";
 const CLIENT: &str = "client";
+
+#[test]
+fn test_bech32() {
+    let bin = Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap();
+    let msg_hash_generic = sha2::Sha256::digest(bin.as_slice());
+    let msg_hash = msg_hash_generic.as_slice();
+    println!("msg hash: {:?}", msg_hash);
+    let mut hasher = Ripemd160::new();
+    hasher.update(msg_hash);
+    let result = hasher.finalize();
+    let result_slice = result.as_slice();
+    println!("result slice: {:?}", result_slice);
+    let encoded = bech32::encode("orai", result_slice.to_base32(), Variant::Bech32).unwrap();
+    println!("encoded: {:?}", encoded)
+}
 
 fn init_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
@@ -52,6 +71,7 @@ fn init_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
                 oscript: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
             },
             service_fees_contract: HumanAddr::from("orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt"),
+            max_executor_fee: Uint128::from(1u64),
         },
     )
     .unwrap();
@@ -107,6 +127,7 @@ fn init_aioracle(
         service_addr,
         contract_fee,
         executors,
+        ping_addr: HumanAddr::from("ping_foobar"),
     };
 
     app.instantiate_contract(group_id, AIORACLE_OWNER, &msg, &[], "aioracle_v2")
@@ -125,6 +146,7 @@ fn init_provider(
         service,
         service_contracts,
         service_fees_contract,
+        max_executor_fee: Uint128::from(1u64),
     };
 
     app.instantiate_contract(group_id, PROVIDER_OWNER, &msg, &[], "provider_bridge")
@@ -255,14 +277,18 @@ fn update_config() {
     // update owner
     let info = mock_info(AIORACLE_OWNER, &[]);
     let msg = HandleMsg::UpdateConfig {
-        new_owner: Some("owner0001".into()),
-        new_contract_fee: Some(coin(10u128, "foobar")),
-        new_executors: Some(vec![]),
-        old_executors: Some(vec![]),
-        new_service_addr: Some(HumanAddr::from("yolo")),
-        new_checkpoint: None,
-        new_checkpoint_threshold: None,
-        new_max_req_threshold: None,
+        update_config_msg: UpdateConfigMsg {
+            new_owner: Some("owner0001".into()),
+            new_contract_fee: Some(coin(10u128, "foobar")),
+            new_executors: Some(vec![]),
+            old_executors: Some(vec![]),
+            new_service_addr: Some(HumanAddr::from("yolo")),
+            new_checkpoint: None,
+            new_checkpoint_threshold: None,
+            new_max_req_threshold: None,
+            new_ping_contract: None,
+            new_trust_period: None,
+        },
     };
 
     app.execute_contract(&info.sender, &aioracle_addr, &msg, &[])
@@ -286,14 +312,18 @@ fn update_config() {
     // Unauthorized err
     let info = mock_info("owner0000", &[]);
     let msg = HandleMsg::UpdateConfig {
-        new_owner: None,
-        new_contract_fee: None,
-        new_executors: None,
-        new_service_addr: None,
-        old_executors: None,
-        new_checkpoint: None,
-        new_checkpoint_threshold: None,
-        new_max_req_threshold: None,
+        update_config_msg: UpdateConfigMsg {
+            new_owner: None,
+            new_contract_fee: None,
+            new_executors: None,
+            new_service_addr: None,
+            old_executors: None,
+            new_checkpoint: None,
+            new_checkpoint_threshold: None,
+            new_max_req_threshold: None,
+            new_ping_contract: None,
+            new_trust_period: None,
+        },
     };
 
     let res = app
@@ -316,7 +346,7 @@ fn test_request() {
             input: None,
             service: "price".to_string(),
         },
-        &coins(5u128, "orai"),
+        &coins(6u128, "orai"),
     )
     .unwrap();
 
@@ -350,7 +380,7 @@ fn test_request() {
                 input: None,
                 service: "price".to_string(),
             },
-            &coins(12u128, "orai"),
+            &coins(20u128, "orai"),
         )
         .unwrap_err(),
         ContractError::InvalidThreshold {}.to_string()
@@ -449,7 +479,7 @@ fn verify_data() {
             input: None,
             service: "price".to_string(),
         },
-        &coins(5u128, "orai"),
+        &coins(6u128, "orai"),
     )
     .unwrap();
 
@@ -804,6 +834,7 @@ fn query_executors() {
             Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
             Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
         ],
+        ping_addr: HumanAddr::from("ping_foobar"),
     };
 
     let _res = init(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
@@ -978,7 +1009,7 @@ fn test_get_service_fees() {
         )
         .unwrap();
 
-    assert_eq!(rewards.len(), 3 as usize);
+    assert_eq!(rewards.len(), 4 as usize);
     println!("rewards: {:?}", rewards)
 }
 
@@ -1020,17 +1051,21 @@ fn test_query_executor() {
 
     let info = mock_info(AIORACLE_OWNER, &[]);
     let msg = HandleMsg::UpdateConfig {
-        new_owner: Some("owner0001".into()),
-        new_contract_fee: Some(coin(10u128, "foobar")),
-        new_executors: None,
-        old_executors: Some(vec![Binary::from_base64(
-            "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
-        )
-        .unwrap()]),
-        new_service_addr: Some(HumanAddr::from("yolo")),
-        new_checkpoint: None,
-        new_checkpoint_threshold: None,
-        new_max_req_threshold: None,
+        update_config_msg: UpdateConfigMsg {
+            new_owner: Some("owner0001".into()),
+            new_contract_fee: Some(coin(10u128, "foobar")),
+            new_executors: None,
+            old_executors: Some(vec![Binary::from_base64(
+                "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
+            )
+            .unwrap()]),
+            new_service_addr: Some(HumanAddr::from("yolo")),
+            new_checkpoint: None,
+            new_checkpoint_threshold: None,
+            new_max_req_threshold: None,
+            new_ping_contract: None,
+            new_trust_period: None,
+        },
     };
 
     app.execute_contract(&info.sender, &aioracle_addr, &msg, &[])
@@ -1063,17 +1098,21 @@ fn test_executor_size() {
 
     let info = mock_info(AIORACLE_OWNER, &[]);
     let msg = HandleMsg::UpdateConfig {
-        new_owner: None,
-        new_contract_fee: Some(coin(10u128, "foobar")),
-        new_executors: None,
-        old_executors: Some(vec![Binary::from_base64(
-            "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
-        )
-        .unwrap()]),
-        new_service_addr: Some(HumanAddr::from("yolo")),
-        new_checkpoint: None,
-        new_checkpoint_threshold: None,
-        new_max_req_threshold: None,
+        update_config_msg: UpdateConfigMsg {
+            new_owner: None,
+            new_contract_fee: Some(coin(10u128, "foobar")),
+            new_executors: None,
+            old_executors: Some(vec![Binary::from_base64(
+                "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
+            )
+            .unwrap()]),
+            new_service_addr: Some(HumanAddr::from("yolo")),
+            new_checkpoint: None,
+            new_checkpoint_threshold: None,
+            new_max_req_threshold: None,
+            new_ping_contract: None,
+            new_trust_period: None,
+        },
     };
 
     app.execute_contract(&info.sender, &aioracle_addr, &msg, &[])
@@ -1086,17 +1125,21 @@ fn test_executor_size() {
     assert_eq!(size, 3);
 
     let msg = HandleMsg::UpdateConfig {
-        new_owner: Some("owner0001".into()),
-        new_contract_fee: Some(coin(10u128, "foobar")),
-        new_executors: Some(vec![Binary::from_base64(
-            "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
-        )
-        .unwrap()]),
-        old_executors: None,
-        new_service_addr: Some(HumanAddr::from("yolo")),
-        new_checkpoint: None,
-        new_checkpoint_threshold: None,
-        new_max_req_threshold: None,
+        update_config_msg: UpdateConfigMsg {
+            new_owner: Some("owner0001".into()),
+            new_contract_fee: Some(coin(10u128, "foobar")),
+            new_executors: Some(vec![Binary::from_base64(
+                "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
+            )
+            .unwrap()]),
+            old_executors: None,
+            new_service_addr: Some(HumanAddr::from("yolo")),
+            new_checkpoint: None,
+            new_checkpoint_threshold: None,
+            new_max_req_threshold: None,
+            new_ping_contract: None,
+            new_trust_period: None,
+        },
     };
 
     app.execute_contract(&info.sender, &aioracle_addr, &msg, &[])

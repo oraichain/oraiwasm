@@ -10,10 +10,12 @@ pub struct Config {
     /// Owner If None set, contract is frozen.
     pub owner: HumanAddr,
     pub service_addr: HumanAddr,
+    pub ping_contract: HumanAddr,
     pub contract_fee: Coin,
     /// this threshold is to update the checkpoint stage when current previous checkpoint +
     pub checkpoint_threshold: u64,
     pub max_req_threshold: u64,
+    pub trusting_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
