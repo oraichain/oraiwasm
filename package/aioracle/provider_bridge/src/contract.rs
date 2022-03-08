@@ -1,10 +1,10 @@
 use crate::error::ContractError;
-use crate::msg::{GetServiceFees, HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{GetServiceFees, HandleMsg, InitMsg, MigrateMsg, QueryMsg};
 use crate::state::{Contracts, MAX_EXECUTOR_FEE, OWNER, SERVICE_CONTRACTS, SERVICE_FEES_CONTRACT};
 use aioracle_base::{GetServiceFeesMsg, Reward, ServiceFeesResponse};
 use cosmwasm_std::{
     attr, to_binary, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, StdResult, Uint128,
+    MessageInfo, MigrateResponse, StdResult,
 };
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
@@ -38,6 +38,28 @@ pub fn handle(
             max_executor_fee,
         } => handle_update_config(deps, info, owner, service_fees_contract, max_executor_fee),
     }
+}
+
+pub fn migrate(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: MigrateMsg,
+) -> StdResult<MigrateResponse> {
+    // // if old_version.version != CONTRACT_VERSION {
+    // //     return Err(StdError::generic_err(format!(
+    // //         "This is {}, cannot migrate from {}",
+    // //         CONTRACT_VERSION, old_version.version
+    // //     )));
+    // // }
+
+    // migrate_v02_to_v03(deps.storage, msg)?;
+
+    // once we have "migrated", set the new version and return success
+    Ok(MigrateResponse {
+        attributes: vec![],
+        ..MigrateResponse::default()
+    })
 }
 
 pub fn handle_update_config(
@@ -135,15 +157,18 @@ fn get_service_fees(deps: Deps, service: String) -> StdResult<Vec<Reward>> {
 
 fn get_participant_fee(deps: Deps, addr: HumanAddr) -> StdResult<Coin> {
     let service_fees_contract = SERVICE_FEES_CONTRACT.load(deps.storage)?;
-    let reward_result: StdResult<Coin> = deps.querier.query_wasm_smart(
+    let reward_result: ServiceFeesResponse = deps.querier.query_wasm_smart(
         service_fees_contract.clone(),
         &GetServiceFees {
             get_service_fees: GetServiceFeesMsg {
                 addr: addr.to_owned(),
             },
         },
-    );
-    Ok(reward_result?)
+    )?;
+    Ok(Coin {
+        denom: reward_result.fees.denom,
+        amount: reward_result.fees.amount,
+    })
 }
 
 fn collect_rewards(

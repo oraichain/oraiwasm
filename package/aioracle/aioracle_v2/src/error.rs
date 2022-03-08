@@ -17,6 +17,15 @@ pub enum ContractError {
     #[error("Already submitted")]
     AlreadySubmitted {},
 
+    #[error("Empty trusting pool data")]
+    EmptyTrustingPool {},
+
+    #[error("Cannot withdraw fees from pool because has not finished trusting period")]
+    InvalidTrustingPeriod {},
+
+    #[error("Cannot withdraw fees because amount is greater than amount in the withdraw pool")]
+    InvalidWithdrawAmount {},
+
     #[error("No request to process")]
     NoRequest {},
 
@@ -34,6 +43,9 @@ pub enum ContractError {
 
     #[error("Already claimed")]
     Claimed {},
+
+    #[error("Evidence already submitted & handled")]
+    AlreadyFinishedEvidence {},
 
     #[error("Request already finished")]
     AlreadyFinished {},

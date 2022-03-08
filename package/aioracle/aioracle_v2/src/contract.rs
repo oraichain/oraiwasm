@@ -12,25 +12,27 @@ use cw_storage_plus::Bound;
 use ripemd::{Digest as RipeDigest, Ripemd160};
 use sha2::Digest;
 use std::convert::TryInto;
-use std::ops::Mul;
+use std::ops::{Add, Mul, Sub};
 
 use crate::error::ContractError;
-use crate::migrations::migrate_v01_to_v02;
+use crate::migrations::migrate_v02_to_v03;
 use crate::msg::{
     CurrentStageResponse, GetParticipantFee, GetServiceContracts, GetServiceFees, HandleMsg,
     InitMsg, IsClaimedResponse, LatestStageResponse, MigrateMsg, QueryMsg, Report, RequestResponse,
-    StageInfo, UpdateConfigMsg,
+    StageInfo, TrustingPoolResponse, UpdateConfigMsg, WithdrawPoolResponse,
 };
 use crate::state::{
-    requests, Config, Contracts, Request, CHECKPOINT, CLAIM, CONFIG, EXECUTORS, EXECUTOR_SIZE,
-    LATEST_STAGE,
+    requests, Config, Contracts, Request, WithdrawPool, CHECKPOINT, CLAIM, CONFIG, EVIDENCES,
+    EXECUTORS, EXECUTORS_TRUSTING_POOL, EXECUTORS_WITHDRAW_POOL, EXECUTOR_SIZE, LATEST_STAGE,
 };
 use std::collections::HashMap;
 
 pub const CHECKPOINT_THRESHOLD: u64 = 5;
 pub const MAXIMUM_REQ_THRESHOLD: u64 = 67;
-// 7 days in seconds
-pub const TRUSTING_PERIOD: u64 = 604800;
+// 7 days in blocks (avg 6 secs / block)
+pub const TRUSTING_PERIOD: u64 = 100800;
+pub const SLASHING_AMOUNT: u64 = 100; // maximum is 1000, aka permilie
+pub const DENOM: &str = "orai";
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:aioracle-v2";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -49,6 +51,8 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
         checkpoint_threshold: CHECKPOINT_THRESHOLD,
         max_req_threshold: MAXIMUM_REQ_THRESHOLD,
         trusting_period: TRUSTING_PERIOD,
+        slashing_amount: SLASHING_AMOUNT,
+        denom: DENOM.to_string(),
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -72,15 +76,12 @@ pub fn save_executors(storage: &mut dyn Storage, executors: Vec<Binary>) -> StdR
 
 pub fn remove_executors(storage: &mut dyn Storage, executors: Vec<Binary>) -> StdResult<()> {
     for executor in executors {
-        EXECUTORS.update(storage, executor.as_slice(), |is_active| {
-            if let Some(_) = is_active {
-                return Ok(false);
-            }
-            Err(StdError::generic_err(format!(
-                "Invalid executor: {} is not in the mapping list",
-                executor.to_base64()
-            )))
-        })?;
+        let is_active = EXECUTORS.may_load(storage, executor.as_slice())?;
+        if let Some(_) = is_active {
+            EXECUTORS.save(storage, executor.as_slice(), &false)?;
+        } else {
+            continue;
+        }
     }
     Ok(())
 }
@@ -95,9 +96,11 @@ pub fn handle(
         HandleMsg::UpdateConfig { update_config_msg } => {
             execute_update_config(deps, env, info, update_config_msg)
         }
-        HandleMsg::RegisterMerkleRoot { stage, merkle_root } => {
-            execute_register_merkle_root(deps, env, info, stage, merkle_root)
-        }
+        HandleMsg::RegisterMerkleRoot {
+            stage,
+            merkle_root,
+            executors,
+        } => execute_register_merkle_root(deps, env, info, stage, merkle_root, executors),
         HandleMsg::Request {
             service,
             input,
@@ -109,6 +112,18 @@ pub fn handle(
             proof,
         } => handle_claim(deps, env, stage, report, proof),
         HandleMsg::WithdrawFees { amount, denom } => handle_withdraw_fees(deps, env, amount, denom),
+        HandleMsg::PrepareWithdrawPool { pubkey } => {
+            handle_prepare_withdraw_pool(deps, env, info, pubkey)
+        }
+        HandleMsg::WithdrawPool {
+            amount_coin,
+            pubkey,
+        } => handle_withdraw_pool(deps, env, amount_coin, pubkey),
+        HandleMsg::SubmitEvidence {
+            stage,
+            report,
+            proof,
+        } => handle_submit_evidence(deps, env, info, stage, report, proof),
     }
 }
 
@@ -125,7 +140,7 @@ pub fn migrate(
     // //     )));
     // // }
 
-    migrate_v01_to_v02(deps.storage, msg)?;
+    // migrate_v02_to_v03(deps.storage, msg)?;
 
     // once we have "migrated", set the new version and return success
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -158,6 +173,98 @@ pub fn handle_withdraw_fees(
     })
 }
 
+pub fn handle_prepare_withdraw_pool(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    pubkey: Binary,
+) -> Result<HandleResponse, ContractError> {
+    let executor_addr = pubkey_to_address(pubkey.clone())?;
+    let Config {
+        trusting_period, ..
+    } = CONFIG.load(deps.storage)?;
+    if executor_addr.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+    let mut withdraw_pool = EXECUTORS_TRUSTING_POOL.load(deps.storage, pubkey.as_slice())?;
+
+    if withdraw_pool.withdraw_height.eq(&0u64) {
+        withdraw_pool.withdraw_height = env.block.height;
+    } else {
+        // check with trusting period. Only allow withdrawing if trusting period has passed
+        if (withdraw_pool.withdraw_height + trusting_period).ge(&env.block.height) {
+            return Err(ContractError::InvalidTrustingPeriod {});
+        } else {
+            // automatically withdraw all rewards for simplicity
+            EXECUTORS_WITHDRAW_POOL.save(
+                deps.storage,
+                pubkey.as_slice(),
+                &withdraw_pool.amount_coin,
+            )?;
+            // reduce amount coin
+            withdraw_pool.amount_coin = Coin {
+                denom: withdraw_pool.amount_coin.denom,
+                amount: Uint128::from(0u64),
+            };
+        }
+    }
+    EXECUTORS_TRUSTING_POOL.save(deps.storage, pubkey.as_slice(), &withdraw_pool)?;
+
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "handle_withdraw_pool")],
+        messages: vec![],
+        data: None,
+    })
+}
+
+pub fn handle_withdraw_pool(
+    deps: DepsMut,
+    env: Env,
+    amount_coin: Coin,
+    pubkey: Binary,
+) -> Result<HandleResponse, ContractError> {
+    let executor_addr = pubkey_to_address(pubkey.clone())?;
+    let withdraw_pool = EXECUTORS_WITHDRAW_POOL.load(deps.storage, pubkey.as_slice())?;
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+
+    if amount_coin.denom.eq(&withdraw_pool.denom)
+        && amount_coin.amount.le(&withdraw_pool.amount)
+        && !amount_coin.amount.is_zero()
+    {
+        cosmos_msgs.push(
+            BankMsg::Send {
+                from_address: env.contract.address.clone(),
+                to_address: executor_addr,
+                amount: vec![Coin {
+                    denom: amount_coin.denom.clone(),
+                    amount: amount_coin.amount.clone(),
+                }],
+            }
+            .into(),
+        );
+    } else {
+        return Err(ContractError::InvalidWithdrawAmount {});
+    }
+    EXECUTORS_WITHDRAW_POOL.save(
+        deps.storage,
+        pubkey.as_slice(),
+        &Coin {
+            denom: withdraw_pool.denom,
+            amount: Uint128::from(withdraw_pool.amount.u128().sub(amount_coin.amount.u128())),
+        },
+    )?;
+
+    Ok(HandleResponse {
+        attributes: vec![
+            attr("action", "withdraw_pool"),
+            attr("amount", amount_coin.amount),
+            attr("denom", amount_coin.denom),
+        ],
+        messages: cosmos_msgs,
+        data: None,
+    })
+}
+
 pub fn execute_update_config(
     deps: DepsMut,
     _env: Env,
@@ -176,6 +283,8 @@ pub fn execute_update_config(
         new_max_req_threshold,
         new_ping_contract,
         new_trust_period,
+        new_slashing_amount,
+        new_denom,
     } = update_config_msg;
     let cfg = CONFIG.load(deps.storage)?;
     let owner = cfg.owner;
@@ -203,8 +312,14 @@ pub fn execute_update_config(
         if let Some(trusting_period) = new_trust_period {
             exists.trusting_period = trusting_period;
         }
+        if let Some(slashing_amount) = new_slashing_amount {
+            exists.slashing_amount = slashing_amount;
+        }
         if let Some(ping_contract) = new_ping_contract {
             exists.ping_contract = ping_contract;
+        }
+        if let Some(denom) = new_denom {
+            exists.denom = denom;
         }
         Ok(exists)
     })?;
@@ -236,7 +351,7 @@ pub fn execute_update_config(
 pub fn handle_request(
     deps: DepsMut,
     info: MessageInfo,
-    _env: Env,
+    env: Env,
     service: String,
     input: Option<String>,
     threshold: u64,
@@ -279,6 +394,9 @@ pub fn handle_request(
         deps.storage,
         &stage.to_be_bytes(),
         &crate::state::Request {
+            requester: info.sender.clone(),
+            request_height: env.block.height,
+            submit_merkle_height: 0u64,
             merkle_root: String::from(""),
             threshold,
             service: service.clone(),
@@ -299,6 +417,82 @@ pub fn handle_request(
     })
 }
 
+pub fn handle_submit_evidence(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    stage: u64,
+    report: Binary,
+    proofs: Option<Vec<String>>,
+) -> Result<HandleResponse, ContractError> {
+    let Config {
+        trusting_period,
+        slashing_amount,
+        denom,
+        ..
+    } = CONFIG.load(deps.storage)?;
+
+    let is_verified = verify_data(deps.as_ref(), stage, report.clone(), proofs)?;
+    if !is_verified {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let report_struct: Report = from_slice(report.as_slice())
+        .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
+
+    // check evidence, only allow evidence per executor
+    let mut evidence_key = report_struct.executor.clone().to_base64();
+    evidence_key.push_str(&stage.to_string());
+    let is_claimed = EVIDENCES.may_load(deps.storage, evidence_key.as_bytes())?;
+
+    if let Some(is_claimed) = is_claimed {
+        if is_claimed {
+            return Err(ContractError::AlreadyFinishedEvidence {});
+        }
+    }
+
+    let Request {
+        submit_merkle_height,
+        ..
+    } = requests().load(deps.storage, &stage.to_be_bytes())?;
+
+    let is_exist = EXECUTORS.may_load(deps.storage, report_struct.executor.as_slice())?;
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+
+    // only slash if the executor cannot be found in the whitelist
+    if is_exist.is_none() && (submit_merkle_height + trusting_period).gt(&env.block.height) {
+        // query contract balance to slash
+        let balance = deps
+            .querier
+            .query_balance(env.contract.address.clone(), denom.as_str())
+            .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
+        // if executor does not exist & still in trusting period => can slash amount in contract by sending the percentage amount to the reporter who discovers the faulty stage.
+        let total_slash = balance.amount.mul(Decimal::permille(slashing_amount));
+        if !total_slash.is_zero() {
+            let send_msg = BankMsg::Send {
+                from_address: env.contract.address,
+                to_address: info.sender,
+                amount: vec![Coin {
+                    denom: balance.denom,
+                    amount: total_slash,
+                }],
+            };
+            cosmos_msgs.push(send_msg.into());
+        }
+
+        EVIDENCES.save(deps.storage, evidence_key.as_bytes(), &true)?;
+    }
+
+    Ok(HandleResponse {
+        data: None,
+        messages: cosmos_msgs,
+        attributes: vec![
+            attr("action", "handle_submit_evidence"),
+            attr("stage", stage.to_string()),
+        ],
+    })
+}
+
 pub fn handle_claim(
     deps: DepsMut,
     env: Env,
@@ -307,7 +501,7 @@ pub fn handle_claim(
     proofs: Option<Vec<String>>,
 ) -> Result<HandleResponse, ContractError> {
     // check report legitimacy
-    let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
+    // let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
     let is_verified = verify_data(deps.as_ref(), stage, report.clone(), proofs)?;
     if !is_verified {
         return Err(ContractError::Unauthorized {});
@@ -330,46 +524,46 @@ pub fn handle_claim(
 
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
-    let executor_addr = pubkey_to_address(report_struct.executor)?;
+    // let executor_addr = pubkey_to_address(report_struct.executor)?;
 
-    let max_executor_fee = request
-        .rewards
-        .clone()
-        .into_iter()
-        .find(|reward| reward.0.eq("placeholder"))
-        .unwrap_or((
-            HumanAddr::from("placeholder"),
-            String::from("orai"),
-            Uint128::from(1u64),
-        ));
-    let executor_reward: Coin = deps
-        .querier
-        .query_wasm_smart(
-            service_addr.clone(),
-            &GetParticipantFee {
-                get_participant_fee: GetServiceFeesMsg {
-                    addr: executor_addr.clone(),
-                },
-            },
-        )
-        .unwrap_or(Coin {
-            denom: max_executor_fee.1,
-            amount: Uint128::from(0u64),
-        });
+    // let max_executor_fee = request
+    //     .rewards
+    //     .clone()
+    //     .into_iter()
+    //     .find(|reward| reward.0.eq("placeholder"))
+    //     .unwrap_or((
+    //         HumanAddr::from("placeholder"),
+    //         String::from("orai"),
+    //         Uint128::from(1u64),
+    //     ));
+    // let executor_reward: Coin = deps
+    //     .querier
+    //     .query_wasm_smart(
+    //         service_addr.clone(),
+    //         &GetParticipantFee {
+    //             get_participant_fee: GetServiceFeesMsg {
+    //                 addr: executor_addr.clone(),
+    //             },
+    //         },
+    //     )
+    //     .unwrap_or(Coin {
+    //         denom: max_executor_fee.1,
+    //         amount: Uint128::from(0u64),
+    //     });
 
-    if !executor_reward.amount.is_zero() {
-        cosmos_msgs.push(
-            BankMsg::Send {
-                from_address: env.contract.address.clone(),
-                to_address: executor_addr,
-                amount: vec![Coin {
-                    denom: executor_reward.denom,
-                    amount: executor_reward.amount,
-                }],
-            }
-            .into(),
-        );
-    }
+    // if !executor_reward.amount.is_zero() {
+    //     cosmos_msgs.push(
+    //         BankMsg::Send {
+    //             from_address: env.contract.address.clone(),
+    //             to_address: executor_addr,
+    //             amount: vec![Coin {
+    //                 denom: executor_reward.denom,
+    //                 amount: executor_reward.amount,
+    //             }],
+    //         }
+    //         .into(),
+    //     );
+    // }
 
     for reward in report_struct.rewards {
         // verify if reward is valid (matches an element in the list of rewards stored in request)
@@ -413,14 +607,17 @@ pub fn handle_claim(
 
 pub fn execute_register_merkle_root(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     stage: u64,
     mroot: String,
+    executors: Vec<Binary>,
 ) -> Result<HandleResponse, ContractError> {
     let Config {
         owner,
         checkpoint_threshold,
+        service_addr,
+        denom,
         ..
     } = CONFIG.load(deps.storage)?;
 
@@ -439,9 +636,10 @@ pub fn execute_register_merkle_root(
     }
 
     // if merkle root empty then update new
-    requests().update(deps.storage, &stage.to_be_bytes(), |request| {
+    let request = requests().update(deps.storage, &stage.to_be_bytes(), |request| {
         if let Some(mut request) = request {
             request.merkle_root = mroot.clone();
+            request.submit_merkle_height = env.block.height;
             {
                 return Ok(request);
             }
@@ -476,6 +674,56 @@ pub fn execute_register_merkle_root(
         }
     }
 
+    let max_executor_fee_option = request
+        .rewards
+        .into_iter()
+        .find(|reward| reward.0.eq("placeholder"));
+    let mut max_executor_fee = Coin {
+        denom,
+        amount: Uint128::from(0u64),
+    };
+    if let Some(max_ex_fee) = max_executor_fee_option {
+        max_executor_fee.denom = max_ex_fee.1;
+        max_executor_fee.amount = max_ex_fee.2;
+    }
+
+    // add executors' rewards into the pool
+    for executor in executors {
+        // only add reward if executor is in list
+        let executor_check = EXECUTORS.may_load(deps.storage, &executor)?;
+        if executor_check.is_none() || !executor_check.unwrap() {
+            continue;
+        }
+        let executor_reward =
+            get_executor_reward(deps.as_ref(), executor.clone(), service_addr.as_str())?;
+
+        let existing_executor_reward =
+            EXECUTORS_TRUSTING_POOL.may_load(deps.storage, executor.as_slice())?;
+
+        let mut final_new_executor_reward = Coin {
+            denom: executor_reward.denom,
+            amount: max_executor_fee.amount.min(executor_reward.amount), // only collect minimum between the executor fee
+        };
+
+        if let Some(existing_executor_reward) = existing_executor_reward {
+            final_new_executor_reward.amount = Uint128::from(
+                final_new_executor_reward
+                    .amount
+                    .u128()
+                    .add(existing_executor_reward.amount_coin.amount.u128()),
+            );
+        }
+
+        EXECUTORS_TRUSTING_POOL.save(
+            deps.storage,
+            executor.as_slice(),
+            &WithdrawPool {
+                amount_coin: final_new_executor_reward,
+                withdraw_height: 0u64,
+            },
+        )?;
+    }
+
     Ok(HandleResponse {
         data: None,
         messages: vec![],
@@ -486,16 +734,6 @@ pub fn execute_register_merkle_root(
         ],
     })
 }
-
-// fn get_current_stage(storage: &dyn Storage) -> Result<u64, ContractError> {
-//     let current_stage = CURRENT_STAGE.load(storage)?;
-//     let latest_stage = LATEST_STAGE.load(storage)?;
-//     // there is no round to process, return error
-//     if current_stage.eq(&(latest_stage + 1)) {
-//         return Err(ContractError::NoRequest {});
-//     }
-//     Ok(current_stage)
-// }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -546,7 +784,79 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&verify_data(deps, stage, data, proof)?)
         }
         QueryMsg::GetServiceFees { service } => to_binary(&query_service_fees(deps, service)?),
+        QueryMsg::GetWithdrawPool { pubkey } => to_binary(&query_withdraw_pool(deps, pubkey)?),
+        QueryMsg::GetWithdrawPools {
+            offset,
+            limit,
+            order,
+        } => to_binary(&query_withdraw_pools(deps, offset, limit, order)?),
+        QueryMsg::GetTrustingPool { pubkey } => to_binary(&query_trusting_pool(deps, pubkey)?),
+        QueryMsg::GetTrustingPools {
+            offset,
+            limit,
+            order,
+        } => to_binary(&query_trusting_pools(deps, offset, limit, order)?),
     }
+}
+
+pub fn query_withdraw_pool(deps: Deps, pubkey: Binary) -> StdResult<Coin> {
+    let coin = EXECUTORS_WITHDRAW_POOL.load(deps.storage, pubkey.as_slice())?;
+    Ok(coin)
+}
+
+pub fn query_trusting_pool(deps: Deps, pubkey: Binary) -> StdResult<WithdrawPool> {
+    let withdraw_pool = EXECUTORS_TRUSTING_POOL.load(deps.storage, pubkey.as_slice())?;
+    Ok(withdraw_pool)
+}
+
+pub fn query_withdraw_pools(
+    deps: Deps,
+    offset: Option<Binary>,
+    limit: Option<u8>,
+    order: Option<u8>,
+) -> StdResult<Vec<WithdrawPoolResponse>> {
+    let (limit, min, max, order_enum) = get_executors_params(offset, limit, order);
+
+    let res: StdResult<Vec<WithdrawPoolResponse>> = EXECUTORS_WITHDRAW_POOL
+        .range(deps.storage, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| {
+            kv_item.and_then(|(pub_vec, amount_coin)| {
+                // will panic if length is greater than 8, but we can make sure it is u64
+                // try_into will box vector to fixed array
+                Ok(WithdrawPoolResponse {
+                    pubkey: Binary::from(pub_vec),
+                    amount_coin,
+                })
+            })
+        })
+        .collect();
+    res
+}
+
+pub fn query_trusting_pools(
+    deps: Deps,
+    offset: Option<Binary>,
+    limit: Option<u8>,
+    order: Option<u8>,
+) -> StdResult<Vec<TrustingPoolResponse>> {
+    let (limit, min, max, order_enum) = get_executors_params(offset, limit, order);
+
+    let res: StdResult<Vec<TrustingPoolResponse>> = EXECUTORS_TRUSTING_POOL
+        .range(deps.storage, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| {
+            kv_item.and_then(|(pub_vec, withdraw_pool)| {
+                // will panic if length is greater than 8, but we can make sure it is u64
+                // try_into will box vector to fixed array
+                Ok(TrustingPoolResponse {
+                    pubkey: Binary::from(pub_vec),
+                    withdraw_pool,
+                })
+            })
+        })
+        .collect();
+    res
 }
 
 pub fn query_executor(deps: Deps, pubkey: Binary) -> StdResult<bool> {
@@ -730,6 +1040,9 @@ fn parse_request<'a>(item: StdResult<KV<Request>>) -> StdResult<RequestResponse>
         let id: u64 = u64::from_be_bytes(value);
         Ok(RequestResponse {
             stage: id,
+            requester: request.requester,
+            request_height: request.request_height,
+            submit_merkle_height: request.submit_merkle_height,
             merkle_root: request.merkle_root,
             threshold: request.threshold,
             service: request.service,
@@ -880,4 +1193,28 @@ pub fn pubkey_to_address(pubkey: Binary) -> Result<HumanAddr, ContractError> {
     let encoded = bech32::encode("orai", result_slice.to_base32(), Variant::Bech32)
         .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
     Ok(HumanAddr::from(encoded))
+}
+
+pub fn get_executor_reward(
+    deps: Deps,
+    pubkey: Binary,
+    service_addr: &str,
+) -> Result<Coin, ContractError> {
+    let Config { denom, .. } = CONFIG.load(deps.storage)?;
+    let executor_addr = pubkey_to_address(pubkey)?;
+    let executor_reward: Coin = deps
+        .querier
+        .query_wasm_smart(
+            HumanAddr::from(service_addr),
+            &GetParticipantFee {
+                get_participant_fee: GetServiceFeesMsg {
+                    addr: executor_addr,
+                },
+            },
+        )
+        .unwrap_or(Coin {
+            denom,
+            amount: Uint128::from(1u64),
+        });
+    Ok(executor_reward)
 }

@@ -23,31 +23,31 @@ pub struct OldConfig {
 
 pub const OLD_CONFIG_KEY: &str = "config";
 
-/// this takes a v0.1.x store and converts it to a v0.2.x format
-pub fn migrate_v01_to_v02(storage: &mut dyn Storage, migrate_msg: MigrateMsg) -> StdResult<()> {
-    let OldConfig {
-        owner,
-        service_addr,
-        contract_fee,
-        checkpoint_threshold,
-        max_req_threshold,
-    } = Item::<OldConfig>::new(OLD_CONFIG_KEY).load(storage)?;
-    let new_config = Item::<Config>::new(CONFIG_KEY);
-    let mut new_config_data = Config {
-        trusting_period: TRUSTING_PERIOD,
-        owner,
-        service_addr,
-        contract_fee,
-        checkpoint_threshold,
-        max_req_threshold,
-        ping_contract: migrate_msg.ping_addr,
-    };
-    if let Some(trusting_period) = migrate_msg.trusting_period {
-        new_config_data.trusting_period = trusting_period;
-    }
-    new_config.save(storage, &new_config_data)?;
-    Ok(())
-}
+// /// this takes a v0.1.x store and converts it to a v0.2.x format
+// pub fn migrate_v01_to_v02(storage: &mut dyn Storage, migrate_msg: MigrateMsg) -> StdResult<()> {
+//     let OldConfig {
+//         owner,
+//         service_addr,
+//         contract_fee,
+//         checkpoint_threshold,
+//         max_req_threshold,
+//     } = Item::<OldConfig>::new(OLD_CONFIG_KEY).load(storage)?;
+//     let new_config = Item::<Config>::new(CONFIG_KEY);
+//     let mut new_config_data = Config {
+//         trusting_period: TRUSTING_PERIOD,
+//         owner,
+//         service_addr,
+//         contract_fee,
+//         checkpoint_threshold,
+//         max_req_threshold,
+//         ping_contract: migrate_msg.ping_addr,
+//     };
+//     if let Some(trusting_period) = migrate_msg.trusting_period {
+//         new_config_data.trusting_period = trusting_period;
+//     }
+//     new_config.save(storage, &new_config_data)?;
+//     Ok(())
+// }
 
 #[cfg(test)]
 mod test {
@@ -85,24 +85,24 @@ mod test {
         deps
     }
 
-    #[test]
-    fn test_migrate() {
-        let mut deps = setup_old_contract();
-        let info = mock_info(HumanAddr::from("foobar"), &[]);
-        migrate(
-            deps.as_mut(),
-            mock_env(),
-            info,
-            MigrateMsg {
-                trusting_period: Some(1000000000),
-                ping_addr: HumanAddr::from("foobar"),
-            },
-        )
-        .unwrap();
+    // #[test]
+    // fn test_migrate() {
+    //     let mut deps = setup_old_contract();
+    //     let info = mock_info(HumanAddr::from("foobar"), &[]);
+    //     migrate(
+    //         deps.as_mut(),
+    //         mock_env(),
+    //         info,
+    //         MigrateMsg {
+    //             trusting_period: Some(1000000000),
+    //             ping_addr: HumanAddr::from("foobar"),
+    //         },
+    //     )
+    //     .unwrap();
 
-        // query config
-        let config: Config =
-            from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
-        println!("config: {:?}", config)
-    }
+    //     // query config
+    //     let config: Config =
+    //         from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+    //     println!("config: {:?}", config)
+    // }
 }

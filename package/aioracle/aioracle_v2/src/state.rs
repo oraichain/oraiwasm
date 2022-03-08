@@ -16,6 +16,8 @@ pub struct Config {
     pub checkpoint_threshold: u64,
     pub max_req_threshold: u64,
     pub trusting_period: u64,
+    pub slashing_amount: u64,
+    pub denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -29,11 +31,21 @@ pub struct Contracts {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Request {
     /// Owner If None set, contract is frozen.
+    pub requester: HumanAddr,
+    pub request_height: u64,
+    pub submit_merkle_height: u64,
     pub merkle_root: String,
     pub threshold: u64,
     pub service: String,
     pub input: Option<String>,
     pub rewards: Vec<Reward>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct WithdrawPool {
+    /// Owner If None set, contract is frozen.
+    pub amount_coin: Coin,
+    pub withdraw_height: u64,
 }
 
 pub const CONFIG_KEY: &str = "config";
@@ -50,22 +62,35 @@ pub const CLAIM_PREFIX: &str = "claim";
 // key: executor in base64 string + stage in string
 pub const CLAIM: Map<&[u8], bool> = Map::new(CLAIM_PREFIX);
 
+pub const EVIDENCE_PREFIX: &str = "evidence";
+
+// key: executor in base64 string + stage in string
+pub const EVIDENCES: Map<&[u8], bool> = Map::new(EVIDENCE_PREFIX);
+
 pub const EXECUTORS_PREFIX: &str = "executors";
 pub const EXECUTORS: Map<&[u8], bool> = Map::new(EXECUTORS_PREFIX);
 
 pub const EXECUTORS_SIZE_PREFIX: &str = "executors_size";
 pub const EXECUTOR_SIZE: Item<u64> = Item::new(EXECUTORS_SIZE_PREFIX);
 
+pub const EXECUTORS_TRUSTING_POOL_PREFIX: &str = "executors_trusting_pool";
+pub const EXECUTORS_TRUSTING_POOL: Map<&[u8], WithdrawPool> =
+    Map::new(EXECUTORS_TRUSTING_POOL_PREFIX);
+
+pub const EXECUTORS_WITHDRAW_POOL_PREFIX: &str = "executors_withdraw_pool";
+pub const EXECUTORS_WITHDRAW_POOL: Map<&[u8], Coin> = Map::new(EXECUTORS_WITHDRAW_POOL_PREFIX);
+
 // indexes requests
 // for structures
 pub struct RequestIndexes<'a> {
     pub service: MultiIndex<'a, Request>,
     pub merkle_root: MultiIndex<'a, Request>,
+    pub requester: MultiIndex<'a, Request>,
 }
 
 impl<'a> IndexList<Request> for RequestIndexes<'a> {
     fn get_indexes(&'_ self) -> Box<dyn Iterator<Item = &'_ dyn Index<Request>> + '_> {
-        let v: Vec<&dyn Index<Request>> = vec![&self.service, &self.merkle_root];
+        let v: Vec<&dyn Index<Request>> = vec![&self.service, &self.merkle_root, &self.requester];
         Box::new(v.into_iter())
     }
 }
@@ -75,14 +100,19 @@ pub fn requests<'a>() -> IndexedMap<'a, &'a [u8], Request, RequestIndexes<'a>> {
     let indexes = RequestIndexes {
         service: MultiIndex::new(
             |d| d.service.to_string().into_bytes(),
-            "requests",
+            "requests_v2",
             "requests_service",
         ),
         merkle_root: MultiIndex::new(
             |d| d.merkle_root.to_string().into_bytes(),
-            "requests",
+            "requests_v2",
             "requests_merkle_root",
         ),
+        requester: MultiIndex::new(
+            |d| d.requester.to_string().into_bytes(),
+            "requests_v2",
+            "requests_requester",
+        ),
     };
-    IndexedMap::new("requests", indexes)
+    IndexedMap::new("requests_v2", indexes)
 }

@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
 
+use crate::state::WithdrawPool;
+
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InitMsg {
     /// Owner if none set to info.sender.
@@ -24,6 +26,7 @@ pub enum HandleMsg {
         /// MerkleRoot is hex-encoded merkle root.
         stage: u64,
         merkle_root: String,
+        executors: Vec<Binary>,
     },
     Request {
         service: String,
@@ -38,6 +41,18 @@ pub enum HandleMsg {
     WithdrawFees {
         amount: Uint128,
         denom: String,
+    },
+    PrepareWithdrawPool {
+        pubkey: Binary,
+    },
+    WithdrawPool {
+        pubkey: Binary,
+        amount_coin: Coin,
+    },
+    SubmitEvidence {
+        stage: u64,
+        report: Binary,
+        proof: Option<Vec<String>>,
     },
 }
 
@@ -91,12 +106,42 @@ pub enum QueryMsg {
     GetServiceFees {
         service: String,
     },
+    GetTrustingPool {
+        pubkey: Binary,
+    },
+    GetTrustingPools {
+        offset: Option<Binary>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
+    GetWithdrawPool {
+        pubkey: Binary,
+    },
+    GetWithdrawPools {
+        offset: Option<Binary>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct ConfigResponse {
     pub owner: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct WithdrawPoolResponse {
+    pub pubkey: Binary,
+    pub amount_coin: Coin,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct TrustingPoolResponse {
+    pub pubkey: Binary,
+    pub withdraw_pool: WithdrawPool,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -137,6 +182,10 @@ pub struct GetParticipantFee {
 pub struct RequestResponse {
     pub stage: u64,
     /// Owner If None set, contract is frozen.
+    pub requester: HumanAddr,
+    pub request_height: u64,
+    pub submit_merkle_height: u64,
+    /// Owner If None set, contract is frozen.
     pub merkle_root: String,
     pub threshold: u64,
     pub service: String,
@@ -160,8 +209,8 @@ pub struct IsClaimedResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {
-    pub trusting_period: Option<u64>,
-    pub ping_addr: HumanAddr,
+    pub slash_amount: u64,
+    pub denom: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -176,4 +225,6 @@ pub struct UpdateConfigMsg {
     pub new_max_req_threshold: Option<u64>,
     pub new_ping_contract: Option<HumanAddr>,
     pub new_trust_period: Option<u64>,
+    pub new_slashing_amount: Option<u64>,
+    pub new_denom: Option<String>,
 }
