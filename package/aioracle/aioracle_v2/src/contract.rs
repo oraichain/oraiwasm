@@ -20,11 +20,11 @@ use crate::msg::{
     CurrentStageResponse, GetMaximumExecutorFee, GetParticipantFee, GetServiceContracts,
     GetServiceFees, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse,
     MaximumExecutorFeeMsg, MigrateMsg, QueryMsg, Report, RequestResponse, StageInfo,
-    TrustingPoolResponse, UpdateConfigMsg, WithdrawPoolResponse,
+    TrustingPoolResponse, UpdateConfigMsg,
 };
 use crate::state::{
     requests, Config, Contracts, Request, TrustingPool, CHECKPOINT, CLAIM, CONFIG, EVIDENCES,
-    EXECUTORS, EXECUTORS_TRUSTING_POOL, EXECUTORS_WITHDRAW_POOL, EXECUTOR_SIZE, LATEST_STAGE,
+    EXECUTORS, EXECUTORS_TRUSTING_POOL, EXECUTOR_SIZE, LATEST_STAGE,
 };
 use std::collections::HashMap;
 
@@ -116,10 +116,6 @@ pub fn handle(
         HandleMsg::PrepareWithdrawPool { pubkey } => {
             handle_prepare_withdraw_pool(deps, env, info, pubkey)
         }
-        HandleMsg::WithdrawPool {
-            amount_coin,
-            pubkey,
-        } => handle_withdraw_pool(deps, env, amount_coin, pubkey),
         HandleMsg::SubmitEvidence {
             stage,
             report,
@@ -187,95 +183,52 @@ pub fn handle_prepare_withdraw_pool(
     if executor_addr.ne(&info.sender) {
         return Err(ContractError::Unauthorized {});
     }
-    let mut withdraw_pool = EXECUTORS_TRUSTING_POOL.load(deps.storage, pubkey.as_slice())?;
+    let mut trusting_pool = EXECUTORS_TRUSTING_POOL.load(deps.storage, pubkey.as_slice())?;
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
-    if withdraw_pool.withdraw_height.eq(&0u64) {
-        withdraw_pool.withdraw_height = env.block.height;
+    if trusting_pool.withdraw_height.eq(&0u64) {
+        trusting_pool.withdraw_height = env.block.height;
+        trusting_pool.withdraw_amount_coin = trusting_pool.amount_coin.clone();
     } else {
         // check with trusting period. Only allow withdrawing if trusting period has passed
-        if (withdraw_pool.withdraw_height + trusting_period).ge(&env.block.height) {
+        if (trusting_pool.withdraw_height + trusting_period).ge(&env.block.height) {
             return Err(ContractError::InvalidTrustingPeriod {});
         } else {
-            // automatically withdraw all rewards for simplicity
-            EXECUTORS_WITHDRAW_POOL.save(
-                deps.storage,
-                pubkey.as_slice(),
-                &withdraw_pool.amount_coin,
-            )?;
-
-            // add execute tx to automatically withdraw orai from withdraw pool
+            // add execute tx to automatically withdraw orai from pool
             cosmos_msgs.push(
-                WasmMsg::Execute {
-                    contract_addr: env.contract.address,
-                    msg: to_binary(&HandleMsg::WithdrawPool {
-                        pubkey: pubkey.clone(),
-                        amount_coin: withdraw_pool.amount_coin.clone(),
-                    })?,
-                    send: vec![],
+                BankMsg::Send {
+                    from_address: env.contract.address.clone(),
+                    to_address: executor_addr,
+                    amount: vec![Coin {
+                        denom: trusting_pool.withdraw_amount_coin.denom.clone(),
+                        amount: trusting_pool.withdraw_amount_coin.amount.clone(),
+                    }],
                 }
                 .into(),
             );
 
             // reduce amount coin
-            withdraw_pool.amount_coin = Coin {
-                denom: withdraw_pool.amount_coin.denom,
+            trusting_pool.amount_coin = Coin {
+                denom: trusting_pool.amount_coin.denom,
+                amount: Uint128::from(
+                    trusting_pool
+                        .amount_coin
+                        .amount
+                        .u128()
+                        .sub(trusting_pool.withdraw_amount_coin.amount.u128()),
+                ),
+            };
+            trusting_pool.withdraw_amount_coin = Coin {
+                denom: trusting_pool.amount_coin.denom.clone(),
                 amount: Uint128::from(0u64),
             };
+            trusting_pool.withdraw_height = 0;
         }
     }
-    EXECUTORS_TRUSTING_POOL.save(deps.storage, pubkey.as_slice(), &withdraw_pool)?;
+    EXECUTORS_TRUSTING_POOL.save(deps.storage, pubkey.as_slice(), &trusting_pool)?;
 
     Ok(HandleResponse {
         attributes: vec![attr("action", "handle_withdraw_pool")],
-        messages: cosmos_msgs,
-        data: None,
-    })
-}
-
-pub fn handle_withdraw_pool(
-    deps: DepsMut,
-    env: Env,
-    amount_coin: Coin,
-    pubkey: Binary,
-) -> Result<HandleResponse, ContractError> {
-    let executor_addr = pubkey_to_address(pubkey.clone())?;
-    let withdraw_pool = EXECUTORS_WITHDRAW_POOL.load(deps.storage, pubkey.as_slice())?;
-    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
-
-    if amount_coin.denom.eq(&withdraw_pool.denom)
-        && amount_coin.amount.le(&withdraw_pool.amount)
-        && !amount_coin.amount.is_zero()
-    {
-        cosmos_msgs.push(
-            BankMsg::Send {
-                from_address: env.contract.address.clone(),
-                to_address: executor_addr,
-                amount: vec![Coin {
-                    denom: amount_coin.denom.clone(),
-                    amount: amount_coin.amount.clone(),
-                }],
-            }
-            .into(),
-        );
-    } else {
-        return Err(ContractError::InvalidWithdrawAmount {});
-    }
-    EXECUTORS_WITHDRAW_POOL.save(
-        deps.storage,
-        pubkey.as_slice(),
-        &Coin {
-            denom: withdraw_pool.denom,
-            amount: Uint128::from(withdraw_pool.amount.u128().sub(amount_coin.amount.u128())),
-        },
-    )?;
-
-    Ok(HandleResponse {
-        attributes: vec![
-            attr("action", "withdraw_pool"),
-            attr("amount", amount_coin.amount),
-            attr("denom", amount_coin.denom),
-        ],
         messages: cosmos_msgs,
         data: None,
     })
@@ -695,7 +648,7 @@ pub fn execute_register_merkle_root(
         .into_iter()
         .find(|reward| reward.0.eq("placeholder"));
     let mut max_executor_fee = Coin {
-        denom,
+        denom: denom.clone(),
         amount: Uint128::from(0u64),
     };
     if let Some(max_ex_fee) = max_executor_fee_option {
@@ -721,6 +674,15 @@ pub fn execute_register_merkle_root(
             amount: max_executor_fee.amount.min(executor_reward.amount), // only collect minimum between the executor fee
         };
 
+        let mut trusting_pool = TrustingPool {
+            amount_coin: final_new_executor_reward.clone(),
+            withdraw_height: 0u64,
+            withdraw_amount_coin: Coin {
+                amount: Uint128::from(0u64),
+                denom: final_new_executor_reward.denom.clone(),
+            },
+        };
+
         if let Some(existing_executor_reward) = existing_executor_reward {
             final_new_executor_reward.amount = Uint128::from(
                 final_new_executor_reward
@@ -728,16 +690,12 @@ pub fn execute_register_merkle_root(
                     .u128()
                     .add(existing_executor_reward.amount_coin.amount.u128()),
             );
+            trusting_pool.amount_coin = final_new_executor_reward;
+            trusting_pool.withdraw_height = existing_executor_reward.withdraw_height;
+            trusting_pool.withdraw_amount_coin = existing_executor_reward.withdraw_amount_coin;
         }
 
-        EXECUTORS_TRUSTING_POOL.save(
-            deps.storage,
-            executor.as_slice(),
-            &TrustingPool {
-                amount_coin: final_new_executor_reward,
-                withdraw_height: 0u64,
-            },
-        )?;
+        EXECUTORS_TRUSTING_POOL.save(deps.storage, executor.as_slice(), &trusting_pool)?;
     }
 
     Ok(HandleResponse {
@@ -801,12 +759,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::GetServiceFees { service } => to_binary(&query_service_fees(deps, service)?),
         QueryMsg::GetMaximumExecutorFee {} => to_binary(&query_maximum_executor_fee(deps)?),
-        QueryMsg::GetWithdrawPool { pubkey } => to_binary(&query_withdraw_pool(deps, pubkey)?),
-        QueryMsg::GetWithdrawPools {
-            offset,
-            limit,
-            order,
-        } => to_binary(&query_withdraw_pools(deps, offset, limit, order)?),
         QueryMsg::GetTrustingPool { pubkey } => to_binary(&query_trusting_pool(deps, env, pubkey)?),
         QueryMsg::GetTrustingPools {
             offset,
@@ -814,11 +766,6 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             order,
         } => to_binary(&query_trusting_pools(deps, env, offset, limit, order)?),
     }
-}
-
-pub fn query_withdraw_pool(deps: Deps, pubkey: Binary) -> StdResult<Coin> {
-    let coin = EXECUTORS_WITHDRAW_POOL.load(deps.storage, pubkey.as_slice())?;
-    Ok(coin)
 }
 
 pub fn query_trusting_pool(
@@ -836,31 +783,6 @@ pub fn query_trusting_pool(
         trusting_pool,
         current_height: env.block.height,
     })
-}
-
-pub fn query_withdraw_pools(
-    deps: Deps,
-    offset: Option<Binary>,
-    limit: Option<u8>,
-    order: Option<u8>,
-) -> StdResult<Vec<WithdrawPoolResponse>> {
-    let (limit, min, max, order_enum) = get_executors_params(offset, limit, order);
-
-    let res: StdResult<Vec<WithdrawPoolResponse>> = EXECUTORS_WITHDRAW_POOL
-        .range(deps.storage, min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| {
-            kv_item.and_then(|(pub_vec, amount_coin)| {
-                // will panic if length is greater than 8, but we can make sure it is u64
-                // try_into will box vector to fixed array
-                Ok(WithdrawPoolResponse {
-                    pubkey: Binary::from(pub_vec),
-                    amount_coin,
-                })
-            })
-        })
-        .collect();
-    res
 }
 
 pub fn query_trusting_pools(

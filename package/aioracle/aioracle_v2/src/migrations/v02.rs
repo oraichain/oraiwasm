@@ -1,13 +1,13 @@
 use aioracle_base::Reward;
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Coin, HumanAddr, Order, StdResult, Storage};
+use cosmwasm_std::{Binary, Coin, HumanAddr, Order, StdResult, Storage, Uint128};
 
 use crate::{
-    msg::MigrateMsg,
-    state::{requests, Config, Request, CONFIG_KEY},
+    msg::{MigrateMsg, TrustingPoolResponse},
+    state::{requests, Config, Request, TrustingPool, CONFIG_KEY, EXECUTORS_TRUSTING_POOL},
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -32,6 +32,26 @@ pub struct OldRequest {
     pub input: Option<String>,
     pub rewards: Vec<Reward>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct OldTrustingPool {
+    /// Owner If None set, contract is frozen.
+    pub amount_coin: Coin,
+    pub withdraw_height: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct OldTrustingPoolResponse {
+    pub pubkey: Binary,
+    pub current_height: u64,
+    pub trusting_period: u64,
+    pub trusting_pool: OldTrustingPool,
+}
+
+pub const OLD_EXECUTORS_TRUSTING_POOL_PREFIX: &str = "executors_trusting_pool";
+pub const OLD_EXECUTORS_TRUSTING_POOL: Map<&[u8], OldTrustingPool> =
+    Map::new(OLD_EXECUTORS_TRUSTING_POOL_PREFIX);
 
 pub struct RequestIndexes<'a> {
     pub service: MultiIndex<'a, OldRequest>,
@@ -89,26 +109,58 @@ pub fn migrate_v02_to_v03(storage: &mut dyn Storage, migrate_msg: MigrateMsg) ->
     };
     new_config.save(storage, &new_config_data)?;
 
-    // migrate request storage
-    let request_maps_result: StdResult<Vec<(Vec<u8>, OldRequest)>> = old_requests()
-        .range(storage, None, None, Order::Ascending)
-        .collect();
+    // // migrate request storage
+    // let request_maps_result: StdResult<Vec<(Vec<u8>, OldRequest)>> = old_requests()
+    //     .range(storage, None, None, Order::Ascending)
+    //     .collect();
 
-    let request_maps = request_maps_result?;
+    // let request_maps = request_maps_result?;
 
-    for request_map in request_maps {
-        requests().save(
+    // for request_map in request_maps {
+    //     requests().save(
+    //         storage,
+    //         request_map.0.as_slice(),
+    //         &Request {
+    //             requester: HumanAddr::from("placeholder"),
+    //             request_height: 0u64,
+    //             submit_merkle_height: 0u64,
+    //             merkle_root: request_map.1.merkle_root,
+    //             threshold: request_map.1.threshold,
+    //             service: request_map.1.service,
+    //             input: request_map.1.input,
+    //             rewards: request_map.1.rewards,
+    //         },
+    //     )?;
+    // }
+
+    let trusting_pools_results: StdResult<Vec<OldTrustingPoolResponse>> =
+        OLD_EXECUTORS_TRUSTING_POOL
+            .range(storage, None, None, Order::Ascending)
+            .map(|kv_item| {
+                kv_item.and_then(|(pub_vec, trusting_pool)| {
+                    // will panic if length is greater than 8, but we can make sure it is u64
+                    // try_into will box vector to fixed array
+                    Ok(OldTrustingPoolResponse {
+                        trusting_period: 1,
+                        current_height: 0,
+                        pubkey: Binary::from(pub_vec),
+                        trusting_pool,
+                    })
+                })
+            })
+            .collect();
+    let trusting_pools = trusting_pools_results?;
+    for pool in trusting_pools {
+        EXECUTORS_TRUSTING_POOL.save(
             storage,
-            request_map.0.as_slice(),
-            &Request {
-                requester: HumanAddr::from("placeholder"),
-                request_height: 0u64,
-                submit_merkle_height: 0u64,
-                merkle_root: request_map.1.merkle_root,
-                threshold: request_map.1.threshold,
-                service: request_map.1.service,
-                input: request_map.1.input,
-                rewards: request_map.1.rewards,
+            pool.pubkey.as_slice(),
+            &TrustingPool {
+                amount_coin: pool.trusting_pool.amount_coin.clone(),
+                withdraw_height: 0,
+                withdraw_amount_coin: Coin {
+                    denom: pool.trusting_pool.amount_coin.denom,
+                    amount: Uint128::from(0u64),
+                },
             },
         )?;
     }
@@ -125,17 +177,33 @@ mod test {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
+    use cosmwasm_std::Binary;
     use cosmwasm_std::HumanAddr;
     use cosmwasm_std::{coins, from_binary, Coin, OwnedDeps, Uint128};
     use cw_storage_plus::Item;
 
     use super::old_requests;
     use super::OldRequest;
+    use super::OLD_EXECUTORS_TRUSTING_POOL;
     use super::{OldConfig, OLD_CONFIG_KEY};
 
     fn setup_old_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
         let mut deps = mock_dependencies(&coins(100000, "orai"));
         deps.api.canonical_length = 54;
+
+        OLD_EXECUTORS_TRUSTING_POOL
+            .save(
+                &mut deps.storage,
+                Binary::from(&[1]).as_slice(),
+                &super::OldTrustingPool {
+                    amount_coin: Coin {
+                        amount: Uint128::from(0u64),
+                        denom: String::from("orai"),
+                    },
+                    withdraw_height: 0,
+                },
+            )
+            .unwrap();
 
         Item::<OldConfig>::new(OLD_CONFIG_KEY)
             .save(
@@ -155,19 +223,19 @@ mod test {
             )
             .unwrap();
 
-        old_requests()
-            .save(
-                &mut deps.storage,
-                &1u64.to_be_bytes(),
-                &OldRequest {
-                    merkle_root: String::from("foobar"),
-                    threshold: 1,
-                    service: String::from("foobar"),
-                    input: None,
-                    rewards: vec![],
-                },
-            )
-            .unwrap();
+        // old_requests()
+        //     .save(
+        //         &mut deps.storage,
+        //         &1u64.to_be_bytes(),
+        //         &OldRequest {
+        //             merkle_root: String::from("foobar"),
+        //             threshold: 1,
+        //             service: String::from("foobar"),
+        //             input: None,
+        //             rewards: vec![],
+        //         },
+        //     )
+        //     .unwrap();
 
         deps
     }
@@ -187,16 +255,31 @@ mod test {
         )
         .unwrap();
 
-        // query config
-        let config: Config =
-            from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
-        println!("config: {:?}", config);
-        assert_eq!(config.slashing_amount, 50);
+        // query trusting pool
+        let pool: TrustingPoolResponse = from_binary(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetTrustingPool {
+                    pubkey: Binary::from(&[1]),
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
 
-        // query requests
-        let request: Request =
-            from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Request { stage: 1 }).unwrap())
-                .unwrap();
-        println!("request: {:?}", request);
+        println!("pool: {:?}", pool);
+
+        // // query config
+        // let config: Config =
+        //     from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+        // println!("config: {:?}", config);
+        // assert_eq!(config.slashing_amount, 50);
+
+        // // query requests
+        // let request: Request =
+        //     from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Request { stage: 1 }).unwrap())
+        //         .unwrap();
+        // println!("request: {:?}", request);
     }
 }

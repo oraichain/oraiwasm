@@ -1,8 +1,7 @@
 use crate::contract::{init, query, verify_request_fees};
 use crate::error::ContractError;
 use crate::msg::{
-    HandleMsg, InitMsg, QueryMsg, RequestResponse, StageInfo, TrustingPoolResponse,
-    UpdateConfigMsg, WithdrawPoolResponse,
+    HandleMsg, InitMsg, QueryMsg, RequestResponse, StageInfo, TrustingPoolResponse, UpdateConfigMsg,
 };
 use crate::state::{Config, Request, TrustingPool};
 
@@ -1213,7 +1212,7 @@ fn test_handle_withdraw_pool() {
     // register new merkle root
     let msg = HandleMsg::RegisterMerkleRoot {
         stage: 1,
-        merkle_root: test_data.root,
+        merkle_root: test_data.root.clone(),
         executors: vec![pubkey.clone()],
     };
 
@@ -1265,7 +1264,57 @@ fn test_handle_withdraw_pool() {
         .unwrap_err(),
         ContractError::InvalidTrustingPeriod {}.to_string()
     );
+
+    // add another merkle tree root to increment balance in pool
+    // create a new request
+    app.execute_contract(
+        &HumanAddr::from("client"),
+        &aioracle_addr,
+        &HandleMsg::Request {
+            threshold: 1,
+            input: None,
+            service: "price".to_string(),
+        },
+        &coins(6u128, "orai"),
+    )
+    .unwrap();
+
+    // register new merkle root
+    let msg = HandleMsg::RegisterMerkleRoot {
+        stage: 2,
+        merkle_root: test_data.root,
+        executors: vec![pubkey.clone()],
+    };
+
+    app.execute_contract(
+        HumanAddr::from(AIORACLE_OWNER),
+        aioracle_addr.clone(),
+        &msg,
+        &[],
+    )
+    .unwrap();
+
     app.update_block(skip_trusting_period);
+
+    // query trusting pool, now amount coin should be two, withdraw amount should be 1
+    // query trusting pool, should be 0
+    let trusting_pool: TrustingPoolResponse = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr.clone(),
+            &QueryMsg::GetTrustingPool {
+                pubkey: pubkey.clone(),
+            },
+        )
+        .unwrap();
+    assert_eq!(
+        trusting_pool.trusting_pool.amount_coin.amount,
+        Uint128::from(2u64)
+    );
+    assert_eq!(
+        trusting_pool.trusting_pool.withdraw_amount_coin.amount,
+        Uint128::from(1u64)
+    );
 
     // can now move all balance to withdraw pool and should automatically withdraw from pool
     app.execute_contract(
@@ -1280,17 +1329,25 @@ fn test_handle_withdraw_pool() {
 
     app.update_block(next_block);
 
-    // query withdraw pool, should be 0
-    let coin: Coin = app
+    // query trusting pool, withdraw height and amount should be 0. amount coin should be 1
+    let trusting_pool: TrustingPoolResponse = app
         .wrap()
         .query_wasm_smart(
             aioracle_addr.clone(),
-            &QueryMsg::GetWithdrawPool {
+            &QueryMsg::GetTrustingPool {
                 pubkey: pubkey.clone(),
             },
         )
         .unwrap();
-    assert_eq!(coin.amount, Uint128::from(0u64));
+    assert_eq!(
+        trusting_pool.trusting_pool.amount_coin.amount,
+        Uint128::from(1u64)
+    );
+    assert_eq!(
+        trusting_pool.trusting_pool.withdraw_amount_coin.amount,
+        Uint128::from(0u64)
+    );
+    assert_eq!(trusting_pool.trusting_pool.withdraw_height, 0u64);
 }
 
 #[test]

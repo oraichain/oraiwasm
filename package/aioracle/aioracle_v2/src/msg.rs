@@ -45,10 +45,6 @@ pub enum HandleMsg {
     PrepareWithdrawPool {
         pubkey: Binary,
     },
-    WithdrawPool {
-        pubkey: Binary,
-        amount_coin: Coin,
-    },
     SubmitEvidence {
         stage: u64,
         report: Binary,
@@ -115,27 +111,12 @@ pub enum QueryMsg {
         limit: Option<u8>,
         order: Option<u8>,
     },
-    GetWithdrawPool {
-        pubkey: Binary,
-    },
-    GetWithdrawPools {
-        offset: Option<Binary>,
-        limit: Option<u8>,
-        order: Option<u8>,
-    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct ConfigResponse {
     pub owner: Option<String>,
-}
-
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-#[serde(rename_all = "snake_case")]
-pub struct WithdrawPoolResponse {
-    pub pubkey: Binary,
-    pub amount_coin: Coin,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
