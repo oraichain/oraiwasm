@@ -42,7 +42,7 @@ pub struct Request {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct WithdrawPool {
+pub struct TrustingPool {
     /// Owner If None set, contract is frozen.
     pub amount_coin: Coin,
     pub withdraw_height: u64,
@@ -74,7 +74,7 @@ pub const EXECUTORS_SIZE_PREFIX: &str = "executors_size";
 pub const EXECUTOR_SIZE: Item<u64> = Item::new(EXECUTORS_SIZE_PREFIX);
 
 pub const EXECUTORS_TRUSTING_POOL_PREFIX: &str = "executors_trusting_pool";
-pub const EXECUTORS_TRUSTING_POOL: Map<&[u8], WithdrawPool> =
+pub const EXECUTORS_TRUSTING_POOL: Map<&[u8], TrustingPool> =
     Map::new(EXECUTORS_TRUSTING_POOL_PREFIX);
 
 pub const EXECUTORS_WITHDRAW_POOL_PREFIX: &str = "executors_withdraw_pool";

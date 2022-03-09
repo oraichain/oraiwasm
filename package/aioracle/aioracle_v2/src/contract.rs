@@ -2,7 +2,7 @@ use aioracle_base::{GetServiceFeesMsg, Reward, ServiceMsg};
 use cosmwasm_std::{
     attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError,
-    StdResult, Storage, Uint128, KV,
+    StdResult, Storage, Uint128, WasmMsg, KV,
 };
 
 use cw2::set_contract_version;
@@ -23,7 +23,7 @@ use crate::msg::{
     TrustingPoolResponse, UpdateConfigMsg, WithdrawPoolResponse,
 };
 use crate::state::{
-    requests, Config, Contracts, Request, WithdrawPool, CHECKPOINT, CLAIM, CONFIG, EVIDENCES,
+    requests, Config, Contracts, Request, TrustingPool, CHECKPOINT, CLAIM, CONFIG, EVIDENCES,
     EXECUTORS, EXECUTORS_TRUSTING_POOL, EXECUTORS_WITHDRAW_POOL, EXECUTOR_SIZE, LATEST_STAGE,
 };
 use std::collections::HashMap;
@@ -188,6 +188,7 @@ pub fn handle_prepare_withdraw_pool(
         return Err(ContractError::Unauthorized {});
     }
     let mut withdraw_pool = EXECUTORS_TRUSTING_POOL.load(deps.storage, pubkey.as_slice())?;
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
     if withdraw_pool.withdraw_height.eq(&0u64) {
         withdraw_pool.withdraw_height = env.block.height;
@@ -202,6 +203,20 @@ pub fn handle_prepare_withdraw_pool(
                 pubkey.as_slice(),
                 &withdraw_pool.amount_coin,
             )?;
+
+            // add execute tx to automatically withdraw orai from withdraw pool
+            cosmos_msgs.push(
+                WasmMsg::Execute {
+                    contract_addr: env.contract.address,
+                    msg: to_binary(&HandleMsg::WithdrawPool {
+                        pubkey: pubkey.clone(),
+                        amount_coin: withdraw_pool.amount_coin.clone(),
+                    })?,
+                    send: vec![],
+                }
+                .into(),
+            );
+
             // reduce amount coin
             withdraw_pool.amount_coin = Coin {
                 denom: withdraw_pool.amount_coin.denom,
@@ -213,7 +228,7 @@ pub fn handle_prepare_withdraw_pool(
 
     Ok(HandleResponse {
         attributes: vec![attr("action", "handle_withdraw_pool")],
-        messages: vec![],
+        messages: cosmos_msgs,
         data: None,
     })
 }
@@ -718,7 +733,7 @@ pub fn execute_register_merkle_root(
         EXECUTORS_TRUSTING_POOL.save(
             deps.storage,
             executor.as_slice(),
-            &WithdrawPool {
+            &TrustingPool {
                 amount_coin: final_new_executor_reward,
                 withdraw_height: 0u64,
             },
@@ -736,7 +751,7 @@ pub fn execute_register_merkle_root(
     })
 }
 
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
         QueryMsg::GetExecutors {
@@ -792,12 +807,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             order,
         } => to_binary(&query_withdraw_pools(deps, offset, limit, order)?),
-        QueryMsg::GetTrustingPool { pubkey } => to_binary(&query_trusting_pool(deps, pubkey)?),
+        QueryMsg::GetTrustingPool { pubkey } => to_binary(&query_trusting_pool(deps, env, pubkey)?),
         QueryMsg::GetTrustingPools {
             offset,
             limit,
             order,
-        } => to_binary(&query_trusting_pools(deps, offset, limit, order)?),
+        } => to_binary(&query_trusting_pools(deps, env, offset, limit, order)?),
     }
 }
 
@@ -806,9 +821,21 @@ pub fn query_withdraw_pool(deps: Deps, pubkey: Binary) -> StdResult<Coin> {
     Ok(coin)
 }
 
-pub fn query_trusting_pool(deps: Deps, pubkey: Binary) -> StdResult<WithdrawPool> {
-    let withdraw_pool = EXECUTORS_TRUSTING_POOL.load(deps.storage, pubkey.as_slice())?;
-    Ok(withdraw_pool)
+pub fn query_trusting_pool(
+    deps: Deps,
+    env: Env,
+    pubkey: Binary,
+) -> StdResult<TrustingPoolResponse> {
+    let trusting_pool = EXECUTORS_TRUSTING_POOL.load(deps.storage, pubkey.as_slice())?;
+    let Config {
+        trusting_period, ..
+    } = CONFIG.load(deps.storage)?;
+    Ok(TrustingPoolResponse {
+        trusting_period,
+        pubkey,
+        trusting_pool,
+        current_height: env.block.height,
+    })
 }
 
 pub fn query_withdraw_pools(
@@ -838,22 +865,28 @@ pub fn query_withdraw_pools(
 
 pub fn query_trusting_pools(
     deps: Deps,
+    env: Env,
     offset: Option<Binary>,
     limit: Option<u8>,
     order: Option<u8>,
 ) -> StdResult<Vec<TrustingPoolResponse>> {
+    let Config {
+        trusting_period, ..
+    } = CONFIG.load(deps.storage)?;
     let (limit, min, max, order_enum) = get_executors_params(offset, limit, order);
 
     let res: StdResult<Vec<TrustingPoolResponse>> = EXECUTORS_TRUSTING_POOL
         .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| {
-            kv_item.and_then(|(pub_vec, withdraw_pool)| {
+            kv_item.and_then(|(pub_vec, trusting_pool)| {
                 // will panic if length is greater than 8, but we can make sure it is u64
                 // try_into will box vector to fixed array
                 Ok(TrustingPoolResponse {
+                    trusting_period,
+                    current_height: env.block.height,
                     pubkey: Binary::from(pub_vec),
-                    withdraw_pool,
+                    trusting_pool,
                 })
             })
         })

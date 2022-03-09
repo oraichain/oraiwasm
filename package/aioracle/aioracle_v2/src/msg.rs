@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
 
-use crate::state::WithdrawPool;
+use crate::state::TrustingPool;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InitMsg {
@@ -142,7 +142,9 @@ pub struct WithdrawPoolResponse {
 #[serde(rename_all = "snake_case")]
 pub struct TrustingPoolResponse {
     pub pubkey: Binary,
-    pub withdraw_pool: WithdrawPool,
+    pub current_height: u64,
+    pub trusting_period: u64,
+    pub trusting_pool: TrustingPool,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

@@ -23,7 +23,7 @@ pub enum ContractError {
     #[error("Cannot withdraw fees from pool because has not finished trusting period")]
     InvalidTrustingPeriod {},
 
-    #[error("Cannot withdraw fees because amount is greater than amount in the withdraw pool")]
+    #[error("Cannot withdraw fees because amount is either zero or greater than amount in the withdraw pool")]
     InvalidWithdrawAmount {},
 
     #[error("No request to process")]
