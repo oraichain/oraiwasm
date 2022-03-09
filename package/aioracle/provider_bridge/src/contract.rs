@@ -96,7 +96,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::ServiceFeeMsg { service } => to_binary(&get_service_fees(deps, service)?),
         QueryMsg::GetParticipantFee { addr } => to_binary(&get_participant_fee(deps, addr)?),
+        QueryMsg::GetMaximumExecutorFee {} => to_binary(&get_maximum_executor_fee(deps)?),
     }
+}
+
+pub fn get_maximum_executor_fee(deps: Deps) -> StdResult<Coin> {
+    MAX_EXECUTOR_FEE.load(deps.storage)
 }
 
 pub fn handle_update_service_contracts(

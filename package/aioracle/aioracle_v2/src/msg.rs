@@ -106,6 +106,7 @@ pub enum QueryMsg {
     GetServiceFees {
         service: String,
     },
+    GetMaximumExecutorFee {},
     GetTrustingPool {
         pubkey: Binary,
     },
@@ -171,6 +172,16 @@ pub struct GetServiceContracts {
 pub struct GetServiceFees {
     pub service_fee_msg: ServiceMsg,
 }
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct GetMaximumExecutorFee {
+    pub get_maximum_executor_fee: MaximumExecutorFeeMsg,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct MaximumExecutorFeeMsg {}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]

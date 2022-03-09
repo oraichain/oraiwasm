@@ -53,6 +53,7 @@ pub enum QueryMsg {
     ServiceContractsMsg { service: String },
     ServiceFeeMsg { service: String },
     GetParticipantFee { addr: HumanAddr },
+    GetMaximumExecutorFee {},
 }
 
 // for query other contract

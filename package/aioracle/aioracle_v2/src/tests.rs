@@ -1467,6 +1467,18 @@ fn test_increment_executor_when_register_merkle() {
     assert_eq!(trusting_pool.amount_coin.amount, Uint128::from(12u64));
 }
 
+#[test]
+pub fn get_maximum_executor_fee() {
+    let mut app = mock_app();
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
+
+    let max_executor_fee: Coin = app
+        .wrap()
+        .query_wasm_smart(aioracle_addr, &QueryMsg::GetMaximumExecutorFee {})
+        .unwrap();
+    assert_eq!(max_executor_fee.amount, Uint128::from(1u64));
+}
+
 pub fn skip_trusting_period(block: &mut BlockInfo) {
     block.time += 5;
     block.height += 100801;

@@ -17,9 +17,10 @@ use std::ops::{Add, Mul, Sub};
 use crate::error::ContractError;
 use crate::migrations::migrate_v02_to_v03;
 use crate::msg::{
-    CurrentStageResponse, GetParticipantFee, GetServiceContracts, GetServiceFees, HandleMsg,
-    InitMsg, IsClaimedResponse, LatestStageResponse, MigrateMsg, QueryMsg, Report, RequestResponse,
-    StageInfo, TrustingPoolResponse, UpdateConfigMsg, WithdrawPoolResponse,
+    CurrentStageResponse, GetMaximumExecutorFee, GetParticipantFee, GetServiceContracts,
+    GetServiceFees, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse,
+    MaximumExecutorFeeMsg, MigrateMsg, QueryMsg, Report, RequestResponse, StageInfo,
+    TrustingPoolResponse, UpdateConfigMsg, WithdrawPoolResponse,
 };
 use crate::state::{
     requests, Config, Contracts, Request, WithdrawPool, CHECKPOINT, CLAIM, CONFIG, EVIDENCES,
@@ -784,6 +785,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&verify_data(deps, stage, data, proof)?)
         }
         QueryMsg::GetServiceFees { service } => to_binary(&query_service_fees(deps, service)?),
+        QueryMsg::GetMaximumExecutorFee {} => to_binary(&query_maximum_executor_fee(deps)?),
         QueryMsg::GetWithdrawPool { pubkey } => to_binary(&query_withdraw_pool(deps, pubkey)?),
         QueryMsg::GetWithdrawPools {
             offset,
@@ -882,6 +884,17 @@ fn get_service_fees(deps: Deps, service: &str) -> StdResult<Vec<Reward>> {
 
 pub fn query_service_fees(deps: Deps, service: String) -> StdResult<Vec<Reward>> {
     Ok(get_service_fees(deps, &service)?)
+}
+
+pub fn query_maximum_executor_fee(deps: Deps) -> StdResult<Coin> {
+    let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
+    let fees: Coin = deps.querier.query_wasm_smart(
+        service_addr,
+        &GetMaximumExecutorFee {
+            get_maximum_executor_fee: MaximumExecutorFeeMsg {},
+        },
+    )?;
+    Ok(fees)
 }
 
 pub fn get_stage_info(deps: Deps) -> StdResult<StageInfo> {
