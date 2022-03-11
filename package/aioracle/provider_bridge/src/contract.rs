@@ -1,6 +1,8 @@
 use crate::error::ContractError;
 use crate::msg::{GetServiceFees, HandleMsg, InitMsg, MigrateMsg, QueryMsg};
-use crate::state::{Contracts, MAX_EXECUTOR_FEE, OWNER, SERVICE_CONTRACTS, SERVICE_FEES_CONTRACT};
+use crate::state::{
+    Contracts, BOUND_EXECUTOR_FEE, OWNER, SERVICE_CONTRACTS, SERVICE_FEES_CONTRACT,
+};
 use aioracle_base::{GetServiceFeesMsg, Reward, ServiceFeesResponse};
 use cosmwasm_std::{
     attr, to_binary, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
@@ -11,11 +13,11 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     SERVICE_CONTRACTS.save(deps.storage, msg.service.as_bytes(), &msg.service_contracts)?;
     SERVICE_FEES_CONTRACT.save(deps.storage, &msg.service_fees_contract)?;
     OWNER.save(deps.storage, &info.sender)?;
-    MAX_EXECUTOR_FEE.save(
+    BOUND_EXECUTOR_FEE.save(
         deps.storage,
         &Coin {
             denom: String::from("orai"),
-            amount: msg.max_executor_fee,
+            amount: msg.bound_executor_fee,
         },
     )?;
     Ok(InitResponse::default())
@@ -35,8 +37,8 @@ pub fn handle(
         HandleMsg::UpdateConfig {
             owner,
             service_fees_contract,
-            max_executor_fee,
-        } => handle_update_config(deps, info, owner, service_fees_contract, max_executor_fee),
+            bound_executor_fee,
+        } => handle_update_config(deps, info, owner, service_fees_contract, bound_executor_fee),
     }
 }
 
@@ -67,7 +69,7 @@ pub fn handle_update_config(
     info: MessageInfo,
     owner: Option<HumanAddr>,
     service_fees_contract: Option<HumanAddr>,
-    max_executor_fee: Option<Coin>,
+    bound_executor_fee: Option<Coin>,
 ) -> Result<HandleResponse, ContractError> {
     let cur_owner = OWNER.load(deps.storage)?;
     if info.sender.ne(&cur_owner) {
@@ -80,8 +82,8 @@ pub fn handle_update_config(
         SERVICE_FEES_CONTRACT.save(deps.storage, &service_fees_contract)?;
     }
 
-    if let Some(max_executor_fee) = max_executor_fee {
-        MAX_EXECUTOR_FEE.save(deps.storage, &max_executor_fee)?;
+    if let Some(bound_executor_fee) = bound_executor_fee {
+        BOUND_EXECUTOR_FEE.save(deps.storage, &bound_executor_fee)?;
     }
     Ok(HandleResponse {
         attributes: vec![attr("action", "update_config")],
@@ -96,12 +98,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::ServiceFeeMsg { service } => to_binary(&get_service_fees(deps, service)?),
         QueryMsg::GetParticipantFee { addr } => to_binary(&get_participant_fee(deps, addr)?),
-        QueryMsg::GetMaximumExecutorFee {} => to_binary(&get_maximum_executor_fee(deps)?),
+        QueryMsg::GetBoundExecutorFee {} => to_binary(&get_bound_executor_fee(deps)?),
     }
 }
 
-pub fn get_maximum_executor_fee(deps: Deps) -> StdResult<Coin> {
-    MAX_EXECUTOR_FEE.load(deps.storage)
+pub fn get_bound_executor_fee(deps: Deps) -> StdResult<Coin> {
+    BOUND_EXECUTOR_FEE.load(deps.storage)
 }
 
 pub fn handle_update_service_contracts(
@@ -149,13 +151,13 @@ fn get_service_fees(deps: Deps, service: String) -> StdResult<Vec<Reward>> {
         &service_fees_contract,
     )?);
 
-    let max_executor_fee = MAX_EXECUTOR_FEE.load(deps.storage)?;
-    // add a reward for an executor with maximum rewards required
-    rewards.push((
-        HumanAddr::from("placeholder"),
-        max_executor_fee.denom,
-        max_executor_fee.amount,
-    ));
+    // let bound_executor_fee = MAX_EXECUTOR_FEE.load(deps.storage)?;
+    // // add a reward for an executor with maximum rewards required
+    // rewards.push((
+    //     HumanAddr::from("placeholder"),
+    //     bound_executor_fee.denom,
+    //     bound_executor_fee.amount,
+    // ));
 
     Ok(rewards)
 }

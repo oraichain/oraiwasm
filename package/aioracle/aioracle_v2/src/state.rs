@@ -10,7 +10,6 @@ pub struct Config {
     /// Owner If None set, contract is frozen.
     pub owner: HumanAddr,
     pub service_addr: HumanAddr,
-    pub ping_contract: HumanAddr,
     pub contract_fee: Coin,
     /// this threshold is to update the checkpoint stage when current previous checkpoint +
     pub checkpoint_threshold: u64,
@@ -32,6 +31,7 @@ pub struct Contracts {
 pub struct Request {
     /// Owner If None set, contract is frozen.
     pub requester: HumanAddr,
+    pub preference_executor_fee: Coin,
     pub request_height: u64,
     pub submit_merkle_height: u64,
     pub merkle_root: String,
@@ -98,19 +98,19 @@ pub fn requests<'a>() -> IndexedMap<'a, &'a [u8], Request, RequestIndexes<'a>> {
     let indexes = RequestIndexes {
         service: MultiIndex::new(
             |d| d.service.to_string().into_bytes(),
-            "requests_v2",
+            "requests_v2.1",
             "requests_service",
         ),
         merkle_root: MultiIndex::new(
             |d| d.merkle_root.to_string().into_bytes(),
-            "requests_v2",
+            "requests_v2.1",
             "requests_merkle_root",
         ),
         requester: MultiIndex::new(
             |d| d.requester.to_string().into_bytes(),
-            "requests_v2",
+            "requests_v2.1",
             "requests_requester",
         ),
     };
-    IndexedMap::new("requests_v2", indexes)
+    IndexedMap::new("requests_v2.1", indexes)
 }

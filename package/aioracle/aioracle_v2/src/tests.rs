@@ -71,7 +71,7 @@ fn init_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
                 oscript: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
             },
             service_fees_contract: HumanAddr::from("orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt"),
-            max_executor_fee: Uint128::from(1u64),
+            bound_executor_fee: Uint128::from(1u64),
         },
     )
     .unwrap();
@@ -127,7 +127,6 @@ fn init_aioracle(
         service_addr,
         contract_fee,
         executors,
-        ping_addr: HumanAddr::from("ping_foobar"),
     };
 
     app.instantiate_contract(group_id, AIORACLE_OWNER, &msg, &[], "aioracle_v2")
@@ -146,7 +145,7 @@ fn init_provider(
         service,
         service_contracts,
         service_fees_contract,
-        max_executor_fee: Uint128::from(1u64),
+        bound_executor_fee: Uint128::from(1u64),
     };
 
     app.instantiate_contract(group_id, PROVIDER_OWNER, &msg, &[], "provider_bridge")
@@ -251,6 +250,7 @@ fn proper_instantiation() {
             threshold: 1,
             input: None,
             service: "price".to_string(),
+            preference_executor_fee: coin(1, "orai"),
         },
         &coins(5u128, "orai"),
     )
@@ -286,7 +286,6 @@ fn update_config() {
             new_checkpoint: None,
             new_checkpoint_threshold: None,
             new_max_req_threshold: None,
-            new_ping_contract: None,
             new_trust_period: None,
             new_slashing_amount: None,
             new_denom: None,
@@ -323,7 +322,6 @@ fn update_config() {
             new_checkpoint: None,
             new_checkpoint_threshold: None,
             new_max_req_threshold: None,
-            new_ping_contract: None,
             new_trust_period: None,
             new_slashing_amount: None,
             new_denom: None,
@@ -349,6 +347,7 @@ fn test_request() {
             threshold: 1,
             input: None,
             service: "price".to_string(),
+            preference_executor_fee: coin(1, "orai"),
         },
         &coins(6u128, "orai"),
     )
@@ -361,6 +360,7 @@ fn test_request() {
             threshold: 1,
             input: None,
             service: "price".to_string(),
+            preference_executor_fee: coin(1, "orai"),
         },
         &coins(5u128, "orai"),
     )
@@ -383,6 +383,7 @@ fn test_request() {
                 threshold: 3,
                 input: None,
                 service: "price".to_string(),
+                preference_executor_fee: coin(1, "orai"),
             },
             &coins(20u128, "orai"),
         )
@@ -425,6 +426,7 @@ fn register_merkle_root() {
             threshold: 1,
             input: None,
             service: "price".to_string(),
+            preference_executor_fee: coin(1, "orai"),
         },
         &coins(5u128, "orai"),
     )
@@ -485,6 +487,7 @@ fn verify_data() {
             threshold: 1,
             input: None,
             service: "price".to_string(),
+            preference_executor_fee: coin(1, "orai"),
         },
         &coins(6u128, "orai"),
     )
@@ -540,6 +543,7 @@ fn test_checkpoint() {
                 threshold: 1,
                 input: None,
                 service: "price".to_string(),
+                preference_executor_fee: coin(1, "orai"),
             },
             &coins(5u128, "orai"),
         )
@@ -671,6 +675,7 @@ fn test_checkpoint_no_new_request() {
             threshold: 1,
             input: None,
             service: "price".to_string(),
+            preference_executor_fee: coin(1, "orai"),
         },
         &coins(5u128, "orai"),
     )
@@ -719,6 +724,7 @@ fn send_reward() {
             threshold: 1,
             input: None,
             service: "price".to_string(),
+            preference_executor_fee: coin(1, "orai"),
         },
         &coins(5u128, "orai"),
     )
@@ -859,7 +865,6 @@ fn query_executors() {
             Binary::from_base64("A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw").unwrap(),
             Binary::from_base64("Ah5l8rZ57dN6P+NDbx2a2zEiZz3U5uiZ/ZGMArOIiv5j").unwrap(),
         ],
-        ping_addr: HumanAddr::from("ping_foobar"),
     };
 
     let _res = init(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
@@ -955,6 +960,7 @@ fn test_query_requests_indexes() {
                 threshold: 1,
                 input: None,
                 service,
+                preference_executor_fee: coin(1, "orai"),
             },
             &coins(5u128, "orai"),
         )
@@ -1037,7 +1043,7 @@ fn test_get_service_fees() {
         )
         .unwrap();
 
-    assert_eq!(rewards.len(), 4 as usize);
+    assert_eq!(rewards.len(), 3 as usize);
     println!("rewards: {:?}", rewards)
 }
 
@@ -1091,7 +1097,6 @@ fn test_query_executor() {
             new_checkpoint: None,
             new_checkpoint_threshold: None,
             new_max_req_threshold: None,
-            new_ping_contract: None,
             new_trust_period: None,
             new_slashing_amount: None,
             new_denom: None,
@@ -1140,7 +1145,6 @@ fn test_executor_size() {
             new_checkpoint: None,
             new_checkpoint_threshold: None,
             new_max_req_threshold: None,
-            new_ping_contract: None,
             new_trust_period: None,
             new_slashing_amount: None,
             new_denom: None,
@@ -1169,7 +1173,6 @@ fn test_executor_size() {
             new_checkpoint: None,
             new_checkpoint_threshold: None,
             new_max_req_threshold: None,
-            new_ping_contract: None,
             new_trust_period: None,
             new_slashing_amount: None,
             new_denom: None,
@@ -1204,6 +1207,7 @@ fn test_handle_withdraw_pool() {
             threshold: 1,
             input: None,
             service: "price".to_string(),
+            preference_executor_fee: coin(1, "orai"),
         },
         &coins(6u128, "orai"),
     )
@@ -1274,6 +1278,7 @@ fn test_handle_withdraw_pool() {
             threshold: 1,
             input: None,
             service: "price".to_string(),
+            preference_executor_fee: coin(1, "orai"),
         },
         &coins(6u128, "orai"),
     )
@@ -1368,6 +1373,7 @@ fn test_increment_executor_when_register_merkle() {
             threshold: 1,
             input: None,
             service: "price".to_string(),
+            preference_executor_fee: coin(1, "orai"),
         },
         &coins(6u128, "orai"),
     )
@@ -1410,6 +1416,7 @@ fn test_increment_executor_when_register_merkle() {
             threshold: 1,
             input: None,
             service: "price".to_string(),
+            preference_executor_fee: coin(1, "orai"),
         },
         &coins(6u128, "orai"),
     )
@@ -1444,12 +1451,12 @@ fn test_increment_executor_when_register_merkle() {
         Uint128::from(2u64)
     );
 
-    // try increasing the maximum executor fee to 20
+    // try increasing the bound executor fee to 20
     app.execute_contract(
         HumanAddr::from(PROVIDER_OWNER),
         provider_bridge_addr.clone(),
         &provider_bridge::msg::HandleMsg::UpdateConfig {
-            max_executor_fee: Some(Coin {
+            bound_executor_fee: Some(Coin {
                 denom: String::from("orai"),
                 amount: Uint128::from(20u64),
             }),
@@ -1462,6 +1469,25 @@ fn test_increment_executor_when_register_merkle() {
 
     // create a third register root. Should increase trusting pool to 12 instead of 3
     // create a new request to register for new merkle root
+
+    // preference executor fee should be increased to 20 because min bound is 20 already
+    assert_eq!(
+        app.execute_contract(
+            &HumanAddr::from("client"),
+            &aioracle_addr,
+            &HandleMsg::Request {
+                threshold: 1,
+                input: None,
+                service: "price".to_string(),
+                preference_executor_fee: coin(19, "orai"),
+            },
+            &coins(26u128, "orai"),
+        )
+        .unwrap_err(),
+        ContractError::InsufficientFunds {}.to_string()
+    );
+
+    // successful case
     app.execute_contract(
         &HumanAddr::from("client"),
         &aioracle_addr,
@@ -1469,12 +1495,13 @@ fn test_increment_executor_when_register_merkle() {
             threshold: 1,
             input: None,
             service: "price".to_string(),
+            preference_executor_fee: coin(20, "orai"),
         },
         &coins(26u128, "orai"),
     )
     .unwrap();
 
-    // try registering for a new merkle root, the total trusting pool should be 2, not 11
+    // try registering for a new merkle root, the total trusting pool should be 12, not 3 or 22 because we get min between preference & actual executor fee
     app.execute_contract(
         HumanAddr::from(AIORACLE_OWNER),
         aioracle_addr.clone(),
@@ -1509,11 +1536,11 @@ pub fn get_maximum_executor_fee() {
     let mut app = mock_app();
     let (_, _, aioracle_addr) = setup_test_case(&mut app);
 
-    let max_executor_fee: Coin = app
+    let bound_executor_fee: Coin = app
         .wrap()
-        .query_wasm_smart(aioracle_addr, &QueryMsg::GetMaximumExecutorFee {})
+        .query_wasm_smart(aioracle_addr, &QueryMsg::GetBoundExecutorFee {})
         .unwrap();
-    assert_eq!(max_executor_fee.amount, Uint128::from(1u64));
+    assert_eq!(bound_executor_fee.amount, Uint128::from(1u64));
 }
 
 pub fn skip_trusting_period(block: &mut BlockInfo) {

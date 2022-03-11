@@ -17,9 +17,9 @@ use std::ops::{Add, Mul, Sub};
 use crate::error::ContractError;
 use crate::migrations::migrate_v02_to_v03;
 use crate::msg::{
-    CurrentStageResponse, GetMaximumExecutorFee, GetParticipantFee, GetServiceContracts,
-    GetServiceFees, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse,
-    MaximumExecutorFeeMsg, MigrateMsg, QueryMsg, Report, RequestResponse, StageInfo,
+    BoundExecutorFeeMsg, CurrentStageResponse, GetBoundExecutorFee, GetParticipantFee,
+    GetServiceContracts, GetServiceFees, HandleMsg, InitMsg, IsClaimedResponse,
+    LatestStageResponse, MigrateMsg, QueryMsg, Report, RequestResponse, StageInfo,
     TrustingPoolResponse, UpdateConfigMsg,
 };
 use crate::state::{
@@ -47,7 +47,6 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     let config = Config {
         owner,
         service_addr: msg.service_addr,
-        ping_contract: msg.ping_addr,
         contract_fee: msg.contract_fee,
         checkpoint_threshold: CHECKPOINT_THRESHOLD,
         max_req_threshold: MAXIMUM_REQ_THRESHOLD,
@@ -106,7 +105,16 @@ pub fn handle(
             service,
             input,
             threshold,
-        } => handle_request(deps, info, env, service, input, threshold),
+            preference_executor_fee,
+        } => handle_request(
+            deps,
+            info,
+            env,
+            service,
+            input,
+            threshold,
+            preference_executor_fee,
+        ),
         HandleMsg::ClaimReward {
             stage,
             report,
@@ -137,7 +145,7 @@ pub fn migrate(
     // //     )));
     // // }
 
-    // migrate_v02_to_v03(deps.storage, msg)?;
+    migrate_v02_to_v03(deps.storage, msg)?;
 
     // once we have "migrated", set the new version and return success
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -250,7 +258,6 @@ pub fn execute_update_config(
         new_checkpoint,
         new_checkpoint_threshold,
         new_max_req_threshold,
-        new_ping_contract,
         new_trust_period,
         new_slashing_amount,
         new_denom,
@@ -283,9 +290,6 @@ pub fn execute_update_config(
         }
         if let Some(slashing_amount) = new_slashing_amount {
             exists.slashing_amount = slashing_amount;
-        }
-        if let Some(ping_contract) = new_ping_contract {
-            exists.ping_contract = ping_contract;
         }
         if let Some(denom) = new_denom {
             exists.denom = denom;
@@ -324,6 +328,7 @@ pub fn handle_request(
     service: String,
     input: Option<String>,
     threshold: u64,
+    preference_executor_fee: Coin,
 ) -> Result<HandleResponse, ContractError> {
     let stage = LATEST_STAGE.update(deps.storage, |stage| -> StdResult<_> { Ok(stage + 1) })?;
     let Config {
@@ -341,11 +346,33 @@ pub fn handle_request(
         }
     }
 
+    // reward plus preference must match sent funds
+    let bound_executor_fee: Coin = query_bound_executor_fee(deps.as_ref())?;
+
+    if preference_executor_fee.denom.ne(&bound_executor_fee.denom)
+        || preference_executor_fee
+            .amount
+            .lt(&bound_executor_fee.amount)
+    {
+        println!("insufficient funds here");
+        return Err(ContractError::InsufficientFunds {});
+    }
+
     // collect fees
-    let rewards = get_service_fees(deps.as_ref(), &service)?;
+    let mut rewards = get_service_fees(deps.as_ref(), &service)?;
+
+    rewards.push((
+        HumanAddr::from("placeholder"),
+        bound_executor_fee.denom,
+        bound_executor_fee.amount,
+    ));
+
     if !verify_request_fees(&info.sent_funds, &rewards, threshold) {
         return Err(ContractError::InsufficientFunds {});
     }
+
+    rewards.pop(); // pop so we dont store the placeholder reward in the list
+
     // this will keep track of the executor list of the request
     let current_size = EXECUTOR_SIZE.load(deps.storage)?;
 
@@ -363,6 +390,7 @@ pub fn handle_request(
         deps.storage,
         &stage.to_be_bytes(),
         &crate::state::Request {
+            preference_executor_fee,
             requester: info.sender.clone(),
             request_height: env.block.height,
             submit_merkle_height: 0u64,
@@ -643,19 +671,6 @@ pub fn execute_register_merkle_root(
         }
     }
 
-    let max_executor_fee_option = request
-        .rewards
-        .into_iter()
-        .find(|reward| reward.0.eq("placeholder"));
-    let mut max_executor_fee = Coin {
-        denom: denom.clone(),
-        amount: Uint128::from(0u64),
-    };
-    if let Some(max_ex_fee) = max_executor_fee_option {
-        max_executor_fee.denom = max_ex_fee.1;
-        max_executor_fee.amount = max_ex_fee.2;
-    }
-
     // add executors' rewards into the pool
     for executor in executors {
         // only add reward if executor is in list
@@ -664,14 +679,17 @@ pub fn execute_register_merkle_root(
             continue;
         }
         let executor_reward =
-            get_executor_reward(deps.as_ref(), executor.clone(), service_addr.as_str())?;
+            get_participant_fee(deps.as_ref(), executor.clone(), service_addr.as_str())?;
 
         let existing_executor_reward =
             EXECUTORS_TRUSTING_POOL.may_load(deps.storage, executor.as_slice())?;
 
         let mut final_new_executor_reward = Coin {
-            denom: executor_reward.denom,
-            amount: max_executor_fee.amount.min(executor_reward.amount), // only collect minimum between the executor fee
+            denom: request.preference_executor_fee.denom.clone(),
+            amount: request
+                .preference_executor_fee
+                .amount
+                .min(executor_reward.amount), // only collect minimum between the executor fee
         };
 
         let mut trusting_pool = TrustingPool {
@@ -758,7 +776,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&verify_data(deps, stage, data, proof)?)
         }
         QueryMsg::GetServiceFees { service } => to_binary(&query_service_fees(deps, service)?),
-        QueryMsg::GetMaximumExecutorFee {} => to_binary(&query_maximum_executor_fee(deps)?),
+        QueryMsg::GetBoundExecutorFee {} => to_binary(&query_bound_executor_fee(deps)?),
+        QueryMsg::GetParticipantFee { pubkey } => to_binary(&query_participant_fee(deps, pubkey)?),
         QueryMsg::GetTrustingPool { pubkey } => to_binary(&query_trusting_pool(deps, env, pubkey)?),
         QueryMsg::GetTrustingPools {
             offset,
@@ -766,6 +785,12 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             order,
         } => to_binary(&query_trusting_pools(deps, env, offset, limit, order)?),
     }
+}
+
+pub fn query_participant_fee(deps: Deps, pubkey: Binary) -> StdResult<Coin> {
+    let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
+    get_participant_fee(deps, pubkey, service_addr.as_str())
+        .map_err(|err| StdError::generic_err(err.to_string()))
 }
 
 pub fn query_trusting_pool(
@@ -841,12 +866,12 @@ pub fn query_service_fees(deps: Deps, service: String) -> StdResult<Vec<Reward>>
     Ok(get_service_fees(deps, &service)?)
 }
 
-pub fn query_maximum_executor_fee(deps: Deps) -> StdResult<Coin> {
+pub fn query_bound_executor_fee(deps: Deps) -> StdResult<Coin> {
     let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
     let fees: Coin = deps.querier.query_wasm_smart(
         service_addr,
-        &GetMaximumExecutorFee {
-            get_maximum_executor_fee: MaximumExecutorFeeMsg {},
+        &GetBoundExecutorFee {
+            get_bound_executor_fee: BoundExecutorFeeMsg {},
         },
     )?;
     Ok(fees)
@@ -1163,7 +1188,7 @@ pub fn pubkey_to_address(pubkey: Binary) -> Result<HumanAddr, ContractError> {
     Ok(HumanAddr::from(encoded))
 }
 
-pub fn get_executor_reward(
+pub fn get_participant_fee(
     deps: Deps,
     pubkey: Binary,
     service_addr: &str,

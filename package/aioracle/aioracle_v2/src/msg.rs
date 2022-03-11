@@ -11,7 +11,6 @@ pub struct InitMsg {
     /// Owner if none set to info.sender.
     pub owner: Option<HumanAddr>,
     pub service_addr: HumanAddr,
-    pub ping_addr: HumanAddr,
     pub contract_fee: Coin,
     pub executors: Vec<Binary>,
 }
@@ -32,6 +31,7 @@ pub enum HandleMsg {
         service: String,
         input: Option<String>,
         threshold: u64,
+        preference_executor_fee: Coin,
     },
     ClaimReward {
         stage: u64,
@@ -102,7 +102,10 @@ pub enum QueryMsg {
     GetServiceFees {
         service: String,
     },
-    GetMaximumExecutorFee {},
+    GetBoundExecutorFee {},
+    GetParticipantFee {
+        pubkey: Binary,
+    },
     GetTrustingPool {
         pubkey: Binary,
     },
@@ -158,13 +161,13 @@ pub struct GetServiceFees {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub struct GetMaximumExecutorFee {
-    pub get_maximum_executor_fee: MaximumExecutorFeeMsg,
+pub struct GetBoundExecutorFee {
+    pub get_bound_executor_fee: BoundExecutorFeeMsg,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub struct MaximumExecutorFeeMsg {}
+pub struct BoundExecutorFeeMsg {}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -217,7 +220,6 @@ pub struct UpdateConfigMsg {
     pub new_checkpoint: Option<u64>,
     pub new_checkpoint_threshold: Option<u64>,
     pub new_max_req_threshold: Option<u64>,
-    pub new_ping_contract: Option<HumanAddr>,
     pub new_trust_period: Option<u64>,
     pub new_slashing_amount: Option<u64>,
     pub new_denom: Option<String>,

@@ -10,7 +10,7 @@ pub struct InitMsg {
     pub service: String,
     pub service_contracts: Contracts,
     pub service_fees_contract: HumanAddr,
-    pub max_executor_fee: Uint128,
+    pub bound_executor_fee: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -38,7 +38,7 @@ pub enum HandleMsg {
     UpdateConfig {
         owner: Option<HumanAddr>,
         service_fees_contract: Option<HumanAddr>,
-        max_executor_fee: Option<Coin>,
+        bound_executor_fee: Option<Coin>,
     },
 }
 
@@ -53,7 +53,7 @@ pub enum QueryMsg {
     ServiceContractsMsg { service: String },
     ServiceFeeMsg { service: String },
     GetParticipantFee { addr: HumanAddr },
-    GetMaximumExecutorFee {},
+    GetBoundExecutorFee {},
 }
 
 // for query other contract
