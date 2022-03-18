@@ -1232,7 +1232,7 @@ pub fn get_participant_fee(
         )
         .unwrap_or(Coin {
             denom,
-            amount: Uint128::from(1u64),
+            amount: Uint128::from(0u64),
         });
     Ok(executor_reward)
 }
