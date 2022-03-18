@@ -21,6 +21,9 @@ pub enum HandleMsg {
     UpdateConfig {
         update_config_msg: UpdateConfigMsg,
     },
+    // ToggleExecutorActiveness {
+    //     pubkey: Binary,
+    // },
     RegisterMerkleRoot {
         /// MerkleRoot is hex-encoded merkle root.
         stage: u64,

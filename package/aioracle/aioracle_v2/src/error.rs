@@ -14,6 +14,12 @@ pub enum ContractError {
     Unauthorized {},
     #[error("Insufficient funds")]
     InsufficientFunds {},
+    #[error("Insufficient funds contract fees")]
+    InsufficientFundsContractFees {},
+    #[error("Insufficient funds bound executor fees")]
+    InsufficientFundsBoundFees {},
+    #[error("Insufficient funds request fees")]
+    InsufficientFundsRequestFees {},
     #[error("Already submitted")]
     AlreadySubmitted {},
 

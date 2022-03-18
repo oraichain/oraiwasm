@@ -96,6 +96,9 @@ pub fn handle(
         HandleMsg::UpdateConfig { update_config_msg } => {
             execute_update_config(deps, env, info, update_config_msg)
         }
+        // HandleMsg::ToggleExecutorActiveness { pubkey } => {
+        //     toggle_executor_activeness(deps, info,, pubkey)
+        // }
         HandleMsg::RegisterMerkleRoot {
             stage,
             merkle_root,
@@ -145,7 +148,7 @@ pub fn migrate(
     // //     )));
     // // }
 
-    migrate_v02_to_v03(deps.storage, msg)?;
+    // migrate_v02_to_v03(deps.storage, msg)?;
 
     // once we have "migrated", set the new version and return success
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -157,6 +160,27 @@ pub fn migrate(
         ..MigrateResponse::default()
     })
 }
+
+// pub fn toggle_executor_activeness(
+//     deps: DepsMut,
+//     info: MessageInfo,
+//     pubkey: Binary,
+// ) -> Result<HandleResponse, ContractError> {
+//     let executor_addr = pubkey_to_address(&pubkey)?;
+//     if info.sender.ne(&executor_addr) {
+//         return Err(ContractError::Unauthorized {});
+//     }
+//     let is_active = EXECUTORS.load(deps.storage, pubkey.as_slice())?;
+//     EXECUTORS.save(deps.storage, pubkey.as_slice(), &(!is_active))?;
+//     Ok(HandleResponse {
+//         attributes: vec![
+//             attr("action", "toggle_executor_activeness"),
+//             attr("new_active_status", !is_active),
+//         ],
+//         messages: vec![],
+//         data: None,
+//     })
+// }
 
 pub fn handle_withdraw_fees(
     deps: DepsMut,
@@ -184,7 +208,7 @@ pub fn handle_prepare_withdraw_pool(
     info: MessageInfo,
     pubkey: Binary,
 ) -> Result<HandleResponse, ContractError> {
-    let executor_addr = pubkey_to_address(pubkey.clone())?;
+    let executor_addr = pubkey_to_address(&pubkey)?;
     let Config {
         trusting_period, ..
     } = CONFIG.load(deps.storage)?;
@@ -342,7 +366,7 @@ pub fn handle_request(
         .find(|fund| fund.denom.eq(&contract_fee.denom))
     {
         if sent_fund.amount.lt(&contract_fee.amount) {
-            return Err(ContractError::InsufficientFunds {});
+            return Err(ContractError::InsufficientFundsContractFees {});
         }
     }
 
@@ -354,21 +378,22 @@ pub fn handle_request(
             .amount
             .lt(&bound_executor_fee.amount)
     {
-        println!("insufficient funds here");
-        return Err(ContractError::InsufficientFunds {});
+        return Err(ContractError::InsufficientFundsBoundFees {});
     }
 
     // collect fees
     let mut rewards = get_service_fees(deps.as_ref(), &service)?;
 
-    rewards.push((
-        HumanAddr::from("placeholder"),
-        bound_executor_fee.denom,
-        bound_executor_fee.amount,
-    ));
+    if !bound_executor_fee.amount.is_zero() {
+        rewards.push((
+            HumanAddr::from("placeholder"),
+            bound_executor_fee.denom,
+            bound_executor_fee.amount,
+        ));
+    }
 
     if !verify_request_fees(&info.sent_funds, &rewards, threshold) {
-        return Err(ContractError::InsufficientFunds {});
+        return Err(ContractError::InsufficientFundsRequestFees {});
     }
 
     rewards.pop(); // pop so we dont store the placeholder reward in the list
@@ -1176,7 +1201,7 @@ pub fn query_executor_size(deps: Deps) -> StdResult<u64> {
     EXECUTOR_SIZE.load(deps.storage)
 }
 
-pub fn pubkey_to_address(pubkey: Binary) -> Result<HumanAddr, ContractError> {
+pub fn pubkey_to_address(pubkey: &Binary) -> Result<HumanAddr, ContractError> {
     let msg_hash_generic = sha2::Sha256::digest(pubkey.as_slice());
     let msg_hash = msg_hash_generic.as_slice();
     let mut hasher = Ripemd160::new();
@@ -1194,7 +1219,7 @@ pub fn get_participant_fee(
     service_addr: &str,
 ) -> Result<Coin, ContractError> {
     let Config { denom, .. } = CONFIG.load(deps.storage)?;
-    let executor_addr = pubkey_to_address(pubkey)?;
+    let executor_addr = pubkey_to_address(&pubkey)?;
     let executor_reward: Coin = deps
         .querier
         .query_wasm_smart(
