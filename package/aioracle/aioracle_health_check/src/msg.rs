@@ -32,6 +32,7 @@ pub enum HandleMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetPingInfo(Binary),
+    GetReadPingInfo(Binary),
     GetPingInfos {
         offset: Option<Binary>,
         limit: Option<u8>,

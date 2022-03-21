@@ -1,6 +1,6 @@
 use cosmwasm_std::{Coin, HumanAddr, Storage};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
-use cw_storage_plus::Map;
+use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -12,12 +12,22 @@ pub struct State {
     pub ping_jump: u64,
     pub aioracle_addr: HumanAddr,
     pub base_reward: Coin,
+    pub ping_jump_interval: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct PingInfo {
     pub total_ping: u64,
+    pub latest_ping_height: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub struct ReadPingInfo {
+    pub total_ping: u64,
+    pub prev_total_ping: u64,
+    pub checkpoint_height: u64,
     pub latest_ping_height: u64,
 }
 
@@ -30,3 +40,4 @@ pub fn config_read(storage: &dyn Storage) -> ReadonlySingleton<State> {
 }
 
 pub const MAPPED_COUNT: Map<&[u8], PingInfo> = Map::new("ping_count");
+pub const READ_ONLY_MAPPED_COUNT: Map<&[u8], ReadPingInfo> = Map::new("read_only_ping_count");

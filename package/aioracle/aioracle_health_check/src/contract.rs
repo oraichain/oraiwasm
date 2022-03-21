@@ -1,11 +1,14 @@
 use std::ops::{Add, Sub};
 
 use crate::error::ContractError;
+use crate::migrations::migrate_v01_to_v02;
 use crate::msg::{
     HandleMsg, InitMsg, MigrateMsg, QueryExecutor, QueryExecutorMsg, QueryMsg,
     QueryPingInfoResponse, QueryPingInfosResponse,
 };
-use crate::state::{config, config_read, PingInfo, State, MAPPED_COUNT};
+use crate::state::{
+    config, config_read, PingInfo, ReadPingInfo, State, MAPPED_COUNT, READ_ONLY_MAPPED_COUNT,
+};
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
     HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError, StdResult, Uint128,
@@ -18,6 +21,7 @@ use sha2::Digest;
 
 const DEFAULT_LIMIT: u8 = 10;
 const MAX_LIMIT: u8 = 30;
+pub const PING_JUMP_INTERVAL: u64 = 438291;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -27,6 +31,7 @@ pub fn init(deps: DepsMut, env: Env, info: MessageInfo, init: InitMsg) -> StdRes
         aioracle_addr: init.aioracle_addr,
         base_reward: init.base_reward,
         ping_jump: init.ping_jump,
+        ping_jump_interval: PING_JUMP_INTERVAL,
     };
 
     // save owner
@@ -67,7 +72,7 @@ pub fn migrate(
     // //     )));
     // // }
 
-    // migrate_v02_to_v03(deps.storage, msg)?;
+    migrate_v01_to_v02(deps.storage, msg)?;
 
     // once we have "migrated", set the new version and return success
     // set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -125,6 +130,7 @@ pub fn add_ping(
     let State {
         aioracle_addr,
         ping_jump,
+        ping_jump_interval,
         ..
     } = config_read(deps.storage).load()?;
 
@@ -155,7 +161,17 @@ pub fn add_ping(
     // if time updating ping is valid => update round of round & block
     ping_info.total_ping = ping_info.total_ping + 1;
     ping_info.latest_ping_height = env.block.height;
+
+    let mut read_ping_info = query_read_ping_info(deps.as_ref(), &env, &pubkey)?;
+    if read_ping_info.checkpoint_height + ping_jump_interval < env.block.height {
+        read_ping_info.checkpoint_height = env.block.height;
+        read_ping_info.prev_total_ping = read_ping_info.total_ping;
+    };
+    read_ping_info.total_ping = read_ping_info.total_ping + 1;
+    read_ping_info.latest_ping_height = env.block.height;
+
     MAPPED_COUNT.save(deps.storage, pubkey.as_slice(), &ping_info)?;
+    READ_ONLY_MAPPED_COUNT.save(deps.storage, pubkey.as_slice(), &read_ping_info)?;
     Ok(HandleResponse {
         attributes: vec![attr("action", "add_ping"), attr("executor", info.sender)],
         ..HandleResponse::default()
@@ -226,6 +242,9 @@ pub fn claim_reward(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetPingInfo(executor) => to_binary(&query_ping_info(deps, &env, &executor)?),
+        QueryMsg::GetReadPingInfo(executor) => {
+            to_binary(&query_read_ping_info(deps, &env, &executor)?)
+        }
         QueryMsg::GetState {} => to_binary(&query_state(deps)?),
         QueryMsg::GetPingInfos {
             offset,
@@ -253,6 +272,21 @@ fn query_ping_info(deps: Deps, env: &Env, executor: &Binary) -> StdResult<QueryP
         },
         ping_jump,
         current_height: env.block.height,
+    })
+}
+
+fn query_read_ping_info(deps: Deps, env: &Env, executor: &Binary) -> StdResult<ReadPingInfo> {
+    let read_ping_info = READ_ONLY_MAPPED_COUNT.may_load(deps.storage, executor.as_slice())?;
+    if let Some(read_ping_info) = read_ping_info {
+        return Ok(read_ping_info);
+    };
+    let ping_info: QueryPingInfoResponse = query_ping_info(deps, env, executor)?;
+    // if no round exist then return default round info (first round)
+    Ok(ReadPingInfo {
+        total_ping: ping_info.ping_info.total_ping,
+        prev_total_ping: 0,
+        checkpoint_height: 0,
+        latest_ping_height: ping_info.ping_info.latest_ping_height,
     })
 }
 

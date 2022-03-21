@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, QueryPingInfoResponse};
-use crate::state::PingInfo;
+use crate::state::{PingInfo, ReadPingInfo};
 
 use bech32::{self, FromBase32, ToBase32, Variant};
 use cosmwasm_std::testing::{
@@ -250,4 +250,55 @@ fn test_ping() {
 
     println!("ping info: {:?}", ping_info);
     assert_eq!(ping_info.ping_info.total_ping, 0);
+}
+
+pub fn skip_ping_interval(block: &mut BlockInfo) {
+    block.time += 5;
+    block.height += 438292;
+}
+
+#[test]
+fn test_read_ping() {
+    let mut app = mock_app();
+    let (ping_contract, aioracle_addr) = setup_test_case(&mut app);
+
+    // create a new request
+    app.execute_contract(
+        &HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+        &ping_contract,
+        &HandleMsg::Ping {
+            pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
+        },
+        &coins(10, "orai"),
+    )
+    .unwrap();
+
+    app.update_block(skip_ping_interval);
+
+    // ping again to update the prev total ping & checkpoint height
+    app.execute_contract(
+        &HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+        &ping_contract,
+        &HandleMsg::Ping {
+            pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
+        },
+        &coins(10, "orai"),
+    )
+    .unwrap();
+
+    // query ping
+    let ping_info: ReadPingInfo = app
+        .wrap()
+        .query_wasm_smart(
+            ping_contract,
+            &QueryMsg::GetReadPingInfo(
+                Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
+            ),
+        )
+        .unwrap();
+
+    println!("ping info: {:?}", ping_info);
+    // default is 12345, plus 2 because move pass two blocks of two ping txs
+    assert_eq!(ping_info.checkpoint_height, 12345 + 2 + 438292);
+    assert_eq!(ping_info.prev_total_ping, 1);
 }
