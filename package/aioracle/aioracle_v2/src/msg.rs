@@ -127,6 +127,13 @@ pub struct ConfigResponse {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
+pub struct ExecutorsResponse {
+    pub pubkey: Binary,
+    pub is_acitve: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
 pub struct TrustingPoolResponse {
     pub pubkey: Binary,
     pub current_height: u64,

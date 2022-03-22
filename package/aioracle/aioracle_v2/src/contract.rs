@@ -17,8 +17,8 @@ use std::ops::{Add, Mul, Sub};
 use crate::error::ContractError;
 use crate::migrations::migrate_v02_to_v03;
 use crate::msg::{
-    BoundExecutorFeeMsg, CurrentStageResponse, GetBoundExecutorFee, GetParticipantFee,
-    GetServiceContracts, GetServiceFees, HandleMsg, InitMsg, IsClaimedResponse,
+    BoundExecutorFeeMsg, CurrentStageResponse, ExecutorsResponse, GetBoundExecutorFee,
+    GetParticipantFee, GetServiceContracts, GetServiceFees, HandleMsg, InitMsg, IsClaimedResponse,
     LatestStageResponse, MigrateMsg, QueryMsg, Report, RequestResponse, StageInfo,
     TrustingPoolResponse, UpdateConfigMsg,
 };
@@ -1000,17 +1000,20 @@ pub fn query_executors(
     offset: Option<Binary>,
     limit: Option<u8>,
     order: Option<u8>,
-) -> StdResult<Vec<Binary>> {
+) -> StdResult<Vec<ExecutorsResponse>> {
     let (limit, min, max, order_enum) = get_executors_params(offset, limit, order);
 
-    let res: StdResult<Vec<Binary>> = EXECUTORS
+    let res: StdResult<Vec<ExecutorsResponse>> = EXECUTORS
         .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| {
-            kv_item.and_then(|(pub_vec, _)| {
+            kv_item.and_then(|(pub_vec, is_active)| {
                 // will panic if length is greater than 8, but we can make sure it is u64
                 // try_into will box vector to fixed array
-                Ok(Binary::from(pub_vec))
+                Ok(ExecutorsResponse {
+                    pubkey: Binary::from(pub_vec),
+                    is_acitve: is_active,
+                })
             })
         })
         .collect();
