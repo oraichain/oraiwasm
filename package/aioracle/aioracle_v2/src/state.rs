@@ -71,9 +71,6 @@ pub const EVIDENCES: Map<&[u8], bool> = Map::new(EVIDENCE_PREFIX);
 pub const EXECUTORS_PREFIX: &str = "executors";
 pub const EXECUTORS: Map<&[u8], bool> = Map::new(EXECUTORS_PREFIX);
 
-pub const EXECUTORS_SIZE_PREFIX: &str = "executors_size";
-pub const EXECUTOR_SIZE: Item<u64> = Item::new(EXECUTORS_SIZE_PREFIX);
-
 pub const EXECUTORS_TRUSTING_POOL_PREFIX: &str = "executors_trusting_pool_v2";
 pub const EXECUTORS_TRUSTING_POOL: Map<&[u8], TrustingPool> =
     Map::new(EXECUTORS_TRUSTING_POOL_PREFIX);

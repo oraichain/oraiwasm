@@ -1124,69 +1124,38 @@ fn test_query_executor() {
 fn test_executor_size() {
     let mut app = mock_app();
     let (_, _, aioracle_addr) = setup_test_case(&mut app);
-
-    let size: u64 = app
-        .wrap()
-        .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::GetExecutorSize {})
-        .unwrap();
-    assert_eq!(size, 4);
-
-    let info = mock_info(AIORACLE_OWNER, &[]);
-    let msg = HandleMsg::UpdateConfig {
-        update_config_msg: UpdateConfigMsg {
-            new_owner: None,
-            new_contract_fee: Some(coin(10u128, "foobar")),
-            new_executors: None,
-            old_executors: Some(vec![Binary::from_base64(
-                "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
-            )
-            .unwrap()]),
-            new_service_addr: Some(HumanAddr::from("yolo")),
-            new_checkpoint: None,
-            new_checkpoint_threshold: None,
-            new_max_req_threshold: None,
-            new_trust_period: None,
-            new_slashing_amount: None,
-            new_denom: None,
+    let mut executors: Vec<Binary> = vec![];
+    for i in 1..100 {
+        executors.push(Binary::from(i.to_string().as_bytes()));
+    }
+    // try registering for a new merkle root, the total trusting pool should be 12, not 3 or 22 because we get min between preference & actual executor fee
+    app.execute_contract(
+        HumanAddr::from(AIORACLE_OWNER),
+        aioracle_addr.clone(),
+        &HandleMsg::UpdateConfig {
+            update_config_msg: UpdateConfigMsg {
+                new_owner: None,
+                new_service_addr: None,
+                new_contract_fee: None,
+                new_executors: Some(executors),
+                old_executors: None,
+                new_checkpoint: None,
+                new_checkpoint_threshold: None,
+                new_max_req_threshold: None,
+                new_trust_period: None,
+                new_slashing_amount: None,
+                new_denom: None,
+            },
         },
-    };
-
-    app.execute_contract(&info.sender, &aioracle_addr, &msg, &[])
-        .unwrap();
-
-    let size: u64 = app
-        .wrap()
-        .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::GetExecutorSize {})
-        .unwrap();
-    assert_eq!(size, 3);
-
-    let msg = HandleMsg::UpdateConfig {
-        update_config_msg: UpdateConfigMsg {
-            new_owner: Some("owner0001".into()),
-            new_contract_fee: Some(coin(10u128, "foobar")),
-            new_executors: Some(vec![Binary::from_base64(
-                "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
-            )
-            .unwrap()]),
-            old_executors: None,
-            new_service_addr: Some(HumanAddr::from("yolo")),
-            new_checkpoint: None,
-            new_checkpoint_threshold: None,
-            new_max_req_threshold: None,
-            new_trust_period: None,
-            new_slashing_amount: None,
-            new_denom: None,
-        },
-    };
-
-    app.execute_contract(&info.sender, &aioracle_addr, &msg, &[])
-        .unwrap();
+        &[],
+    )
+    .unwrap();
 
     let size: u64 = app
         .wrap()
-        .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::GetExecutorSize {})
+        .query_wasm_smart(aioracle_addr, &QueryMsg::GetExecutorSize {})
         .unwrap();
-    assert_eq!(size, 4);
+    assert_eq!(size, 103u64)
 }
 
 #[test]

@@ -1,4 +1,4 @@
-use std::ops::{Add, Sub};
+use std::ops::{Add, Div, Mul, Sub};
 
 use crate::error::ContractError;
 use crate::migrations::migrate_v01_to_v02;
@@ -21,7 +21,7 @@ use sha2::Digest;
 
 const DEFAULT_LIMIT: u8 = 10;
 const MAX_LIMIT: u8 = 30;
-pub const PING_JUMP_INTERVAL: u64 = 438291;
+pub const PING_JUMP_INTERVAL: u64 = 438291; // 1 month in blocks, assuming 6 secs/block,
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
@@ -32,6 +32,7 @@ pub fn init(deps: DepsMut, env: Env, info: MessageInfo, init: InitMsg) -> StdRes
         base_reward: init.base_reward,
         ping_jump: init.ping_jump,
         ping_jump_interval: PING_JUMP_INTERVAL,
+        max_reward_claim: Uint128::from(1u64),
     };
 
     // save owner
@@ -53,7 +54,18 @@ pub fn handle(
             base_reward,
             aioracle_addr,
             ping_jump,
-        } => change_state(deps, info, owner, aioracle_addr, base_reward, ping_jump),
+            ping_jump_interval,
+            max_reward_claim,
+        } => change_state(
+            deps,
+            info,
+            owner,
+            aioracle_addr,
+            base_reward,
+            ping_jump,
+            ping_jump_interval,
+            max_reward_claim,
+        ),
         HandleMsg::Ping { pubkey } => add_ping(deps, info, env, pubkey),
         HandleMsg::ClaimReward { pubkey } => claim_reward(deps, info, env, pubkey),
     }
@@ -86,6 +98,8 @@ pub fn change_state(
     aioracle_addr: Option<HumanAddr>,
     base_reward: Option<Coin>,
     ping_jump: Option<u64>,
+    ping_jump_interval: Option<u64>,
+    max_reward_claim: Option<Uint128>,
 ) -> Result<HandleResponse, ContractError> {
     let mut state = query_state(deps.as_ref())?;
     if info.sender != state.owner {
@@ -105,6 +119,14 @@ pub fn change_state(
 
     if let Some(ping_jump) = ping_jump {
         state.ping_jump = ping_jump;
+    }
+
+    if let Some(ping_jump_interval) = ping_jump_interval {
+        state.ping_jump_interval = ping_jump_interval;
+    }
+
+    if let Some(max_reward_claim) = max_reward_claim {
+        state.max_reward_claim = max_reward_claim;
     }
 
     config(deps.storage).save(&state)?;
@@ -189,7 +211,11 @@ pub fn claim_reward(
         return Err(ContractError::Unauthorized {});
     }
 
-    let State { base_reward, .. } = config_read(deps.storage).load()?;
+    let State {
+        base_reward,
+        max_reward_claim,
+        ..
+    } = config_read(deps.storage).load()?;
 
     let QueryPingInfoResponse { mut ping_info, .. } =
         query_ping_info(deps.as_ref(), &env, &pubkey)?;
@@ -198,14 +224,19 @@ pub fn claim_reward(
         return Err(ContractError::ZeroPing {});
     }
 
-    let total_reward: Coin = Coin {
+    let mut total_reward: Coin = Coin {
         denom: base_reward.denom.clone(),
-        amount: Uint128::from(ping_info.total_ping.add(base_reward.amount.u128() as u64)),
+        amount: Uint128::from(ping_info.total_ping.mul(base_reward.amount.u128() as u64)),
     };
 
     let contract_balance = deps
         .querier
         .query_balance(env.contract.address.clone(), base_reward.denom.as_str())?;
+
+    // check maximum amount claim. Can only claim maximum amount if total reward is larger
+    if total_reward.amount.gt(&max_reward_claim) {
+        total_reward.amount = max_reward_claim;
+    }
 
     if contract_balance.amount.lt(&total_reward.amount) {
         return Err(ContractError::InsufficientFunds {});
@@ -217,22 +248,26 @@ pub fn claim_reward(
     MAPPED_COUNT.save(deps.storage, pubkey.as_slice(), &ping_info)?;
 
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
-    cosmos_msgs.push(
-        BankMsg::Send {
-            from_address: env.contract.address.clone(),
-            to_address: info.sender.clone(),
-            amount: vec![Coin {
-                denom: total_reward.denom,
-                amount: total_reward.amount,
-            }],
-        }
-        .into(),
-    );
+    if !total_reward.amount.is_zero() {
+        cosmos_msgs.push(
+            BankMsg::Send {
+                from_address: env.contract.address.clone(),
+                to_address: info.sender.clone(),
+                amount: vec![Coin {
+                    denom: total_reward.denom.clone(),
+                    amount: total_reward.amount.clone(),
+                }],
+            }
+            .into(),
+        );
+    }
 
     Ok(HandleResponse {
         attributes: vec![
             attr("action", "claim_reward"),
             attr("executor", info.sender),
+            attr("denom", total_reward.denom),
+            attr("amount", total_reward.amount),
         ],
         messages: cosmos_msgs,
         ..HandleResponse::default()

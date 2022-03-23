@@ -109,7 +109,7 @@ fn setup_test_case(app: &mut App) -> (HumanAddr, HumanAddr) {
         aioracle_addr.clone(),
         Coin {
             denom: "orai".to_string(),
-            amount: Uint128::from(1u64),
+            amount: Uint128::from(10u64),
         },
         300,
     );
@@ -183,22 +183,7 @@ fn test_ping() {
         ContractError::UnauthorizedExecutor {}.to_string(),
     );
 
-    // insufficient funds
-    assert_eq!(
-        app.execute_contract(
-            &HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
-            &ping_contract,
-            &HandleMsg::ClaimReward {
-                pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
-                    .unwrap(),
-            },
-            &[],
-        )
-        .unwrap_err(),
-        ContractError::InsufficientFunds {}.to_string(),
-    );
-
-    // create a new request
+    // ping successfully
     app.execute_contract(
         &HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
         &ping_contract,
@@ -226,15 +211,21 @@ fn test_ping() {
 
     // successful claim
 
-    app.execute_contract(
-        &HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
-        &ping_contract,
-        &HandleMsg::ClaimReward {
-            pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
-        },
-        &[],
-    )
-    .unwrap();
+    let result = app
+        .execute_contract(
+            &HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+            &ping_contract,
+            &HandleMsg::ClaimReward {
+                pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
+                    .unwrap(),
+            },
+            &[],
+        )
+        .unwrap();
+    assert_eq!(
+        result.attributes.iter().last().unwrap().value,
+        1u64.to_string()
+    );
 
     // query ping again
     // query ping
@@ -301,4 +292,100 @@ fn test_read_ping() {
     // default is 12345, plus 2 because move pass two blocks of two ping txs
     assert_eq!(ping_info.checkpoint_height, 12345 + 2 + 438292);
     assert_eq!(ping_info.prev_total_ping, 1);
+}
+
+#[test]
+fn test_claim() {
+    let mut app = mock_app();
+    let (ping_contract, aioracle_addr) = setup_test_case(&mut app);
+
+    app.execute_contract(
+        &HumanAddr::from(PING_OWNER),
+        &ping_contract,
+        &HandleMsg::ChangeState {
+            owner: None,
+            aioracle_addr: None,
+            base_reward: None,
+            ping_jump: None,
+            ping_jump_interval: None,
+            max_reward_claim: Some(Uint128::from(1000u64)),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // ping successfully
+    app.execute_contract(
+        &HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+        &ping_contract,
+        &HandleMsg::Ping {
+            pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
+        },
+        &coins(10, "orai"),
+    )
+    .unwrap();
+
+    // successful claim
+
+    let result = app
+        .execute_contract(
+            &HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+            &ping_contract,
+            &HandleMsg::ClaimReward {
+                pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
+                    .unwrap(),
+            },
+            &[],
+        )
+        .unwrap();
+    assert_eq!(
+        result.attributes.iter().last().unwrap().value,
+        10u64.to_string() // should be 10 because base reward is 10, mul with 1 ping => 10
+    );
+
+    app.update_block(skip_ping_interval);
+
+    app.execute_contract(
+        &HumanAddr::from(PING_OWNER),
+        &ping_contract,
+        &HandleMsg::ChangeState {
+            owner: None,
+            aioracle_addr: None,
+            base_reward: None,
+            ping_jump: None,
+            ping_jump_interval: None,
+            max_reward_claim: Some(Uint128::from(1u64)),
+        },
+        &[],
+    )
+    .unwrap();
+
+    // ping one more time, reward claim should be 1 now
+
+    // ping successfully
+    app.execute_contract(
+        &HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+        &ping_contract,
+        &HandleMsg::Ping {
+            pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
+        },
+        &coins(10, "orai"),
+    )
+    .unwrap();
+
+    let result = app
+        .execute_contract(
+            &HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+            &ping_contract,
+            &HandleMsg::ClaimReward {
+                pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
+                    .unwrap(),
+            },
+            &[],
+        )
+        .unwrap();
+    assert_eq!(
+        result.attributes.iter().last().unwrap().value,
+        1u64.to_string() // should be 10 because base reward is 10, mul with 1 ping => 10
+    );
 }

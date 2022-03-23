@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Coin, HumanAddr, StdResult, Storage};
+use cosmwasm_std::{Coin, HumanAddr, StdResult, Storage, Uint128};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 
 use crate::{
@@ -16,6 +16,7 @@ pub struct OldState {
     pub ping_jump: u64,
     pub aioracle_addr: HumanAddr,
     pub base_reward: Coin,
+    pub ping_jump_interval: u64,
 }
 
 pub static OLD_CONFIG_KEY: &[u8] = b"config";
@@ -35,6 +36,7 @@ pub fn migrate_v01_to_v02(storage: &mut dyn Storage, migrate_msg: MigrateMsg) ->
         ping_jump,
         aioracle_addr,
         base_reward,
+        ping_jump_interval,
         ..
     } = old_config_read(storage).load()?;
     config(storage).save(&State {
@@ -42,7 +44,8 @@ pub fn migrate_v01_to_v02(storage: &mut dyn Storage, migrate_msg: MigrateMsg) ->
         ping_jump,
         aioracle_addr,
         base_reward,
-        ping_jump_interval: PING_JUMP_INTERVAL,
+        ping_jump_interval,
+        max_reward_claim: Uint128::from(0u64),
     })?;
     Ok(())
 }
@@ -74,6 +77,7 @@ mod test {
                     amount: Uint128::from(1u64),
                     denom: "foo".into(),
                 },
+                ping_jump_interval: PING_JUMP_INTERVAL,
             })
             .unwrap();
         deps
@@ -89,6 +93,6 @@ mod test {
         let state: State =
             from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::GetState {}).unwrap()).unwrap();
         println!("state: {:?}", state);
-        assert_eq!(state.ping_jump_interval, 438291u64);
+        assert_eq!(state.max_reward_claim, Uint128::from(0u64));
     }
 }

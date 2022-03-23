@@ -24,7 +24,7 @@ use crate::msg::{
 };
 use crate::state::{
     requests, Config, Contracts, Request, TrustingPool, CHECKPOINT, CLAIM, CONFIG, EVIDENCES,
-    EXECUTORS, EXECUTORS_TRUSTING_POOL, EXECUTOR_SIZE, LATEST_STAGE,
+    EXECUTORS, EXECUTORS_TRUSTING_POOL, LATEST_STAGE,
 };
 use std::collections::HashMap;
 
@@ -61,7 +61,6 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     CHECKPOINT.save(deps.storage, &1)?;
 
     // first nonce
-    EXECUTOR_SIZE.save(deps.storage, &(msg.executors.len() as u64))?;
     save_executors(deps.storage, msg.executors)?;
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(InitResponse::default())
@@ -325,18 +324,14 @@ pub fn execute_update_config(
         CHECKPOINT.save(deps.storage, &new_checkpoint)?;
     }
 
-    let mut executors_size = EXECUTOR_SIZE.load(deps.storage)?;
     if let Some(executors) = new_executors {
         let executors_len = executors.len();
         save_executors(deps.storage, executors)?;
-        executors_size += executors_len as u64;
     }
     if let Some(executors) = old_executors {
         let executors_len = executors.len();
         remove_executors(deps.storage, executors)?;
-        executors_size -= executors_len as u64;
     }
-    EXECUTOR_SIZE.save(deps.storage, &executors_size)?;
 
     Ok(HandleResponse {
         attributes: vec![attr("action", "update_config")],
@@ -399,7 +394,7 @@ pub fn handle_request(
     rewards.pop(); // pop so we dont store the placeholder reward in the list
 
     // this will keep track of the executor list of the request
-    let current_size = EXECUTOR_SIZE.load(deps.storage)?;
+    let current_size = query_executor_size(deps.as_ref())?;
 
     if Uint128::from(current_size)
         .mul(Decimal::from_ratio(
@@ -1201,7 +1196,10 @@ pub fn verify_request_fees(sent_funds: &[Coin], rewards: &[Reward], threshold: u
 }
 
 pub fn query_executor_size(deps: Deps) -> StdResult<u64> {
-    EXECUTOR_SIZE.load(deps.storage)
+    let executor_count = EXECUTORS
+        .range(deps.storage, None, None, Order::Ascending)
+        .count();
+    Ok(executor_count as u64)
 }
 
 pub fn pubkey_to_address(pubkey: &Binary) -> Result<HumanAddr, ContractError> {

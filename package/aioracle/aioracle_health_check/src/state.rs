@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, HumanAddr, Storage};
+use cosmwasm_std::{Coin, HumanAddr, Storage, Uint128};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
@@ -13,6 +13,7 @@ pub struct State {
     pub aioracle_addr: HumanAddr,
     pub base_reward: Coin,
     pub ping_jump_interval: u64,
+    pub max_reward_claim: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

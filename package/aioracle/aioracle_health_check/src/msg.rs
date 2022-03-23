@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Coin, HumanAddr};
+use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +19,8 @@ pub enum HandleMsg {
         aioracle_addr: Option<HumanAddr>,
         base_reward: Option<Coin>,
         ping_jump: Option<u64>,
+        ping_jump_interval: Option<u64>,
+        max_reward_claim: Option<Uint128>,
     },
     Ping {
         pubkey: Binary,
