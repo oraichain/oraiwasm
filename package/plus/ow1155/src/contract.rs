@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
-    HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, Uint128, KV,
+    HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError, StdResult, Uint128, KV,
 };
 use cw_storage_plus::Bound;
 
@@ -12,7 +12,7 @@ use cw1155::{
 };
 
 use crate::error::{ContractError, DivideByZeroError, OverflowError, OverflowOperation};
-use crate::msg::InstantiateMsg;
+use crate::msg::{InstantiateMsg, MigrateMsg};
 use crate::state::{APPROVES, BALANCES, MINTER, OWNER, TOKENS};
 
 const DEFAULT_LIMIT: u32 = 10;
@@ -35,6 +35,15 @@ pub struct ExecuteEnv<'a> {
     deps: DepsMut<'a>,
     env: Env,
     info: MessageInfo,
+}
+
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: MigrateMsg,
+) -> StdResult<MigrateResponse> {
+    Ok(MigrateResponse::default())
 }
 
 pub fn handle(
