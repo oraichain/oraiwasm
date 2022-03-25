@@ -64,6 +64,11 @@ pub enum QueryMsg {
         limit: Option<u8>,
         order: Option<u8>,
     },
+    GetExecutorsByIndex {
+        offset: Option<u64>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
     GetExecutor {
         pubkey: Binary,
     },

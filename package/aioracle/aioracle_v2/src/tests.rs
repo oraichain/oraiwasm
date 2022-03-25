@@ -3,7 +3,7 @@ use crate::error::ContractError;
 use crate::msg::{
     HandleMsg, InitMsg, QueryMsg, RequestResponse, StageInfo, TrustingPoolResponse, UpdateConfigMsg,
 };
-use crate::state::{Config, Request, TrustingPool};
+use crate::state::{Config, Executor, Request, TrustingPool};
 
 use aioracle_base::Reward;
 use bech32::{self, FromBase32, ToBase32, Variant};
@@ -226,6 +226,16 @@ fn setup_test_case(app: &mut App) -> (HumanAddr, HumanAddr, HumanAddr) {
 
     app.execute_contract(
         HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
+        service_fees_addr.clone(),
+        &aioracle_service_fees::msg::HandleMsg::UpdateServiceFees {
+            fees: coin(1u128, "orai"),
+        },
+        &[],
+    )
+    .unwrap();
+
+    app.execute_contract(
+        HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
         service_fees_addr.clone(),
         &aioracle_service_fees::msg::HandleMsg::UpdateServiceFees {
             fees: coin(1u128, "orai"),
@@ -870,7 +880,7 @@ fn query_executors() {
     let _res = init(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     // query executors
-    let executors: Vec<Binary> = from_binary(
+    let executors: Vec<Executor> = from_binary(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -886,14 +896,14 @@ fn query_executors() {
 
     let executors_base64: Vec<String> = executors
         .into_iter()
-        .map(|executor| executor.to_base64())
+        .map(|executor| executor.pubkey.to_base64())
         .collect();
 
     println!("executors: {:?}", executors_base64);
     assert_eq!(executors_base64.len(), 4);
 
     // query executors
-    let executors: Vec<Binary> = from_binary(
+    let executors: Vec<Executor> = from_binary(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -911,7 +921,7 @@ fn query_executors() {
 
     let executors_base64: Vec<String> = executors
         .into_iter()
-        .map(|executor| executor.to_base64())
+        .map(|executor| executor.pubkey.to_base64())
         .collect();
 
     assert_eq!(
@@ -1453,7 +1463,7 @@ fn test_increment_executor_when_register_merkle() {
             &coins(26u128, "orai"),
         )
         .unwrap_err(),
-        ContractError::InsufficientFunds {}.to_string()
+        ContractError::InsufficientFundsBoundFees {}.to_string()
     );
 
     // successful case
@@ -1497,6 +1507,72 @@ fn test_increment_executor_when_register_merkle() {
     assert_eq!(
         trusting_pool.trusting_pool.amount_coin.amount,
         Uint128::from(12u64)
+    );
+}
+
+#[test]
+pub fn test_query_executors_by_index() {
+    let mut app = mock_app();
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
+
+    // query executors
+    let executors: Vec<Executor> = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr.clone(),
+            &QueryMsg::GetExecutorsByIndex {
+                offset: None,
+                limit: None,
+                order: None,
+            },
+        )
+        .unwrap();
+
+    assert_eq!(executors.len(), 4 as usize);
+
+    let executors_base64: Vec<String> = executors
+        .into_iter()
+        .map(|executor| executor.pubkey.to_base64())
+        .collect();
+
+    println!("executors: {:?}", executors_base64);
+
+    // query with offset
+
+    let executors: Vec<Executor> = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr.clone(),
+            &QueryMsg::GetExecutorsByIndex {
+                offset: Some(1),
+                limit: None,
+                order: None,
+            },
+        )
+        .unwrap();
+
+    assert_eq!(executors.len(), 2 as usize);
+    assert_eq!(
+        executors.last().unwrap().pubkey.to_base64(),
+        "AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn"
+    );
+
+    // // with different orders
+    let executors: Vec<Executor> = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr.clone(),
+            &QueryMsg::GetExecutorsByIndex {
+                offset: Some(3),
+                limit: None,
+                order: Some(2),
+            },
+        )
+        .unwrap();
+
+    assert_eq!(
+        executors.first().unwrap().pubkey.to_base64(),
+        "A/2zTPo7IjMyvf41xH2uS38mcjW5wX71CqzO+MwsuKiw"
     );
 }
 
