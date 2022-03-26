@@ -23,8 +23,8 @@ use crate::msg::{
     TrustingPoolResponse, UpdateConfigMsg,
 };
 use crate::state::{
-    requests, Config, Contracts, Request, TrustingPool, CHECKPOINT, CLAIM, CONFIG, EVIDENCES,
-    EXECUTORS, EXECUTORS_TRUSTING_POOL, LATEST_STAGE,
+    executors_map, requests, Config, Contracts, Executor, Request, TrustingPool, CHECKPOINT, CLAIM,
+    CONFIG, EVIDENCES, EXECUTORS_INDEX, EXECUTORS_TRUSTING_POOL, LATEST_STAGE,
 };
 use std::collections::HashMap;
 
@@ -61,23 +61,46 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     CHECKPOINT.save(deps.storage, &1)?;
 
     // first nonce
-    save_executors(deps.storage, msg.executors)?;
+    let mut executor_index = 0;
+    let final_executors = msg
+        .executors
+        .into_iter()
+        .map(|executor| -> Executor {
+            let final_executor: Executor = Executor {
+                pubkey: executor,
+                executing_power: 0u64,
+                index: executor_index,
+                is_active: true,
+            };
+            executor_index += 1;
+            final_executor
+        })
+        .collect();
+    save_executors(deps.storage, final_executors)?;
+    EXECUTORS_INDEX.save(deps.storage, &executor_index)?;
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(InitResponse::default())
 }
 
-pub fn save_executors(storage: &mut dyn Storage, executors: Vec<Binary>) -> StdResult<()> {
+pub fn save_executors(storage: &mut dyn Storage, executors: Vec<Executor>) -> StdResult<()> {
     for executor in executors {
-        EXECUTORS.save(storage, executor.as_slice(), &true)?
+        executors_map().save(storage, executor.pubkey.as_slice(), &executor)?
     }
     Ok(())
 }
 
 pub fn remove_executors(storage: &mut dyn Storage, executors: Vec<Binary>) -> StdResult<()> {
     for executor in executors {
-        let is_active = EXECUTORS.may_load(storage, executor.as_slice())?;
-        if let Some(_) = is_active {
-            EXECUTORS.save(storage, executor.as_slice(), &false)?;
+        let executor_option = executors_map().may_load(storage, executor.as_slice())?;
+        if let Some(executor) = executor_option {
+            executors_map().save(
+                storage,
+                executor.pubkey.clone().as_slice(),
+                &Executor {
+                    is_active: false,
+                    ..executor
+                },
+            )?;
         } else {
             continue;
         }
@@ -169,8 +192,8 @@ pub fn migrate(
 //     if info.sender.ne(&executor_addr) {
 //         return Err(ContractError::Unauthorized {});
 //     }
-//     let is_active = EXECUTORS.load(deps.storage, pubkey.as_slice())?;
-//     EXECUTORS.save(deps.storage, pubkey.as_slice(), &(!is_active))?;
+//     let is_active = executors_map().load(deps.storage, pubkey.as_slice())?;
+//     executors_map().save(deps.storage, pubkey.as_slice(), &(!is_active))?;
 //     Ok(HandleResponse {
 //         attributes: vec![
 //             attr("action", "toggle_executor_activeness"),
@@ -325,11 +348,34 @@ pub fn execute_update_config(
     }
 
     if let Some(executors) = new_executors {
-        let executors_len = executors.len();
-        save_executors(deps.storage, executors)?;
+        let mut executor_index = EXECUTORS_INDEX.load(deps.storage)?;
+        let final_executors = executors
+            .into_iter()
+            .map(|executor| -> Executor {
+                let old_executor_option = executors_map()
+                    .may_load(deps.storage, executor.as_slice())
+                    .unwrap_or(None);
+                // if executor exist then we dont increment executor index, reuse all config, only turn is active to true
+                if let Some(old_executor) = old_executor_option {
+                    return Executor {
+                        is_active: true,
+                        ..old_executor
+                    };
+                }
+                // otherwise, we return new executor data
+                let final_executor: Executor = Executor {
+                    pubkey: executor,
+                    executing_power: 0u64,
+                    index: executor_index,
+                    is_active: true,
+                };
+                executor_index += 1;
+                final_executor
+            })
+            .collect();
+        save_executors(deps.storage, final_executors)?;
     }
     if let Some(executors) = old_executors {
-        let executors_len = executors.len();
         remove_executors(deps.storage, executors)?;
     }
 
@@ -473,7 +519,7 @@ pub fn handle_submit_evidence(
         ..
     } = requests().load(deps.storage, &stage.to_be_bytes())?;
 
-    let is_exist = EXECUTORS.may_load(deps.storage, report_struct.executor.as_slice())?;
+    let is_exist = executors_map().may_load(deps.storage, report_struct.executor.as_slice())?;
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
     // only slash if the executor cannot be found in the whitelist
@@ -634,7 +680,6 @@ pub fn execute_register_merkle_root(
         owner,
         checkpoint_threshold,
         service_addr,
-        denom,
         ..
     } = CONFIG.load(deps.storage)?;
 
@@ -694,8 +739,8 @@ pub fn execute_register_merkle_root(
     // add executors' rewards into the pool
     for executor in executors {
         // only add reward if executor is in list
-        let executor_check = EXECUTORS.may_load(deps.storage, &executor)?;
-        if executor_check.is_none() || !executor_check.unwrap() {
+        let executor_check = executors_map().may_load(deps.storage, &executor)?;
+        if executor_check.is_none() || !executor_check.unwrap().is_active {
             continue;
         }
         let executor_reward =
@@ -755,6 +800,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             order,
         } => to_binary(&query_executors(deps, offset, limit, order)?),
+        QueryMsg::GetExecutorsByIndex {
+            offset,
+            limit,
+            order,
+        } => to_binary(&query_executors_by_index(deps, offset, limit, order)?),
         QueryMsg::GetExecutor { pubkey } => to_binary(&query_executor(deps, pubkey)?),
         QueryMsg::GetExecutorSize {} => to_binary(&query_executor_size(deps)?),
         QueryMsg::Request { stage } => to_binary(&query_request(deps, stage)?),
@@ -862,8 +912,8 @@ pub fn query_trusting_pools(
 }
 
 pub fn query_executor(deps: Deps, pubkey: Binary) -> StdResult<bool> {
-    let is_active = EXECUTORS.may_load(deps.storage, pubkey.as_slice())?;
-    if is_active.is_none() || !is_active.unwrap() {
+    let executor = executors_map().may_load(deps.storage, pubkey.as_slice())?;
+    if executor.is_none() || !executor.unwrap().is_active {
         return Ok(false);
     }
     Ok(true)
@@ -995,20 +1045,69 @@ pub fn query_executors(
     offset: Option<Binary>,
     limit: Option<u8>,
     order: Option<u8>,
-) -> StdResult<Vec<ExecutorsResponse>> {
+) -> StdResult<Vec<Executor>> {
     let (limit, min, max, order_enum) = get_executors_params(offset, limit, order);
 
-    let res: StdResult<Vec<ExecutorsResponse>> = EXECUTORS
+    let res: StdResult<Vec<Executor>> = executors_map()
         .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| {
-            kv_item.and_then(|(pub_vec, is_active)| {
+            kv_item.and_then(|(_, executor)| {
                 // will panic if length is greater than 8, but we can make sure it is u64
                 // try_into will box vector to fixed array
-                Ok(ExecutorsResponse {
-                    pubkey: Binary::from(pub_vec),
-                    is_acitve: is_active,
-                })
+                Ok(executor)
+            })
+        })
+        .collect();
+    res
+}
+
+fn get_executors_by_index_params(
+    offset: Option<u64>,
+    limit: Option<u8>,
+    order: Option<u8>,
+) -> (usize, Option<Bound>, Option<Bound>, Order) {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    // let mut max: Option<Bound> = None;
+    let mut order_enum = Order::Ascending;
+    let mut min: Option<Bound> = None;
+    let mut max: Option<Bound> = None;
+    if let Some(num) = order {
+        if num == 2 {
+            order_enum = Order::Descending;
+        }
+    }
+    let offset_value = offset
+        .as_ref()
+        .map(|offset| Bound::Exclusive(offset.to_be_bytes().to_vec()));
+
+    // if there is offset, assign to min or max
+    match order_enum {
+        Order::Ascending => min = offset_value,
+        Order::Descending => max = offset_value,
+    }
+
+    (limit, min, max, order_enum)
+}
+
+pub fn query_executors_by_index(
+    deps: Deps,
+    offset: Option<u64>,
+    limit: Option<u8>,
+    order: Option<u8>,
+) -> StdResult<Vec<Executor>> {
+    let (limit, min, max, order_enum) = get_executors_by_index_params(offset, limit, order);
+
+    let res: StdResult<Vec<Executor>> = executors_map()
+        .idx
+        .index
+        .range(deps.storage, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| {
+            kv_item.and_then(|(_, executor)| {
+                // will panic if length is greater than 8, but we can make sure it is u64
+                // try_into will box vector to fixed array
+                Ok(executor)
             })
         })
         .collect();
@@ -1196,7 +1295,7 @@ pub fn verify_request_fees(sent_funds: &[Coin], rewards: &[Reward], threshold: u
 }
 
 pub fn query_executor_size(deps: Deps) -> StdResult<u64> {
-    let executor_count = EXECUTORS
+    let executor_count = executors_map()
         .range(deps.storage, None, None, Order::Ascending)
         .count();
     Ok(executor_count as u64)
