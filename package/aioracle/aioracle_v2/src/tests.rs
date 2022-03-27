@@ -339,9 +339,45 @@ fn update_config() {
     };
 
     let res = app
-        .execute_contract(info.sender, aioracle_addr, &msg, &[])
+        .execute_contract(info.sender, aioracle_addr.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {}.to_string());
+
+    // try adding new executors
+    let msg = HandleMsg::UpdateConfig {
+        update_config_msg: UpdateConfigMsg {
+            new_owner: None,
+            new_contract_fee: None,
+            new_executors: Some(vec![Binary::from_base64(
+                "A1fYW/anP4EOhw0FCaxG2XXlkjNeGTK2dX17q1xAAwH8",
+            )
+            .unwrap()]),
+            new_service_addr: None,
+            old_executors: None,
+            new_checkpoint: None,
+            new_checkpoint_threshold: None,
+            new_max_req_threshold: None,
+            new_trust_period: None,
+            new_slashing_amount: None,
+            new_denom: None,
+        },
+    };
+    let res = app
+        .execute_contract("owner0001".into(), aioracle_addr.clone(), &msg, &[])
+        .unwrap();
+
+    let executors: Vec<Executor> = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr.clone(),
+            &QueryMsg::GetExecutors {
+                offset: None,
+                limit: None,
+                order: None,
+            },
+        )
+        .unwrap();
+    assert_eq!(executors.len(), 5 as usize);
 }
 
 #[test]

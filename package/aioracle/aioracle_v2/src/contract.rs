@@ -171,6 +171,19 @@ pub fn migrate(
     // // }
 
     // migrate_v02_to_v03(deps.storage, msg)?;
+    EXECUTORS_INDEX.save(deps.storage, &1u64)?;
+    let init_executor =
+        Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap();
+    executors_map().save(
+        deps.storage,
+        init_executor.clone().as_slice(),
+        &Executor {
+            pubkey: init_executor,
+            executing_power: 0u64,
+            index: 0u64,
+            is_active: true,
+        },
+    )?;
 
     // once we have "migrated", set the new version and return success
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -373,6 +386,7 @@ pub fn execute_update_config(
                 final_executor
             })
             .collect();
+        EXECUTORS_INDEX.save(deps.storage, &executor_index)?;
         save_executors(deps.storage, final_executors)?;
     }
     if let Some(executors) = old_executors {
