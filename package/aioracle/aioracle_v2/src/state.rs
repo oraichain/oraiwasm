@@ -1,4 +1,4 @@
-use aioracle_base::Reward;
+use aioracle_base::{Executor, Reward};
 use cosmwasm_std::{Binary, Coin, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -39,15 +39,6 @@ pub struct Request {
     pub service: String,
     pub input: Option<String>,
     pub rewards: Vec<Reward>,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct Executor {
-    /// Owner If None set, contract is frozen.
-    pub pubkey: Binary,
-    pub is_active: bool,
-    pub executing_power: u64,
-    pub index: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -3,9 +3,9 @@ use crate::error::ContractError;
 use crate::msg::{
     HandleMsg, InitMsg, QueryMsg, RequestResponse, StageInfo, TrustingPoolResponse, UpdateConfigMsg,
 };
-use crate::state::{Config, Executor, Request, TrustingPool};
+use crate::state::{Config, Request, TrustingPool};
 
-use aioracle_base::Reward;
+use aioracle_base::{Executor, Reward};
 use bech32::{self, FromBase32, ToBase32, Variant};
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,

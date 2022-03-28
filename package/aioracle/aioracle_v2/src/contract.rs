@@ -1,4 +1,4 @@
-use aioracle_base::{GetServiceFeesMsg, Reward, ServiceMsg};
+use aioracle_base::{Executor, GetServiceFeesMsg, Reward, ServiceMsg};
 use cosmwasm_std::{
     attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError,
@@ -23,8 +23,8 @@ use crate::msg::{
     TrustingPoolResponse, UpdateConfigMsg,
 };
 use crate::state::{
-    executors_map, requests, Config, Contracts, Executor, Request, TrustingPool, CHECKPOINT, CLAIM,
-    CONFIG, EVIDENCES, EXECUTORS_INDEX, EXECUTORS_TRUSTING_POOL, LATEST_STAGE,
+    executors_map, requests, Config, Contracts, Request, TrustingPool, CHECKPOINT, CLAIM, CONFIG,
+    EVIDENCES, EXECUTORS_INDEX, EXECUTORS_TRUSTING_POOL, LATEST_STAGE,
 };
 use std::collections::HashMap;
 
@@ -171,19 +171,19 @@ pub fn migrate(
     // // }
 
     // migrate_v02_to_v03(deps.storage, msg)?;
-    EXECUTORS_INDEX.save(deps.storage, &1u64)?;
-    let init_executor =
-        Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap();
-    executors_map().save(
-        deps.storage,
-        init_executor.clone().as_slice(),
-        &Executor {
-            pubkey: init_executor,
-            executing_power: 0u64,
-            index: 0u64,
-            is_active: true,
-        },
-    )?;
+    // EXECUTORS_INDEX.save(deps.storage, &24u64)?;
+    // let init_executor =
+    //     Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap();
+    // executors_map().save(
+    //     deps.storage,
+    //     init_executor.clone().as_slice(),
+    //     &Executor {
+    //         pubkey: init_executor,
+    //         executing_power: 0u64,
+    //         index: 0u64,
+    //         is_active: true,
+    //     },
+    // )?;
 
     // once we have "migrated", set the new version and return success
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -925,12 +925,8 @@ pub fn query_trusting_pools(
     res
 }
 
-pub fn query_executor(deps: Deps, pubkey: Binary) -> StdResult<bool> {
-    let executor = executors_map().may_load(deps.storage, pubkey.as_slice())?;
-    if executor.is_none() || !executor.unwrap().is_active {
-        return Ok(false);
-    }
-    Ok(true)
+pub fn query_executor(deps: Deps, pubkey: Binary) -> StdResult<Executor> {
+    Ok(executors_map().load(deps.storage, pubkey.as_slice())?)
 }
 
 fn get_service_fees(deps: Deps, service: &str) -> StdResult<Vec<Reward>> {
