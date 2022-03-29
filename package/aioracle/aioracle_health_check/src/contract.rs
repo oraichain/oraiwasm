@@ -9,6 +9,7 @@ use crate::msg::{
 use crate::state::{
     config, config_read, PingInfo, ReadPingInfo, State, MAPPED_COUNT, READ_ONLY_MAPPED_COUNT,
 };
+use aioracle_base::Executor;
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
     HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError, StdResult, Uint128,
@@ -157,16 +158,16 @@ pub fn add_ping(
     } = config_read(deps.storage).load()?;
 
     // find if executor exists or active on aioracle list
-    let is_valid: bool = deps.querier.query_wasm_smart(
+    let executor_result: StdResult<Executor> = deps.querier.query_wasm_smart(
         aioracle_addr,
         &QueryExecutor {
             get_executor: QueryExecutorMsg {
                 pubkey: pubkey.clone(),
             },
         },
-    )?;
+    );
 
-    if !is_valid {
+    if executor_result.is_err() || !executor_result.unwrap().is_active {
         return Err(ContractError::UnauthorizedExecutor {});
     }
 
