@@ -24,6 +24,7 @@ pub enum HandleMsg {
     // ToggleExecutorActiveness {
     //     pubkey: Binary,
     // },
+    PostInitMsg {},
     RegisterMerkleRoot {
         /// MerkleRoot is hex-encoded merkle root.
         stage: u64,

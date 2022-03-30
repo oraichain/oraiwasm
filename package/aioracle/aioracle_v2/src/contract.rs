@@ -121,6 +121,7 @@ pub fn handle(
         // HandleMsg::ToggleExecutorActiveness { pubkey } => {
         //     toggle_executor_activeness(deps, info,, pubkey)
         // }
+        HandleMsg::PostInitMsg {} => Ok(HandleResponse::default()),
         HandleMsg::RegisterMerkleRoot {
             stage,
             merkle_root,

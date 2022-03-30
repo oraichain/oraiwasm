@@ -28,7 +28,7 @@ const CLIENT: &str = "client";
 
 #[test]
 fn test_bech32() {
-    let bin = Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap();
+    let bin = Binary::from_base64("AjqcDJ6IlUtYbpuPNRdsOsSGQWxuOmoEMZag29oROhSX").unwrap();
     let msg_hash_generic = sha2::Sha256::digest(bin.as_slice());
     let msg_hash = msg_hash_generic.as_slice();
     println!("msg hash: {:?}", msg_hash);
