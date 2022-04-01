@@ -10,10 +10,17 @@ pub const EXECUTORS_TRUSTING_POOL_PREFIX: &str = "executors_trusting_pool_v2";
 pub const EXECUTORS_TRUSTING_POOL: Map<&[u8], TrustingPool> =
     Map::new(EXECUTORS_TRUSTING_POOL_PREFIX);
 
+pub const EVIDENCE_PREFIX: &str = "evidence";
+
+// key: executor in base64 string + stage in string
+pub const EVIDENCES: Map<&[u8], bool> = Map::new(EVIDENCE_PREFIX);
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
+    pub multisig_addr: HumanAddr,
     pub oracle_contract: HumanAddr,
     pub pending_period: u64,
+    pub slashing_amount: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -57,6 +64,7 @@ pub struct TrustingPool {
     pub amount_coin: Coin,
     pub withdraw_amount_coin: Coin,
     pub withdraw_height: u64,
+    pub is_freezing: bool,
 }
 
 // pub struct TrustingPoolIndexes<'a> {

@@ -1,7 +1,9 @@
+use std::ops::{Add, AddAssign, Mul, SubAssign};
+
 use bech32::{self, ToBase32, Variant};
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, Order, StdError, StdResult, Storage, WasmMsg,
+    attr, from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env, HandleResponse, HumanAddr,
+    InitResponse, MessageInfo, Order, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
 };
 use cw_storage_plus::Bound;
 use ripemd::{Digest as RipeDigest, Ripemd160};
@@ -9,9 +11,9 @@ use sha2::Digest;
 
 use crate::{
     error::ContractError,
-    msg::{HandleMsg, InitMsg, QueryMsg},
+    msg::{Evidence, HandleMsg, InitMsg, QueryMsg},
     state::{
-        executors_map, Config, Executor, TrustingPool, CONFIG, EXECUTORS_INDEX,
+        executors_map, Config, Executor, TrustingPool, CONFIG, EVIDENCES, EXECUTORS_INDEX,
         EXECUTORS_TRUSTING_POOL,
     },
 };
@@ -29,6 +31,8 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
                 Some(limit) => limit,
                 None => DEFAULT_REJOIN_NUM_BLOCK,
             },
+            multisig_addr: msg.multisig_addr,
+            slashing_amount: msg.slashing_amount,
         },
     )?;
     let mut index = 0u64;
@@ -322,6 +326,99 @@ pub fn handle_update_executor_trusting_pool(
     })
 }
 
+pub fn handle_submit_evidence(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    proposal_pubkey: Binary,
+    evidence: Evidence,
+) -> Result<HandleResponse, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if config.multisig_addr.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+    let address = pubkey_to_address(&proposal_pubkey)?;
+    let oracle_config = query_oracle_contract_config(deps.as_ref())?;
+    let evidence_clone = evidence.clone();
+    let is_verify = verify_data(
+        deps.as_ref(),
+        evidence.stage,
+        evidence.report,
+        evidence.proofs,
+    )?;
+    if !is_verify {
+        return Err(ContractError::Std(StdError::generic_err(
+            "Failed to verify envidence!",
+        )));
+    }
+
+    let report_struct: aioracle_v2::msg::Report = from_binary(&evidence_clone.report)
+        .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
+
+    let mut evidence_key = report_struct.executor.clone().to_base64();
+    evidence_key.push_str(&evidence.stage.to_string());
+    let is_claimed = EVIDENCES.may_load(deps.storage, evidence_key.as_bytes())?;
+
+    if let Some(is_claimed) = is_claimed {
+        if is_claimed {
+            return Err(ContractError::AlreadyFinishedEvidence {});
+        }
+    }
+    let request = get_oracle_request(deps.as_ref(), evidence.stage)?;
+
+    if request.submit_merkle_height + oracle_config.trusting_period > env.block.height {
+        let executor_trusting_pool =
+            EXECUTORS_TRUSTING_POOL.load(deps.storage, report_struct.executor.as_slice())?;
+        if executor_trusting_pool
+            .amount_coin
+            .amount
+            .ge(&Uint128::from(0u64))
+        {
+            let slash_amount = executor_trusting_pool
+                .amount_coin
+                .amount
+                .mul(Decimal::permille(config.slashing_amount));
+            EXECUTORS_TRUSTING_POOL.update(deps.storage, &proposal_pubkey.as_slice(), |pool| {
+                if let Some(mut pool) = pool {
+                    pool.amount_coin.amount.add_assign(&slash_amount);
+                    Ok(pool)
+                } else {
+                    return Err(ContractError::Std(StdError::generic_err(
+                        "Error to update proposal trusting amount",
+                    )));
+                }
+            })?;
+            EXECUTORS_TRUSTING_POOL.update(
+                deps.storage,
+                &report_struct.executor.as_slice(),
+                |pool| {
+                    if let Some(mut pool) = pool {
+                        pool.amount_coin.amount.0.sub_assign(&slash_amount.0);
+                        pool.is_freezing = true;
+                        Ok(pool)
+                    } else {
+                        return Err(ContractError::Std(StdError::generic_err(
+                            "Error to slash executor trusting pool",
+                        )));
+                    }
+                },
+            )?;
+            executors_map().update(deps.storage, &address.as_bytes(), |executor| {
+                if let Some(mut executor) = executor {
+                    executor.is_active = false;
+                    Ok(executor)
+                } else {
+                    return Err(ContractError::Std(StdError::generic_err(
+                        "Error to update executor status",
+                    )));
+                }
+            })?;
+        }
+    }
+
+    Ok(HandleResponse::default())
+}
+
 pub fn query_all_executors(deps: Deps) -> StdResult<Vec<Executor>> {
     let res = executors_map()
         .idx
@@ -480,4 +577,56 @@ pub fn pubkey_to_address(pubkey: &Binary) -> Result<HumanAddr, ContractError> {
     let encoded = bech32::encode("orai", result_slice.to_base32(), Variant::Bech32)
         .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
     Ok(HumanAddr::from(encoded))
+}
+
+pub fn query_oracle_contract_config(deps: Deps) -> StdResult<aioracle_v2::state::Config> {
+    let Config {
+        oracle_contract, ..
+    } = CONFIG.load(deps.storage)?;
+    let res: aioracle_v2::state::Config = deps.querier.query(
+        &WasmQuery::Smart {
+            contract_addr: oracle_contract,
+            msg: to_binary(&aioracle_v2::msg::QueryMsg::Config {})?,
+        }
+        .into(),
+    )?;
+
+    Ok(res)
+}
+
+pub fn verify_data(
+    deps: Deps,
+    stage: u64,
+    report: Binary,
+    proofs: Option<Vec<String>>,
+) -> StdResult<bool> {
+    let Config {
+        oracle_contract, ..
+    } = CONFIG.load(deps.storage)?;
+    let is_verify: bool = deps.querier.query(
+        &WasmQuery::Smart {
+            contract_addr: oracle_contract,
+            msg: to_binary(&aioracle_v2::msg::QueryMsg::VerifyData {
+                stage,
+                data: report,
+                proof: proofs,
+            })?,
+        }
+        .into(),
+    )?;
+    Ok(is_verify)
+}
+
+pub fn get_oracle_request(deps: Deps, stage: u64) -> StdResult<aioracle_v2::state::Request> {
+    let Config {
+        oracle_contract, ..
+    } = CONFIG.load(deps.storage)?;
+    let request = deps.querier.query(
+        &WasmQuery::Smart {
+            contract_addr: oracle_contract,
+            msg: to_binary(&aioracle_v2::msg::QueryMsg::Request { stage })?,
+        }
+        .into(),
+    )?;
+    Ok(request)
 }

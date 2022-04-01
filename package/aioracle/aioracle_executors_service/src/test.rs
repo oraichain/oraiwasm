@@ -11,22 +11,25 @@ use crate::{
     state::{Executor, TrustingPool},
 };
 
-const CONTRACT: &str = "oracle_contract";
+const ORACLE_CONTRACT: &str = "oracle_contract";
+const MULTISIG_CONTRACT: &str = "multisig_contract";
 
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
     let mut deps = mock_dependencies(&coins(1, "orai"));
     deps.api.canonical_length = 54;
     let msg = InitMsg {
         init_hook: InitHook {
-            contract_addr: HumanAddr::from(CONTRACT),
+            contract_addr: HumanAddr::from(ORACLE_CONTRACT),
             msg: to_binary(&aioracle_v2::msg::HandleMsg::PostInitMsg {}).unwrap(),
         },
         executors: vec![
             Binary::from_base64("AjqcDJ6IlUtYbpuPNRdsOsSGQWxuOmoEMZag29oROhSX").unwrap(),
         ],
         pending_period: None,
+        multisig_addr: HumanAddr::from(MULTISIG_CONTRACT),
+        slashing_amount: 20u64,
     };
-    let info = mock_info(CONTRACT, &[]);
+    let info = mock_info(ORACLE_CONTRACT, &[]);
     let contract_env = mock_env();
     let _res = init(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
     (deps, contract_env)
@@ -86,7 +89,7 @@ fn test_bulk_insert_executors() {
     let _res = handle(
         deps.as_mut(),
         contract_env.clone(),
-        mock_info(CONTRACT, &[]),
+        mock_info(ORACLE_CONTRACT, &[]),
         crate::msg::HandleMsg::BulkInsertExecutors {
             executors: vec![pub1.clone(), pub2.clone()],
         },
@@ -105,7 +108,7 @@ fn test_bulk_insert_executors() {
     let _ = handle(
         deps.as_mut(),
         contract_env.clone(),
-        mock_info(CONTRACT, &[]),
+        mock_info(ORACLE_CONTRACT, &[]),
         crate::msg::HandleMsg::BulkRemoveExecutors {
             executors: vec![pub1, pub2],
         },
@@ -149,11 +152,12 @@ fn test_bulk_update_executor_trusting_pool() {
             denom: "orai".to_string(),
             amount: Uint128::from(0u64),
         },
+        is_freezing: false,
     };
     let _res = handle(
         deps.as_mut(),
         contract_env.clone(),
-        mock_info(CONTRACT, &[]),
+        mock_info(ORACLE_CONTRACT, &[]),
         crate::msg::HandleMsg::BulkUpdateExecutorTrustingPools {
             data: vec![(pubkey_1, pool_1)],
         },

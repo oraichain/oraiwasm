@@ -11,4 +11,7 @@ pub enum ContractError {
 
     #[error("Cannot rejoin before block {block}")]
     RejoinError { block: u64 },
+
+    #[error("Evidence already submitted & handled")]
+    AlreadyFinishedEvidence {},
 }
