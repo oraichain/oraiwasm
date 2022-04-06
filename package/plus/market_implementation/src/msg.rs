@@ -1,4 +1,5 @@
 use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
+use cw20::Cw20ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_auction::{AuctionHandleMsg, AuctionQueryMsg};
@@ -22,6 +23,7 @@ pub struct InitMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
+    Receive(Cw20ReceiveMsg),
     // this require bidder to pay fee for asker
     CancelBid {
         auction_id: u64,

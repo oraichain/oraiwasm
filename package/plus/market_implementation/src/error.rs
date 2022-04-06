@@ -22,7 +22,7 @@ pub enum ContractError {
     #[error("Invalid denom amount")]
     InvalidDenomAmount {},
 
-    #[error("Sent funds amount is empty")]
+    #[error("Funds amount is empty")]
     InvalidSentFundAmount {},
 
     #[error("The auction asker address is invalid")]

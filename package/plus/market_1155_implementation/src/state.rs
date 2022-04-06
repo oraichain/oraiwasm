@@ -1,4 +1,4 @@
-use cosmwasm_std::Uint128;
+use cosmwasm_std::{HumanAddr, Uint128};
 use market::MarketHubContract;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};

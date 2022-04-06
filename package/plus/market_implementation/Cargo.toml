@@ -41,6 +41,7 @@ market_ai_royalty = { path = "../../base/market_ai_royalty" }
 market_first_lv_royalty = { path = "../../base/market_first_lv_royalty" }
 market_whitelist = { path = "../../base/market_whitelist" }
 market = { path = "../../base/market" }
+cw20 = { version = "0.5.0" }
 schemars = "0.7"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.21" }
@@ -54,4 +55,5 @@ market_ai_royalty_storage = { path = "../market_ai_royalty_storage" }
 market_first_level_royalty_storage = { path = "../market_first_level_royalty_storage" }
 market_whitelist_storage = { path = "../market_whitelist_storage" }
 oraichain_nft = {path = "../oraichain_nft"}
+ow20 = {path = "../ow20"}
 

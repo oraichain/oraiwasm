@@ -179,6 +179,7 @@ pub fn try_buy(
     env: Env,
     offering_id: u64,
     amount: Uint128,
+    fund_amount: Option<Uint128>,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
         governance,

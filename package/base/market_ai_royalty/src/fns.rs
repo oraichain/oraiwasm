@@ -1,8 +1,10 @@
 use std::ops::{Mul, Sub};
 
 use cosmwasm_std::{
-    coins, BankMsg, CosmosMsg, Decimal, HandleResponse, HumanAddr, StdError, Uint128,
+    coins, to_binary, BankMsg, Binary, CosmosMsg, Decimal, HandleResponse, HumanAddr, StdError,
+    Uint128, WasmMsg,
 };
+use market::AssetInfo;
 
 use crate::{Event, RoyaltiesEvent, Royalty, RoyaltyEvent};
 
@@ -31,6 +33,28 @@ fn add_royalties_event<'a>(
     }
 }
 
+pub fn parse_transfer_msg(
+    asset_info: AssetInfo,
+    amount: Uint128,
+    sender: &str,
+    recipient: HumanAddr,
+) -> Result<CosmosMsg, StdError> {
+    match asset_info {
+        AssetInfo::NativeToken { denom } => Ok(BankMsg::Send {
+            from_address: HumanAddr::from(sender),
+            to_address: recipient,
+            amount: coins(amount.u128(), denom),
+        }
+        .into()),
+        AssetInfo::Token { contract_addr } => Ok(WasmMsg::Execute {
+            contract_addr,
+            msg: to_binary(&cw20::Cw20HandleMsg::Transfer { recipient, amount })?,
+            send: vec![],
+        }
+        .into()),
+    }
+}
+
 pub fn pay_royalties(
     royalties: &[Royalty],
     price: &Uint128,
@@ -40,6 +64,7 @@ pub fn pay_royalties(
     rsp: &mut HandleResponse,
     contract_addr: &str,
     denom: &str,
+    asset_info: AssetInfo,
 ) -> Result<(), StdError> {
     let mut royalties_event: Vec<RoyaltyEvent> = vec![];
     let mut nft_addr: &str = "";
@@ -53,14 +78,12 @@ pub fn pay_royalties(
         let creator_amount = price.mul(Decimal::from_ratio(royalty.royalty, decimal_point));
         if creator_amount.gt(&Uint128::from(0u128)) {
             *remaining = remaining.sub(creator_amount)?;
-            cosmos_msgs.push(
-                BankMsg::Send {
-                    from_address: HumanAddr::from(contract_addr),
-                    to_address: royalty.creator.clone(),
-                    amount: coins(creator_amount.u128(), denom),
-                }
-                .into(),
-            );
+            cosmos_msgs.push(parse_transfer_msg(
+                asset_info.clone(),
+                creator_amount,
+                contract_addr,
+                royalty.creator.clone(),
+            )?);
             // only valid send msgs will be collected to put into royalties event
             royalties_event.push(RoyaltyEvent {
                 creator: royalty.creator.as_str(),

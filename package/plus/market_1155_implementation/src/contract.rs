@@ -11,14 +11,15 @@ use std::fmt;
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO};
-use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
     InitResponse, MessageInfo, StdError, StdResult, Uint128,
 };
+use cosmwasm_std::{from_binary, HumanAddr};
 use cw1155::{BalanceResponse, Cw1155QueryMsg, IsApprovedForAllResponse};
+use cw20::Cw20ReceiveMsg;
 use market::{query_proxy, MarketHubContract, StorageQueryMsg};
-use market_1155::{MarketQueryMsg, Offering};
+use market_1155::{Cw20HookMsg, MarketQueryMsg, Offering};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_auction_extend::{AuctionQueryMsg, QueryAuctionsResult};
 use market_rejected::{IsRejectedForAllResponse, MarketRejectedQueryMsg, NftInfo};
@@ -78,6 +79,7 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
+        HandleMsg::Receive(msg) => try_receive_cw20(deps, info, env, msg),
         HandleMsg::SellNft(msg) => try_sell_nft(deps, info, env, msg),
         HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
@@ -87,7 +89,7 @@ pub fn handle(
         HandleMsg::BuyNft {
             offering_id,
             amount,
-        } => try_buy(deps, info, env, offering_id, amount),
+        } => try_buy(deps, info, env, offering_id, amount, None),
         HandleMsg::BurnNft {
             contract_addr,
             token_id,
@@ -96,7 +98,7 @@ pub fn handle(
         HandleMsg::BidNft {
             auction_id,
             per_price,
-        } => try_bid_nft(deps, info, env, auction_id, per_price),
+        } => try_bid_nft(deps, info, env, auction_id, per_price, None),
         HandleMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
         // HandleMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
         HandleMsg::EmergencyCancelAuction { auction_id } => {
@@ -127,6 +129,29 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 // ============================== Message Handlers ==============================
+
+pub fn try_receive_cw20(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    cw20_msg: Cw20ReceiveMsg,
+) -> Result<HandleResponse, ContractError> {
+    match from_binary(&cw20_msg.msg.unwrap_or(Binary::default())) {
+        Ok(Cw20HookMsg::BuyNft {
+            offering_id,
+            amount,
+            fund_amount,
+        }) => try_buy(deps, info, env, offering_id, amount, Some(fund_amount)),
+        Ok(Cw20HookMsg::BidNft {
+            auction_id,
+            per_price,
+            fund_amount,
+        }) => try_bid_nft(deps, info, env, auction_id, per_price, Some(fund_amount)),
+        Err(_) => Err(ContractError::Std(StdError::generic_err(
+            "invalid cw20 hook message",
+        ))),
+    }
+}
 
 pub fn try_withdraw_funds(
     deps: DepsMut,

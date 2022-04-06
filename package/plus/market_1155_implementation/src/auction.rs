@@ -26,6 +26,7 @@ pub fn try_bid_nft(
     env: Env,
     auction_id: u64,
     per_price: Uint128,
+    fund_amount: Option<Uint128>,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
         denom, governance, ..

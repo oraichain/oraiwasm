@@ -18,16 +18,17 @@ use crate::msg::{
     GiftNft, HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
-use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
-    InitResponse, MessageInfo, StdResult, WasmMsg,
+    InitResponse, MessageInfo, QuerierWrapper, StdError, StdResult, Uint128, WasmMsg,
 };
+use cosmwasm_std::{from_binary, HumanAddr};
+use cw20::Cw20ReceiveMsg;
 use cw721::{Cw721HandleMsg, Cw721QueryMsg, OwnerOfResponse};
-use market::{StorageHandleMsg, StorageQueryMsg};
+use market::{AssetInfo, StorageHandleMsg, StorageQueryMsg, TokenInfo};
 use market_ai_royalty::sanitize_royalty;
 use market_auction::{AuctionQueryMsg, QueryAuctionsResult};
-use market_royalty::{OfferingQueryMsg, QueryOfferingsResult};
+use market_royalty::{Cw20HookMsg, ExtraData, OfferingQueryMsg, QueryOfferingsResult};
 use market_whitelist::{IsApprovedForAllResponse, MarketWhiteListdQueryMsg};
 use schemars::JsonSchema;
 use serde::Serialize;
@@ -38,6 +39,7 @@ pub const MAX_FEE_PERMILLE: u64 = 1000;
 pub const CREATOR_NAME: &str = "creator";
 pub const FIRST_LV_ROYALTY_STORAGE: &str = "first_lv_royalty";
 pub const WHITELIST_STORAGE: &str = "whitelist_storage";
+pub const SPLIT_DENOM: &str = "@@@@";
 
 fn sanitize_fee(fee: u64, limit: u64, name: &str) -> Result<u64, ContractError> {
     if fee > limit {
@@ -79,8 +81,16 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
+        HandleMsg::Receive(msg) => try_receive_cw20(deps, info, env, msg),
         // auction
-        HandleMsg::BidNft { auction_id } => try_bid_nft(deps, info, env, auction_id),
+        HandleMsg::BidNft { auction_id } => try_bid_nft(
+            deps,
+            info.sender,
+            env,
+            auction_id,
+            None,
+            Some(info.sent_funds),
+        ),
         HandleMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
         // HandleMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
         HandleMsg::EmergencyCancelAuction { auction_id } => {
@@ -126,7 +136,14 @@ pub fn handle(
         // royalty
         HandleMsg::MintNft(msg) => try_handle_mint(deps, info, msg),
         HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, env, offering_id),
-        HandleMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
+        HandleMsg::BuyNft { offering_id } => try_buy(
+            deps,
+            info.sender,
+            env,
+            offering_id,
+            None,
+            Some(info.sent_funds),
+        ),
         HandleMsg::MigrateVersion {
             nft_contract_addr,
             token_ids,
@@ -164,6 +181,35 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 // ============================== Message Handlers ==============================
+
+pub fn try_receive_cw20(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    cw20_msg: Cw20ReceiveMsg,
+) -> Result<HandleResponse, ContractError> {
+    match from_binary(&cw20_msg.msg.unwrap_or(Binary::default())) {
+        Ok(Cw20HookMsg::BuyNft { offering_id }) => try_buy(
+            deps,
+            cw20_msg.sender,
+            env,
+            offering_id,
+            Some(cw20_msg.amount),
+            None,
+        ),
+        Ok(Cw20HookMsg::BidNft { auction_id }) => try_bid_nft(
+            deps,
+            cw20_msg.sender,
+            env,
+            auction_id,
+            Some(cw20_msg.amount),
+            None,
+        ),
+        Err(_) => Err(ContractError::Std(StdError::generic_err(
+            "invalid cw20 hook message",
+        ))),
+    }
+}
 
 pub fn try_withdraw_funds(
     deps: DepsMut,
@@ -320,6 +366,7 @@ pub fn handle_transfer_nft(
         &governance,
         &contract_addr,
         &token_id,
+        &token_id,
         &info.sender,
     )?;
 
@@ -421,6 +468,7 @@ pub fn verify_nft(
     governance: &str,
     contract_addr: &str,
     token_id: &str,
+    initial_token_id: &str,
     sender: &str,
 ) -> Result<(), ContractError> {
     // verify ownership of token id
@@ -445,7 +493,7 @@ pub fn verify_nft(
             get_storage_addr(deps, HumanAddr::from(governance), OFFERING_STORAGE)?,
             &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingByContractTokenId {
                 contract: HumanAddr::from(contract_addr),
-                token_id: token_id.to_string(),
+                token_id: initial_token_id.to_string(),
             }) as &ProxyQueryMsg,
         )
         .map_err(|_| ContractError::InvalidGetOffering {});
@@ -461,7 +509,7 @@ pub fn verify_nft(
             get_storage_addr(deps, HumanAddr::from(governance), AUCTION_STORAGE)?,
             &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionByContractTokenId {
                 contract: HumanAddr::from(contract_addr),
-                token_id: token_id.to_string(),
+                token_id: initial_token_id.to_string(),
             }) as &ProxyQueryMsg,
         )
         .ok();
@@ -470,6 +518,116 @@ pub fn verify_nft(
         return Err(ContractError::TokenOnAuction {});
     }
     Ok(())
+}
+
+pub fn parse_token_id(token_id: &str) -> StdResult<TokenInfo> {
+    let split_data: Vec<&str> = token_id.split(SPLIT_DENOM).collect();
+
+    // after spliting, we must collect two separate string, one for token id & optionally second for binary
+    if split_data.len() > 2 {
+        return Err(StdError::generic_err(
+            "Cannot parse token id to correct structure.",
+        ));
+    }
+
+    if split_data.len() == 1 {
+        return Ok(TokenInfo {
+            token_id: split_data[0].to_string(),
+            data: None,
+        });
+    }
+
+    let data_bin = Binary::from_base64(split_data[1])?;
+
+    Ok(TokenInfo {
+        token_id: split_data[0].to_string(),
+        data: Some(data_bin),
+    })
+}
+
+pub fn verify_native_funds(
+    native_funds: Option<&[Coin]>,
+    denom: &str,
+    price: &Uint128,
+) -> StdResult<AssetInfo> {
+    // native case, and no extra data has been provided => use default denom, which is orai
+    if native_funds.is_none() {
+        return Err(StdError::generic_err(
+            ContractError::InvalidSentFundAmount {}.to_string(),
+        ));
+    }
+    if let Some(sent_fund) = native_funds
+        .unwrap()
+        .iter()
+        .find(|fund| fund.denom.eq(&denom))
+    {
+        if sent_fund.amount.lt(price) {
+            return Err(StdError::generic_err(
+                ContractError::InsufficientFunds {}.to_string(),
+            ));
+        } else {
+            return Ok(AssetInfo::NativeToken {
+                denom: denom.to_string(),
+            });
+        }
+    } else {
+        return Err(StdError::generic_err(
+            ContractError::InvalidSentFundAmount {}.to_string(),
+        ));
+    }
+}
+
+pub fn parse_asset_info(extra_data: ExtraData) -> AssetInfo {
+    match extra_data {
+        ExtraData::AssetInfo(AssetInfo::NativeToken { denom }) => {
+            return AssetInfo::NativeToken { denom }
+        }
+        ExtraData::AssetInfo(AssetInfo::Token { contract_addr }) => {
+            return AssetInfo::Token { contract_addr };
+        }
+    };
+}
+
+pub fn verify_funds(
+    deps: Deps,
+    native_funds: Option<&[Coin]>,
+    token_funds: Option<Uint128>,
+    extra_data: Option<Binary>,
+    price: &Uint128,
+    default_denom: &str,
+) -> StdResult<AssetInfo> {
+    if let Some(extra_data) = extra_data {
+        let extra: ExtraData = from_binary(&extra_data)?;
+        match extra {
+            ExtraData::AssetInfo(AssetInfo::NativeToken { denom }) => {
+                return verify_native_funds(native_funds, &denom, price);
+            }
+            ExtraData::AssetInfo(AssetInfo::Token { contract_addr }) => {
+                if token_funds.is_none() {
+                    return Err(StdError::generic_err(
+                        ContractError::InvalidSentFundAmount {}.to_string(),
+                    ));
+                }
+                if token_funds.unwrap().lt(price) {
+                    return Err(StdError::generic_err(
+                        ContractError::InsufficientFunds {}.to_string(),
+                    ));
+                }
+                return Ok(AssetInfo::Token { contract_addr });
+            }
+        };
+    }
+    verify_native_funds(native_funds, default_denom, price)
+}
+
+pub fn get_asset_info(token_id: &str, default_denom: &str) -> StdResult<AssetInfo> {
+    let TokenInfo { token_id: _, data } = parse_token_id(token_id)?;
+    Ok(match data {
+        None => AssetInfo::NativeToken {
+            denom: default_denom.to_string(),
+        },
+        Some(data) => parse_asset_info(from_binary(&data)?),
+    })
 }
 
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
