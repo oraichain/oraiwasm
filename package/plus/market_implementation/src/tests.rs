@@ -1,13 +1,15 @@
 use crate::auction::DEFAULT_AUCTION_BLOCK;
-use crate::contract::{handle, init, query, verify_owner, MAX_DECIMAL_POINT, MAX_ROYALTY_PERCENT};
+use crate::contract::{
+    handle, init, parse_token_id, query, verify_owner, MAX_DECIMAL_POINT, MAX_ROYALTY_PERCENT,
+};
 use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::ContractInfo;
 use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
     coin, coins, from_binary, from_slice, to_binary, Binary, ContractResult, CosmosMsg, Decimal,
-    Env, HandleResponse, HumanAddr, MessageInfo, Order, OwnedDeps, QuerierResult, StdError,
-    StdResult, SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
+    Env, HandleResponse, HumanAddr, MessageInfo, Order, OwnedDeps, QuerierResult, StdResult,
+    SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw20::{Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse};
 use cw721::{ApprovedForAllResponse, OwnerOfResponse};
@@ -15,8 +17,8 @@ use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_auction::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_auction::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
 use market_royalty::{
-    Cw20HookMsg, MintIntermediate, MintMsg, MintStruct, OfferingQueryMsg, OfferingRoyalty,
-    OfferingsResponse, QueryOfferingsResult,
+    Cw20HookMsg, ExtraData, MintIntermediate, MintMsg, MintStruct, OfferingQueryMsg,
+    OfferingRoyalty, OfferingsResponse, QueryOfferingsResult,
 };
 use market_whitelist::MarketWhiteListHandleMsg;
 use std::mem::transmute;
@@ -44,15 +46,26 @@ pub const FIRST_LV_ROYALTY_STORAGE: &str = "first_lv_royalty";
 pub const DECIMAL: u64 = MAX_DECIMAL_POINT / 100;
 
 pub const PROVIDER_NFT: &str = "providerNFT";
-pub const PROVIDER_NFT_CW20: &str =
-    "providerNFT@@@@eyJhc3NldF9pbmZvIjp7InRva2VuIjp7ImNvbnRyYWN0X2FkZHIiOiJPVzIwIn19fQ==";
+pub const PROVIDER_NFT_CW20: &str = "eyJ0b2tlbl9pbmZvIjp7InRva2VuX2lkIjoicHJvdmlkZXJORlQiLCAiZGF0YSI6ImV5SmhjM05sZEY5cGJtWnZJanA3SW5SdmEyVnVJanA3SW1OdmJuUnlZV04wWDJGa1pISWlPaUpQVnpJd0luMTlmUT09In19"; // {"token_info":{"token_id":"providerNFT", "data":"eyJhc3NldF9pbmZvIjp7InRva2VuIjp7ImNvbnRyYWN0X2FkZHIiOiJPVzIwIn19fQ=="}}
 pub const BIDDER: &str = "bidder";
 pub const PROVIDER: &str = "provider";
 pub const SELLABLE_NFT: &str = "SellableNFT";
 pub const SELLABLE_NFT_CW20: &str =
-    "SellableNFT@@@@eyJhc3NldF9pbmZvIjp7InRva2VuIjp7ImNvbnRyYWN0X2FkZHIiOiJPVzIwIn19fQ==";
+    "eyJ0b2tlbl9pbmZvIjp7InRva2VuX2lkIjoiU2VsbGFibGVORlQiLCAiZGF0YSI6ImV5SmhjM05sZEY5cGJtWnZJanA3SW5SdmEyVnVJanA3SW1OdmJuUnlZV04wWDJGa1pISWlPaUpQVnpJd0luMTlmUT09In19"; // {"token_info":{"token_id":"SellableNFT", "data":"eyJhc3NldF9pbmZvIjp7InRva2VuIjp7ImNvbnRyYWN0X2FkZHIiOiJPVzIwIn19fQ=="}}
 
 pub static mut _DATA: *const DepsManager = 0 as *const DepsManager;
+
+#[test]
+
+pub fn test() {
+    let token_id = parse_token_id("eyJ0b2tlbl9pbmZvIjp7InRva2VuX2lkIjoicHJvdmlkZXJORlQiLCAiZGF0YSI6ImV5SmhjM05sZEY5cGJtWnZJanA3SW5SdmEyVnVJanA3SW1OdmJuUnlZV04wWDJGa1pISWlPaUpQVnpJd0luMTlmUT09In19").unwrap();
+    println!("token id: {:?}", token_id);
+    println!(
+        "token info data: {:?}",
+        from_binary::<ExtraData>(&token_id.data.unwrap()).unwrap()
+    )
+}
+
 pub struct DepsManager {
     // using RefCell to both support borrow and borrow_mut for & and &mut
     ow721: OwnedDeps<MockStorage, MockApi, MockQuerier>,

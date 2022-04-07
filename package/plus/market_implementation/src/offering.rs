@@ -1,21 +1,16 @@
-use crate::ai_royalty::{add_msg_royalty, get_royalties, AI_ROYALTY_STORAGE};
-use crate::contract::{
-    get_handle_msg, get_storage_addr, parse_token_id, verify_funds, verify_nft, verify_owner,
-    CREATOR_NAME,
-};
+use crate::ai_royalty::{add_msg_royalty, get_royalties};
+use crate::contract::{get_storage_addr, parse_token_id, verify_funds, verify_nft, verify_owner};
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
+    attr, from_binary, to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse,
+    MessageInfo, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{Coin, HumanAddr};
 use cw721::Cw721HandleMsg;
 use market::{query_proxy, StorageHandleMsg, TokenInfo};
-use market_ai_royalty::{
-    parse_transfer_msg, pay_royalties, sanitize_royalty, AiRoyaltyHandleMsg, RoyaltyMsg,
-};
+use market_ai_royalty::{parse_transfer_msg, pay_royalties, sanitize_royalty, RoyaltyMsg};
 use market_royalty::{MintMsg, Offering, OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty};
 use std::ops::{Mul, Sub};
 
@@ -99,7 +94,6 @@ pub fn try_buy(
 
         // we collect asset info to check transfer method later
         let asset_info = verify_funds(
-            deps.as_ref(),
             native_funds.as_deref(),
             token_funds,
             data,
@@ -117,7 +111,7 @@ pub fn try_buy(
                 &mut cosmos_msgs,
                 &mut rsp,
                 env.contract.address.as_str(),
-                denom.as_str(),
+                &to_binary(&asset_info)?.to_base64(),
                 asset_info.clone(),
             )?;
         }
@@ -458,36 +452,36 @@ pub fn get_offering_handle_msg(
     .into())
 }
 
-pub fn try_update_offering_royalties(
-    deps: DepsMut,
-    info: MessageInfo,
-    _env: Env,
-    royalties: Vec<OfferingRoyalty>,
-) -> Result<HandleResponse, ContractError> {
-    let ContractInfo {
-        creator,
-        governance,
-        ..
-    } = CONTRACT_INFO.load(deps.storage)?;
-    if info.sender.ne(&HumanAddr(creator.clone())) {
-        return Err(ContractError::Unauthorized {
-            sender: info.sender.to_string(),
-        });
-    };
-    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
-    for royalty in royalties {
-        // update creator as the caller of the mint tx
-        cosmos_msgs.push(get_offering_handle_msg(
-            governance.clone(),
-            OFFERING_STORAGE_TEMP,
-            OfferingHandleMsg::UpdateOfferingRoyalty {
-                offering: royalty.clone(),
-            },
-        )?);
-    }
-    Ok(HandleResponse {
-        messages: cosmos_msgs,
-        attributes: vec![attr("action", "update_offering_royalties")],
-        data: None,
-    })
-}
+// pub fn try_update_offering_royalties(
+//     deps: DepsMut,
+//     info: MessageInfo,
+//     _env: Env,
+//     royalties: Vec<OfferingRoyalty>,
+// ) -> Result<HandleResponse, ContractError> {
+//     let ContractInfo {
+//         creator,
+//         governance,
+//         ..
+//     } = CONTRACT_INFO.load(deps.storage)?;
+//     if info.sender.ne(&HumanAddr(creator.clone())) {
+//         return Err(ContractError::Unauthorized {
+//             sender: info.sender.to_string(),
+//         });
+//     };
+//     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+//     for royalty in royalties {
+//         // update creator as the caller of the mint tx
+//         cosmos_msgs.push(get_offering_handle_msg(
+//             governance.clone(),
+//             OFFERING_STORAGE_TEMP,
+//             OfferingHandleMsg::UpdateOfferingRoyalty {
+//                 offering: royalty.clone(),
+//             },
+//         )?);
+//     }
+//     Ok(HandleResponse {
+//         messages: cosmos_msgs,
+//         attributes: vec![attr("action", "update_offering_royalties")],
+//         data: None,
+//     })
+// }

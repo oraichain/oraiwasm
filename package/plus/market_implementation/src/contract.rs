@@ -20,12 +20,12 @@ use crate::msg::{
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
-    InitResponse, MessageInfo, QuerierWrapper, StdError, StdResult, Uint128, WasmMsg,
+    InitResponse, MessageInfo, StdError, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{from_binary, HumanAddr};
 use cw20::Cw20ReceiveMsg;
 use cw721::{Cw721HandleMsg, Cw721QueryMsg, OwnerOfResponse};
-use market::{AssetInfo, StorageHandleMsg, StorageQueryMsg, TokenInfo};
+use market::{AssetInfo, StorageHandleMsg, StorageQueryMsg, TokenIdInfo, TokenInfo};
 use market_ai_royalty::sanitize_royalty;
 use market_auction::{AuctionQueryMsg, QueryAuctionsResult};
 use market_royalty::{Cw20HookMsg, ExtraData, OfferingQueryMsg, QueryOfferingsResult};
@@ -39,7 +39,6 @@ pub const MAX_FEE_PERMILLE: u64 = 1000;
 pub const CREATOR_NAME: &str = "creator";
 pub const FIRST_LV_ROYALTY_STORAGE: &str = "first_lv_royalty";
 pub const WHITELIST_STORAGE: &str = "whitelist_storage";
-pub const SPLIT_DENOM: &str = "@@@@";
 
 fn sanitize_fee(fee: u64, limit: u64, name: &str) -> Result<u64, ContractError> {
     if fee > limit {
@@ -521,27 +520,16 @@ pub fn verify_nft(
 }
 
 pub fn parse_token_id(token_id: &str) -> StdResult<TokenInfo> {
-    let split_data: Vec<&str> = token_id.split(SPLIT_DENOM).collect();
-
-    // after spliting, we must collect two separate string, one for token id & optionally second for binary
-    if split_data.len() > 2 {
-        return Err(StdError::generic_err(
-            "Cannot parse token id to correct structure.",
-        ));
-    }
-
-    if split_data.len() == 1 {
+    let token_id_bin = Binary::from_base64(token_id);
+    // backward compatibility. If we cannot parse base64 => we assume that the token id is in raw state
+    if token_id_bin.is_err() {
         return Ok(TokenInfo {
-            token_id: split_data[0].to_string(),
+            token_id: token_id.to_string(),
             data: None,
         });
     }
-
-    let data_bin = Binary::from_base64(split_data[1])?;
-
-    Ok(TokenInfo {
-        token_id: split_data[0].to_string(),
-        data: Some(data_bin),
+    Ok(match from_binary(&token_id_bin.unwrap())? {
+        TokenIdInfo::TokenInfo(token_info) => token_info,
     })
 }
 
@@ -589,7 +577,6 @@ pub fn parse_asset_info(extra_data: ExtraData) -> AssetInfo {
 }
 
 pub fn verify_funds(
-    deps: Deps,
     native_funds: Option<&[Coin]>,
     token_funds: Option<Uint128>,
     extra_data: Option<Binary>,

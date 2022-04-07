@@ -9,8 +9,8 @@ use crate::ai_royalty::get_royalties;
 use crate::offering::{get_offering_handle_msg, OFFERING_STORAGE};
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
+    attr, to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse, MessageInfo,
+    StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{Coin, HumanAddr};
 use cw721::Cw721HandleMsg;
@@ -74,7 +74,6 @@ pub fn try_bid_nft(
     // check for enough coins, if has price then payout to all participants
     if !off.price.is_zero() {
         let asset_info: AssetInfo = verify_funds(
-            deps.as_ref(),
             native_funds.as_deref(),
             token_funds,
             data,
@@ -215,7 +214,7 @@ pub fn try_claim_winner(
                 &mut cosmos_msgs,
                 &mut rsp,
                 env.contract.address.as_str(),
-                denom.as_str(),
+                &to_binary(&asset_info)?.to_base64(),
                 asset_info.clone(),
             )?;
         }
