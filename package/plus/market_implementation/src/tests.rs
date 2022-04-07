@@ -275,6 +275,7 @@ impl DepsManager {
             // creator can update storage contract
             governance: HumanAddr::from(HUB_ADDR),
             max_royalty: MAX_ROYALTY_PERCENT,
+            max_decimal_point: MAX_DECIMAL_POINT,
         };
         let info = mock_info(CREATOR, &[]);
         let _res = init(deps.as_mut(), mock_env(MARKET_ADDR), info.clone(), msg).unwrap();

@@ -18,6 +18,7 @@ pub struct InitMsg {
     pub step_price: u64,
     pub governance: HumanAddr,
     pub max_royalty: u64,
+    pub max_decimal_point: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

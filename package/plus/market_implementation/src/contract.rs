@@ -66,7 +66,7 @@ pub fn init(
         step_price: msg.step_price,
         governance: msg.governance,
         max_royalty: sanitize_royalty(msg.max_royalty, MAX_ROYALTY_PERCENT, "max_royalty")?,
-        decimal_point: MAX_DECIMAL_POINT,
+        decimal_point: msg.max_decimal_point,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
