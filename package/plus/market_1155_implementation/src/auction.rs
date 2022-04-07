@@ -1,15 +1,18 @@
-use crate::contract::{get_handle_msg, get_royalties, query_storage, verify_nft};
+use crate::contract::{
+    get_asset_info, get_handle_msg, get_royalties, parse_asset_info, query_storage, verify_nft,
+};
 use crate::error::ContractError;
 use crate::msg::AskNftMsg;
 // use crate::offering::OFFERING_STORAGE;
 use crate::state::{ContractInfo, CONTRACT_INFO};
-use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
-    attr, coins, to_binary, BankMsg, Decimal, DepsMut, Env, HandleResponse, MessageInfo, Uint128,
+    attr, from_binary, to_binary, Decimal, DepsMut, Env, HandleResponse, MessageInfo, Uint128,
     WasmMsg,
 };
+use cosmwasm_std::{Coin, HumanAddr};
 use cw1155::Cw1155ExecuteMsg;
-use market_ai_royalty::pay_royalties;
+use market::{parse_token_id, AssetInfo, TokenInfo};
+use market_ai_royalty::{parse_transfer_msg, pay_royalties};
 use market_auction_extend::{Auction, AuctionHandleMsg, AuctionQueryMsg};
 // use market_royalty::OfferingQueryMsg;
 use std::ops::{Add, Mul, Sub};
@@ -22,11 +25,12 @@ pub const DEFAULT_AUCTION_BLOCK: u64 = 50000;
 /// update bidder, return previous price of previous bidder, update current price of current bidder
 pub fn try_bid_nft(
     deps: DepsMut,
-    info: MessageInfo,
+    sender: HumanAddr,
     env: Env,
     auction_id: u64,
     per_price: Uint128,
-    fund_amount: Option<Uint128>,
+    token_funds: Option<Uint128>,
+    native_funds: Option<Vec<Coin>>,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
         denom, governance, ..
@@ -39,8 +43,6 @@ pub fn try_bid_nft(
         AuctionQueryMsg::GetAuctionRaw { auction_id },
     )
     .map_err(|_op| ContractError::AuctionNotFound {})?;
-
-    let token_id_event = off.token_id.clone();
 
     // check auction started or finished, both means auction not started anymore
     if off.start.gt(&env.block.height) {
@@ -63,57 +65,60 @@ pub fn try_bid_nft(
     }
 
     let mut cosmos_msgs = vec![];
+
+    let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str())?;
+
     // check minimum price
     // check for enough coins, if has price then payout to all participants
     if !off_price.is_zero() {
-        // find the desired coin to process
-        if let Some(sent_fund) = info.sent_funds.iter().find(|fund| fund.denom.eq(&denom)) {
-            // in case fraction is too small, we fix it to 1uorai
-            if sent_fund
-                .amount
-                .lt(&off_price.add(&Uint128::from(off.step_price)))
-            {
-                // if no buyout => insufficient funds
-                if let Some(buyout_per_price) = off.buyout_per_price {
-                    // if there's buyout, the funds must be equal to the buyout price
-                    if sent_fund.amount < calculate_price(buyout_per_price, off.amount) {
-                        return Err(ContractError::InsufficientFunds {});
-                    }
-                } else {
+        let asset_info = match data {
+            None => AssetInfo::NativeToken { denom },
+            Some(data) => parse_asset_info(from_binary(&data)?),
+        };
+
+        let amount = match asset_info.clone() {
+            AssetInfo::NativeToken { denom: _ } => native_funds.unwrap().first().unwrap().amount, // temp: hardcode to collect only the first fund amount
+            AssetInfo::Token { contract_addr: _ } => token_funds.unwrap(),
+        };
+
+        // in case fraction is too small, we fix it to 1uorai
+        if amount.lt(&off_price.add(&Uint128::from(off.step_price))) {
+            // if no buyout => insufficient funds
+            if let Some(buyout_per_price) = off.buyout_per_price {
+                // if there's buyout, the funds must be equal to the buyout price
+                if amount < calculate_price(buyout_per_price, off.amount) {
                     return Err(ContractError::InsufficientFunds {});
                 }
-            }
-            // check sent funds vs per price to make sure sent funds is greator or equal to input price
-            let input_price = calculate_price(per_price, off.amount);
-            if sent_fund.amount.lt(&input_price) {
+            } else {
                 return Err(ContractError::InsufficientFunds {});
             }
-
-            if let Some(bidder) = off.bidder {
-                let bidder_addr = deps.api.human_address(&bidder)?;
-                // transfer money to previous bidder
-                cosmos_msgs.push(
-                    BankMsg::Send {
-                        from_address: env.contract.address,
-                        to_address: bidder_addr,
-                        amount: coins(off_price.u128(), &denom),
-                    }
-                    .into(),
-                );
-            }
-
-            // update new price and new bidder
-            off.bidder = deps.api.canonical_address(&info.sender).ok();
-            off.per_price = per_price;
-            // push save message to auction_storage
-            cosmos_msgs.push(get_handle_msg(
-                &governance,
-                AUCTION_STORAGE,
-                AuctionHandleMsg::UpdateAuction { auction: off },
-            )?);
-        } else {
-            return Err(ContractError::InvalidDenomAmount {});
         }
+        // check sent funds vs per price to make sure sent funds is greator or equal to input price
+        let input_price = calculate_price(per_price, off.amount);
+        if amount.lt(&input_price) {
+            return Err(ContractError::InsufficientFunds {});
+        }
+
+        if let Some(bidder) = off.bidder {
+            let bidder_addr = deps.api.human_address(&bidder)?;
+            // transfer money to previous bidder
+            cosmos_msgs.push(parse_transfer_msg(
+                asset_info,
+                off_price,
+                env.contract.address.as_str(),
+                bidder_addr,
+            )?);
+        }
+
+        // update new price and new bidder
+        off.bidder = deps.api.canonical_address(&sender).ok();
+        off.per_price = per_price;
+        // push save message to auction_storage
+        cosmos_msgs.push(get_handle_msg(
+            &governance,
+            AUCTION_STORAGE,
+            AuctionHandleMsg::UpdateAuction { auction: off },
+        )?);
     } else {
         return Err(ContractError::InvalidZeroAmount {});
     }
@@ -122,9 +127,9 @@ pub fn try_bid_nft(
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "bid_nft"),
-            attr("bidder", info.sender),
+            attr("bidder", sender),
             attr("auction_id", auction_id),
-            attr("token_id", token_id_event),
+            attr("token_id", token_id),
             attr("per_price", per_price),
         ],
         data: None,
@@ -174,6 +179,10 @@ pub fn try_claim_winner(
     let mut rsp = HandleResponse::default();
     rsp.attributes.extend(vec![attr("action", "claim_winner")]);
     let mut cosmos_msgs = vec![];
+
+    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str())?;
+    let asset_info = get_asset_info(off.token_id.as_str(), &denom)?;
+
     if let Some(bidder) = off.bidder {
         let bidder_addr = deps.api.human_address(&bidder)?;
         // transfer token to bidder
@@ -184,7 +193,7 @@ pub fn try_claim_winner(
                     from: asker_addr.clone().to_string(),
                     to: bidder_addr.clone().to_string(),
                     value: off.amount,
-                    token_id: off.token_id.clone(),
+                    token_id: token_id.clone(),
                     msg: None,
                 })?,
                 send: vec![],
@@ -198,7 +207,7 @@ pub fn try_claim_winner(
         let remaining_for_royalties = fund_amount;
 
         // pay for creator, ai provider and others
-        if let Ok(royalties) = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id) {
+        if let Ok(royalties) = get_royalties(deps.as_ref(), contract_addr.as_str(), &token_id) {
             pay_royalties(
                 &royalties,
                 &remaining_for_royalties,
@@ -208,19 +217,18 @@ pub fn try_claim_winner(
                 &mut rsp,
                 env.contract.address.as_str(),
                 denom.as_str(),
+                asset_info.clone(),
             )?;
         }
         // send fund the asker
         // only send when fund is greater than zero
         if !fund_amount.is_zero() {
-            cosmos_msgs.push(
-                BankMsg::Send {
-                    from_address: env.contract.address,
-                    to_address: asker_addr,
-                    amount: coins(fund_amount.u128(), &denom),
-                }
-                .into(),
-            );
+            cosmos_msgs.push(parse_transfer_msg(
+                asset_info,
+                fund_amount,
+                env.contract.address.as_str(),
+                asker_addr,
+            )?);
         }
     };
 
@@ -254,10 +262,13 @@ pub fn handle_ask_auction(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
+    let TokenInfo { token_id, .. } = parse_token_id(msg.token_id.as_str())?;
+
     let final_asker = verify_nft(
         deps.as_ref(),
         env.contract.address.as_str(),
         msg.contract_addr.as_str(),
+        token_id.as_str(),
         msg.token_id.as_str(),
         info.sender.as_str(),
         msg.asker,
@@ -332,7 +343,8 @@ pub fn handle_ask_auction(
             attr("asker", info.sender),
             attr("per_price", msg.per_price),
             attr("amount", msg.amount),
-            attr("token_id", msg.token_id),
+            attr("token_id", token_id),
+            attr("initial_token_id", msg.token_id),
         ],
         data: None,
     })
@@ -357,8 +369,11 @@ pub fn try_cancel_bid(
     )
     .map_err(|_| ContractError::AuctionNotFound {})?;
 
+    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str())?;
     // check if token_id is currently sold by the requesting address
     if let Some(bidder) = &off.bidder {
+        let asset_info = get_asset_info(off.token_id.as_str(), &denom)?;
+
         let bidder_addr = deps.api.human_address(bidder)?;
         let mut cosmos_msgs = vec![];
         // only bidder can cancel bid
@@ -371,33 +386,28 @@ pub fn try_cancel_bid(
                 // only allow sending if asker amount is greater than 0
                 if !asker_amount.is_zero() {
                     // transfer fee to asker
-                    cosmos_msgs.push(
-                        BankMsg::Send {
-                            from_address: env.contract.address.clone(),
-                            to_address: asker_addr,
-                            amount: coins(asker_amount.u128(), &denom),
-                        }
-                        .into(),
-                    );
+                    cosmos_msgs.push(parse_transfer_msg(
+                        asset_info.clone(),
+                        asker_amount,
+                        env.contract.address.as_str(),
+                        asker_addr,
+                    )?);
                 }
             }
 
             // refund the bidder
             if !sent_amount.is_zero() {
-                cosmos_msgs.push(
-                    BankMsg::Send {
-                        from_address: env.contract.address.clone(),
-                        to_address: bidder_addr,
-                        amount: coins(sent_amount.u128(), &denom),
-                    }
-                    .into(),
-                );
+                cosmos_msgs.push(parse_transfer_msg(
+                    asset_info,
+                    sent_amount,
+                    env.contract.address.as_str(),
+                    bidder_addr,
+                )?);
             }
 
             // update auction with bid price is original price
             off.bidder = None;
             off.per_price = off.orig_per_price;
-            let token_id = off.token_id.clone();
             // push save message to auction_storage
             cosmos_msgs.push(get_handle_msg(
                 &governance,
@@ -448,6 +458,9 @@ pub fn try_emergency_cancel_auction(
         AuctionQueryMsg::GetAuctionRaw { auction_id },
     )?;
 
+    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str())?;
+    let asset_info = get_asset_info(token_id.as_str(), &denom)?;
+
     if info.sender.to_string().ne(&creator) {
         return Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
@@ -461,14 +474,12 @@ pub fn try_emergency_cancel_auction(
     if let Some(bidder) = off.bidder {
         let bidder_addr = deps.api.human_address(&bidder)?;
         // transfer money to previous bidder
-        cosmos_msgs.push(
-            BankMsg::Send {
-                from_address: env.contract.address,
-                to_address: bidder_addr,
-                amount: coins(price.u128(), &denom),
-            }
-            .into(),
-        );
+        cosmos_msgs.push(parse_transfer_msg(
+            asset_info,
+            price,
+            env.contract.address.as_str(),
+            bidder_addr,
+        )?);
     }
 
     // remove auction
@@ -485,7 +496,7 @@ pub fn try_emergency_cancel_auction(
             attr("action", "withdraw_nft"),
             attr("asker", info.sender),
             attr("auction_id", auction_id),
-            attr("token_id", off.token_id),
+            attr("token_id", token_id),
             attr("price", price),
         ],
         data: None,

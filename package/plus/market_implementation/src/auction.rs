@@ -1,7 +1,4 @@
-use crate::contract::{
-    get_asset_info, get_storage_addr, parse_asset_info, parse_token_id, verify_funds, verify_nft,
-    verify_owner,
-};
+use crate::contract::{get_asset_info, get_storage_addr, verify_funds, verify_nft, verify_owner};
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
 // use crate::offering::OFFERING_STORAGE;
@@ -14,7 +11,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{Coin, HumanAddr};
 use cw721::Cw721HandleMsg;
-use market::{query_proxy, AssetInfo, StorageHandleMsg, TokenInfo};
+use market::{parse_token_id, query_proxy, AssetInfo, StorageHandleMsg, TokenInfo};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties, sanitize_royalty};
 use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg};
 use market_royalty::{OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty};

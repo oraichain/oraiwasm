@@ -15,17 +15,18 @@ use crate::offering::{
 
 use crate::error::ContractError;
 use crate::msg::{
-    GiftNft, HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, UpdateContractMsg,
+    GiftNft, HandleMsg, InitMsg, MigrateMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg,
+    UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
-    InitResponse, MessageInfo, StdError, StdResult, Uint128, WasmMsg,
+    InitResponse, MessageInfo, MigrateResponse, StdError, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{from_binary, HumanAddr};
 use cw20::Cw20ReceiveMsg;
 use cw721::{Cw721HandleMsg, Cw721QueryMsg, OwnerOfResponse};
-use market::{AssetInfo, StorageHandleMsg, StorageQueryMsg, TokenIdInfo, TokenInfo};
+use market::{parse_token_id, AssetInfo, StorageHandleMsg, StorageQueryMsg, TokenInfo};
 use market_ai_royalty::sanitize_royalty;
 use market_auction::{AuctionQueryMsg, QueryAuctionsResult};
 use market_royalty::{Cw20HookMsg, ExtraData, OfferingQueryMsg, QueryOfferingsResult};
@@ -179,11 +180,20 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
+pub fn migrate(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: MigrateMsg,
+) -> StdResult<MigrateResponse> {
+    Ok(MigrateResponse::default())
+}
+
 // ============================== Message Handlers ==============================
 
 pub fn try_receive_cw20(
     deps: DepsMut,
-    info: MessageInfo,
+    _info: MessageInfo,
     env: Env,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<HandleResponse, ContractError> {
@@ -358,15 +368,12 @@ pub fn handle_transfer_nft(
         recipient,
         ..
     } = gift_msg;
-    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     // verify owner. Wont allow to transfer if it's not the owner of the nft
-    verify_nft(
+    verify_owner(
         deps.as_ref(),
-        &governance,
-        &contract_addr,
-        &token_id,
-        &token_id,
-        &info.sender,
+        contract_addr.as_str(),
+        token_id.as_str(),
+        info.sender.as_str(),
     )?;
 
     let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
@@ -517,20 +524,6 @@ pub fn verify_nft(
         return Err(ContractError::TokenOnAuction {});
     }
     Ok(())
-}
-
-pub fn parse_token_id(token_id: &str) -> StdResult<TokenInfo> {
-    let token_id_bin = Binary::from_base64(token_id);
-    // backward compatibility. If we cannot parse base64 => we assume that the token id is in raw state
-    if token_id_bin.is_err() {
-        return Ok(TokenInfo {
-            token_id: token_id.to_string(),
-            data: None,
-        });
-    }
-    Ok(match from_binary(&token_id_bin.unwrap())? {
-        TokenIdInfo::TokenInfo(token_info) => token_info,
-    })
 }
 
 pub fn verify_native_funds(

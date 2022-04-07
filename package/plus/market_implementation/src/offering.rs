@@ -1,5 +1,5 @@
 use crate::ai_royalty::{add_msg_royalty, get_royalties};
-use crate::contract::{get_storage_addr, parse_token_id, verify_funds, verify_nft, verify_owner};
+use crate::contract::{get_storage_addr, verify_funds, verify_nft, verify_owner};
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO};
@@ -9,7 +9,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{Coin, HumanAddr};
 use cw721::Cw721HandleMsg;
-use market::{query_proxy, StorageHandleMsg, TokenInfo};
+use market::{parse_token_id, query_proxy, StorageHandleMsg, TokenInfo};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties, sanitize_royalty, RoyaltyMsg};
 use market_royalty::{MintMsg, Offering, OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty};
 use std::ops::{Mul, Sub};

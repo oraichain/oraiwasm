@@ -1,7 +1,5 @@
 use crate::auction::DEFAULT_AUCTION_BLOCK;
-use crate::contract::{
-    handle, init, parse_token_id, query, verify_owner, MAX_DECIMAL_POINT, MAX_ROYALTY_PERCENT,
-};
+use crate::contract::{handle, init, query, verify_owner, MAX_DECIMAL_POINT, MAX_ROYALTY_PERCENT};
 use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::ContractInfo;
@@ -13,6 +11,7 @@ use cosmwasm_std::{
 };
 use cw20::{Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse};
 use cw721::{ApprovedForAllResponse, OwnerOfResponse};
+use market::parse_token_id;
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_auction::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_auction::{AuctionQueryMsg, AuctionsResponse, PagingOptions};
