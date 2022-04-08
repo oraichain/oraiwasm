@@ -601,7 +601,7 @@ pub fn verify_funds(
 }
 
 pub fn get_asset_info(token_id: &str, default_denom: &str) -> StdResult<AssetInfo> {
-    let TokenInfo { token_id: _, data } = parse_token_id(token_id)?;
+    let TokenInfo { token_id: _, data } = parse_token_id(token_id);
     Ok(match data {
         None => AssetInfo::NativeToken {
             denom: default_denom.to_string(),

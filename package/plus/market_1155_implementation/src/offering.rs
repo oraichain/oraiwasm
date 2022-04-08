@@ -175,7 +175,7 @@ pub fn try_buy(
         return Err(ContractError::InsufficientAmount {});
     }
 
-    let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str())?;
+    let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str());
 
     // get royalties
     let mut rsp = HandleResponse::default();
@@ -208,7 +208,7 @@ pub fn try_buy(
                 &mut cosmos_msgs,
                 &mut rsp,
                 env.contract.address.as_str(),
-                contract_info.denom.as_str(),
+                &to_binary(&asset_info)?.to_base64(),
                 asset_info.clone(),
             )?;
         }
@@ -291,7 +291,7 @@ pub fn try_withdraw(
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
     let off: Offering = get_offering(deps.as_ref(), offering_id)?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str())?;
+    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
 
     if off.seller.eq(&info.sender) || creator.eq(&info.sender.to_string()) {
         let mut cw1155_cosmos_msg: Vec<CosmosMsg> = vec![];
@@ -408,7 +408,7 @@ pub fn try_sell_nft(
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(msg.token_id.as_str())?;
+    let TokenInfo { token_id, .. } = parse_token_id(msg.token_id.as_str());
 
     // get unique offering. Dont allow a seller to sell when he's already selling or on auction
     let final_seller = verify_nft(

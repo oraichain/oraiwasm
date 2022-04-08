@@ -46,7 +46,7 @@ pub fn try_bid_nft(
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
-    let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str())?;
+    let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str());
 
     // check auction started or finished, both means auction not started anymore
     if off.start_timestamp.gt(&Uint128::from(env.block.time)) {
@@ -81,8 +81,17 @@ pub fn try_bid_nft(
         let off_price = &off.price;
 
         let amount = match asset_info.clone() {
-            AssetInfo::NativeToken { denom: _ } => native_funds.unwrap().first().unwrap().amount, // temp: hardcode to collect only the first fund amount
-            AssetInfo::Token { contract_addr: _ } => token_funds.unwrap(),
+            AssetInfo::NativeToken { denom: _ } => {
+                native_funds
+                    .unwrap_or(vec![Coin {
+                        denom,
+                        amount: Uint128::from(0u64),
+                    }])
+                    .first()
+                    .unwrap()
+                    .amount
+            } // temp: hardcode to collect only the first fund amount
+            AssetInfo::Token { contract_addr: _ } => token_funds.unwrap_or(Uint128::from(0u64)),
         };
 
         // in case fraction is too small, we fix it to 1uorai
@@ -176,7 +185,7 @@ pub fn try_claim_winner(
 
     let asker_addr = deps.api.human_address(&off.asker)?;
     let contract_addr = deps.api.human_address(&off.contract_addr)?;
-    let TokenInfo { token_id, .. } = parse_token_id(&off.token_id)?;
+    let TokenInfo { token_id, .. } = parse_token_id(&off.token_id);
     let mut cosmos_msgs = vec![];
     if let Some(bidder) = off.bidder {
         let bidder_addr = deps.api.human_address(&bidder)?;
@@ -333,7 +342,7 @@ pub fn try_handle_ask_aution(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(initial_token_id.as_str())?;
+    let TokenInfo { token_id, .. } = parse_token_id(initial_token_id.as_str());
 
     verify_nft(
         deps.as_ref(),
@@ -485,7 +494,7 @@ pub fn try_cancel_bid(
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(&off.token_id)?;
+    let TokenInfo { token_id, .. } = parse_token_id(&off.token_id);
 
     // check if token_id is currently sold by the requesting address
     if let Some(bidder) = &off.bidder {
@@ -589,7 +598,7 @@ pub fn try_emergency_cancel_auction(
 
     // transfer token back to original owner
     let mut cosmos_msgs = vec![];
-    let TokenInfo { token_id, .. } = parse_token_id(&off.token_id)?;
+    let TokenInfo { token_id, .. } = parse_token_id(&off.token_id);
 
     // if market address is the owner => transfer back to original owner which is asker
     if verify_owner(

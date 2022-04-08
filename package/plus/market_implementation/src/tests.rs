@@ -45,10 +45,12 @@ pub const FIRST_LV_ROYALTY_STORAGE: &str = "first_lv_royalty";
 pub const DECIMAL: u64 = MAX_DECIMAL_POINT / 100;
 
 pub const PROVIDER_NFT: &str = "providerNFT";
+pub const PROVIDER_NFT_NATIVE: &str = "eyJ0b2tlbl9pbmZvIjp7InRva2VuX2lkIjoicHJvdmlkZXJORlQiLCAiZGF0YSI6ImV5SmhjM05sZEY5cGJtWnZJanA3SW01aGRHbDJaVjkwYjJ0bGJpSTZleUprWlc1dmJTSTZJbTl5WVdraWZYMTkifX0="; // {"token_info":{"token_id":"providerNFT", "data":"eyJhc3NldF9pbmZvIjp7Im5hdGl2ZV90b2tlbiI6eyJkZW5vbSI6Im9yYWkifX19"}}
 pub const PROVIDER_NFT_CW20: &str = "eyJ0b2tlbl9pbmZvIjp7InRva2VuX2lkIjoicHJvdmlkZXJORlQiLCAiZGF0YSI6ImV5SmhjM05sZEY5cGJtWnZJanA3SW5SdmEyVnVJanA3SW1OdmJuUnlZV04wWDJGa1pISWlPaUpQVnpJd0luMTlmUT09In19"; // {"token_info":{"token_id":"providerNFT", "data":"eyJhc3NldF9pbmZvIjp7InRva2VuIjp7ImNvbnRyYWN0X2FkZHIiOiJPVzIwIn19fQ=="}}
 pub const BIDDER: &str = "bidder";
 pub const PROVIDER: &str = "provider";
 pub const SELLABLE_NFT: &str = "SellableNFT";
+pub const SELLABLE_NFT_NATIVE: &str = "eyJ0b2tlbl9pbmZvIjp7InRva2VuX2lkIjoiU2VsbGFibGVORlQiLCAiZGF0YSI6ImV5SmhjM05sZEY5cGJtWnZJanA3SW01aGRHbDJaVjkwYjJ0bGJpSTZleUprWlc1dmJTSTZJbTl5WVdraWZYMTkifX0="; //{"token_info":{"token_id":"SellableNFT", "data":"eyJhc3NldF9pbmZvIjp7Im5hdGl2ZV90b2tlbiI6eyJkZW5vbSI6Im9yYWkifX19"}}
 pub const SELLABLE_NFT_CW20: &str =
     "eyJ0b2tlbl9pbmZvIjp7InRva2VuX2lkIjoiU2VsbGFibGVORlQiLCAiZGF0YSI6ImV5SmhjM05sZEY5cGJtWnZJanA3SW5SdmEyVnVJanA3SW1OdmJuUnlZV04wWDJGa1pISWlPaUpQVnpJd0luMTlmUT09In19"; // {"token_info":{"token_id":"SellableNFT", "data":"eyJhc3NldF9pbmZvIjp7InRva2VuIjp7ImNvbnRyYWN0X2FkZHIiOiJPVzIwIn19fQ=="}}
 
@@ -57,7 +59,7 @@ pub static mut _DATA: *const DepsManager = 0 as *const DepsManager;
 #[test]
 
 pub fn test() {
-    let token_id = parse_token_id("eyJ0b2tlbl9pbmZvIjp7InRva2VuX2lkIjoicHJvdmlkZXJORlQiLCAiZGF0YSI6ImV5SmhjM05sZEY5cGJtWnZJanA3SW5SdmEyVnVJanA3SW1OdmJuUnlZV04wWDJGa1pISWlPaUpQVnpJd0luMTlmUT09In19").unwrap();
+    let token_id = parse_token_id("eyJ0b2tlbl9pbmZvIjp7InRva2VuX2lkIjoicHJvdmlkZXJORlQiLCAiZGF0YSI6ImV5SmhjM05sZEY5cGJtWnZJanA3SW5SdmEyVnVJanA3SW1OdmJuUnlZV04wWDJGa1pISWlPaUpQVnpJd0luMTlmUT09In19");
     println!("token id: {:?}", token_id);
     println!(
         "token info data: {:?}",
@@ -516,7 +518,7 @@ fn sell_auction_happy_path() {
 
         let sell_msg = HandleMsg::AskNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(PROVIDER_NFT),
+            token_id: String::from(PROVIDER_NFT_NATIVE),
             price: Uint128(0),
             cancel_fee: Some(10),
             start: None,
@@ -666,7 +668,7 @@ fn test_royalty_auction_happy_path() {
 
         let sell_msg = HandleMsg::AskNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(PROVIDER_NFT),
+            token_id: String::from(PROVIDER_NFT_NATIVE),
             price: Uint128(10),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 5),
@@ -720,7 +722,7 @@ fn test_royalty_auction_happy_path() {
         // sell again and check id
         let sell_msg = HandleMsg::AskNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(PROVIDER_NFT),
+            token_id: String::from(PROVIDER_NFT_NATIVE),
             price: Uint128(10),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 5),
@@ -1060,7 +1062,7 @@ fn cancel_auction_happy_path() {
 
         let sell_msg = HandleMsg::AskNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(PROVIDER_NFT),
+            token_id: String::from(PROVIDER_NFT_NATIVE),
             price: Uint128::from(10u64),
             cancel_fee: Some(10),
             start: None,
@@ -1147,7 +1149,7 @@ fn cancel_auction_unhappy_path() {
 
         let sell_msg = HandleMsg::AskNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(PROVIDER_NFT),
+            token_id: String::from(PROVIDER_NFT_NATIVE),
             price: Uint128::from(10u64),
             cancel_fee: Some(10),
             start: None,
@@ -1227,7 +1229,7 @@ fn cancel_auction_verify_owner() {
 
         let sell_msg = HandleMsg::AskNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(PROVIDER_NFT),
+            token_id: String::from(PROVIDER_NFT_NATIVE),
             price: Uint128::from(10u64),
             cancel_fee: Some(10),
             start: None,
@@ -1339,7 +1341,7 @@ fn cancel_bid_happy_path() {
 
         let sell_msg = HandleMsg::AskNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(PROVIDER_NFT),
+            token_id: String::from(PROVIDER_NFT_NATIVE),
             price: Uint128::from(10u64),
             cancel_fee: Some(10),
             start: None,
@@ -1522,7 +1524,7 @@ fn cancel_bid_unhappy_path() {
 
         let sell_msg = HandleMsg::AskNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(PROVIDER_NFT),
+            token_id: String::from(PROVIDER_NFT_NATIVE),
             price: Uint128::from(10u64),
             cancel_fee: Some(10),
             start: None,
@@ -1609,7 +1611,7 @@ fn claim_winner_happy_path() {
 
         let sell_msg = HandleMsg::AskNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(PROVIDER_NFT),
+            token_id: String::from(PROVIDER_NFT_NATIVE),
             price: Uint128::from(10u64),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 5),
@@ -1706,7 +1708,7 @@ fn claim_winner_happy_path() {
 
         let sell_msg = HandleMsg::AskNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(PROVIDER_NFT),
+            token_id: String::from(PROVIDER_NFT_NATIVE),
             price: Uint128::from(10u64),
             cancel_fee: Some(10),
             start: None,
@@ -1779,7 +1781,7 @@ fn claim_winner_verify_owner() {
 
         let sell_msg = HandleMsg::AskNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(PROVIDER_NFT),
+            token_id: String::from(PROVIDER_NFT_NATIVE),
             price: Uint128::from(10u64),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 5),
@@ -1887,7 +1889,7 @@ fn test_royalties() {
 
         let msg = HandleMsg::SellNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(SELLABLE_NFT),
+            token_id: String::from(SELLABLE_NFT_NATIVE),
             off_price: Uint128(50),
             royalty: Some(10 * DECIMAL),
         };
@@ -1922,7 +1924,7 @@ fn test_royalties() {
         // sell again
         let msg = HandleMsg::SellNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(SELLABLE_NFT),
+            token_id: String::from(SELLABLE_NFT_NATIVE),
             off_price: Uint128(50),
             royalty: Some(10 * DECIMAL),
         };
@@ -1957,7 +1959,7 @@ fn test_royalties() {
         // sell again again
         let msg = HandleMsg::SellNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(SELLABLE_NFT),
+            token_id: String::from(SELLABLE_NFT_NATIVE),
             off_price: Uint128(50),
             royalty: Some(10 * DECIMAL),
         };
@@ -2270,78 +2272,91 @@ fn test_royalties_ow20() {
             .price
             .mul(Decimal::permille(1000 - contract_info.fee));
 
-        // // placeholders to verify royalties
-        // let mut to_addrs: Vec<HumanAddr> = vec![];
-        // let mut amounts: Vec<Uint128> = vec![];
-        // let mut flag = 0;
-        // let contract_info: ContractInfo =
-        //     from_binary(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
-        // for result in results {
-        //     for message in result.clone().messages {
-        //         if let CosmosMsg::Bank(msg) = message {
-        //             match msg {
-        //                 cosmwasm_std::BankMsg::Send {
-        //                     from_address: _,
-        //                     to_address,
-        //                     amount,
-        //                 } => {
-        //                     println!("to address: {}", to_address);
-        //                     println!("amount: {:?}", amount);
-        //                     let amount = amount[0].amount;
-        //                     to_addrs.push(to_address.clone());
-        //                     amounts.push(amount);
-        //                     // check royalty sent to seller
-        //                     if to_address.eq(&offering.clone().seller) {
-        //                         total_payment = total_payment + amount;
-        //                         flag += 1;
-        //                     }
-        //                     if to_address.eq(&result_royalty.previous_owner.clone().unwrap()) {
-        //                         println!("ready to pay for previous owner\n");
-        //                         assert_eq!(
-        //                             remaining_for_royalties.mul(Decimal::from_ratio(
-        //                                 result_royalty.prev_royalty.unwrap(),
-        //                                 MAX_DECIMAL_POINT
-        //                             )),
-        //                             amount
-        //                         );
-        //                         royatly_marketplace += amount;
-        //                         flag += 1;
-        //                     }
+        // placeholders to verify royalties
+        let mut to_addrs: Vec<HumanAddr> = vec![];
+        let mut amounts: Vec<Uint128> = vec![];
+        let mut flag = 0;
+        let contract_info: ContractInfo =
+            from_binary(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
+        for result in results {
+            for message in result.clone().messages {
+                if let CosmosMsg::Wasm(wasm_msg) = message {
+                    match wasm_msg {
+                        cosmwasm_std::WasmMsg::Execute {
+                            contract_addr,
+                            msg,
+                            send,
+                        } => {
+                            println!("contract addr: {}", contract_addr);
+                            let cw20_msg_result = from_binary(&msg);
+                            if cw20_msg_result.is_ok() {
+                                let cw20_msg: (HumanAddr, Uint128) = match cw20_msg_result.unwrap()
+                                {
+                                    cw20::Cw20HandleMsg::Transfer { recipient, amount } => {
+                                        (recipient, amount)
+                                    }
+                                    _ => (HumanAddr::from("abcd"), Uint128::from(0u64)),
+                                };
+                                let amount = cw20_msg.1;
+                                let to_address = cw20_msg.0;
+                                println!("to address: {}", to_address);
+                                println!("amount: {:?}", amount);
+                                to_addrs.push(to_address.clone());
+                                amounts.push(amount);
+                                // check royalty sent to seller
+                                if to_address.eq(&offering.clone().seller) {
+                                    total_payment = total_payment + amount;
+                                    flag += 1;
+                                }
+                                if to_address.eq(&result_royalty.previous_owner.clone().unwrap()) {
+                                    println!("ready to pay for previous owner\n");
+                                    assert_eq!(
+                                        remaining_for_royalties.mul(Decimal::from_ratio(
+                                            result_royalty.prev_royalty.unwrap(),
+                                            MAX_DECIMAL_POINT
+                                        )),
+                                        amount
+                                    );
+                                    royatly_marketplace += amount;
+                                    flag += 1;
+                                }
 
-        //                     if to_address.eq(&HumanAddr::from(contract_info.creator.as_str())) {
-        //                         assert_eq!(
-        //                             remaining_for_royalties
-        //                                 .mul(Decimal::permille(contract_info.fee)),
-        //                             amount
-        //                         );
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
+                                if to_address.eq(&HumanAddr::from(contract_info.creator.as_str())) {
+                                    assert_eq!(
+                                        remaining_for_royalties
+                                            .mul(Decimal::permille(contract_info.fee)),
+                                        amount
+                                    );
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
 
-        // assert_eq!(flag, 2);
+        assert_eq!(flag, 2);
 
-        // // increment royalty to total payment
-        // for royalty in royalties {
-        //     let index = to_addrs.iter().position(|op| op.eq(&royalty.creator));
-        //     if let Some(index) = index {
-        //         let amount = amounts[index];
-        //         assert_eq!(
-        //             remaining_for_royalties
-        //                 .mul(Decimal::from_ratio(royalty.royalty, MAX_DECIMAL_POINT)),
-        //             amount
-        //         );
-        //         royatly_marketplace += amount;
-        //     }
-        // }
+        // increment royalty to total payment
+        for royalty in royalties {
+            let index = to_addrs.iter().position(|op| op.eq(&royalty.creator));
+            if let Some(index) = index {
+                let amount = amounts[index];
+                assert_eq!(
+                    remaining_for_royalties
+                        .mul(Decimal::from_ratio(royalty.royalty, MAX_DECIMAL_POINT)),
+                    amount
+                );
+                royatly_marketplace += amount;
+            }
+        }
 
-        // // buyer1 sells with total price 50 orai, market fee is 2% => remaining = 49 orai. creator royalty is 40% => royalty creator = 19.6 = 19 orai. previous owner is buyer, royalty is 10% => royalty = 4.9 = 4 orai
-        // // seller receive = 49 - 19 - 4 = 26 orai
+        // buyer1 sells with total price 50 orai, market fee is 2% => remaining = 49 orai. creator royalty is 40% => royalty creator = 19.6 = 19 orai. previous owner is buyer, royalty is 10% => royalty = 4.9 = 4 orai
+        // seller receive = 49 - 19 - 4 = 26 orai
 
-        // assert_eq!(royatly_marketplace, Uint128::from(23u128));
-        // assert_eq!(total_payment + royatly_marketplace, Uint128::from(49u128));
+        assert_eq!(royatly_marketplace, Uint128::from(23u128));
+        assert_eq!(total_payment + royatly_marketplace, Uint128::from(49u128));
     }
 }
 
@@ -2392,7 +2407,7 @@ fn withdraw_offering() {
 
         let msg = HandleMsg::SellNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(SELLABLE_NFT),
+            token_id: String::from(SELLABLE_NFT_NATIVE),
             off_price: Uint128::from(10u64),
             royalty: None,
         };
@@ -2478,7 +2493,7 @@ fn withdraw_verify_owner() {
 
         let msg = HandleMsg::SellNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(SELLABLE_NFT),
+            token_id: String::from(SELLABLE_NFT_NATIVE),
             off_price: Uint128::from(10u64),
             royalty: None,
         };
@@ -2577,7 +2592,7 @@ fn admin_withdraw_offering() {
 
         let msg = HandleMsg::SellNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(SELLABLE_NFT),
+            token_id: String::from(SELLABLE_NFT_NATIVE),
             off_price: Uint128::from(10u64),
             royalty: None,
         };
@@ -2657,7 +2672,7 @@ fn test_sell_nft_unhappy() {
 
         let msg = HandleMsg::SellNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(SELLABLE_NFT),
+            token_id: String::from(SELLABLE_NFT_NATIVE),
             off_price: Uint128::from(10u64),
             royalty: None,
         };
@@ -2720,7 +2735,7 @@ fn test_buy_nft_unhappy() {
 
         let msg = HandleMsg::SellNft {
             contract_addr: HumanAddr::from(OW721),
-            token_id: String::from(SELLABLE_NFT),
+            token_id: String::from(SELLABLE_NFT_NATIVE),
             off_price: Uint128::from(11u64),
             royalty: None,
         };

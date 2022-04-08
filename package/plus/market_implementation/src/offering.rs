@@ -76,7 +76,7 @@ pub fn try_buy(
     let off: Offering = get_offering(deps.as_ref(), offering_id)?;
     let seller_addr = deps.api.human_address(&off.seller)?;
     let contract_addr = deps.api.human_address(&off.contract_addr)?;
-    let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str())?;
+    let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str());
 
     let mut cosmos_msgs = vec![];
     // check for enough coins, if has price then payout to all participants
@@ -251,7 +251,7 @@ pub fn try_withdraw(
     }
 
     let mut cosmos_msg: Vec<CosmosMsg> = vec![];
-    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str())?;
+    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
 
     // check if token_id is currently sold by the requesting address
     // transfer token back to original owner if market owns the nft
@@ -263,7 +263,7 @@ pub fn try_withdraw(
     )
     .is_ok()
     {
-        let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str())?;
+        let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
         let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
             recipient: deps.api.human_address(&off.seller)?,
             token_id: token_id.clone(),
@@ -311,7 +311,7 @@ pub fn try_handle_sell_nft(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(initial_token_id.as_str())?;
+    let TokenInfo { token_id, .. } = parse_token_id(initial_token_id.as_str());
 
     verify_nft(
         deps.as_ref(),

@@ -1,5 +1,6 @@
 use crate::contract::{
-    get_asset_info, get_handle_msg, get_royalties, parse_asset_info, query_storage, verify_nft,
+    get_asset_info, get_handle_msg, get_royalties, parse_asset_info, query_storage, verify_funds,
+    verify_nft,
 };
 use crate::error::ContractError;
 use crate::msg::AskNftMsg;
@@ -66,19 +67,31 @@ pub fn try_bid_nft(
 
     let mut cosmos_msgs = vec![];
 
-    let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str())?;
+    let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str());
 
     // check minimum price
     // check for enough coins, if has price then payout to all participants
     if !off_price.is_zero() {
-        let asset_info = match data {
-            None => AssetInfo::NativeToken { denom },
-            Some(data) => parse_asset_info(from_binary(&data)?),
-        };
+        let asset_info = verify_funds(
+            native_funds.as_deref(),
+            token_funds,
+            data,
+            &off_price,
+            &denom,
+        )?;
 
         let amount = match asset_info.clone() {
-            AssetInfo::NativeToken { denom: _ } => native_funds.unwrap().first().unwrap().amount, // temp: hardcode to collect only the first fund amount
-            AssetInfo::Token { contract_addr: _ } => token_funds.unwrap(),
+            AssetInfo::NativeToken { denom: _ } => {
+                native_funds
+                    .unwrap_or(vec![Coin {
+                        denom,
+                        amount: Uint128::from(0u64),
+                    }])
+                    .first()
+                    .unwrap()
+                    .amount
+            } // temp: hardcode to collect only the first fund amount
+            AssetInfo::Token { contract_addr: _ } => token_funds.unwrap_or(Uint128::from(0u64)),
         };
 
         // in case fraction is too small, we fix it to 1uorai
@@ -180,7 +193,7 @@ pub fn try_claim_winner(
     rsp.attributes.extend(vec![attr("action", "claim_winner")]);
     let mut cosmos_msgs = vec![];
 
-    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str())?;
+    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
     let asset_info = get_asset_info(off.token_id.as_str(), &denom)?;
 
     if let Some(bidder) = off.bidder {
@@ -216,7 +229,7 @@ pub fn try_claim_winner(
                 &mut cosmos_msgs,
                 &mut rsp,
                 env.contract.address.as_str(),
-                denom.as_str(),
+                &to_binary(&asset_info)?.to_base64(),
                 asset_info.clone(),
             )?;
         }
@@ -262,7 +275,7 @@ pub fn handle_ask_auction(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(msg.token_id.as_str())?;
+    let TokenInfo { token_id, .. } = parse_token_id(msg.token_id.as_str());
 
     let final_asker = verify_nft(
         deps.as_ref(),
@@ -369,7 +382,7 @@ pub fn try_cancel_bid(
     )
     .map_err(|_| ContractError::AuctionNotFound {})?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str())?;
+    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
     // check if token_id is currently sold by the requesting address
     if let Some(bidder) = &off.bidder {
         let asset_info = get_asset_info(off.token_id.as_str(), &denom)?;
@@ -458,7 +471,7 @@ pub fn try_emergency_cancel_auction(
         AuctionQueryMsg::GetAuctionRaw { auction_id },
     )?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str())?;
+    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
     let asset_info = get_asset_info(token_id.as_str(), &denom)?;
 
     if info.sender.to_string().ne(&creator) {

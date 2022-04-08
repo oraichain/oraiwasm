@@ -55,3 +55,4 @@ market_whitelist_storage = { path = "../market_whitelist_storage" }
 market_1155_storage = { path = "../market_1155_storage" }
 market_auction_extend_storage = { path = "../market_auction_extend_storage" }
 ow1155 = { path = "../ow1155" }
+ow20 = {path = "../ow20"}
