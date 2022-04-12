@@ -3069,3 +3069,58 @@ fn transfer_nft_directly_unhappy_path() {
         assert_eq!(sender_balance.balance, Uint128(50));
     }
 }
+
+// #[test]
+// fn test_verify_funds() {
+//     unsafe {
+//         let manager = DepsManager::get_new();
+
+//         handle_approve(manager);
+
+//         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+//         let mint = MintMsg {
+//             contract_addr: HumanAddr::from(OW_1155_ADDR),
+//             creator: HumanAddr::from("creator"),
+//             mint: MintIntermediate {
+//                 mint: MintStruct {
+//                     to: String::from(PROVIDER),
+//                     value: Uint128::from(50u64),
+//                     token_id: String::from(SELLABLE_NFT),
+//                     co_owner: None,
+//                 },
+//             },
+//             creator_type: String::from("cxacx"),
+//             royalty: None,
+//         };
+//         let mint_msg = HandleMsg::MintNft(mint.clone());
+//         manager
+//             .handle(provider_info.clone(), mint_msg.clone())
+//             .unwrap();
+
+//         // Cannot sell either by the same person
+//         let msg = HandleMsg::SellNft(SellNft {
+//             contract_addr: HumanAddr::from(OW_1155_ADDR),
+//             per_price: Uint128(5),
+//             token_id: String::from(BIDDABLE_NFT_NATIVE),
+//             amount: Uint128(1),
+//             seller: None,
+//         });
+
+//         manager.handle(provider_info.clone(), msg.clone()).unwrap();
+
+//         // try buy nft using cw20, will fail
+
+//         let buy_msg = generate_msg_buy_cw20(1, 5, 1);
+
+//         let buy_info = mock_info("buyer", &vec![]);
+//         assert_eq!(
+//             manager.handle(buy_info, buy_msg).unwrap_err().to_string(),
+//             StdError::generic_err(ContractError::InvalidSentFundAmount {}.to_string()).to_string()
+//         );
+
+//         let buy_msg = HandleMsg::BuyNft {
+//             offering_id: 1,
+//             amount: Uint128::from(1u64),
+//         };
+//     }
+// }
