@@ -5,7 +5,7 @@ use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse,
-    MessageInfo, StdResult, Uint128, WasmMsg,
+    MessageInfo, StdError, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{Coin, HumanAddr};
 use cw721::Cw721HandleMsg;
@@ -125,7 +125,7 @@ pub fn try_buy(
                     token_id: token_id.clone(),
                 }) as &ProxyQueryMsg,
             )
-            .map_err(|_| ContractError::InvalidGetOfferingRoyalty {})?;
+            .map_err(|err| ContractError::Std(err))?;
 
         // payout for the previous owner
         if offering_royalty_result.previous_owner.is_some()
@@ -336,7 +336,6 @@ pub fn try_handle_sell_nft(
                 token_id: token_id.clone(),
             }) as &ProxyQueryMsg,
         )
-        .map_err(|_| ContractError::InvalidGetOfferingRoyalty {})
         .unwrap_or(OfferingRoyalty {
             token_id: token_id.clone(),
             contract_addr: contract_addr.clone(),

@@ -59,11 +59,11 @@ pub static mut _DATA: *const DepsManager = 0 as *const DepsManager;
 #[test]
 
 pub fn test() {
-    let token_id = parse_token_id("eyJ0b2tlbl9pbmZvIjp7InRva2VuX2lkIjoicHJvdmlkZXJORlQiLCAiZGF0YSI6ImV5SmhjM05sZEY5cGJtWnZJanA3SW5SdmEyVnVJanA3SW1OdmJuUnlZV04wWDJGa1pISWlPaUpQVnpJd0luMTlmUT09In19");
-    println!("token id: {:?}", token_id);
+    let token_info = parse_token_id("eyJ0b2tlbl9pbmZvIjp7InRva2VuX2lkIjoiMjc4NiIsImRhdGEiOiJleUpoYzNObGRGOXBibVp2SWpwN0luUnZhMlZ1SWpwN0ltTnZiblJ5WVdOMFgyRmtaSElpT2lKdmNtRnBNV2QzWlRSeE9HZHRaVFUwZDJSck1HZGpjblJ6YURSNWEzZDJaRGRzT1c0elpIaDRZWE15SW4xOWZRPT0ifX0=");
+    println!("token id: {:?}", token_info.token_id);
     println!(
         "token info data: {:?}",
-        from_binary::<ExtraData>(&token_id.data.unwrap()).unwrap()
+        from_binary::<ExtraData>(&token_info.data.unwrap()).unwrap()
     )
 }
 
