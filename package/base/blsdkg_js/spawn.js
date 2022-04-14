@@ -1,9 +1,8 @@
 const { spawn } = require('child_process');
 
 let array = [
-    'test1',
-    'test2',
-    'test3'
+    'dev1',
+    'dev2',
 ];
 
 for (let i = 0; i < 10; i++) {

@@ -1,7 +1,7 @@
-url: http://testnet-lcd.orai.io
+url: http://3.143.254.222:1317
 chain_id: Oraichain-testnet
 denom: orai
-contract: orai123325t4y4tpfy8lxt7fv0a0cw9392nq5ft5p44
+contract: orai1sj99eh3ltexddmsv85097wtxh6ngthwyaw7pq5
 ping_contract: orai1nxjz9ys32w7xfwc7ecdm6ndzwuhp7c0d90n5pc
 interval: 6000
 ping_interval: 30000
