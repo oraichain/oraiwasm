@@ -123,6 +123,11 @@ pub enum HandleMsg {
     Close {
         proposal_id: u64,
     },
+    EditState {
+        threshold: Option<Threshold>,
+        max_period: Option<Duration>,
+        group_addr: Option<HumanAddr>,
+    },
     /// Handles update hook messages from the group contract
     MemberChangedHook(MemberChangedHookMsg),
 }

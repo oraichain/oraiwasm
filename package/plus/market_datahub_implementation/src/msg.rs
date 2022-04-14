@@ -4,7 +4,7 @@ use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
 use cw1155::Cw1155ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::AiRoyaltyQueryMsg;
-use market_datahub::{DataHubQueryMsg, MintMsg};
+use market_datahub::{AnnotatorResult, DataHubQueryMsg, MintMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -42,39 +42,62 @@ pub enum HandleMsg {
     /// Mint a new NFT, can only be called by the contract minter
     MintNft(MintMsg),
     RequestAnnotation {
-        contract_addr: HumanAddr,
         token_id: String,
-        amount: Uint128,
-        price_per_annotation: Uint128,
+        number_of_samples: Uint128,
+        reward_per_sample: Uint128,
+        max_annotation_per_task: Uint128,
         expired_after: Option<u64>,
-        number_of_jobs: Uint128,
+        max_upload_tasks: Uint128,
+        reward_per_upload_task: Uint128,
     },
-    DepositAnnotation {
+    AddAnnotationReviewer {
         annotation_id: u64,
+        reviewer_address: HumanAddr,
+    },
+    RemoveAnnotationReviewer {
+        annotation_id: u64,
+        reviewer_address: HumanAddr,
     },
     WithdrawAnnotation {
         annotation_id: u64,
     },
-    SubmitAnnotation {
+    AddAnnotationResult {
+        annotation_id: u64,
+        annotator_results: Vec<AnnotatorResult>,
+    },
+    AddReviewedUpload {
+        annotation_id: u64,
+        reviewed_upload: Vec<AnnotatorResult>,
+    },
+    Payout {
         annotation_id: u64,
     },
-    WithdrawSubmitAnnotation {
-        annotation_id: u64,
-    },
-    UpdateAnnotationAnnotators {
-        annotation_id: u64,
-        annotators: Vec<HumanAddr>,
-    },
-    ApproveAnnotation {
-        annotation_id: u64,
-        annotator: HumanAddr,
-    },
+    // SubmitAnnotation {
+    //     annotation_id: u64,
+    // },
+    // WithdrawSubmitAnnotation {
+    //     annotation_id: u64,
+    // },
+    // UpdateAnnotationAnnotators {
+    //     annotation_id: u64,
+    //     annotators: Vec<HumanAddr>,
+    // },
+    // ApproveAnnotation {
+    //     annotation_id: u64,
+    //     annotator: HumanAddr,
+    // },
     MigrateVersion {
         nft_contract_addr: HumanAddr,
         token_infos: Vec<(String, Uint128)>,
         new_marketplace: HumanAddr,
     },
 }
+
+// #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+// pub struct AnnotatorResult {
+//     pub annotator_address: HumanAddr,
+//     pub result: Vec<bool>,
+// }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AskNftMsg {

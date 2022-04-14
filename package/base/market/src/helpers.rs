@@ -1,9 +1,11 @@
 use cosmwasm_std::{
-    from_binary, to_vec, Binary, CanonicalAddr, ContractResult, Deps, Empty, HumanAddr,
-    QueryRequest, StdError, StdResult, SystemResult, WasmQuery,
+    from_binary, to_binary, to_vec, Binary, CanonicalAddr, ContractResult, CosmosMsg, Deps, Empty,
+    HumanAddr, QuerierWrapper, QueryRequest, StdError, StdResult, SystemResult, WasmMsg, WasmQuery,
 };
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
+use crate::{MarketHubHandleMsg, MarketHubQueryMsg, StorageHandleMsg, StorageQueryMsg};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
 pub struct AdminList {
@@ -111,6 +113,55 @@ pub fn query_proxy(deps: Deps, addr: HumanAddr, msg: Binary) -> StdResult<Binary
             contract_err
         ))),
         SystemResult::Ok(ContractResult::Ok(value)) => Ok(value),
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MarketHubContract(pub HumanAddr);
+
+impl MarketHubContract {
+    pub fn new(addr: HumanAddr) -> Self {
+        MarketHubContract(addr)
+    }
+
+    pub fn addr(&self) -> HumanAddr {
+        self.0.clone()
+    }
+
+    fn encode_msg(&self, msg: MarketHubHandleMsg) -> StdResult<CosmosMsg> {
+        Ok(WasmMsg::Execute {
+            contract_addr: self.addr(),
+            msg: to_binary(&msg)?,
+            send: vec![],
+        }
+        .into())
+    }
+
+    pub fn update_storage(&self, name: String, msg: Binary) -> StdResult<CosmosMsg> {
+        let msg = MarketHubHandleMsg::Storage(StorageHandleMsg::UpdateStorageData { name, msg });
+        self.encode_msg(msg)
+    }
+
+    fn encode_smart_query(&self, msg: MarketHubQueryMsg) -> StdResult<QueryRequest<Empty>> {
+        Ok(WasmQuery::Smart {
+            contract_addr: self.addr(),
+            msg: to_binary(&msg)?,
+        }
+        .into())
+    }
+
+    pub fn query_storage<T: DeserializeOwned>(
+        &self,
+        name: String,
+        msg: Binary,
+        querier: &QuerierWrapper,
+    ) -> StdResult<T> {
+        let query =
+            self.encode_smart_query(MarketHubQueryMsg::Storage(StorageQueryMsg::QueryStorage {
+                name,
+                msg,
+            }))?;
+        Ok(querier.query(&query)?)
     }
 }
 

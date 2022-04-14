@@ -44,6 +44,7 @@ pub enum Cw1155QueryMsg {
         token_id: TokenId,
     },
     Minter {},
+    Owner {},
 
     /// With Enumerable extension.
     /// Returns all tokens owned by the given address, [] if unset.

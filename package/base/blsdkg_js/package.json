@@ -16,10 +16,13 @@
   "main": "index.js",
   "dependencies": {
     "@oraichain/cosmosjs": "^0.0.70",
+    "@project-serum/anchor": "^0.19.1-beta.1",
+    "crypto": "^1.0.1",
     "dotenv": "^10.0.0",
     "ethereum-public-key-to-address": "^0.0.5",
     "futoin-hkdf": "^1.4.2",
     "js-sha3": "^0.8.0",
+    "merkletreejs": "^0.2.27",
     "yaml": "^1.10.2"
   },
   "devDependencies": {

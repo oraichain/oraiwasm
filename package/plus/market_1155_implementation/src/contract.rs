@@ -14,10 +14,10 @@ use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
-    InitResponse, MessageInfo, StdError, StdResult, Uint128, WasmMsg,
+    InitResponse, MessageInfo, StdError, StdResult, Uint128,
 };
 use cw1155::{BalanceResponse, Cw1155QueryMsg, IsApprovedForAllResponse};
-use market::{query_proxy, query_proxy_generic, StorageHandleMsg, StorageQueryMsg};
+use market::{query_proxy, MarketHubContract, StorageQueryMsg};
 use market_1155::{MarketQueryMsg, Offering};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
 use market_auction_extend::{AuctionQueryMsg, QueryAuctionsResult};
@@ -60,7 +60,7 @@ pub fn init(
         creator: info.sender.to_string(),
         denom: msg.denom,
         fee: sanitize_fee(msg.fee, "fee")?,
-        governance: msg.governance,
+        governance: MarketHubContract(msg.governance),
         expired_block: EXPIRED_BLOCK_RANGE,
         decimal_point: MAX_DECIMAL_POINT,
         auction_duration: msg.auction_duration,
@@ -118,9 +118,11 @@ pub fn handle(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
-        QueryMsg::Offering(msg) => query_storage_binary(deps, msg),
-        QueryMsg::AiRoyalty(ai_royalty_msg) => query_ai_royalty_binary(deps, ai_royalty_msg),
-        QueryMsg::Auction(auction) => query_auction_binary(deps, auction),
+        QueryMsg::Offering(msg) => query_storage_binary(deps, STORAGE_1155, msg),
+        QueryMsg::AiRoyalty(ai_royalty_msg) => {
+            query_storage_binary(deps, AI_ROYALTY_STORAGE, ai_royalty_msg)
+        }
+        QueryMsg::Auction(auction) => query_storage_binary(deps, AUCTION_STORAGE, auction),
     }
 }
 
@@ -178,7 +180,7 @@ pub fn try_update_info(
             contract_info.denom = denom;
         }
         if let Some(governance) = msg.governance {
-            contract_info.governance = governance;
+            contract_info.governance = MarketHubContract(governance);
         }
         if let Some(expired_block) = msg.expired_block {
             contract_info.expired_block = expired_block;
@@ -210,22 +212,12 @@ pub fn get_storage_addr(deps: Deps, contract: HumanAddr, name: &str) -> StdResul
     )
 }
 
-pub fn get_handle_msg<T>(addr: &str, name: &str, msg: T) -> StdResult<CosmosMsg>
+pub fn get_handle_msg<T>(addr: &MarketHubContract, name: &str, msg: T) -> StdResult<CosmosMsg>
 where
     T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
 {
-    let offering_msg = to_binary(&ProxyHandleMsg::Msg(msg))?;
-    let proxy_msg: ProxyHandleMsg = ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
-        name: name.to_string(),
-        msg: offering_msg,
-    });
-
-    Ok(WasmMsg::Execute {
-        contract_addr: HumanAddr::from(addr),
-        msg: to_binary(&proxy_msg)?,
-        send: vec![],
-    }
-    .into())
+    let binary_msg = to_binary(&ProxyHandleMsg::Msg(msg))?;
+    addr.update_storage(name.to_string(), binary_msg)
 }
 
 pub fn query_storage<
@@ -236,37 +228,23 @@ pub fn query_storage<
     storage_name: &str,
     msg: T,
 ) -> StdResult<U> {
-    let contract_info = CONTRACT_INFO.load(deps.storage)?;
-    query_proxy_generic(
-        deps,
-        get_storage_addr(deps, contract_info.governance, storage_name)?,
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+    governance.query_storage(
+        storage_name.to_string(),
         to_binary(&ProxyQueryMsg::Msg(msg))?,
+        &deps.querier,
     )
 }
 
-pub fn query_storage_binary(deps: Deps, msg: MarketQueryMsg) -> StdResult<Binary> {
+pub fn query_storage_binary<T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize>(
+    deps: Deps,
+    name: &str,
+    msg: T,
+) -> StdResult<Binary> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     query_proxy(
         deps,
-        get_storage_addr(deps, governance, STORAGE_1155)?,
-        to_binary(&ProxyQueryMsg::Msg(msg))?,
-    )
-}
-
-pub fn query_auction_binary(deps: Deps, msg: AuctionQueryMsg) -> StdResult<Binary> {
-    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
-    query_proxy(
-        deps,
-        get_storage_addr(deps, governance, AUCTION_STORAGE)?,
-        to_binary(&ProxyQueryMsg::Msg(msg))?,
-    )
-}
-
-pub fn query_ai_royalty_binary(deps: Deps, msg: AiRoyaltyQueryMsg) -> StdResult<Binary> {
-    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
-    query_proxy(
-        deps,
-        get_storage_addr(deps, governance, AI_ROYALTY_STORAGE)?,
+        get_storage_addr(deps, governance.addr(), name)?,
         to_binary(&ProxyQueryMsg::Msg(msg))?,
     )
 }

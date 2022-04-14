@@ -1,0 +1,14 @@
+{
+  "mint_nft": {
+    "contract": "ow721",
+    "msg": {
+      "mint": {
+        "token_id": "123",
+        "owner": "duc_addr",
+        "name": "rare nft",
+        "description": "nft desc",
+        "image": "https://ipfs.io/ipfs/QmWCp5t1TLsLQyjDFa87ZAp72zYqmC7L2DsNjFdpH8bBoz"
+      }
+    }
+  }
+}

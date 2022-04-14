@@ -1,3 +1,6 @@
+use crate::annotation_result::{
+    get_annotation_results_by_annotation_id, get_reviewed_upload_by_annotation_id,
+};
 use crate::contract::{get_handle_msg, query_datahub, DATAHUB_STORAGE};
 use crate::error::ContractError;
 use crate::state::{ContractInfo, CONTRACT_INFO};
@@ -6,283 +9,14 @@ use cosmwasm_std::{
     MessageInfo, Uint128,
 };
 use cosmwasm_std::{HumanAddr, StdError};
-use cw1155::{BalanceResponse, Cw1155QueryMsg};
-use market_datahub::{Annotation, DataHubHandleMsg, DataHubQueryMsg};
-use std::ops::{Mul, Sub};
+use market_datahub::{Annotation, AnnotationReviewer, DataHubHandleMsg, DataHubQueryMsg};
+use std::collections::HashMap;
+use std::convert::TryInto;
+use std::ops::{AddAssign, Mul};
 
-pub fn try_approve_annotation(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    annotation_id: u64,
-    annotator: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
-    let ContractInfo {
-        governance,
-        fee,
-        creator,
-        denom,
-        ..
-    } = CONTRACT_INFO.load(deps.storage)?;
-
-    let off: Annotation = get_annotation(deps.as_ref(), annotation_id)?;
-
-    // check authorization
-    if off.requester.ne(&info.sender) && creator.ne(&info.sender.to_string()) {
-        return Err(ContractError::Unauthorized {
-            sender: info.sender.to_string(),
-        });
-    }
-
-    // check if annotator is in the list
-    if !off.annotators.contains(&annotator) && off.requester.eq(&info.sender) {
-        return Err(ContractError::InvalidAnnotator {});
-    }
-
-    let requester_addr = off.requester.clone();
-
-    let mut cosmos_msgs = vec![];
-    let price = calculate_annotation_price(off.per_price, off.amount);
-    let mut requester_amount = price;
-    // pay for the owner of this minter contract if there is fee set in marketplace
-    let fee_amount = price.mul(Decimal::permille(fee));
-    // Rust will automatically floor down the value to 0 if amount is too small => error
-    requester_amount = requester_amount.sub(fee_amount)?;
-    // cosmos_msgs.push(
-    //     BankMsg::Send {
-    //         from_address: env.contract.address.clone(),
-    //         to_address: HumanAddr::from(creator.clone()),
-    //         amount: coins(fee_amount.u128(), &denom),
-    //     }
-    //     .into(),
-    // );
-
-    if !requester_amount.is_zero() {
-        // if requester invokes => pay the annotator
-        if off.requester.eq(&info.sender) {
-            // pay the annotator
-            cosmos_msgs.push(
-                BankMsg::Send {
-                    from_address: env.contract.address.clone(),
-                    to_address: annotator.clone(),
-                    amount: coins(requester_amount.u128(), &denom),
-                }
-                .into(),
-            );
-        } else if creator.eq(&info.sender.to_string()) {
-            // otherwise, creator will split the rewards
-            let mean_amount = requester_amount
-                .multiply_ratio(Uint128::from(1u64).u128(), off.annotators.len() as u128);
-            if !mean_amount.is_zero() {
-                for ann in off.annotators {
-                    cosmos_msgs.push(
-                        BankMsg::Send {
-                            from_address: env.contract.address.clone(),
-                            to_address: ann,
-                            amount: coins(mean_amount.u128(), &denom),
-                        }
-                        .into(),
-                    );
-                }
-            }
-        }
-    }
-
-    /* We will not transfer token from sender to market anymore */
-    // // create transfer cw1155 msg to transfer the nft back to the requester
-    // let transfer_cw1155_msg = Cw1155ExecuteMsg::SendFrom {
-    //     token_id: off.token_id.clone(),
-    //     from: env.contract.address.to_string(),
-    //     to: off.requester.to_string(),
-    //     value: off.amount,
-    //     msg: None,
-    // };
-
-    // // if everything is fine transfer NFT token to buyer
-    // cosmos_msgs.push(
-    //     WasmMsg::Execute {
-    //         contract_addr: off.contract_addr,
-    //         msg: to_binary(&transfer_cw1155_msg)?,
-    //         send: vec![],
-    //     }
-    //     .into(),
-    // );
-
-    // remove annotation in the annotation storage
-    cosmos_msgs.push(get_handle_msg(
-        governance.as_str(),
-        DATAHUB_STORAGE,
-        DataHubHandleMsg::RemoveAnnotation { id: annotation_id },
-    )?);
-
-    Ok(HandleResponse {
-        messages: cosmos_msgs,
-        attributes: vec![
-            attr("action", "approve_annotation"),
-            attr("requester", requester_addr),
-            attr("token_id", off.token_id),
-            attr("annotation_id", annotation_id),
-            attr("annotator", annotator),
-        ],
-        data: None,
-    })
-}
-pub fn handle_submit_annotation(
-    deps: DepsMut,
-    info: MessageInfo,
-    annotation_id: u64,
-) -> Result<HandleResponse, ContractError> {
-    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
-
-    let mut annotation: Annotation = get_annotation(deps.as_ref(), annotation_id)?;
-    if !annotation.deposited {
-        return Err(ContractError::AnnotationNoFunds {});
-    }
-    let mut annotators = annotation.annotators;
-    if !annotators.contains(&info.sender) {
-        annotators.push(info.sender.clone());
-    }
-
-    // allow multiple annotations on the market with the same contract and token id
-    annotation.annotators = annotators;
-
-    let mut cosmos_msgs = vec![];
-    // push save message to datahub storage
-    cosmos_msgs.push(get_handle_msg(
-        governance.as_str(),
-        DATAHUB_STORAGE,
-        DataHubHandleMsg::UpdateAnnotation {
-            annotation: annotation.clone(),
-        },
-    )?);
-
-    Ok(HandleResponse {
-        messages: cosmos_msgs,
-        attributes: vec![
-            attr("action", "submit_annotation"),
-            attr("annotator", info.sender),
-        ],
-        data: None,
-    })
-}
-
-pub fn try_withdraw_submit_annotation(
-    deps: DepsMut,
-    info: MessageInfo,
-    annotation_id: u64,
-) -> Result<HandleResponse, ContractError> {
-    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
-
-    let mut annotation: Annotation = get_annotation(deps.as_ref(), annotation_id)?;
-    let mut annotators = annotation.annotators;
-
-    let index = annotators.iter().position(|x| *x == info.sender);
-
-    if let Some(i) = index {
-        annotators.remove(i);
-    } else {
-        return Err(ContractError::AnnotatorNotFound {});
-    }
-
-    annotation.annotators = annotators;
-
-    let mut cosmos_msg = vec![];
-
-    cosmos_msg.push(get_handle_msg(
-        governance.as_str(),
-        DATAHUB_STORAGE,
-        DataHubHandleMsg::UpdateAnnotation {
-            annotation: annotation.clone(),
-        },
-    )?);
-
-    Ok(HandleResponse {
-        messages: cosmos_msg,
-        attributes: vec![
-            attr("action", "withdraw_annotation"),
-            attr("annotator", info.sender),
-        ],
-        data: None,
-    })
-}
-
-pub fn handle_deposit_annotation(
-    deps: DepsMut,
-    info: MessageInfo,
-    annotation_id: u64,
-) -> Result<HandleResponse, ContractError> {
-    let ContractInfo {
-        governance, denom, ..
-    } = CONTRACT_INFO.load(deps.storage)?;
-
-    let mut annotation: Annotation = get_annotation(deps.as_ref(), annotation_id)?;
-
-    // Check deposit funds of the requester
-    if let Some(sent_fund) = info.sent_funds.iter().find(|fund| fund.denom.eq(&denom)) {
-        // can only deposit 100% funds (for simplicity)
-        let price = calculate_annotation_price(annotation.per_price, annotation.amount);
-        if sent_fund.amount.lt(&price) {
-            return Err(ContractError::InsufficientFunds {});
-        }
-        annotation.deposited = true;
-
-        let mut cosmos_msgs = vec![];
-        // push save message to datahub storage
-        cosmos_msgs.push(get_handle_msg(
-            governance.as_str(),
-            DATAHUB_STORAGE,
-            DataHubHandleMsg::UpdateAnnotation { annotation },
-        )?);
-
-        return Ok(HandleResponse {
-            messages: cosmos_msgs,
-            attributes: vec![
-                attr("action", "deposit_annotation"),
-                attr("requester", info.sender),
-            ],
-            data: None,
-        });
-    }
-    Err(ContractError::InvalidSentFundAmount {})
-}
-
-pub fn try_update_annotation_annotators(
-    deps: DepsMut,
-    info: MessageInfo,
-    annotation_id: u64,
-    annotators: Vec<HumanAddr>,
-) -> Result<HandleResponse, ContractError> {
-    let ContractInfo {
-        governance,
-        creator,
-        ..
-    } = CONTRACT_INFO.load(deps.storage)?;
-
-    let mut annotation: Annotation = get_annotation(deps.as_ref(), annotation_id)?;
-
-    // Check deposit funds of the requester
-    if creator.eq(&info.sender.to_string()) {
-        annotation.annotators = annotators;
-        let mut cosmos_msgs = vec![];
-        // push save message to datahub storage
-        cosmos_msgs.push(get_handle_msg(
-            governance.as_str(),
-            DATAHUB_STORAGE,
-            DataHubHandleMsg::UpdateAnnotation { annotation },
-        )?);
-
-        return Ok(HandleResponse {
-            messages: cosmos_msgs,
-            attributes: vec![
-                attr("action", "update_annotation_annotators"),
-                attr("requester", info.sender),
-            ],
-            data: None,
-        });
-    }
-    Err(ContractError::Unauthorized {
-        sender: info.sender.to_string(),
-    })
+struct AnnotatorValidResults {
+    pub annotation_valid_result: u128,
+    pub upload_valid_result: u128,
 }
 
 pub fn try_withdraw(
@@ -293,52 +27,43 @@ pub fn try_withdraw(
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
         governance,
-        denom,
         creator,
+        denom,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
-    // check if token_id is currently sold by the requesting address
-    // check if annotation exists, when return StdError => it will show EOF while parsing a JSON value.
+
     let off: Annotation = get_annotation(deps.as_ref(), annotation_id)?;
     if off.requester.eq(&info.sender) || creator.eq(&info.sender.to_string()) {
-        // only allow requester to withdraw if there's no annonator yet
-        if off.annotators.len() > 0 && off.requester.eq(&info.sender) {
-            return Err(ContractError::InvalidNonZeroAnnonators {});
+        if off.is_paid {
+            return Err(ContractError::InvalidWithdraw {});
         }
 
-        /* We will not transfer token from sender to market anymore */
-        // check if token_id is currently sold by the requesting address
-        // transfer token back to original owner
-        // let transfer_cw721_msg = Cw1155ExecuteMsg::SendFrom {
-        //     from: env.contract.address.to_string(),
-        //     to: off.requester.to_string(),
-        //     token_id: off.token_id.clone(),
-        //     value: off.amount,
-        //     msg: None,
-        // };
+        let results = get_annotation_results_by_annotation_id(deps.as_ref(), annotation_id)?;
+        let reviewed_upload = get_reviewed_upload_by_annotation_id(deps.as_ref(), annotation_id)?;
 
-        // let exec_cw721_transfer = WasmMsg::Execute {
-        //     contract_addr: off.contract_addr,
-        //     msg: to_binary(&transfer_cw721_msg)?,
-        //     send: vec![],
-        // };
+        if results.len() > 0 || reviewed_upload.len() > 0 {
+            return Err(ContractError::Std(StdError::generic_err(
+                "Can not withdraw annotation that has reviewer submitted",
+            )));
+        }
 
         let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
-        // need to transfer funds back to the requester if the individual has deposited funds
-        if off.deposited {
-            // check if amount > 0
-            let annotation_price = calculate_annotation_price(off.per_price, off.amount);
-            if !annotation_price.is_zero() {
-                cosmos_msgs.push(
-                    BankMsg::Send {
-                        from_address: env.contract.address.clone(),
-                        to_address: HumanAddr::from(off.requester),
-                        amount: coins(annotation_price.u128(), &denom),
-                    }
-                    .into(),
-                );
-            }
+        //need to transfer funds back to the requester
+        // check if amount > 0
+        let annotation_price =
+            calculate_annotation_price(off.reward_per_sample, off.number_of_samples).mul(
+                Decimal::from_ratio(off.max_annotation_per_task.u128(), 1u128),
+            );
+        if !annotation_price.is_zero() {
+            cosmos_msgs.push(
+                BankMsg::Send {
+                    from_address: env.contract.address.clone(),
+                    to_address: HumanAddr::from(off.requester),
+                    amount: coins(annotation_price.clone().u128(), &denom),
+                }
+                .into(),
+            );
         }
 
         // remove annotation
@@ -355,6 +80,7 @@ pub fn try_withdraw(
                 attr("requester", info.sender),
                 attr("annotation_id", annotation_id),
                 attr("token_id", off.token_id),
+                attr("payback_amount", annotation_price.to_string()),
             ],
             data: None,
         });
@@ -368,12 +94,13 @@ pub fn try_execute_request_annotation(
     deps: DepsMut,
     info: MessageInfo,
     env: Env,
-    contract_addr: HumanAddr,
     token_id: String,
-    amount: Uint128,
-    price_per_annotation: Uint128,
+    number_of_samples: Uint128,
+    reward_per_sample: Uint128,
+    max_annotation_per_task: Uint128,
+    max_upload_tasks: Uint128,
+    reward_per_upload_task: Uint128,
     expired_after: Option<u64>,
-    number_of_jobs: Uint128,
 ) -> Result<HandleResponse, ContractError> {
     // Check sendt funds
     let ContractInfo {
@@ -383,39 +110,28 @@ pub fn try_execute_request_annotation(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
-    let balance: BalanceResponse = deps
-        .querier
-        .query_wasm_smart(
-            contract_addr.to_string(),
-            &Cw1155QueryMsg::Balance {
-                owner: info.sender.clone().to_string(),
-                token_id: token_id.clone(),
-            },
-        )
-        .map_err(|_op| {
-            ContractError::Std(StdError::generic_err(
-                "Invalid getting balance of the sender's nft",
-            ))
-        })?;
-
-    if balance.balance.is_zero() {
-        return Err(ContractError::InsufficientBalance {});
-    }
-
-    let mut deposited = false;
-
+    // Requester is required to deposited
     if let Some(fund) = info.sent_funds.iter().find(|fund| fund.denom.eq(&denom)) {
-        let price = calculate_annotation_price(price_per_annotation.clone(), amount.clone())
-            .mul(Decimal::from_ratio(number_of_jobs.u128(), 1u128));
+        let mut reward = calculate_annotation_price(
+            reward_per_sample.clone(),
+            Uint128::from(number_of_samples.clone().0 + max_upload_tasks.clone().0),
+        )
+        .mul(Decimal::from_ratio(max_annotation_per_task.u128(), 1u128));
 
-        if fund.amount.lt(&price) {
+        let upload_reward =
+            calculate_annotation_price(reward_per_upload_task.clone(), max_upload_tasks.clone());
+
+        reward.add_assign(upload_reward);
+
+        if fund.amount.lt(&reward) {
             return Err(ContractError::InsufficientFunds {});
         }
         // cannot allow annotation price as 0 (because it is pointless)
-        if price.eq(&Uint128::from(0u64)) {
+        if reward.eq(&Uint128::from(0u64)) {
             return Err(ContractError::InvalidZeroAmount {});
         }
-        deposited = true;
+    } else {
+        return Err(ContractError::InvalidDenomAmount {});
     }
 
     let mut expired_block_annotation = env.block.height + expired_block;
@@ -428,105 +144,226 @@ pub fn try_execute_request_annotation(
         id: None,
         token_id: token_id.clone(),
         contract_addr: env.contract.address.clone(),
-        annotators: vec![],
         requester: info.sender.clone(),
-        per_price: price_per_annotation.clone(),
-        amount: amount.clone(),
-        deposited,
+        reward_per_sample: reward_per_sample.clone(),
+        number_of_samples: number_of_samples.clone(),
+        max_annotation_per_task: max_annotation_per_task.clone(),
         expired_block: expired_block_annotation,
+        max_upload_tasks,
+        reward_per_upload_task,
+        is_paid: false,
     };
 
     let mut cosmos_msg = vec![];
 
-    // push save message to datahub storage
-    for _ in 0..number_of_jobs.u128() {
-        cosmos_msg.push(get_handle_msg(
-            governance.as_str(),
-            DATAHUB_STORAGE,
-            DataHubHandleMsg::UpdateAnnotation {
-                annotation: annotation.clone(),
-            },
-        )?);
-    }
+    cosmos_msg.push(get_handle_msg(
+        governance.as_str(),
+        DATAHUB_STORAGE,
+        DataHubHandleMsg::UpdateAnnotation {
+            annotation: annotation.clone(),
+        },
+    )?);
 
     Ok(HandleResponse {
         messages: cosmos_msg,
         attributes: vec![
             attr("action", "request_annotation"),
             attr("requester", info.sender.clone()),
-            attr("per price", price_per_annotation),
-            attr("deposited", deposited),
+            attr("reward_per_sample", reward_per_sample.to_string()),
+            attr("number_of_samples", number_of_samples.to_string()),
+            attr("max_annotators", max_annotation_per_task.to_string()),
+            attr("max_upload_samples", max_upload_tasks.to_string()),
+            attr(
+                "reward_per_upload_sample",
+                reward_per_upload_task.to_string(),
+            ),
         ],
         data: None,
     })
 }
 
-// pub fn handle_request_annotation(
-//     deps: DepsMut,
-//     info: MessageInfo,
-//     env: Env,
-//     msg: RequestAnnotate,
-//     rcv_msg: Cw1155ReceiveMsg,
-// ) -> Result<HandleResponse, ContractError> {
-//     let ContractInfo {
-//         governance,
-//         denom,
-//         expired_block,
-//         ..
-//     } = CONTRACT_INFO.load(deps.storage)?;
-//     let mut deposited = false;
-//     // If requester have not deposited funds => an alert to annotators to not submit their work. Annotators will try to submit by adding their addresses to the list
-//     if msg.sent_funds.denom.eq(&denom) {
-//         // can only deposit 100% funds (for simplicity)
-//         let price = calculate_annotation_price(msg.per_price_annotation, rcv_msg.amount);
-//         if msg.sent_funds.amount.lt(&price) {
-//             return Err(ContractError::InsufficientFunds {});
-//         }
-//         // cannot allow annotation price as 0 (because it is pointless)
-//         if price.eq(&Uint128::from(0u64)) {
-//             return Err(ContractError::InvalidZeroAmount {});
-//         }
-//         deposited = true;
-//     };
-//     let mut expired_block_annotation = env.block.height + expired_block;
-//     if let Some(expired_block) = msg.expired_block {
-//         expired_block_annotation = env.block.height + expired_block;
-//     };
-//     // allow multiple annotations on the market with the same contract and token id
-//     let annotation = Annotation {
-//         id: None,
-//         token_id: rcv_msg.token_id,
-//         contract_addr: info.sender.clone(),
-//         annotators: vec![],
-//         requester: HumanAddr::from(rcv_msg.operator.clone()),
-//         per_price: msg.per_price_annotation,
-//         amount: rcv_msg.amount,
-//         deposited,
-//         expired_block: expired_block_annotation,
-//     };
+pub fn try_payout(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    annotation_id: u64,
+) -> Result<HandleResponse, ContractError> {
+    let ContractInfo {
+        creator,
+        governance,
+        denom,
+        ..
+    } = CONTRACT_INFO.load(deps.storage)?;
 
-//     let mut cosmos_msgs = vec![];
-//     // push save message to datahub storage
-//     cosmos_msgs.push(get_handle_msg(
-//         governance.as_str(),
-//         DATAHUB_STORAGE,
-//         DataHubHandleMsg::UpdateAnnotation {
-//             annotation: annotation.clone(),
-//         },
-//     )?);
+    let mut annotation: Annotation = get_annotation(deps.as_ref(), annotation_id)?;
 
-//     Ok(HandleResponse {
-//         messages: cosmos_msgs,
-//         attributes: vec![
-//             attr("action", "request_annotation"),
-//             attr("original_contract", info.clone().sender),
-//             attr("requester", rcv_msg.operator),
-//             attr("per price", annotation.per_price.to_string()),
-//             attr("deposited", deposited),
-//         ],
-//         data: Some(to_binary(&info)?),
-//     })
-// }
+    // Check if annotation is payout or not
+    if annotation.is_paid {
+        return Err(ContractError::InvalidPayout {});
+    }
+
+    if annotation.requester.ne(&info.sender) && creator.ne(&info.sender.to_string()) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    }
+
+    let annotation_reviewed_results =
+        get_annotation_results_by_annotation_id(deps.as_ref(), annotation_id)?;
+
+    let reviewed_uploads = get_reviewed_upload_by_annotation_id(deps.as_ref(), annotation_id)?;
+
+    let reviewers = get_reviewer_by_annotation_id(deps.as_ref(), annotation_id)?;
+
+    if reviewers.len() == 0 {
+        return Err(ContractError::Std(StdError::generic_err(
+            "Can not payout when there is no reviewers!",
+        )));
+    }
+
+    // Only allow payout when all reviewers had submitted their results
+    if annotation_reviewed_results.len() != reviewers.len() {
+        return Err(ContractError::EarlyPayoutError {});
+    }
+
+    if annotation.max_upload_tasks.ge(&Uint128::from(0u64))
+        && reviewed_uploads.len() != reviewers.len()
+    {
+        return Err(ContractError::EarlyPayoutError {});
+    }
+
+    let first = annotation_reviewed_results.first().unwrap();
+
+    let mut annotator_valid_results_map = HashMap::<HumanAddr, AnnotatorValidResults>::new();
+
+    // Traverse all reviewer result, 1 reviewer - many annotator's results
+    for (annotator_index, result) in first.data.iter().enumerate() {
+        // valid_results set as max
+        let mut valid_results = result.result.len().try_into().unwrap();
+        // Traverse annotator's result in review result
+        for (index, _) in result.result.iter().enumerate() {
+            for r in annotation_reviewed_results.iter() {
+                // If some reviewer reject the result in this index, then the result will be rejected
+                if !r.data[annotator_index].result[index] {
+                    valid_results = valid_results - 1;
+                    break;
+                }
+            }
+        }
+
+        annotator_valid_results_map.insert(
+            result.annotator_address.clone(),
+            AnnotatorValidResults {
+                annotation_valid_result: valid_results,
+                upload_valid_result: 0,
+            },
+        );
+    }
+
+    let first_reviewed_upload = reviewed_uploads.first().unwrap();
+
+    for (annotator_index, result) in first_reviewed_upload.data.iter().enumerate() {
+        // valid_results set as max
+        let mut valid_results = result.result.len().try_into().unwrap();
+        // Traverse annotator's result in review result
+        for (index, _) in result.result.iter().enumerate() {
+            for r in reviewed_uploads.iter() {
+                // If some reviewer reject the result in this index, then the result will be rejected
+                if !r.data[annotator_index].result[index] {
+                    valid_results = valid_results - 1;
+                    break;
+                }
+            }
+        }
+
+        let annotator_results = annotator_valid_results_map.get_mut(&result.annotator_address);
+        if annotator_results.is_none() {
+            annotator_valid_results_map.insert(
+                result.annotator_address.clone(),
+                AnnotatorValidResults {
+                    annotation_valid_result: 0,
+                    upload_valid_result: valid_results,
+                },
+            );
+        } else {
+            annotator_results.unwrap().upload_valid_result = valid_results;
+        }
+    }
+
+    let mut cosmos_msg: Vec<CosmosMsg> = vec![];
+
+    let mut attributes = vec![];
+
+    attributes.push(attr("action", "annotation_payout"));
+
+    let mut total_reward = 0u128;
+    let mut total_bond = calculate_annotation_price(
+        annotation.reward_per_sample.clone(),
+        Uint128::from(
+            annotation.number_of_samples.clone().0 + annotation.max_upload_tasks.clone().0,
+        ),
+    )
+    .mul(Decimal::from_ratio(
+        annotation.max_annotation_per_task.u128(),
+        1u128,
+    ));
+
+    let upload_reward_bond = calculate_annotation_price(
+        annotation.reward_per_upload_task.clone(),
+        annotation.max_upload_tasks.clone(),
+    );
+
+    total_bond.add_assign(upload_reward_bond);
+
+    for (annotator_address, valid_results) in annotator_valid_results_map {
+        let reward = annotation.reward_per_sample.u128() * valid_results.annotation_valid_result
+            + annotation.reward_per_upload_task.u128() * valid_results.upload_valid_result;
+        total_reward = total_reward + reward;
+        cosmos_msg.push(
+            BankMsg::Send {
+                from_address: env.contract.address.clone(),
+                to_address: annotator_address.clone(),
+                amount: coins(reward.into(), denom.clone()),
+            }
+            .into(),
+        );
+        attributes.push(attr("annotator", annotator_address.to_string()));
+        attributes.push(attr("reward", reward.to_string()));
+    }
+
+    println!("total bond: {:?}", total_bond);
+    println!("total reward: {:?}", total_reward);
+    // Payback the excess cash to the annotation's requestor
+    let payback_amount = total_bond.u128() - total_reward;
+    if payback_amount.ge(&0u128) {
+        cosmos_msg.push(
+            BankMsg::Send {
+                from_address: env.contract.address.clone(),
+                to_address: annotation.clone().requester,
+                amount: coins(payback_amount, denom.clone()),
+            }
+            .into(),
+        );
+
+        attributes.push(attr("payback", payback_amount.to_string()));
+    }
+
+    // Update annotation pais status
+    annotation.is_paid = true;
+    cosmos_msg.push(get_handle_msg(
+        governance.as_str(),
+        DATAHUB_STORAGE,
+        DataHubHandleMsg::UpdateAnnotation {
+            annotation: annotation.clone(),
+        },
+    )?);
+
+    Ok(HandleResponse {
+        messages: cosmos_msg,
+        attributes,
+        data: None,
+    })
+}
 
 pub fn get_annotation(deps: Deps, annotation_id: u64) -> Result<Annotation, ContractError> {
     let annotation: Annotation = from_binary(&query_datahub(
@@ -535,6 +372,23 @@ pub fn get_annotation(deps: Deps, annotation_id: u64) -> Result<Annotation, Cont
     )?)
     .map_err(|_| ContractError::InvalidGetAnnotation {})?;
     Ok(annotation)
+}
+
+pub fn get_reviewer_by_annotation_id(
+    deps: Deps,
+    annotation_id: u64,
+) -> Result<Vec<AnnotationReviewer>, ContractError> {
+    let reviewers = from_binary(&query_datahub(
+        deps,
+        DataHubQueryMsg::GetAnnotationReviewerByAnnotationId { annotation_id },
+    )?)
+    .map_err(|_| {
+        ContractError::Std(StdError::generic_err(
+            "There is an error when collecting reviewers",
+        ))
+    })?;
+
+    Ok(reviewers)
 }
 
 pub fn calculate_annotation_price(per_price: Uint128, amount: Uint128) -> Uint128 {

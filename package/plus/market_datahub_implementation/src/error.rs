@@ -31,6 +31,18 @@ pub enum ContractError {
     #[error("Sent funds amount is empty")]
     InvalidSentFundAmount {},
 
+    #[error("Annotation already payout")]
+    InvalidPayout {},
+
+    #[error("Can not withdraw paid contract!")]
+    InvalidWithdraw {},
+
+    #[error("Paid annotators exceed the maximum number of annotators!")]
+    InvalidNumberOfAnnotators {},
+
+    #[error("Invalid annotator result: number of results greater than annotation's total samples")]
+    InvalidAnnotatorResult {},
+
     #[error("Cannot withdraw the request because there's an annonator")]
     InvalidNonZeroAnnonators {},
 
@@ -55,8 +67,20 @@ pub enum ContractError {
     #[error("There is an error while collecting the offering")]
     InvalidGetOffering {},
 
+    #[error("Invalid Annotator results length")]
+    InvalidAnnotatorResults {},
+
+    #[error("Can not commit 2 results")]
+    AddResultError {},
+
+    #[error("There is an error while collecting annotation")]
+    InvalidGetAnnotationResult {},
+
     #[error("There is an error while collecting the annotation")]
     InvalidGetAnnotation {},
+
+    #[error("Only can payout when all reviewer commited annotator's result and annotator's reviewed upload")]
+    EarlyPayoutError {},
 
     #[error("The requester has not deposited funds into the annotation request yet. You will not receive rewards if you submit")]
     AnnotationNoFunds {},
