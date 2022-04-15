@@ -24,7 +24,7 @@ pub fn init(
     let info = ContractInfo {
         governance: msg.governance,
         creator: info.sender,
-        default_denom: "ORAI".into(),
+        default_denom: "orai".into(),
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     Ok(InitResponse::default())
