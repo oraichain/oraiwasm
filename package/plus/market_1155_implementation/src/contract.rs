@@ -580,6 +580,7 @@ pub fn query_payment_auction_asset_info(
     governance: &str,
     contract_addr: HumanAddr,
     token_id: &str,
+    asker: &str,
 ) -> StdResult<AssetInfo> {
     // collect payment type
     Ok(deps.querier.query_wasm_smart(
@@ -587,6 +588,7 @@ pub fn query_payment_auction_asset_info(
         &ProxyQueryMsg::Msg(PaymentQueryMsg::GetAuctionPayment {
             contract_addr,
             token_id: token_id.into(),
+            sender: Some(HumanAddr::from(asker)),
         }),
     )?)
 }
@@ -596,6 +598,7 @@ pub fn query_payment_offering_asset_info(
     governance: &str,
     contract_addr: HumanAddr,
     token_id: &str,
+    seller: &str,
 ) -> StdResult<AssetInfo> {
     // collect payment type
     Ok(deps.querier.query_wasm_smart(
@@ -603,6 +606,7 @@ pub fn query_payment_offering_asset_info(
         &ProxyQueryMsg::Msg(PaymentQueryMsg::GetOfferingPayment {
             contract_addr,
             token_id: token_id.into(),
+            sender: Some(HumanAddr::from(seller)),
         }),
     )?)
 }

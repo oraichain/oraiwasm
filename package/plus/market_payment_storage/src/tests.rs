@@ -3,15 +3,18 @@ use std::ops::Mul;
 use crate::contract::*;
 use crate::msg::*;
 use crate::state::ContractInfo;
+use crate::state::PaymentKey;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
+use cosmwasm_std::to_binary;
 use cosmwasm_std::Decimal;
 use cosmwasm_std::{coin, coins, from_binary, HumanAddr, OwnedDeps, Uint128};
 use market_payment::AssetInfo;
 use market_payment::Payment;
 use market_payment::PaymentHandleMsg;
 use market_payment::PaymentQueryMsg;
+use market_payment::PaymentResponse;
 
 const CREATOR: &str = "marketplace";
 const DENOM: &str = "MGK";
@@ -53,6 +56,7 @@ fn remove_offering_payment() {
         asset_info: AssetInfo::NativeToken {
             denom: "foobar".into(),
         },
+        sender: None,
     }));
     let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
@@ -62,6 +66,7 @@ fn remove_offering_payment() {
         QueryMsg::Msg(PaymentQueryMsg::GetOfferingPayment {
             contract_addr: HumanAddr::from("abc"),
             token_id: "foobar".into(),
+            sender: None,
         }),
     )
     .unwrap();
@@ -71,6 +76,7 @@ fn remove_offering_payment() {
     let msg = HandleMsg::Msg(PaymentHandleMsg::RemoveOfferingPayment {
         contract_addr: HumanAddr::from("abc"),
         token_id: "foobar".into(),
+        sender: None,
     });
     let _ = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
@@ -80,11 +86,112 @@ fn remove_offering_payment() {
         QueryMsg::Msg(PaymentQueryMsg::GetOfferingPayment {
             contract_addr: HumanAddr::from("abc"),
             token_id: "foobar".into(),
+            sender: None,
         }),
     )
     .unwrap();
     let asset_info: AssetInfo = from_binary(&bin).unwrap();
     println!("new asset info: {:?}", asset_info)
+}
+
+#[test]
+fn check_query_offering_1155_payments() {
+    let mut deps = setup_contract();
+
+    // beneficiary can release it
+    let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
+
+    for i in 1..10 {
+        let sender_info = mock_info(format!("foobar{}", i), &vec![coin(50, DENOM)]);
+        let msg = HandleMsg::Msg(PaymentHandleMsg::UpdateOfferingPayment(Payment {
+            contract_addr: HumanAddr::from("abc"),
+            token_id: "foobar".into(),
+            asset_info: AssetInfo::NativeToken {
+                denom: format!("denom_foobar{}", i),
+            },
+            sender: Some(sender_info.sender.clone()),
+        }));
+        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+    }
+
+    let payment_key: PaymentKey = PaymentKey {
+        contract_addr: HumanAddr::from("abc"),
+        token_id: "foobar".into(),
+        sender: Some(HumanAddr::from("foobar2")),
+    };
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Msg(PaymentQueryMsg::GetOfferingPayments {
+            offset: Some(to_binary(&payment_key).unwrap()),
+            limit: Some(2),
+            order: None,
+        }),
+    )
+    .unwrap();
+    let value: Vec<PaymentResponse> = from_binary(&res).unwrap();
+    println!("value: {:?}", value);
+}
+
+#[test]
+fn check_query_offering_721_payments() {
+    let mut deps = setup_contract();
+
+    // beneficiary can release it
+    let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
+
+    // if no sender & token id is the same => can only create one offering payment
+    for i in 1..10 {
+        let msg = HandleMsg::Msg(PaymentHandleMsg::UpdateOfferingPayment(Payment {
+            contract_addr: HumanAddr::from("abc"),
+            token_id: "foobar".into(),
+            asset_info: AssetInfo::NativeToken {
+                denom: format!("denom_foobar{}", i),
+            },
+            sender: None,
+        }));
+        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+    }
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Msg(PaymentQueryMsg::GetOfferingPayments {
+            offset: None,
+            limit: None,
+            order: None,
+        }),
+    )
+    .unwrap();
+    let value: Vec<PaymentResponse> = from_binary(&res).unwrap();
+    println!("value: {:?}", value);
+    assert_eq!(value.len(), 1 as usize);
+
+    for i in 1..10 {
+        let msg = HandleMsg::Msg(PaymentHandleMsg::UpdateOfferingPayment(Payment {
+            contract_addr: HumanAddr::from("abc"),
+            token_id: format!("foobar{}", i),
+            asset_info: AssetInfo::NativeToken {
+                denom: format!("denom_foobar{}", i),
+            },
+            sender: None,
+        }));
+        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+    }
+
+    let res = query(
+        deps.as_ref(),
+        mock_env(),
+        QueryMsg::Msg(PaymentQueryMsg::GetOfferingPayments {
+            offset: None,
+            limit: None,
+            order: None,
+        }),
+    )
+    .unwrap();
+    let value: Vec<PaymentResponse> = from_binary(&res).unwrap();
+    println!("value: {:?}", value);
 }
 
 #[test]
@@ -100,6 +207,7 @@ fn remove_auction_payment() {
         asset_info: AssetInfo::NativeToken {
             denom: "foobar".into(),
         },
+        sender: Some(info.sender.clone()),
     }));
     let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
@@ -109,6 +217,7 @@ fn remove_auction_payment() {
         QueryMsg::Msg(PaymentQueryMsg::GetAuctionPayment {
             contract_addr: HumanAddr::from("abc"),
             token_id: "foobar".into(),
+            sender: None,
         }),
     )
     .unwrap();
@@ -118,6 +227,7 @@ fn remove_auction_payment() {
     let msg = HandleMsg::Msg(PaymentHandleMsg::RemoveAuctionPayment {
         contract_addr: HumanAddr::from("abc"),
         token_id: "foobar".into(),
+        sender: None,
     });
     let _ = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
@@ -127,6 +237,7 @@ fn remove_auction_payment() {
         QueryMsg::Msg(PaymentQueryMsg::GetAuctionPayment {
             contract_addr: HumanAddr::from("abc"),
             token_id: "foobar".into(),
+            sender: None,
         }),
     )
     .unwrap();

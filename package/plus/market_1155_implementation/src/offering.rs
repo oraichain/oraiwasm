@@ -183,6 +183,7 @@ pub fn try_buy(
         governance.addr().as_str(),
         off.contract_addr.clone(),
         &token_id,
+        off.seller.as_str(),
     )?;
 
     // get royalties
@@ -460,6 +461,7 @@ pub fn try_sell_nft(
         PaymentHandleMsg::UpdateOfferingPayment(Payment {
             contract_addr: msg.contract_addr.clone(),
             token_id: token_id.clone(),
+            sender: Some(info.sender.clone()), // for 721, contract & token id combined is already unique
             asset_info: asset_info.clone(),
         }),
     )?);

@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 pub struct Payment {
     pub contract_addr: HumanAddr,
     pub token_id: String,
+    pub sender: Option<HumanAddr>,
     pub asset_info: AssetInfo,
 }
 
@@ -20,9 +21,11 @@ pub enum PaymentHandleMsg {
     RemoveOfferingPayment {
         contract_addr: HumanAddr,
         token_id: String,
+        sender: Option<HumanAddr>,
     },
     RemoveAuctionPayment {
         contract_addr: HumanAddr,
         token_id: String,
+        sender: Option<HumanAddr>,
     },
 }

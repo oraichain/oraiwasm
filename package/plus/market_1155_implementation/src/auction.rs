@@ -73,6 +73,7 @@ pub fn try_bid_nft(
         governance.addr().as_str(),
         deps.api.human_address(&off.contract_addr)?,
         &token_id,
+        deps.api.human_address(&off.asker)?.as_str(),
     )?;
 
     println!("asset info: {:?}", asset_info);
@@ -205,6 +206,7 @@ pub fn try_claim_winner(
         governance.addr().as_str(),
         deps.api.human_address(&off.contract_addr)?,
         &token_id,
+        deps.api.human_address(&off.asker)?.as_str(),
     )?;
 
     if let Some(bidder) = off.bidder {
@@ -366,6 +368,7 @@ pub fn handle_ask_auction(
         PaymentHandleMsg::UpdateAuctionPayment(Payment {
             contract_addr: msg.contract_addr.clone(),
             token_id: token_id.clone(),
+            sender: Some(info.sender.clone()),
             asset_info: asset_info.clone(),
         }),
     )?);
@@ -410,6 +413,7 @@ pub fn try_cancel_bid(
             governance.addr().as_str(),
             deps.api.human_address(&off.contract_addr)?,
             &token_id,
+            deps.api.human_address(&off.asker)?.as_str(),
         )?;
 
         let bidder_addr = deps.api.human_address(bidder)?;
@@ -501,6 +505,7 @@ pub fn try_emergency_cancel_auction(
         governance.addr().as_str(),
         deps.api.human_address(&off.contract_addr)?,
         &token_id,
+        deps.api.human_address(&off.asker)?.as_str(),
     )?;
 
     if info.sender.to_string().ne(&creator) {

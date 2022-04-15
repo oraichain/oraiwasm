@@ -380,6 +380,7 @@ pub fn try_handle_sell_nft(
         PaymentHandleMsg::UpdateOfferingPayment(Payment {
             contract_addr,
             token_id: token_id.clone(),
+            sender: None, // for 721, contract & token id combined is already unique
             asset_info: asset_info.clone(),
         }),
     )?);

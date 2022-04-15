@@ -623,6 +623,7 @@ pub fn query_offering_payment_asset_info(
         &ProxyQueryMsg::Msg(PaymentQueryMsg::GetOfferingPayment {
             contract_addr,
             token_id: token_id.into(),
+            sender: None,
         }),
     )?)
 }
@@ -639,6 +640,7 @@ pub fn query_auction_payment_asset_info(
         &ProxyQueryMsg::Msg(PaymentQueryMsg::GetAuctionPayment {
             contract_addr,
             token_id: token_id.into(),
+            sender: None,
         }),
     )?)
 }
