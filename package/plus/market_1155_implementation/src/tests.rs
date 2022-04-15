@@ -32,6 +32,7 @@ const OFFERING_ADDR: &str = "offering_addr";
 const AUCTION_ADDR: &str = "auction_addr";
 const REJECT_ADDR: &str = "reject_addr";
 const WHITELIST_ADDR: &str = "whitelist_addr";
+const PAYMENT_STORAGE_ADDR: &str = "payment_storage_addr";
 const AI_ROYALTY_ADDR: &str = "ai_royalty_addr";
 const OW_1155_ADDR: &str = "1155_addr";
 const CONTRACT_NAME: &str = "Auction Marketplace";
@@ -44,6 +45,7 @@ pub const AUCTION_STORAGE: &str = "auction_extend";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 pub const REJECTED_STORAGE: &str = "rejected_storage";
 pub const WHITELIST_STORAGE: &str = "whitelist_storage";
+pub const PAYMENT_STORAGE: &str = "market_1155_payment_storage";
 
 pub const SELLABLE_NFT: &str = "SellableNFT";
 pub const BIDDABLE_NFT: &str = "BiddableNFT";
@@ -69,6 +71,7 @@ struct DepsManager {
     auction: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     rejected: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     whitelist: OwnedDeps<MockStorage, MockApi, MockQuerier>,
+    payment_storage: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     // main deps
     deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
 }
@@ -107,6 +110,10 @@ impl DepsManager {
                     (
                         WHITELIST_STORAGE.to_string(),
                         HumanAddr::from(WHITELIST_ADDR),
+                    ),
+                    (
+                        PAYMENT_STORAGE.to_string(),
+                        HumanAddr::from(PAYMENT_STORAGE_ADDR),
                     ),
                 ],
                 implementations: vec![HumanAddr::from(MARKET_ADDR)],
@@ -226,6 +233,19 @@ impl DepsManager {
         )
         .unwrap();
 
+        // init payment storage addr
+        let mut payment_storage =
+            mock_dependencies(HumanAddr::from(PAYMENT_STORAGE_ADDR), &[], Self::query_wasm);
+        let _res = market_payment_storage::contract::init(
+            payment_storage.as_mut(),
+            mock_env(PAYMENT_STORAGE_ADDR),
+            info.clone(),
+            market_payment_storage::msg::InitMsg {
+                governance: HumanAddr::from(HUB_ADDR),
+            },
+        )
+        .unwrap();
+
         // update maximum royalty to MAX_ROYALTY_PERCENT
         let update_info = market_ai_royalty_storage::msg::HandleMsg::UpdateInfo(
             market_ai_royalty_storage::msg::UpdateContractMsg {
@@ -272,6 +292,7 @@ impl DepsManager {
             rejected,
             whitelist,
             deps,
+            payment_storage,
         }
     }
 
@@ -321,6 +342,13 @@ impl DepsManager {
                     WHITELIST_ADDR => market_whitelist_storage::contract::handle(
                         self.whitelist.as_mut(),
                         mock_env(WHITELIST_ADDR),
+                        mock_info(HUB_ADDR, &[]),
+                        from_slice(msg).unwrap(),
+                    )
+                    .ok(),
+                    PAYMENT_STORAGE_ADDR => market_payment_storage::contract::handle(
+                        self.payment_storage.as_mut(),
+                        mock_env(HUB_ADDR),
                         mock_info(HUB_ADDR, &[]),
                         from_slice(msg).unwrap(),
                     )
@@ -418,6 +446,12 @@ impl DepsManager {
                             manager.whitelist.as_ref(),
                             mock_env(WHITELIST_ADDR),
                             from_slice(&msg).unwrap(),
+                        )
+                        .unwrap_or_default(),
+                        PAYMENT_STORAGE_ADDR => market_payment_storage::contract::query(
+                            manager.payment_storage.as_ref(),
+                            mock_env(PAYMENT_STORAGE_ADDR),
+                            from_slice(msg).unwrap(),
                         )
                         .unwrap_or_default(),
                         OW_1155_ADDR => ow1155::contract::query(

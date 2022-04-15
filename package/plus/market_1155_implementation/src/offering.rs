@@ -1,6 +1,7 @@
 use crate::contract::{
-    get_handle_msg, get_royalties, get_royalty, query_storage, verify_funds, verify_nft,
-    AI_ROYALTY_STORAGE, CREATOR_NAME, STORAGE_1155,
+    get_asset_info, get_handle_msg, get_royalties, get_royalty, query_payment_offering_asset_info,
+    query_storage, verify_funds, verify_nft, AI_ROYALTY_STORAGE, CREATOR_NAME, PAYMENT_STORAGE,
+    STORAGE_1155,
 };
 use crate::error::ContractError;
 use crate::msg::{SellNft, TransferNftDirectlyMsg};
@@ -11,9 +12,10 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{HumanAddr, StdError};
 use cw1155::Cw1155ExecuteMsg;
-use market::{parse_token_id, MarketHubContract, TokenInfo};
+use market::MarketHubContract;
 use market_1155::{MarketHandleMsg, MarketQueryMsg, MintMsg, Offering};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties, AiRoyaltyHandleMsg, RoyaltyMsg};
+use market_payment::{Payment, PaymentHandleMsg};
 use std::ops::{Mul, Sub};
 
 pub fn add_msg_royalty(
@@ -164,7 +166,6 @@ pub fn try_buy(
     let ContractInfo {
         governance,
         decimal_point,
-        denom,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
@@ -175,7 +176,14 @@ pub fn try_buy(
         return Err(ContractError::InsufficientAmount {});
     }
 
-    let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str());
+    // let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str());
+    let token_id = off.token_id.clone();
+    let asset_info = query_payment_offering_asset_info(
+        deps.as_ref(),
+        governance.addr().as_str(),
+        off.contract_addr.clone(),
+        &token_id,
+    )?;
 
     // get royalties
     let mut rsp = HandleResponse::default();
@@ -189,7 +197,12 @@ pub fn try_buy(
 
         let price = off.per_price.mul(Decimal::from_ratio(amount.u128(), 1u128));
 
-        let asset_info = verify_funds(native_funds.as_deref(), token_funds, data, &price, &denom)?;
+        verify_funds(
+            native_funds.as_deref(),
+            token_funds,
+            asset_info.clone(),
+            &price,
+        )?;
 
         let mut seller_amount = price;
 
@@ -291,8 +304,6 @@ pub fn try_withdraw(
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
     let off: Offering = get_offering(deps.as_ref(), offering_id)?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
-
     if off.seller.eq(&info.sender) || creator.eq(&info.sender.to_string()) {
         let mut cw1155_cosmos_msg: Vec<CosmosMsg> = vec![];
 
@@ -309,7 +320,7 @@ pub fn try_withdraw(
                 attr("action", "withdraw_nft"),
                 attr("seller", info.sender),
                 attr("offering_id", offering_id),
-                attr("token_id", token_id),
+                attr("token_id", off.token_id),
             ],
             data: None,
         });
@@ -406,9 +417,11 @@ pub fn try_sell_nft(
     env: Env,
     msg: SellNft,
 ) -> Result<HandleResponse, ContractError> {
-    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+    let ContractInfo {
+        governance, denom, ..
+    } = CONTRACT_INFO.load(deps.storage)?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(msg.token_id.as_str());
+    let (asset_info, token_id) = get_asset_info(msg.token_id.as_str(), &denom)?;
 
     // get unique offering. Dont allow a seller to sell when he's already selling or on auction
     let final_seller = verify_nft(
@@ -416,7 +429,6 @@ pub fn try_sell_nft(
         env.contract.address.as_str(),
         msg.contract_addr.as_str(),
         token_id.as_str(),
-        msg.token_id.as_str(),
         info.sender.as_str(),
         msg.seller,
         Some(msg.amount),
@@ -424,7 +436,7 @@ pub fn try_sell_nft(
 
     let offering = Offering {
         id: None,
-        token_id: msg.token_id.clone(),
+        token_id: token_id.clone(),
         contract_addr: msg.contract_addr.clone(),
         seller: HumanAddr(final_seller),
         per_price: msg.per_price,
@@ -439,6 +451,17 @@ pub fn try_sell_nft(
         MarketHandleMsg::UpdateOffering {
             offering: offering.clone(),
         },
+    )?);
+
+    // push save message to market payment storage
+    cosmos_msgs.push(get_handle_msg(
+        &governance,
+        PAYMENT_STORAGE,
+        PaymentHandleMsg::UpdateOfferingPayment(Payment {
+            contract_addr: msg.contract_addr.clone(),
+            token_id: token_id.clone(),
+            asset_info: asset_info.clone(),
+        }),
     )?);
 
     Ok(HandleResponse {

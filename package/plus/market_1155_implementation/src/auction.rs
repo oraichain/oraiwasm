@@ -1,20 +1,20 @@
 use crate::contract::{
-    get_asset_info, get_handle_msg, get_royalties, parse_asset_info, query_storage, verify_funds,
-    verify_nft,
+    get_asset_info, get_handle_msg, get_royalties, query_payment_auction_asset_info, query_storage,
+    verify_funds, verify_nft, PAYMENT_STORAGE,
 };
 use crate::error::ContractError;
 use crate::msg::AskNftMsg;
 // use crate::offering::OFFERING_STORAGE;
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Decimal, DepsMut, Env, HandleResponse, MessageInfo, Uint128,
-    WasmMsg,
+    attr, to_binary, Decimal, DepsMut, Env, HandleResponse, MessageInfo, Uint128, WasmMsg,
 };
 use cosmwasm_std::{Coin, HumanAddr};
 use cw1155::Cw1155ExecuteMsg;
-use market::{parse_token_id, AssetInfo, TokenInfo};
+use market::AssetInfo;
 use market_ai_royalty::{parse_transfer_msg, pay_royalties};
 use market_auction_extend::{Auction, AuctionHandleMsg, AuctionQueryMsg};
+use market_payment::{Payment, PaymentHandleMsg};
 // use market_royalty::OfferingQueryMsg;
 use std::ops::{Add, Mul, Sub};
 
@@ -67,17 +67,24 @@ pub fn try_bid_nft(
 
     let mut cosmos_msgs = vec![];
 
-    let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str());
+    let token_id = off.token_id.clone();
+    let asset_info = query_payment_auction_asset_info(
+        deps.as_ref(),
+        governance.addr().as_str(),
+        deps.api.human_address(&off.contract_addr)?,
+        &token_id,
+    )?;
+
+    println!("asset info: {:?}", asset_info);
 
     // check minimum price
     // check for enough coins, if has price then payout to all participants
     if !off_price.is_zero() {
-        let asset_info = verify_funds(
+        verify_funds(
             native_funds.as_deref(),
             token_funds,
-            data,
+            asset_info.clone(),
             &off_price,
-            &denom,
         )?;
 
         let amount = match asset_info.clone() {
@@ -158,7 +165,6 @@ pub fn try_claim_winner(
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
         fee,
-        denom,
         governance,
         decimal_point,
         ..
@@ -193,8 +199,13 @@ pub fn try_claim_winner(
     rsp.attributes.extend(vec![attr("action", "claim_winner")]);
     let mut cosmos_msgs = vec![];
 
-    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
-    let asset_info = get_asset_info(off.token_id.as_str(), &denom)?;
+    let token_id = off.token_id;
+    let asset_info = query_payment_auction_asset_info(
+        deps.as_ref(),
+        governance.addr().as_str(),
+        deps.api.human_address(&off.contract_addr)?,
+        &token_id,
+    )?;
 
     if let Some(bidder) = off.bidder {
         let bidder_addr = deps.api.human_address(&bidder)?;
@@ -272,17 +283,17 @@ pub fn handle_ask_auction(
         auction_duration,
         step_price,
         governance,
+        denom,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(msg.token_id.as_str());
+    let (asset_info, token_id) = get_asset_info(msg.token_id.as_str(), &denom)?;
 
     let final_asker = verify_nft(
         deps.as_ref(),
         env.contract.address.as_str(),
         msg.contract_addr.as_str(),
         token_id.as_str(),
-        msg.token_id.as_str(),
         info.sender.as_str(),
         msg.asker,
         Some(msg.amount),
@@ -324,7 +335,7 @@ pub fn handle_ask_auction(
     let off = Auction {
         id: None,
         contract_addr: deps.api.canonical_address(&msg.contract_addr)?,
-        token_id: msg.token_id.clone(),
+        token_id: token_id.clone(),
         asker,
         per_price: msg.per_price,
         orig_per_price: msg.per_price,
@@ -346,6 +357,17 @@ pub fn handle_ask_auction(
         &governance,
         AUCTION_STORAGE,
         AuctionHandleMsg::UpdateAuction { auction: off },
+    )?);
+
+    // push save message to market payment storage
+    cosmos_msgs.push(get_handle_msg(
+        &governance,
+        PAYMENT_STORAGE,
+        PaymentHandleMsg::UpdateAuctionPayment(Payment {
+            contract_addr: msg.contract_addr.clone(),
+            token_id: token_id.clone(),
+            asset_info: asset_info.clone(),
+        }),
     )?);
 
     Ok(HandleResponse {
@@ -370,9 +392,7 @@ pub fn try_cancel_bid(
     env: Env,
     auction_id: u64,
 ) -> Result<HandleResponse, ContractError> {
-    let ContractInfo {
-        denom, governance, ..
-    } = CONTRACT_INFO.load(deps.storage)?;
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if auction exists
     let mut off: Auction = query_storage(
@@ -382,10 +402,15 @@ pub fn try_cancel_bid(
     )
     .map_err(|_| ContractError::AuctionNotFound {})?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
+    let token_id = off.token_id.clone();
     // check if token_id is currently sold by the requesting address
     if let Some(bidder) = &off.bidder {
-        let asset_info = get_asset_info(off.token_id.as_str(), &denom)?;
+        let asset_info = query_payment_auction_asset_info(
+            deps.as_ref(),
+            governance.addr().as_str(),
+            deps.api.human_address(&off.contract_addr)?,
+            &token_id,
+        )?;
 
         let bidder_addr = deps.api.human_address(bidder)?;
         let mut cosmos_msgs = vec![];
@@ -459,7 +484,6 @@ pub fn try_emergency_cancel_auction(
     // check if token_id is currently sold by the requesting address
     let ContractInfo {
         creator,
-        denom,
         governance,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
@@ -471,8 +495,13 @@ pub fn try_emergency_cancel_auction(
         AuctionQueryMsg::GetAuctionRaw { auction_id },
     )?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
-    let asset_info = get_asset_info(token_id.as_str(), &denom)?;
+    let token_id = off.token_id;
+    let asset_info = query_payment_auction_asset_info(
+        deps.as_ref(),
+        governance.addr().as_str(),
+        deps.api.human_address(&off.contract_addr)?,
+        &token_id,
+    )?;
 
     if info.sender.to_string().ne(&creator) {
         return Err(ContractError::Unauthorized {

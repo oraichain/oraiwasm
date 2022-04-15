@@ -1,7 +1,7 @@
 use crate::ai_royalty::{add_msg_royalty, get_royalties};
 use crate::contract::{
-    get_asset_info, get_handle_msg, get_storage_addr, query_payment_asset_info, verify_funds,
-    verify_nft, verify_owner, PAYMENT_STORAGE,
+    get_asset_info, get_handle_msg, get_storage_addr, query_offering_payment_asset_info,
+    verify_funds, verify_nft, verify_owner, PAYMENT_STORAGE,
 };
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
@@ -12,9 +12,9 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{Coin, HumanAddr};
 use cw721::Cw721HandleMsg;
-use market::{parse_token_id, query_proxy, AssetInfo, StorageHandleMsg, TokenInfo};
+use market::{query_proxy, AssetInfo, StorageHandleMsg};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties, sanitize_royalty, RoyaltyMsg};
-use market_payment::{Payment, PaymentHandleMsg, PaymentQueryMsg};
+use market_payment::{Payment, PaymentHandleMsg};
 use market_royalty::{MintMsg, Offering, OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty};
 use std::ops::{Mul, Sub};
 
@@ -68,7 +68,6 @@ pub fn try_buy(
     let ContractInfo {
         governance,
         decimal_point,
-        denom,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
@@ -83,13 +82,12 @@ pub fn try_buy(
     let token_id = off.token_id;
 
     // collect payment type
-    let asset_info: AssetInfo = query_payment_asset_info(
+    let asset_info: AssetInfo = query_offering_payment_asset_info(
         deps.as_ref(),
         governance.as_str(),
         deps.api.human_address(&off.contract_addr)?,
         token_id.as_str(),
     )?;
-    // let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str());
 
     let mut cosmos_msgs = vec![];
     // check for enough coins, if has price then payout to all participants
@@ -263,7 +261,6 @@ pub fn try_withdraw(
     }
 
     let mut cosmos_msg: Vec<CosmosMsg> = vec![];
-    // let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
 
     // check if token_id is currently sold by the requesting address
     // transfer token back to original owner if market owns the nft
@@ -275,7 +272,6 @@ pub fn try_withdraw(
     )
     .is_ok()
     {
-        // let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
         let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
             recipient: deps.api.human_address(&off.seller)?,
             token_id: off.token_id.clone(),
@@ -324,8 +320,7 @@ pub fn try_handle_sell_nft(
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(initial_token_id.as_str());
-    let asset_info = get_asset_info(&initial_token_id, &denom)?;
+    let (asset_info, token_id) = get_asset_info(&initial_token_id, &denom)?;
 
     verify_nft(
         deps.as_ref(),

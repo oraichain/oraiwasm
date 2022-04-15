@@ -29,7 +29,7 @@ use cw721::{Cw721HandleMsg, Cw721QueryMsg, OwnerOfResponse};
 use market::{parse_token_id, AssetInfo, StorageHandleMsg, StorageQueryMsg, TokenInfo};
 use market_ai_royalty::sanitize_royalty;
 use market_auction::{AuctionQueryMsg, QueryAuctionsResult};
-use market_payment::{PaymentHandleMsg, PaymentQueryMsg};
+use market_payment::PaymentQueryMsg;
 use market_royalty::{Cw20HookMsg, ExtraData, OfferingQueryMsg, QueryOfferingsResult};
 use market_whitelist::{IsApprovedForAllResponse, MarketWhiteListdQueryMsg};
 use schemars::JsonSchema;
@@ -578,7 +578,7 @@ pub fn verify_funds(
         AssetInfo::NativeToken { denom } => {
             return verify_native_funds(native_funds, &denom, price);
         }
-        AssetInfo::Token { contract_addr } => {
+        AssetInfo::Token { contract_addr: _ } => {
             if token_funds.is_none() {
                 return Err(StdError::generic_err(
                     ContractError::InvalidSentFundAmount {}.to_string(),
@@ -594,13 +594,16 @@ pub fn verify_funds(
     };
 }
 
-pub fn get_asset_info(token_id: &str, default_denom: &str) -> StdResult<AssetInfo> {
-    let TokenInfo { token_id: _, data } = parse_token_id(token_id);
+pub fn get_asset_info(token_id: &str, default_denom: &str) -> StdResult<(AssetInfo, String)> {
+    let TokenInfo { token_id: id, data } = parse_token_id(token_id);
     Ok(match data {
-        None => AssetInfo::NativeToken {
-            denom: default_denom.to_string(),
-        },
-        Some(data) => parse_asset_info(from_binary(&data)?),
+        None => (
+            AssetInfo::NativeToken {
+                denom: default_denom.to_string(),
+            },
+            id,
+        ),
+        Some(data) => (parse_asset_info(from_binary(&data)?), id),
     })
 }
 
@@ -608,7 +611,7 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
 }
 
-pub fn query_payment_asset_info(
+pub fn query_offering_payment_asset_info(
     deps: Deps,
     governance: &str,
     contract_addr: HumanAddr,
@@ -618,6 +621,22 @@ pub fn query_payment_asset_info(
     Ok(deps.querier.query_wasm_smart(
         get_storage_addr(deps, governance.into(), PAYMENT_STORAGE)?,
         &ProxyQueryMsg::Msg(PaymentQueryMsg::GetOfferingPayment {
+            contract_addr,
+            token_id: token_id.into(),
+        }),
+    )?)
+}
+
+pub fn query_auction_payment_asset_info(
+    deps: Deps,
+    governance: &str,
+    contract_addr: HumanAddr,
+    token_id: &str,
+) -> StdResult<AssetInfo> {
+    // collect payment type
+    Ok(deps.querier.query_wasm_smart(
+        get_storage_addr(deps, governance.into(), PAYMENT_STORAGE)?,
+        &ProxyQueryMsg::Msg(PaymentQueryMsg::GetAuctionPayment {
             contract_addr,
             token_id: token_id.into(),
         }),
