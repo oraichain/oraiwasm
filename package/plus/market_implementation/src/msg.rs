@@ -4,6 +4,7 @@ use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_auction::{AuctionHandleMsg, AuctionQueryMsg};
 use market_first_lv_royalty::FirstLvRoyaltyQueryMsg;
+use market_payment::{PaymentHandleMsg, PaymentQueryMsg};
 use market_royalty::{MintMsg, OfferingHandleMsg, OfferingQueryMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -157,6 +158,7 @@ where
     // GetOfferings returns a list of all offerings
     Auction(AuctionQueryMsg),
     Offering(OfferingQueryMsg),
+    Payment(PaymentQueryMsg),
     Msg(T),
     Storage(StorageQueryMsg),
 }
@@ -170,6 +172,7 @@ where
     // GetOfferings returns a list of all offerings
     Auction(AuctionHandleMsg),
     Offering(OfferingHandleMsg),
+    Payment(PaymentHandleMsg),
     Msg(T),
     // update preference for ai royalty creator & provider
     Storage(StorageHandleMsg),

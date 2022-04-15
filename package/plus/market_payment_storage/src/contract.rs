@@ -1,10 +1,12 @@
 use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
-use crate::state::{ContractInfo, AUCTION_PAYMENTS, CONTRACT_INFO, OFFERING_PAYMENTS};
+use crate::state::{
+    parse_payment_key, ContractInfo, AUCTION_PAYMENTS, CONTRACT_INFO, OFFERING_PAYMENTS,
+};
 
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
-    StdResult,
+    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
+    MessageInfo, StdResult,
 };
 use market_payment::{AssetInfo, Payment, PaymentHandleMsg, PaymentQueryMsg};
 
@@ -36,19 +38,21 @@ pub fn handle(
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
     match msg {
-        HandleMsg::Payment(handle) => match handle {
+        HandleMsg::Msg(handle) => match handle {
             PaymentHandleMsg::UpdateAuctionPayment(payment) => {
                 try_update_auction_payment(deps, info, env, payment)
             }
             PaymentHandleMsg::UpdateOfferingPayment(payment) => {
                 try_update_offering_payment(deps, info, env, payment)
             }
-            PaymentHandleMsg::RemoveAuctionPayment { id } => {
-                try_remove_auction_payment(deps, info, env, id)
-            }
-            PaymentHandleMsg::RemoveOfferingPayment { id } => {
-                try_remove_offering_payment(deps, info, env, id)
-            }
+            PaymentHandleMsg::RemoveAuctionPayment {
+                contract_addr,
+                token_id,
+            } => try_remove_auction_payment(deps, info, env, contract_addr, token_id),
+            PaymentHandleMsg::RemoveOfferingPayment {
+                contract_addr,
+                token_id,
+            } => try_remove_offering_payment(deps, info, env, contract_addr, token_id),
         },
         HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
@@ -56,13 +60,15 @@ pub fn handle(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Payment(payment) => match payment {
-            PaymentQueryMsg::GetAuctionPayment { auction_id } => {
-                to_binary(&query_auction_payment(deps, auction_id)?)
-            }
-            PaymentQueryMsg::GetOfferingPayment { offering_id } => {
-                to_binary(&query_offering_payment(deps, offering_id)?)
-            }
+        QueryMsg::Msg(payment) => match payment {
+            PaymentQueryMsg::GetAuctionPayment {
+                contract_addr,
+                token_id,
+            } => to_binary(&query_auction_payment(deps, contract_addr, token_id)?),
+            PaymentQueryMsg::GetOfferingPayment {
+                contract_addr,
+                token_id,
+            } => to_binary(&query_offering_payment(deps, contract_addr, token_id)?),
             PaymentQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
         },
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
@@ -84,7 +90,11 @@ pub fn try_update_offering_payment(
         });
     };
 
-    OFFERING_PAYMENTS.save(deps.storage, &payment.id.to_be_bytes(), &payment.asset_info)?;
+    OFFERING_PAYMENTS.save(
+        deps.storage,
+        &parse_payment_key(payment.contract_addr.as_str(), payment.token_id.as_str()),
+        &payment.asset_info,
+    )?;
     let asset_info_bin = to_binary(&payment.asset_info)?;
 
     return Ok(HandleResponse {
@@ -112,7 +122,11 @@ pub fn try_update_auction_payment(
         });
     };
 
-    AUCTION_PAYMENTS.save(deps.storage, &payment.id.to_be_bytes(), &payment.asset_info)?;
+    AUCTION_PAYMENTS.save(
+        deps.storage,
+        &parse_payment_key(payment.contract_addr.as_str(), payment.token_id.as_str()),
+        &payment.asset_info,
+    )?;
     let asset_info_bin = to_binary(&payment.asset_info)?;
 
     return Ok(HandleResponse {
@@ -129,7 +143,8 @@ pub fn try_remove_offering_payment(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
-    id: u64,
+    contract_addr: HumanAddr,
+    token_id: String,
 ) -> Result<HandleResponse, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if contract_info.governance.ne(&info.sender) {
@@ -139,13 +154,17 @@ pub fn try_remove_offering_payment(
     }
 
     // remove offering
-    OFFERING_PAYMENTS.remove(deps.storage, &id.to_be_bytes());
+    OFFERING_PAYMENTS.remove(
+        deps.storage,
+        &parse_payment_key(contract_addr.as_str(), token_id.as_str()),
+    );
 
     return Ok(HandleResponse {
         messages: vec![],
         attributes: vec![
             attr("action", "remove_offering_payment"),
-            attr("offering_id", id),
+            attr("contract_addr", contract_addr),
+            attr("token_id", token_id),
         ],
         data: None,
     });
@@ -155,7 +174,8 @@ pub fn try_remove_auction_payment(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
-    id: u64,
+    contract_addr: HumanAddr,
+    token_id: String,
 ) -> Result<HandleResponse, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if contract_info.governance.ne(&info.sender) {
@@ -165,13 +185,17 @@ pub fn try_remove_auction_payment(
     }
 
     // remove auction
-    AUCTION_PAYMENTS.remove(deps.storage, &id.to_be_bytes());
+    AUCTION_PAYMENTS.remove(
+        deps.storage,
+        &parse_payment_key(contract_addr.as_str(), token_id.as_str()),
+    );
 
     return Ok(HandleResponse {
         messages: vec![],
         attributes: vec![
             attr("action", "remove_offering_payment"),
-            attr("offering_id", id),
+            attr("contract_addr", contract_addr),
+            attr("token_id", token_id),
         ],
         data: None,
     });
@@ -213,19 +237,33 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
 }
 
-pub fn query_auction_payment(deps: Deps, id: u64) -> StdResult<AssetInfo> {
+pub fn query_auction_payment(
+    deps: Deps,
+    contract_addr: HumanAddr,
+    token_id: String,
+) -> StdResult<AssetInfo> {
     let ContractInfo { default_denom, .. } = CONTRACT_INFO.load(deps.storage)?;
     Ok(AUCTION_PAYMENTS
-        .may_load(deps.storage, &id.to_be_bytes())?
+        .may_load(
+            deps.storage,
+            &parse_payment_key(contract_addr.as_str(), token_id.as_str()),
+        )?
         .unwrap_or(AssetInfo::NativeToken {
             denom: default_denom,
         })) // if we cannot find the type of payment => default is ORAI
 }
 
-pub fn query_offering_payment(deps: Deps, id: u64) -> StdResult<AssetInfo> {
+pub fn query_offering_payment(
+    deps: Deps,
+    contract_addr: HumanAddr,
+    token_id: String,
+) -> StdResult<AssetInfo> {
     let ContractInfo { default_denom, .. } = CONTRACT_INFO.load(deps.storage)?;
     Ok(OFFERING_PAYMENTS
-        .may_load(deps.storage, &id.to_be_bytes())?
+        .may_load(
+            deps.storage,
+            &parse_payment_key(contract_addr.as_str(), token_id.as_str()),
+        )?
         .unwrap_or(AssetInfo::NativeToken {
             denom: default_denom,
         })) // if we cannot find the type of payment => default is ORAI

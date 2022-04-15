@@ -29,6 +29,7 @@ use cw721::{Cw721HandleMsg, Cw721QueryMsg, OwnerOfResponse};
 use market::{parse_token_id, AssetInfo, StorageHandleMsg, StorageQueryMsg, TokenInfo};
 use market_ai_royalty::sanitize_royalty;
 use market_auction::{AuctionQueryMsg, QueryAuctionsResult};
+use market_payment::{PaymentHandleMsg, PaymentQueryMsg};
 use market_royalty::{Cw20HookMsg, ExtraData, OfferingQueryMsg, QueryOfferingsResult};
 use market_whitelist::{IsApprovedForAllResponse, MarketWhiteListdQueryMsg};
 use schemars::JsonSchema;
@@ -40,6 +41,7 @@ pub const MAX_FEE_PERMILLE: u64 = 1000;
 pub const CREATOR_NAME: &str = "creator";
 pub const FIRST_LV_ROYALTY_STORAGE: &str = "first_lv_royalty";
 pub const WHITELIST_STORAGE: &str = "whitelist_storage";
+pub const PAYMENT_STORAGE: &str = "market_721_payment_storage";
 
 fn sanitize_fee(fee: u64, limit: u64, name: &str) -> Result<u64, ContractError> {
     if fee > limit {
@@ -474,7 +476,6 @@ pub fn verify_nft(
     governance: &str,
     contract_addr: &str,
     token_id: &str,
-    initial_token_id: &str,
     sender: &str,
 ) -> Result<(), ContractError> {
     // verify ownership of token id
@@ -499,7 +500,7 @@ pub fn verify_nft(
             get_storage_addr(deps, HumanAddr::from(governance), OFFERING_STORAGE)?,
             &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingByContractTokenId {
                 contract: HumanAddr::from(contract_addr),
-                token_id: initial_token_id.to_string(),
+                token_id: token_id.to_string(),
             }) as &ProxyQueryMsg,
         )
         .map_err(|_| ContractError::InvalidGetOffering {});
@@ -515,7 +516,7 @@ pub fn verify_nft(
             get_storage_addr(deps, HumanAddr::from(governance), AUCTION_STORAGE)?,
             &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionByContractTokenId {
                 contract: HumanAddr::from(contract_addr),
-                token_id: initial_token_id.to_string(),
+                token_id: token_id.to_string(),
             }) as &ProxyQueryMsg,
         )
         .ok();
@@ -530,7 +531,7 @@ pub fn verify_native_funds(
     native_funds: Option<&[Coin]>,
     denom: &str,
     price: &Uint128,
-) -> StdResult<AssetInfo> {
+) -> StdResult<()> {
     // native case, and no extra data has been provided => use default denom, which is orai
     if native_funds.is_none() {
         return Err(StdError::generic_err(
@@ -547,9 +548,7 @@ pub fn verify_native_funds(
                 ContractError::InsufficientFunds {}.to_string(),
             ));
         } else {
-            return Ok(AssetInfo::NativeToken {
-                denom: denom.to_string(),
-            });
+            return Ok(());
         }
     } else {
         return Err(StdError::generic_err(
@@ -572,32 +571,27 @@ pub fn parse_asset_info(extra_data: ExtraData) -> AssetInfo {
 pub fn verify_funds(
     native_funds: Option<&[Coin]>,
     token_funds: Option<Uint128>,
-    extra_data: Option<Binary>,
+    asset_info: AssetInfo,
     price: &Uint128,
-    default_denom: &str,
-) -> StdResult<AssetInfo> {
-    if let Some(extra_data) = extra_data {
-        let extra: ExtraData = from_binary(&extra_data)?;
-        match extra {
-            ExtraData::AssetInfo(AssetInfo::NativeToken { denom }) => {
-                return verify_native_funds(native_funds, &denom, price);
+) -> StdResult<()> {
+    match asset_info {
+        AssetInfo::NativeToken { denom } => {
+            return verify_native_funds(native_funds, &denom, price);
+        }
+        AssetInfo::Token { contract_addr } => {
+            if token_funds.is_none() {
+                return Err(StdError::generic_err(
+                    ContractError::InvalidSentFundAmount {}.to_string(),
+                ));
             }
-            ExtraData::AssetInfo(AssetInfo::Token { contract_addr }) => {
-                if token_funds.is_none() {
-                    return Err(StdError::generic_err(
-                        ContractError::InvalidSentFundAmount {}.to_string(),
-                    ));
-                }
-                if token_funds.unwrap().lt(price) {
-                    return Err(StdError::generic_err(
-                        ContractError::InsufficientFunds {}.to_string(),
-                    ));
-                }
-                return Ok(AssetInfo::Token { contract_addr });
+            if token_funds.unwrap().lt(price) {
+                return Err(StdError::generic_err(
+                    ContractError::InsufficientFunds {}.to_string(),
+                ));
             }
-        };
-    }
-    verify_native_funds(native_funds, default_denom, price)
+            return Ok(());
+        }
+    };
 }
 
 pub fn get_asset_info(token_id: &str, default_denom: &str) -> StdResult<AssetInfo> {
@@ -614,6 +608,22 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
 }
 
+pub fn query_payment_asset_info(
+    deps: Deps,
+    governance: &str,
+    contract_addr: HumanAddr,
+    token_id: &str,
+) -> StdResult<AssetInfo> {
+    // collect payment type
+    Ok(deps.querier.query_wasm_smart(
+        get_storage_addr(deps, governance.into(), PAYMENT_STORAGE)?,
+        &ProxyQueryMsg::Msg(PaymentQueryMsg::GetOfferingPayment {
+            contract_addr,
+            token_id: token_id.into(),
+        }),
+    )?)
+}
+
 // remove recursive by query storage_addr first, then call query_proxy
 pub fn get_storage_addr(deps: Deps, contract: HumanAddr, name: &str) -> StdResult<HumanAddr> {
     deps.querier.query_wasm_smart(
@@ -628,11 +638,11 @@ pub fn get_handle_msg<T>(addr: &str, name: &str, msg: T) -> StdResult<CosmosMsg>
 where
     T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
 {
-    let offering_msg = to_binary(&ProxyHandleMsg::Msg(msg))?;
+    let msg = to_binary(&ProxyHandleMsg::Msg(msg))?;
     let proxy_msg: ProxyHandleMsg<Empty> =
         ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
             name: name.to_string(),
-            msg: offering_msg,
+            msg,
         });
 
     Ok(WasmMsg::Execute {

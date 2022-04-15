@@ -1,4 +1,7 @@
-use crate::contract::{get_asset_info, get_storage_addr, verify_funds, verify_nft, verify_owner};
+use crate::contract::{
+    get_asset_info, get_handle_msg, get_storage_addr, query_payment_asset_info, verify_funds,
+    verify_nft, verify_owner, PAYMENT_STORAGE,
+};
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
 // use crate::offering::OFFERING_STORAGE;
@@ -14,6 +17,7 @@ use cw721::Cw721HandleMsg;
 use market::{parse_token_id, query_proxy, AssetInfo, StorageHandleMsg, TokenInfo};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties, sanitize_royalty};
 use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg};
+use market_payment::{Payment, PaymentHandleMsg};
 use market_royalty::{OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty};
 // use market_royalty::OfferingQueryMsg;
 use std::ops::{Add, Mul, Sub};
@@ -46,7 +50,14 @@ pub fn try_bid_nft(
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
-    let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str());
+    let token_id = off.token_id.clone();
+    let asset_info: AssetInfo = query_payment_asset_info(
+        deps.as_ref(),
+        governance.as_str(),
+        deps.api.human_address(&off.contract_addr)?,
+        token_id.as_str(),
+    )?;
+    // let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str());
 
     // check auction started or finished, both means auction not started anymore
     if off.start_timestamp.gt(&Uint128::from(env.block.time)) {
@@ -70,12 +81,11 @@ pub fn try_bid_nft(
     // check minimum price
     // check for enough coins, if has price then payout to all participants
     if !off.price.is_zero() {
-        let asset_info: AssetInfo = verify_funds(
+        verify_funds(
             native_funds.as_deref(),
             token_funds,
-            data,
+            asset_info.clone(),
             &off.price,
-            &denom,
         )?;
 
         let off_price = &off.price;
@@ -185,7 +195,8 @@ pub fn try_claim_winner(
 
     let asker_addr = deps.api.human_address(&off.asker)?;
     let contract_addr = deps.api.human_address(&off.contract_addr)?;
-    let TokenInfo { token_id, .. } = parse_token_id(&off.token_id);
+    let token_id = off.token_id;
+    // let TokenInfo { token_id, .. } = parse_token_id(&off.token_id);
     let mut cosmos_msgs = vec![];
     if let Some(bidder) = off.bidder {
         let bidder_addr = deps.api.human_address(&bidder)?;
@@ -208,7 +219,12 @@ pub fn try_claim_winner(
         fund_amount = fund_amount.mul(Decimal::permille(1000 - fee));
         let remaining_for_royalties = fund_amount;
 
-        let asset_info = get_asset_info(&off.token_id, &denom)?;
+        let asset_info: AssetInfo = query_payment_asset_info(
+            deps.as_ref(),
+            governance.as_str(),
+            deps.api.human_address(&off.contract_addr)?,
+            token_id.as_str(),
+        )?;
 
         // pay for creator, ai provider and others
         if let Ok(royalties) = get_royalties(deps.as_ref(), contract_addr.as_str(), &token_id) {
@@ -339,17 +355,18 @@ pub fn try_handle_ask_aution(
         step_price: default_step_price,
         governance,
         max_royalty,
+        denom,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
     let TokenInfo { token_id, .. } = parse_token_id(initial_token_id.as_str());
+    let asset_info = get_asset_info(&initial_token_id, &denom)?;
 
     verify_nft(
         deps.as_ref(),
         &governance,
         &contract_addr,
         &token_id,
-        &initial_token_id,
         &info.sender,
     )?;
 
@@ -402,7 +419,7 @@ pub fn try_handle_ask_aution(
     let off = Auction {
         id: None,
         contract_addr: deps.api.canonical_address(&contract_addr)?,
-        token_id: initial_token_id.clone(), // has to use initial token id with extra binary data here so we can retrieve the extra data later
+        token_id: token_id.clone(), // has to use initial token id with extra binary data here so we can retrieve the extra data later
         asker,
         price,
         orig_price: price,
@@ -452,6 +469,17 @@ pub fn try_handle_ask_aution(
         AuctionHandleMsg::UpdateAuction { auction: off },
     )?);
 
+    // push save message to market payment storage
+    cosmos_msgs.push(get_handle_msg(
+        governance.as_str(),
+        PAYMENT_STORAGE,
+        PaymentHandleMsg::UpdateOfferingPayment(Payment {
+            contract_addr,
+            token_id: token_id.clone(),
+            asset_info: asset_info.clone(),
+        }),
+    )?);
+
     cosmos_msgs.push(get_offering_handle_msg(
         governance.clone(),
         OFFERING_STORAGE,
@@ -480,9 +508,7 @@ pub fn try_cancel_bid(
     env: Env,
     auction_id: u64,
 ) -> Result<HandleResponse, ContractError> {
-    let ContractInfo {
-        denom, governance, ..
-    } = CONTRACT_INFO.load(deps.storage)?;
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if auction exists
     let mut off: Auction = deps
@@ -494,7 +520,14 @@ pub fn try_cancel_bid(
         )
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
-    let TokenInfo { token_id, .. } = parse_token_id(&off.token_id);
+    let token_id = off.token_id.clone();
+    let asset_info: AssetInfo = query_payment_asset_info(
+        deps.as_ref(),
+        governance.as_str(),
+        deps.api.human_address(&off.contract_addr)?,
+        token_id.as_str(),
+    )?;
+    // let TokenInfo { token_id, .. } = parse_token_id(&off.token_id);
 
     // check if token_id is currently sold by the requesting address
     if let Some(bidder) = &off.bidder {
@@ -504,7 +537,7 @@ pub fn try_cancel_bid(
         if bidder_addr.eq(&info.sender) {
             let mut sent_amount = off.price;
 
-            let asset_info = get_asset_info(&off.token_id, &denom)?;
+            // let asset_info = get_asset_info(&off.token_id, &denom)?;
 
             if let Some(cancel_fee) = off.cancel_fee {
                 let asker_addr = deps.api.human_address(&off.asker)?;
@@ -573,7 +606,6 @@ pub fn try_emergency_cancel_auction(
     // check if token_id is currently sold by the requesting address
     let ContractInfo {
         creator,
-        denom,
         governance,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
@@ -598,7 +630,14 @@ pub fn try_emergency_cancel_auction(
 
     // transfer token back to original owner
     let mut cosmos_msgs = vec![];
-    let TokenInfo { token_id, .. } = parse_token_id(&off.token_id);
+    let token_id = off.token_id;
+    let asset_info: AssetInfo = query_payment_asset_info(
+        deps.as_ref(),
+        governance.as_str(),
+        deps.api.human_address(&off.contract_addr)?,
+        token_id.as_str(),
+    )?;
+    // let TokenInfo { token_id, .. } = parse_token_id(&off.token_id);
 
     // if market address is the owner => transfer back to original owner which is asker
     if verify_owner(
@@ -625,7 +664,7 @@ pub fn try_emergency_cancel_auction(
     // refund the bidder
     if let Some(bidder) = off.bidder {
         let bidder_addr = deps.api.human_address(&bidder)?;
-        let asset_info = get_asset_info(&off.token_id, &denom)?;
+        // let asset_info = get_asset_info(&off.token_id, &denom)?;
         // transfer money to previous bidder
         cosmos_msgs.push(parse_transfer_msg(
             asset_info,

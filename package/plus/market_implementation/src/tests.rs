@@ -34,6 +34,7 @@ pub const OFFERING_ADDR: &str = "offering_addr";
 pub const AI_ROYALTY_ADDR: &str = "ai_royalty_addr";
 pub const OW20_MINTER: &str = "ow20_minter";
 pub const FIRST_LV_ROYALTY_ADDR: &str = "first_lv_royalty_addr";
+pub const PAYMENT_STORAGE_ADDR: &str = "payment_storage_addr";
 pub const WHITELIST_ADDR: &str = "whitelist_addr";
 pub const CONTRACT_NAME: &str = "Auction Marketplace";
 pub const DENOM: &str = "orai";
@@ -42,6 +43,7 @@ pub const OFFERING_STORAGE: &str = "offering_v1.1";
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
 pub const WHITELIST_STORAGE: &str = "whitelist_storage";
 pub const FIRST_LV_ROYALTY_STORAGE: &str = "first_lv_royalty";
+pub const PAYMENT_STORAGE: &str = "market_721_payment_storage";
 pub const DECIMAL: u64 = MAX_DECIMAL_POINT / 100;
 
 pub const PROVIDER_NFT: &str = "providerNFT";
@@ -76,6 +78,7 @@ pub struct DepsManager {
     auction: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     ai_royalty: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     first_lv_royalty: OwnedDeps<MockStorage, MockApi, MockQuerier>,
+    payment_storage: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     whitelist: OwnedDeps<MockStorage, MockApi, MockQuerier>,
     // main deps
     deps: OwnedDeps<MockStorage, MockApi, MockQuerier>,
@@ -118,6 +121,10 @@ impl DepsManager {
                     (
                         WHITELIST_STORAGE.to_string(),
                         HumanAddr::from(WHITELIST_ADDR),
+                    ),
+                    (
+                        PAYMENT_STORAGE.to_string(),
+                        HumanAddr::from(PAYMENT_STORAGE_ADDR),
                     ),
                 ],
                 implementations: vec![HumanAddr::from(MARKET_ADDR)],
@@ -217,6 +224,19 @@ impl DepsManager {
         )
         .unwrap();
 
+        // init payment storage addr
+        let mut payment_storage =
+            mock_dependencies(HumanAddr::from(PAYMENT_STORAGE_ADDR), &[], Self::query_wasm);
+        let _res = market_payment_storage::contract::init(
+            payment_storage.as_mut(),
+            mock_env(PAYMENT_STORAGE_ADDR),
+            info.clone(),
+            market_payment_storage::msg::InitMsg {
+                governance: HumanAddr::from(HUB_ADDR),
+            },
+        )
+        .unwrap();
+
         let mut ow20 = mock_dependencies(HumanAddr::from(OW20), &[], Self::query_wasm);
         let _res = ow20::contract::init(
             ow20.as_mut(),
@@ -291,6 +311,7 @@ impl DepsManager {
             first_lv_royalty,
             ow721,
             whitelist,
+            payment_storage,
             ow20,
         }
     }
@@ -347,6 +368,13 @@ impl DepsManager {
                     .ok(),
                     FIRST_LV_ROYALTY_ADDR => market_first_level_royalty_storage::contract::handle(
                         self.first_lv_royalty.as_mut(),
+                        mock_env(HUB_ADDR),
+                        mock_info(HUB_ADDR, &[]),
+                        from_slice(msg).unwrap(),
+                    )
+                    .ok(),
+                    PAYMENT_STORAGE_ADDR => market_payment_storage::contract::handle(
+                        self.payment_storage.as_mut(),
                         mock_env(HUB_ADDR),
                         mock_info(HUB_ADDR, &[]),
                         from_slice(msg).unwrap(),
@@ -445,6 +473,12 @@ impl DepsManager {
                             )
                             .unwrap_or_default()
                         }
+                        PAYMENT_STORAGE_ADDR => market_payment_storage::contract::query(
+                            manager.payment_storage.as_ref(),
+                            mock_env(PAYMENT_STORAGE_ADDR),
+                            from_slice(msg).unwrap(),
+                        )
+                        .unwrap_or_default(),
                         OFFERING_ADDR => market_offering_storage::contract::query(
                             manager.offering.as_ref(),
                             mock_env(OFFERING_ADDR),

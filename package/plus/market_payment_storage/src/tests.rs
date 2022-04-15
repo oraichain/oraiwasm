@@ -47,8 +47,9 @@ fn remove_offering_payment() {
     // beneficiary can release it
     let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
 
-    let msg = HandleMsg::Payment(PaymentHandleMsg::UpdateOfferingPayment(Payment {
-        id: 1u64,
+    let msg = HandleMsg::Msg(PaymentHandleMsg::UpdateOfferingPayment(Payment {
+        contract_addr: HumanAddr::from("abc"),
+        token_id: "foobar".into(),
         asset_info: AssetInfo::NativeToken {
             denom: "foobar".into(),
         },
@@ -58,19 +59,28 @@ fn remove_offering_payment() {
     let res = query(
         deps.as_ref(),
         mock_env(),
-        QueryMsg::Payment(PaymentQueryMsg::GetOfferingPayment { offering_id: 1 }),
+        QueryMsg::Msg(PaymentQueryMsg::GetOfferingPayment {
+            contract_addr: HumanAddr::from("abc"),
+            token_id: "foobar".into(),
+        }),
     )
     .unwrap();
     let value: AssetInfo = from_binary(&res).unwrap();
     println!("value: {:?}", value);
 
-    let msg = HandleMsg::Payment(PaymentHandleMsg::RemoveOfferingPayment { id: 1 });
+    let msg = HandleMsg::Msg(PaymentHandleMsg::RemoveOfferingPayment {
+        contract_addr: HumanAddr::from("abc"),
+        token_id: "foobar".into(),
+    });
     let _ = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let bin = query(
         deps.as_ref(),
         mock_env(),
-        QueryMsg::Payment(PaymentQueryMsg::GetOfferingPayment { offering_id: 1 }),
+        QueryMsg::Msg(PaymentQueryMsg::GetOfferingPayment {
+            contract_addr: HumanAddr::from("abc"),
+            token_id: "foobar".into(),
+        }),
     )
     .unwrap();
     let asset_info: AssetInfo = from_binary(&bin).unwrap();
@@ -84,8 +94,9 @@ fn remove_auction_payment() {
     // beneficiary can release it
     let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
 
-    let msg = HandleMsg::Payment(PaymentHandleMsg::UpdateAuctionPayment(Payment {
-        id: 1u64,
+    let msg = HandleMsg::Msg(PaymentHandleMsg::UpdateAuctionPayment(Payment {
+        contract_addr: HumanAddr::from("abc"),
+        token_id: "foobar".into(),
         asset_info: AssetInfo::NativeToken {
             denom: "foobar".into(),
         },
@@ -95,19 +106,28 @@ fn remove_auction_payment() {
     let res = query(
         deps.as_ref(),
         mock_env(),
-        QueryMsg::Payment(PaymentQueryMsg::GetAuctionPayment { auction_id: 1 }),
+        QueryMsg::Msg(PaymentQueryMsg::GetAuctionPayment {
+            contract_addr: HumanAddr::from("abc"),
+            token_id: "foobar".into(),
+        }),
     )
     .unwrap();
     let value: AssetInfo = from_binary(&res).unwrap();
     println!("value: {:?}", value);
 
-    let msg = HandleMsg::Payment(PaymentHandleMsg::RemoveAuctionPayment { id: 1 });
+    let msg = HandleMsg::Msg(PaymentHandleMsg::RemoveAuctionPayment {
+        contract_addr: HumanAddr::from("abc"),
+        token_id: "foobar".into(),
+    });
     let _ = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let bin = query(
         deps.as_ref(),
         mock_env(),
-        QueryMsg::Payment(PaymentQueryMsg::GetAuctionPayment { auction_id: 1 }),
+        QueryMsg::Msg(PaymentQueryMsg::GetAuctionPayment {
+            contract_addr: HumanAddr::from("abc"),
+            token_id: "foobar".into(),
+        }),
     )
     .unwrap();
     let asset_info: AssetInfo = from_binary(&bin).unwrap();

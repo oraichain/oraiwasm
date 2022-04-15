@@ -1,16 +1,20 @@
 use crate::ai_royalty::{add_msg_royalty, get_royalties};
-use crate::contract::{get_storage_addr, verify_funds, verify_nft, verify_owner};
+use crate::contract::{
+    get_asset_info, get_handle_msg, get_storage_addr, query_payment_asset_info, verify_funds,
+    verify_nft, verify_owner, PAYMENT_STORAGE,
+};
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse,
-    MessageInfo, StdError, StdResult, Uint128, WasmMsg,
+    MessageInfo, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{Coin, HumanAddr};
 use cw721::Cw721HandleMsg;
-use market::{parse_token_id, query_proxy, StorageHandleMsg, TokenInfo};
+use market::{parse_token_id, query_proxy, AssetInfo, StorageHandleMsg, TokenInfo};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties, sanitize_royalty, RoyaltyMsg};
+use market_payment::{Payment, PaymentHandleMsg, PaymentQueryMsg};
 use market_royalty::{MintMsg, Offering, OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty};
 use std::ops::{Mul, Sub};
 
@@ -76,7 +80,16 @@ pub fn try_buy(
     let off: Offering = get_offering(deps.as_ref(), offering_id)?;
     let seller_addr = deps.api.human_address(&off.seller)?;
     let contract_addr = deps.api.human_address(&off.contract_addr)?;
-    let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str());
+    let token_id = off.token_id;
+
+    // collect payment type
+    let asset_info: AssetInfo = query_payment_asset_info(
+        deps.as_ref(),
+        governance.as_str(),
+        deps.api.human_address(&off.contract_addr)?,
+        token_id.as_str(),
+    )?;
+    // let TokenInfo { token_id, data } = parse_token_id(off.token_id.as_str());
 
     let mut cosmos_msgs = vec![];
     // check for enough coins, if has price then payout to all participants
@@ -93,12 +106,11 @@ pub fn try_buy(
         let remaining_for_royalties = seller_amount;
 
         // we collect asset info to check transfer method later
-        let asset_info = verify_funds(
+        verify_funds(
             native_funds.as_deref(),
             token_funds,
-            data,
+            asset_info.clone(),
             &seller_amount,
-            &denom,
         )?;
 
         // pay for creator, ai provider and others
@@ -251,22 +263,22 @@ pub fn try_withdraw(
     }
 
     let mut cosmos_msg: Vec<CosmosMsg> = vec![];
-    let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
+    // let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
 
     // check if token_id is currently sold by the requesting address
     // transfer token back to original owner if market owns the nft
     if verify_owner(
         deps.as_ref(),
         &deps.api.human_address(&off.contract_addr)?,
-        &token_id,
+        &off.token_id,
         &env.contract.address,
     )
     .is_ok()
     {
-        let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
+        // let TokenInfo { token_id, .. } = parse_token_id(off.token_id.as_str());
         let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
             recipient: deps.api.human_address(&off.seller)?,
-            token_id: token_id.clone(),
+            token_id: off.token_id.clone(),
         };
 
         let exec_cw721_transfer = WasmMsg::Execute {
@@ -290,7 +302,7 @@ pub fn try_withdraw(
             attr("action", "withdraw_nft"),
             attr("seller", info.sender),
             attr("offering_id", offering_id),
-            attr("token_id", token_id),
+            attr("token_id", off.token_id),
         ],
         data: None,
     })
@@ -308,17 +320,18 @@ pub fn try_handle_sell_nft(
     let ContractInfo {
         governance,
         max_royalty,
+        denom,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
     let TokenInfo { token_id, .. } = parse_token_id(initial_token_id.as_str());
+    let asset_info = get_asset_info(&initial_token_id, &denom)?;
 
     verify_nft(
         deps.as_ref(),
         &governance,
         &contract_addr,
         &token_id,
-        &initial_token_id,
         &info.sender,
     )?;
     let royalty = Some(sanitize_royalty(
@@ -349,7 +362,7 @@ pub fn try_handle_sell_nft(
 
     let offering = Offering {
         id: None,
-        token_id: initial_token_id.clone(), // has to use initial token id with extra binary data here so we can retrieve the extra data later
+        token_id: token_id.clone(), // has to use initial token id with extra binary data here so we can retrieve the extra data later
         contract_addr: deps.api.canonical_address(&contract_addr)?,
         seller: deps.api.canonical_address(&info.sender)?,
         price: off_price,
@@ -363,6 +376,17 @@ pub fn try_handle_sell_nft(
         OfferingHandleMsg::UpdateOffering {
             offering: offering.clone(),
         },
+    )?);
+
+    // push save message to market payment storage
+    cosmos_msgs.push(get_handle_msg(
+        governance.as_str(),
+        PAYMENT_STORAGE,
+        PaymentHandleMsg::UpdateOfferingPayment(Payment {
+            contract_addr,
+            token_id: token_id.clone(),
+            asset_info: asset_info.clone(),
+        }),
     )?);
 
     // update offering royalty result

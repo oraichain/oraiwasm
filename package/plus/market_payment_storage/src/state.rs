@@ -12,6 +12,10 @@ pub struct ContractInfo {
     pub default_denom: String,
 }
 
+pub fn parse_payment_key(contract_addr: &str, token_id: &str) -> Vec<u8> {
+    return [contract_addr.as_bytes(), token_id.as_bytes()].concat();
+}
+
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("payment_storage_info");
 
 pub const OFFERING_PAYMENTS: Map<&[u8], AssetInfo> = Map::new("offering_payments");
