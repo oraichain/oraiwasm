@@ -6,7 +6,7 @@ use crate::state::{
 
 use cosmwasm_std::{
     attr, from_binary, from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse,
-    HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdResult, KV,
+    HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError, StdResult, KV,
 };
 use cw_storage_plus::Bound;
 use market_payment::{
@@ -391,7 +391,13 @@ fn parse_payment_response<'a>(item: StdResult<KV<AssetInfo>>) -> StdResult<Payme
     item.and_then(|(key, value)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array
-        let payment_key: PaymentKey = from_slice(&key)?;
+        let payment_key: PaymentKey = from_slice(&key).map_err(|err| {
+            StdError::generic_err(format!(
+                "There's a problem parsing payment key with err: {}. data: {}",
+                err.to_string(),
+                Binary::from(key).to_base64(),
+            ))
+        })?;
         Ok(PaymentResponse {
             contract_addr: payment_key.contract_addr,
             token_id: payment_key.token_id,
