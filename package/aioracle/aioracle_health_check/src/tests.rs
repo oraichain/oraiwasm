@@ -360,7 +360,7 @@ fn test_claim() {
     )
     .unwrap();
 
-    // ping one more time, reward claim should be 1 now
+    // ping one more time, reward claim should be 1 now because max reward claim is 1
 
     // ping successfully
     app.execute_contract(
