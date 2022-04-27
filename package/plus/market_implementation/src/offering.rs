@@ -13,7 +13,7 @@ use cosmwasm_std::{
 use cosmwasm_std::{Coin, HumanAddr};
 use cw721::Cw721HandleMsg;
 use market::{query_proxy, AssetInfo, StorageHandleMsg};
-use market_ai_royalty::{parse_transfer_msg, pay_royalties, sanitize_royalty, RoyaltyMsg};
+use market_ai_royalty::{parse_transfer_msg, pay_royalties, sanitize_royalty, Royalty, RoyaltyMsg};
 use market_payment::{Payment, PaymentHandleMsg};
 use market_royalty::{MintMsg, Offering, OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty};
 use std::ops::{Mul, Sub};
@@ -111,21 +111,7 @@ pub fn try_buy(
             &seller_amount,
         )?;
 
-        // pay for creator, ai provider and others
-        if let Ok(royalties) = get_royalties(deps.as_ref(), contract_addr.as_str(), &token_id) {
-            pay_royalties(
-                &royalties,
-                &remaining_for_royalties,
-                decimal_point,
-                &mut seller_amount,
-                &mut cosmos_msgs,
-                &mut rsp,
-                env.contract.address.as_str(),
-                &to_binary(&asset_info)?.to_base64(),
-                asset_info.clone(),
-            )?;
-        }
-
+        // corner case for 721 which has previous owner
         let mut offering_royalty_result: OfferingRoyalty = deps
             .querier
             .query_wasm_smart(
@@ -137,23 +123,32 @@ pub fn try_buy(
             )
             .map_err(|err| ContractError::Std(err))?;
 
-        // payout for the previous owner
-        if offering_royalty_result.previous_owner.is_some()
-            && offering_royalty_result.prev_royalty.is_some()
-        {
-            let owner_amount = remaining_for_royalties.mul(Decimal::from_ratio(
-                offering_royalty_result.prev_royalty.unwrap(),
-                decimal_point,
-            ));
-            if owner_amount.gt(&Uint128::from(0u128)) {
-                seller_amount = seller_amount.sub(owner_amount)?;
-                cosmos_msgs.push(parse_transfer_msg(
-                    asset_info.clone(),
-                    owner_amount,
-                    env.contract.address.as_str(),
-                    offering_royalty_result.previous_owner.unwrap(),
-                )?);
+        // pay for creator, ai provider and others
+        if let Ok(mut royalties) = get_royalties(deps.as_ref(), contract_addr.as_str(), &token_id) {
+            // payout for the previous owner
+            if offering_royalty_result.previous_owner.is_some()
+                && offering_royalty_result.prev_royalty.is_some()
+            {
+                royalties.push(Royalty {
+                    contract_addr: offering_royalty_result.contract_addr.clone(),
+                    token_id: offering_royalty_result.token_id.clone(),
+                    creator: offering_royalty_result.previous_owner.unwrap(),
+                    royalty: offering_royalty_result.prev_royalty.unwrap(),
+                    creator_type: "previous_owner".into(),
+                })
             }
+
+            pay_royalties(
+                &royalties,
+                &remaining_for_royalties,
+                decimal_point,
+                &mut seller_amount,
+                &mut cosmos_msgs,
+                &mut rsp,
+                env.contract.address.as_str(),
+                &to_binary(&asset_info)?.to_base64(),
+                asset_info.clone(),
+            )?;
         }
 
         // update offering royalty result, current royalty info now turns to prev
