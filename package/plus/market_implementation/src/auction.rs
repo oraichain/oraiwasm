@@ -450,6 +450,7 @@ pub fn try_handle_ask_aution(
             cur_royalty: royalty,
         });
     offering_royalty_result.current_owner = info.sender.clone();
+    offering_royalty_result.cur_royalty = royalty;
 
     // add new auctions
     let mut cosmos_msgs = vec![];
