@@ -1,4 +1,4 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::{Binary, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -92,4 +92,10 @@ pub struct AIRequestsResponse {
 pub enum DataSourceQueryMsg {
     Get { input: String },
     GetFees {},
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct InitHook {
+    pub msg: Binary,
+    pub contract_addr: HumanAddr,
 }

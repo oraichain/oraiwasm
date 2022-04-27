@@ -679,8 +679,8 @@ fn claim_test(){
   unsafe {
       let manager = DepsManager::get_new();
       create_collection_pool_info_helper(manager, "1".to_string(), Uint128::from(1736u64*10u64.pow(9)));
-        create_mock_nft_for_user(manager, "staker_1".to_string());
-        create_mock_nft_for_user(manager, "staker_2".to_string());
+      create_mock_nft_for_user(manager, "staker_1".to_string());
+      create_mock_nft_for_user(manager, "staker_2".to_string());
 
         let mut contract_env = mock_env(CONTRACT_ADDR);
 
