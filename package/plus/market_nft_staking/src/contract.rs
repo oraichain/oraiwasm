@@ -475,7 +475,7 @@ fn handle_stake(
                 staked_tokens: vec![],
             };
 
-            collection_staker_infos().save(
+            collection_staker_infos().save(                
                 deps.storage,
                 &staker_info.id.unwrap().to_be_bytes(),
                 &staker_info,
@@ -618,7 +618,22 @@ fn update_collection_pool(
         return Ok(updated_collection_pool_info);
     } else {
         // Update accumulate_per_share and last_block_reward
-        let multiplier = env.block.height - collection_pool_info.last_reward_block;
+
+        let multiplier;
+        match collection_pool_info.expired_block {
+            Some(expired_block) => {
+              //If current_block is greater than expired_block, then return
+              if collection_pool_info.last_reward_block > expired_block {
+                return  Ok(collection_pool_info);
+              }else{
+                multiplier = std::cmp::min::<u64>(expired_block,env.block.height) - collection_pool_info.last_reward_block;
+              }
+            },
+            None => {
+              multiplier = env.block.height - collection_pool_info.last_reward_block;
+            }
+        }
+        
         let airi_reward = checked_mul(
             collection_pool_info.reward_per_block,
             Uint128::from(multiplier),
@@ -1037,6 +1052,19 @@ fn current_pending(
     let collection_pool_info = COLLECTION_POOL_INFO
         .load(deps.storage, collection_id.clone().as_bytes())
         .unwrap();
+
+    // Check if current_block is greater than expired_block then return 
+    // match collection_pool_info.expired_block {
+    //   Some(expired_block) => {
+    //     if env.block.height > expired_block {
+    //       println!("AAAAA {}",staker_info.pending.clone());
+    //       return Ok(staker_info.pending);
+    //     }
+    //   },
+    //   None => {
+    //   }
+    // }
+
     let mut acc_per_share_view = collection_pool_info.acc_per_share.clone();
     if env.block.height > collection_pool_info.last_reward_block
         && collection_pool_info.total_nfts.ne(&Uint128::from(0u128))
@@ -1051,7 +1079,7 @@ fn current_pending(
             collection_pool_info.total_nfts.clone(),
         )?);
     }
-    if staker_info.total_staked.gt(&Uint128::from(0u128)) {
+    if staker_info.total_staked.gt(&Uint128::from(0u128)){
         Ok(checked_sub(
             checked_mul(staker_info.total_staked, acc_per_share_view)?.add(staker_info.pending),
             staker_info.reward_debt,

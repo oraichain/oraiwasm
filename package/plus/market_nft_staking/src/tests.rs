@@ -201,7 +201,7 @@ fn create_collection_pool_info_helper(
     let msg = CreateCollectionPoolMsg {
         collection_id,
         reward_per_block,
-        expired_after: None
+        expired_after: Some(1000u64)
     };
     let _ = manager.handle(
         mock_info(CREATOR, &[]),
@@ -695,8 +695,8 @@ fn claim_test(){
                 amount: Uint128::from(4u128),
                 msg: to_binary(&DepositeMsg {
                     collection_id: "1".to_string(),
-                    withdraw_rewards: false,
-                    signature_hash: "SA2aNAT9dkIo+bVy5jHoZl77HLY/FVUOYPe40JVSPydElbJ77zmbc3RJiViznZO5zHL93dF51TFJu8WkYR4keg==".to_string(),
+                    withdraw_rewards: true,
+                    signature_hash: "UKw/MEYZ8LDfaDPJAcMm7lg1aD6hkP2/4s28v2OjXa5U7OG5mxe56JN0QdhV43EQZ5LSaki2QwnRhV9e/g5IAA==".to_string(),
                 })
                 .unwrap(),
             }),
@@ -717,8 +717,8 @@ fn claim_test(){
             token_id: "staker_2_721_1".to_string(),
             msg: Some(to_binary(&DepositeMsg{
               collection_id: "1".to_string(),
-              withdraw_rewards: false,
-              signature_hash: "IMjsODn9zFJ381wQbtyTg6LNhlM1nL42u4DHZkD9BLsjVTQVvzYyK6IVMvpeqsqj3Dq6wGl8cF165scHHTZmXg==".to_string()
+              withdraw_rewards: true,
+              signature_hash: "iInZIonuDpz+bC5/aq7e899RR7ON0N4oWCYm1/m8tnZXgGGj4EboMe+cb5uDsefQBdNN4c7vXGleoJJTRwMyfQ==".to_string()
             }).unwrap())
           })
         );
@@ -749,10 +749,10 @@ fn claim_test(){
               .unwrap();
 
       let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
-      println!("stakers info {:?}", new_staker_info);
+      println!("stakers info {:?}\n", new_staker_info);
       
       let res = manager.handle(mock_info(CREATOR, &[]), contract_env.clone(), HandleMsg::ResetEarnedRewards {collection_id: "1".to_string(), staker: HumanAddr::from("staker_1")});
-      println!("res {:?}",res);
+      println!("res {:?}\n",res);
 
       let res = manager
       .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
@@ -764,7 +764,34 @@ fn claim_test(){
       .unwrap();
 
       let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
-      println!("stakers info {:?}", new_staker_info);
+      println!("stakers info {:?}\n", new_staker_info);
+      
+      contract_env.block.height = 13_345;
+      let res = manager
+      .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
+          collection_id: "1".to_string(),
+          limit: None,
+          offset: None,
+          order: None,
+      })
+      .unwrap();
+
+      let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+      println!("stakers info after 1000 block{:?}\n", new_staker_info);
+
+      contract_env.block.height = 13_346;
+      let res = manager
+      .query(contract_env.clone(),QueryMsg::GetCollectionStakerInfoByCollection {
+          collection_id: "1".to_string(),
+          limit: None,
+          offset: None,
+          order: None,
+      })
+      .unwrap();
+
+      let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+      println!("stakers info after 2000 block{:?}\n", new_staker_info);
+
   }
 }
 
