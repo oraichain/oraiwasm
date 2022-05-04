@@ -1,8 +1,10 @@
 use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
+use cw20::Cw20ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_auction::{AuctionHandleMsg, AuctionQueryMsg};
 use market_first_lv_royalty::FirstLvRoyaltyQueryMsg;
+use market_payment::{PaymentHandleMsg, PaymentQueryMsg};
 use market_royalty::{MintMsg, OfferingHandleMsg, OfferingQueryMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -17,11 +19,17 @@ pub struct InitMsg {
     pub step_price: u64,
     pub governance: HumanAddr,
     pub max_royalty: u64,
+    pub max_decimal_point: u64,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+
+pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
+    Receive(Cw20ReceiveMsg),
     // this require bidder to pay fee for asker
     CancelBid {
         auction_id: u64,
@@ -150,6 +158,7 @@ where
     // GetOfferings returns a list of all offerings
     Auction(AuctionQueryMsg),
     Offering(OfferingQueryMsg),
+    Payment(PaymentQueryMsg),
     Msg(T),
     Storage(StorageQueryMsg),
 }
@@ -163,6 +172,7 @@ where
     // GetOfferings returns a list of all offerings
     Auction(AuctionHandleMsg),
     Offering(OfferingHandleMsg),
+    Payment(PaymentHandleMsg),
     Msg(T),
     // update preference for ai royalty creator & provider
     Storage(StorageHandleMsg),

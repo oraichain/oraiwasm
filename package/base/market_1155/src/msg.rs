@@ -1,7 +1,21 @@
 use cosmwasm_std::{HumanAddr, Uint128};
 
+use market::AssetInfo;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Cw20HookMsg {
+    BuyNft { offering_id: u64, amount: Uint128 },
+    BidNft { auction_id: u64, per_price: Uint128 },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ExtraData {
+    AssetInfo(AssetInfo),
+}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Offering {
