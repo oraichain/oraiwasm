@@ -1,16 +1,25 @@
 use crate::error::ContractError;
-use crate::msg::{GetServiceFees, HandleMsg, InitMsg, QueryMsg};
-use crate::state::{Contracts, OWNER, SERVICE_CONTRACTS, SERVICE_FEES_CONTRACT};
+use crate::msg::{GetServiceFees, HandleMsg, InitMsg, MigrateMsg, QueryMsg};
+use crate::state::{
+    Contracts, BOUND_EXECUTOR_FEE, OWNER, SERVICE_CONTRACTS, SERVICE_FEES_CONTRACT,
+};
 use aioracle_base::{GetServiceFeesMsg, Reward, ServiceFeesResponse};
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, StdResult,
+    attr, to_binary, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
+    MessageInfo, MigrateResponse, StdResult,
 };
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
     SERVICE_CONTRACTS.save(deps.storage, msg.service.as_bytes(), &msg.service_contracts)?;
     SERVICE_FEES_CONTRACT.save(deps.storage, &msg.service_fees_contract)?;
     OWNER.save(deps.storage, &info.sender)?;
+    BOUND_EXECUTOR_FEE.save(
+        deps.storage,
+        &Coin {
+            denom: String::from("orai"),
+            amount: msg.bound_executor_fee,
+        },
+    )?;
     Ok(InitResponse::default())
 }
 
@@ -28,8 +37,31 @@ pub fn handle(
         HandleMsg::UpdateConfig {
             owner,
             service_fees_contract,
-        } => handle_update_config(deps, info, owner, service_fees_contract),
+            bound_executor_fee,
+        } => handle_update_config(deps, info, owner, service_fees_contract, bound_executor_fee),
     }
+}
+
+pub fn migrate(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: MigrateMsg,
+) -> StdResult<MigrateResponse> {
+    // // if old_version.version != CONTRACT_VERSION {
+    // //     return Err(StdError::generic_err(format!(
+    // //         "This is {}, cannot migrate from {}",
+    // //         CONTRACT_VERSION, old_version.version
+    // //     )));
+    // // }
+
+    // migrate_v02_to_v03(deps.storage, msg)?;
+
+    // once we have "migrated", set the new version and return success
+    Ok(MigrateResponse {
+        attributes: vec![],
+        ..MigrateResponse::default()
+    })
 }
 
 pub fn handle_update_config(
@@ -37,6 +69,7 @@ pub fn handle_update_config(
     info: MessageInfo,
     owner: Option<HumanAddr>,
     service_fees_contract: Option<HumanAddr>,
+    bound_executor_fee: Option<Coin>,
 ) -> Result<HandleResponse, ContractError> {
     let cur_owner = OWNER.load(deps.storage)?;
     if info.sender.ne(&cur_owner) {
@@ -47,6 +80,10 @@ pub fn handle_update_config(
     }
     if let Some(service_fees_contract) = service_fees_contract {
         SERVICE_FEES_CONTRACT.save(deps.storage, &service_fees_contract)?;
+    }
+
+    if let Some(bound_executor_fee) = bound_executor_fee {
+        BOUND_EXECUTOR_FEE.save(deps.storage, &bound_executor_fee)?;
     }
     Ok(HandleResponse {
         attributes: vec![attr("action", "update_config")],
@@ -60,7 +97,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&get_service_contracts(deps, service)?)
         }
         QueryMsg::ServiceFeeMsg { service } => to_binary(&get_service_fees(deps, service)?),
+        QueryMsg::GetParticipantFee { addr } => to_binary(&get_participant_fee(deps, addr)?),
+        QueryMsg::GetBoundExecutorFee {} => to_binary(&get_bound_executor_fee(deps)?),
     }
+}
+
+pub fn get_bound_executor_fee(deps: Deps) -> StdResult<Coin> {
+    BOUND_EXECUTOR_FEE.load(deps.storage)
 }
 
 pub fn handle_update_service_contracts(
@@ -107,7 +150,32 @@ fn get_service_fees(deps: Deps, service: String) -> StdResult<Vec<Reward>> {
         &vec![contracts.oscript],
         &service_fees_contract,
     )?);
+
+    // let bound_executor_fee = MAX_EXECUTOR_FEE.load(deps.storage)?;
+    // // add a reward for an executor with maximum rewards required
+    // rewards.push((
+    //     HumanAddr::from("placeholder"),
+    //     bound_executor_fee.denom,
+    //     bound_executor_fee.amount,
+    // ));
+
     Ok(rewards)
+}
+
+fn get_participant_fee(deps: Deps, addr: HumanAddr) -> StdResult<Coin> {
+    let service_fees_contract = SERVICE_FEES_CONTRACT.load(deps.storage)?;
+    let reward_result: ServiceFeesResponse = deps.querier.query_wasm_smart(
+        service_fees_contract.clone(),
+        &GetServiceFees {
+            get_service_fees: GetServiceFeesMsg {
+                addr: addr.to_owned(),
+            },
+        },
+    )?;
+    Ok(Coin {
+        denom: reward_result.fees.denom,
+        amount: reward_result.fees.amount,
+    })
 }
 
 fn collect_rewards(
@@ -134,5 +202,6 @@ fn collect_rewards(
             ));
         }
     }
+
     Ok(rewards)
 }

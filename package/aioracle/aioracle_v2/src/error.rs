@@ -14,8 +14,23 @@ pub enum ContractError {
     Unauthorized {},
     #[error("Insufficient funds")]
     InsufficientFunds {},
+    #[error("Insufficient funds contract fees")]
+    InsufficientFundsContractFees {},
+    #[error("Insufficient funds bound executor fees")]
+    InsufficientFundsBoundFees {},
+    #[error("Insufficient funds request fees")]
+    InsufficientFundsRequestFees {},
     #[error("Already submitted")]
     AlreadySubmitted {},
+
+    #[error("Empty trusting pool data")]
+    EmptyTrustingPool {},
+
+    #[error("Cannot withdraw fees from pool because has not finished trusting period")]
+    InvalidTrustingPeriod {},
+
+    #[error("Cannot withdraw fees because amount is either zero or greater than amount in the withdraw pool")]
+    InvalidWithdrawAmount {},
 
     #[error("No request to process")]
     NoRequest {},
@@ -34,6 +49,9 @@ pub enum ContractError {
 
     #[error("Already claimed")]
     Claimed {},
+
+    #[error("Evidence already submitted & handled")]
+    AlreadyFinishedEvidence {},
 
     #[error("Request already finished")]
     AlreadyFinished {},
