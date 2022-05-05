@@ -13,7 +13,7 @@ use crate::allowances::{
 use crate::enumerable::{query_all_accounts, query_all_allowances};
 use crate::error::ContractError;
 use crate::migrations::migrate_v01_to_v02;
-use crate::msg::{HandleMsg, InitMsg, MigrateMsg, QueryMsg};
+use crate::msg::{HandleMsg, InitMsg, MigrateMsg, QueryMsg, TransferInfo};
 use crate::state::{balances, balances_read, token_info, token_info_read, MinterData, TokenInfo};
 
 // version info for migration info
@@ -78,6 +78,9 @@ pub fn handle(
     match msg {
         HandleMsg::Transfer { recipient, amount } => {
             handle_transfer(deps, env, info, recipient, amount)
+        }
+        HandleMsg::MultiTransfer { transfer_infos } => {
+            handle_multi_transfer(deps, env, info, transfer_infos)
         }
         HandleMsg::Burn { amount } => handle_burn(deps, env, info, amount),
         HandleMsg::Send {
@@ -228,6 +231,39 @@ pub fn handle_transfer(
             attr("from", deps.api.human_address(&sender_raw)?),
             attr("to", recipient),
             attr("amount", amount),
+        ],
+        data: None,
+    };
+    Ok(res)
+}
+
+pub fn handle_multi_transfer(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    transfer_infos: Vec<TransferInfo>,
+) -> Result<HandleResponse, ContractError> {
+    let sender_raw = deps.api.canonical_address(&info.sender)?;
+    for transfer_info in transfer_infos.into_iter() {
+        let recipient = transfer_info.recipient;
+        let amount = transfer_info.amount;
+        let rcpt_raw = deps.api.canonical_address(&recipient)?;
+
+        let mut accounts = balances(deps.storage);
+        accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
+            balance.unwrap_or_default() - amount
+        })?;
+        accounts.update(
+            rcpt_raw.as_slice(),
+            |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
+        )?;
+    }
+
+    let res = HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("action", "multi_transfer"),
+            attr("from", deps.api.human_address(&sender_raw)?),
         ],
         data: None,
     };
@@ -925,6 +961,47 @@ mod tests {
         let remainder = (amount1 - transfer).unwrap();
         assert_eq!(get_balance(deps.as_ref(), &addr1), remainder);
         assert_eq!(get_balance(deps.as_ref(), &addr2), transfer);
+        assert_eq!(
+            query_token_info(deps.as_ref()).unwrap().total_supply,
+            amount1
+        );
+    }
+
+    #[test]
+    fn multi_transfer() {
+        let mut deps = mock_dependencies(&coins(2, "token"));
+        let addr1 = HumanAddr::from("addr0001");
+        let addr2 = HumanAddr::from("addr0002");
+        let addr3 = HumanAddr::from("addr0003");
+        let amount1 = Uint128::from(12340000u128);
+        let transfer1 = Uint128::from(76543u128);
+        let transfer2 = Uint128::from(10000u128);
+
+        do_init(deps.as_mut(), &addr1, amount1);
+
+        // cannot transfer nothing
+        let info = mock_info(addr1.clone(), &[]);
+        let env = mock_env();
+        let msg = HandleMsg::MultiTransfer {
+            transfer_infos: [
+                TransferInfo {
+                    recipient: addr2.clone(),
+                    amount: transfer1,
+                },
+                TransferInfo {
+                    recipient: addr3.clone(),
+                    amount: transfer2,
+                },
+            ]
+            .to_vec(),
+        };
+        let res = handle(deps.as_mut(), env, info, msg);
+
+        let mut remainder = (amount1 - transfer1).unwrap();
+        remainder = (remainder - transfer2).unwrap();
+        assert_eq!(get_balance(deps.as_ref(), &addr1), remainder);
+        assert_eq!(get_balance(deps.as_ref(), &addr2), transfer1);
+        assert_eq!(get_balance(deps.as_ref(), &addr3), transfer2);
         assert_eq!(
             query_token_info(deps.as_ref()).unwrap().total_supply,
             amount1
