@@ -9,6 +9,11 @@ pub enum ContractError {
     #[error("Unauthorized")]
     Unauthorized {},
 
+    #[error(
+        "Your wallet is in the early AI Executor Whitelist. You cannot claim your reward now."
+    )]
+    InWhiteList {},
+
     #[error("Unauthorized. Executor is inactive or is not in the list")]
     UnauthorizedExecutor {},
 

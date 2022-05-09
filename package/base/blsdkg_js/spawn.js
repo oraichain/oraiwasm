@@ -3,7 +3,6 @@ const { spawn } = require('child_process');
 let array = [
     'dev1',
     'dev2',
-    'dev3',
 ];
 
 for (let i = 0; i < 3; i++) {

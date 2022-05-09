@@ -1,6 +1,7 @@
 use std::fmt;
 
 use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
+use cw20::Cw20ReceiveMsg;
 use market::{StorageHandleMsg, StorageQueryMsg};
 use market_1155::{MarketQueryMsg, MintMsg};
 use market_ai_royalty::AiRoyaltyQueryMsg;
@@ -18,8 +19,12 @@ pub struct InitMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
+    Receive(Cw20ReceiveMsg),
     // Ask an NFT for a minimum price, must pay fee for auction maketplace
     SellNft(SellNft),
 

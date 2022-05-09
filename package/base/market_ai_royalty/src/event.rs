@@ -26,7 +26,7 @@ impl<'a> Event for RoyaltiesEvent<'a> {
         for royalty in self.royalties_event {
             rsp.attributes.push(attr(
                 format!("royalty_{}_{}", royalty.creator, royalty.royalty),
-                format!("{}{}", royalty.amount, royalty.denom),
+                format!("{}_{}", royalty.amount, royalty.denom),
             ));
         }
         rsp.attributes.push(attr("action", "finish_pay_royalty"));

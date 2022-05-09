@@ -5,7 +5,10 @@ use cosmwasm_std::{
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::{MarketHubHandleMsg, MarketHubQueryMsg, StorageHandleMsg, StorageQueryMsg};
+use crate::{
+    MarketHubHandleMsg, MarketHubQueryMsg, StorageHandleMsg, StorageQueryMsg, TokenIdInfo,
+    TokenInfo,
+};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
 pub struct AdminList {
@@ -113,6 +116,30 @@ pub fn query_proxy(deps: Deps, addr: HumanAddr, msg: Binary) -> StdResult<Binary
             contract_err
         ))),
         SystemResult::Ok(ContractResult::Ok(value)) => Ok(value),
+    }
+}
+
+pub fn parse_token_id(token_id: &str) -> TokenInfo {
+    let token_id_bin = Binary::from_base64(token_id);
+    // backward compatibility. If we cannot parse base64 => we assume that the token id is in raw state
+    if token_id_bin.is_err() {
+        return TokenInfo {
+            token_id: token_id.to_string(),
+            data: None,
+        };
+    }
+    let token_id_info_result: StdResult<TokenIdInfo> = from_binary(&token_id_bin.unwrap());
+
+    // if error then it means the structure is wrong, or the nft has a suprisingly id that is valid in base64 => by default, we will use the token id directly
+    if token_id_info_result.is_err() {
+        return TokenInfo {
+            token_id: token_id.to_string(),
+            data: None,
+        };
+    }
+    // else we parse to correct structure
+    match token_id_info_result.unwrap() {
+        TokenIdInfo::TokenInfo(token_info) => token_info,
     }
 }
 

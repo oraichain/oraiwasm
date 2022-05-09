@@ -58,12 +58,21 @@ fn is_valid_symbol(symbol: &str) -> bool {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct TransferInfo {
+    pub recipient: HumanAddr,
+    pub amount: Uint128,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
     /// Transfer is a base message to move tokens to another account without triggering actions
     Transfer {
         recipient: HumanAddr,
         amount: Uint128,
+    },
+    MultiTransfer {
+        transfer_infos: Vec<TransferInfo>,
     },
     /// Burn is a base message to destroy tokens forever
     Burn {

@@ -85,7 +85,7 @@ pub fn migrate(
     // //     )));
     // // }
 
-    migrate_v01_to_v02(deps.storage, msg)?;
+    // migrate_v01_to_v02(deps.storage, msg)?;
 
     // once we have "migrated", set the new version and return success
     // set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -210,6 +210,25 @@ pub fn claim_reward(
     let addr = pubkey_to_address(&pubkey)?;
     if addr.ne(&info.sender) {
         return Err(ContractError::Unauthorized {});
+    }
+
+    let addr_list = vec![
+        "orai13h0hzhs7sc29dnek6zadj27px9yrl98zvrp7fw",
+        "orai1lyme8keeegt4daczn55e9zzylnw05ucwzpvy4s",
+        "orai1wsjh3l8y4zjgtchmqpt7dmmyt2n3nw7vku5vjs",
+        "orai1nhcq3rlzk73r9we6j0pzltazy25u8v0ll57l6v",
+        "orai1eh9erylfuekxzslz5ypptyfx3dqjl9sp5laefe",
+        "orai1yc9nysml8dxy447hp3aytr0nssr9pd9au5yhrp",
+        "orai1uhcwtfntsvk8gpwfxltesyl4e28aalmqvx7typ",
+        "orai1vnurryf5y66fm9kawvqfgcdz9gz2ml0appksj4",
+        "orai19g2jsndnfs4m7z4ctefv4nz6jpxqgjl83s7uuc",
+        "orai10pdurswlmj6dex7vsm3sqhtxfwr9zemdc5zxfv",
+        "orai1wfw4pys5m6cga0t4v9u9xspnzv9fchkdhtlqjr",
+        "orai1uqcfz6eey36n06fv366xtc5ugjzjk5t7r9xfw3",
+        "orai1jmgjtx7mt09g23azthyzx0qznvk3tfep2g48cg",
+    ];
+    if addr_list.contains(&addr.as_str()) {
+        return Err(ContractError::InWhiteList {});
     }
 
     let State {
