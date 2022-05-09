@@ -23,6 +23,9 @@ pub enum ContractError {
     #[error("Already submitted")]
     AlreadySubmitted {},
 
+    #[error("Cannot rejoin before block {block}")]
+    RejoinError { block: u64 },
+
     #[error("Empty trusting pool data")]
     EmptyTrustingPool {},
 

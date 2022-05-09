@@ -2,7 +2,7 @@ use aioracle_base::{Executor, GetServiceFeesMsg, Reward, ServiceMsg};
 use cosmwasm_std::{
     attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError,
-    StdResult, Storage, Uint128, WasmMsg, KV,
+    StdResult, Uint128, KV,
 };
 
 use cw2::set_contract_version;
@@ -12,19 +12,23 @@ use cw_storage_plus::Bound;
 use ripemd::{Digest as RipeDigest, Ripemd160};
 use sha2::Digest;
 use std::convert::TryInto;
-use std::ops::{Add, Mul, Sub};
+use std::ops::Mul;
 
 use crate::error::ContractError;
+use crate::executors::{
+    handle_prepare_withdraw_pool, process_executors_pool, query_bound_executor_fee, query_executor,
+    query_executor_size, query_executors, query_executors_by_index, query_trusting_pool,
+    query_trusting_pools, remove_executors, save_executors, update_executors,
+};
 use crate::migrations::migrate_v02_to_v03;
 use crate::msg::{
-    BoundExecutorFeeMsg, CurrentStageResponse, ExecutorsResponse, GetBoundExecutorFee,
-    GetParticipantFee, GetServiceContracts, GetServiceFees, HandleMsg, InitMsg, IsClaimedResponse,
-    LatestStageResponse, MigrateMsg, QueryMsg, Report, RequestResponse, StageInfo,
-    TrustingPoolResponse, UpdateConfigMsg,
+    CurrentStageResponse, GetParticipantFee, GetServiceContracts, GetServiceFees, HandleMsg,
+    InitMsg, IsClaimedResponse, LatestStageResponse, MigrateMsg, QueryMsg, Report, RequestResponse,
+    StageInfo, UpdateConfigMsg,
 };
 use crate::state::{
-    executors_map, requests, Config, Contracts, Request, TrustingPool, CHECKPOINT, CLAIM, CONFIG,
-    EVIDENCES, EXECUTORS_INDEX, EXECUTORS_TRUSTING_POOL, LATEST_STAGE,
+    executors_map, requests, Config, Contracts, Request, CHECKPOINT, CLAIM, CONFIG, EVIDENCES,
+    EXECUTORS_INDEX, LATEST_STAGE,
 };
 use std::collections::HashMap;
 
@@ -33,13 +37,14 @@ pub const MAXIMUM_REQ_THRESHOLD: u64 = 67;
 // 7 days in blocks (avg 6 secs / block)
 pub const TRUSTING_PERIOD: u64 = 100800;
 pub const SLASHING_AMOUNT: u64 = 100; // maximum is 1000, aka permilie
+pub const PENDING_PERIOD: u64 = TRUSTING_PERIOD;
 pub const DENOM: &str = "orai";
 // version info for migration info
 const CONTRACT_NAME: &str = "crates.io:aioracle-v2";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 // settings for pagination
-const MAX_LIMIT: u8 = 50;
-const DEFAULT_LIMIT: u8 = 20;
+pub const MAX_LIMIT: u8 = 50;
+pub const DEFAULT_LIMIT: u8 = 20;
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
     let owner = msg.owner.unwrap_or(info.sender);
@@ -53,6 +58,7 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
         trusting_period: TRUSTING_PERIOD,
         slashing_amount: SLASHING_AMOUNT,
         denom: DENOM.to_string(),
+        pending_period: PENDING_PERIOD,
     };
     CONFIG.save(deps.storage, &config)?;
 
@@ -71,6 +77,7 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
                 executing_power: 0u64,
                 index: executor_index,
                 is_active: true,
+                left_block: None,
             };
             executor_index += 1;
             final_executor
@@ -80,32 +87,6 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     EXECUTORS_INDEX.save(deps.storage, &executor_index)?;
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(InitResponse::default())
-}
-
-pub fn save_executors(storage: &mut dyn Storage, executors: Vec<Executor>) -> StdResult<()> {
-    for executor in executors {
-        executors_map().save(storage, executor.pubkey.as_slice(), &executor)?
-    }
-    Ok(())
-}
-
-pub fn remove_executors(storage: &mut dyn Storage, executors: Vec<Binary>) -> StdResult<()> {
-    for executor in executors {
-        let executor_option = executors_map().may_load(storage, executor.as_slice())?;
-        if let Some(executor) = executor_option {
-            executors_map().save(
-                storage,
-                executor.pubkey.clone().as_slice(),
-                &Executor {
-                    is_active: false,
-                    ..executor
-                },
-            )?;
-        } else {
-            continue;
-        }
-    }
-    Ok(())
 }
 
 pub fn handle(
@@ -140,11 +121,11 @@ pub fn handle(
             threshold,
             preference_executor_fee,
         ),
-        HandleMsg::ClaimReward {
-            stage,
-            report,
-            proof,
-        } => handle_claim(deps, env, stage, report, proof),
+        // HandleMsg::ClaimReward {
+        //     stage,
+        //     report,
+        //     proof,
+        // } => handle_claim(deps, env, stage, report, proof),
         HandleMsg::WithdrawFees { amount, denom } => handle_withdraw_fees(deps, env, amount, denom),
         HandleMsg::PrepareWithdrawPool { pubkey } => {
             handle_prepare_withdraw_pool(deps, env, info, pubkey)
@@ -161,29 +142,9 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: MigrateMsg,
+    _msg: MigrateMsg,
 ) -> StdResult<MigrateResponse> {
-    // // if old_version.version != CONTRACT_VERSION {
-    // //     return Err(StdError::generic_err(format!(
-    // //         "This is {}, cannot migrate from {}",
-    // //         CONTRACT_VERSION, old_version.version
-    // //     )));
-    // // }
-
-    // migrate_v02_to_v03(deps.storage, msg)?;
-    // EXECUTORS_INDEX.save(deps.storage, &24u64)?;
-    // let init_executor =
-    //     Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap();
-    // executors_map().save(
-    //     deps.storage,
-    //     init_executor.clone().as_slice(),
-    //     &Executor {
-    //         pubkey: init_executor,
-    //         executing_power: 0u64,
-    //         index: 0u64,
-    //         is_active: true,
-    //     },
-    // )?;
+    migrate_v02_to_v03(deps.storage)?;
 
     // once we have "migrated", set the new version and return success
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -195,27 +156,6 @@ pub fn migrate(
         ..MigrateResponse::default()
     })
 }
-
-// pub fn toggle_executor_activeness(
-//     deps: DepsMut,
-//     info: MessageInfo,
-//     pubkey: Binary,
-// ) -> Result<HandleResponse, ContractError> {
-//     let executor_addr = pubkey_to_address(&pubkey)?;
-//     if info.sender.ne(&executor_addr) {
-//         return Err(ContractError::Unauthorized {});
-//     }
-//     let is_active = executors_map().load(deps.storage, pubkey.as_slice())?;
-//     executors_map().save(deps.storage, pubkey.as_slice(), &(!is_active))?;
-//     Ok(HandleResponse {
-//         attributes: vec![
-//             attr("action", "toggle_executor_activeness"),
-//             attr("new_active_status", !is_active),
-//         ],
-//         messages: vec![],
-//         data: None,
-//     })
-// }
 
 pub fn handle_withdraw_fees(
     deps: DepsMut,
@@ -232,70 +172,6 @@ pub fn handle_withdraw_fees(
     .into()];
     Ok(HandleResponse {
         attributes: vec![attr("action", "withdraw_fees")],
-        messages: cosmos_msgs,
-        data: None,
-    })
-}
-
-pub fn handle_prepare_withdraw_pool(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    pubkey: Binary,
-) -> Result<HandleResponse, ContractError> {
-    let executor_addr = pubkey_to_address(&pubkey)?;
-    let Config {
-        trusting_period, ..
-    } = CONFIG.load(deps.storage)?;
-    if executor_addr.ne(&info.sender) {
-        return Err(ContractError::Unauthorized {});
-    }
-    let mut trusting_pool = EXECUTORS_TRUSTING_POOL.load(deps.storage, pubkey.as_slice())?;
-    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
-
-    if trusting_pool.withdraw_height.eq(&0u64) {
-        trusting_pool.withdraw_height = env.block.height;
-        trusting_pool.withdraw_amount_coin = trusting_pool.amount_coin.clone();
-    } else {
-        // check with trusting period. Only allow withdrawing if trusting period has passed
-        if (trusting_pool.withdraw_height + trusting_period).ge(&env.block.height) {
-            return Err(ContractError::InvalidTrustingPeriod {});
-        } else {
-            // add execute tx to automatically withdraw orai from pool
-            cosmos_msgs.push(
-                BankMsg::Send {
-                    from_address: env.contract.address.clone(),
-                    to_address: executor_addr,
-                    amount: vec![Coin {
-                        denom: trusting_pool.withdraw_amount_coin.denom.clone(),
-                        amount: trusting_pool.withdraw_amount_coin.amount.clone(),
-                    }],
-                }
-                .into(),
-            );
-
-            // reduce amount coin
-            trusting_pool.amount_coin = Coin {
-                denom: trusting_pool.amount_coin.denom,
-                amount: Uint128::from(
-                    trusting_pool
-                        .amount_coin
-                        .amount
-                        .u128()
-                        .sub(trusting_pool.withdraw_amount_coin.amount.u128()),
-                ),
-            };
-            trusting_pool.withdraw_amount_coin = Coin {
-                denom: trusting_pool.amount_coin.denom.clone(),
-                amount: Uint128::from(0u64),
-            };
-            trusting_pool.withdraw_height = 0;
-        }
-    }
-    EXECUTORS_TRUSTING_POOL.save(deps.storage, pubkey.as_slice(), &trusting_pool)?;
-
-    Ok(HandleResponse {
-        attributes: vec![attr("action", "handle_withdraw_pool")],
         messages: cosmos_msgs,
         data: None,
     })
@@ -361,33 +237,7 @@ pub fn execute_update_config(
     }
 
     if let Some(executors) = new_executors {
-        let mut executor_index = EXECUTORS_INDEX.load(deps.storage)?;
-        let final_executors = executors
-            .into_iter()
-            .map(|executor| -> Executor {
-                let old_executor_option = executors_map()
-                    .may_load(deps.storage, executor.as_slice())
-                    .unwrap_or(None);
-                // if executor exist then we dont increment executor index, reuse all config, only turn is active to true
-                if let Some(old_executor) = old_executor_option {
-                    return Executor {
-                        is_active: true,
-                        ..old_executor
-                    };
-                }
-                // otherwise, we return new executor data
-                let final_executor: Executor = Executor {
-                    pubkey: executor,
-                    executing_power: 0u64,
-                    index: executor_index,
-                    is_active: true,
-                };
-                executor_index += 1;
-                final_executor
-            })
-            .collect();
-        EXECUTORS_INDEX.save(deps.storage, &executor_index)?;
-        save_executors(deps.storage, final_executors)?;
+        update_executors(deps.storage, executors)?;
     }
     if let Some(executors) = old_executors {
         remove_executors(deps.storage, executors)?;
@@ -447,6 +297,7 @@ pub fn handle_request(
         ));
     }
 
+    // TODO: add substract contract fee & verify against it
     if !verify_request_fees(&info.sent_funds, &rewards, threshold) {
         return Err(ContractError::InsufficientFundsRequestFees {});
     }
@@ -570,118 +421,6 @@ pub fn handle_submit_evidence(
     })
 }
 
-pub fn handle_claim(
-    deps: DepsMut,
-    env: Env,
-    stage: u64,
-    report: Binary,
-    proofs: Option<Vec<String>>,
-) -> Result<HandleResponse, ContractError> {
-    // check report legitimacy
-    // let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
-    let is_verified = verify_data(deps.as_ref(), stage, report.clone(), proofs)?;
-    if !is_verified {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    let report_struct: Report = from_slice(report.as_slice())
-        .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
-
-    let mut claim_key = report_struct.executor.clone().to_base64();
-    claim_key.push_str(&stage.to_string());
-    let is_claimed = CLAIM.may_load(deps.storage, claim_key.as_bytes())?;
-
-    if let Some(is_claimed) = is_claimed {
-        if is_claimed {
-            return Err(ContractError::Claimed {});
-        }
-    }
-
-    let request = requests().load(deps.storage, &stage.to_be_bytes())?;
-
-    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
-
-    // let executor_addr = pubkey_to_address(report_struct.executor)?;
-
-    // let max_executor_fee = request
-    //     .rewards
-    //     .clone()
-    //     .into_iter()
-    //     .find(|reward| reward.0.eq("placeholder"))
-    //     .unwrap_or((
-    //         HumanAddr::from("placeholder"),
-    //         String::from("orai"),
-    //         Uint128::from(1u64),
-    //     ));
-    // let executor_reward: Coin = deps
-    //     .querier
-    //     .query_wasm_smart(
-    //         service_addr.clone(),
-    //         &GetParticipantFee {
-    //             get_participant_fee: GetServiceFeesMsg {
-    //                 addr: executor_addr.clone(),
-    //             },
-    //         },
-    //     )
-    //     .unwrap_or(Coin {
-    //         denom: max_executor_fee.1,
-    //         amount: Uint128::from(0u64),
-    //     });
-
-    // if !executor_reward.amount.is_zero() {
-    //     cosmos_msgs.push(
-    //         BankMsg::Send {
-    //             from_address: env.contract.address.clone(),
-    //             to_address: executor_addr,
-    //             amount: vec![Coin {
-    //                 denom: executor_reward.denom,
-    //                 amount: executor_reward.amount,
-    //             }],
-    //         }
-    //         .into(),
-    //     );
-    // }
-
-    for reward in report_struct.rewards {
-        // verify if reward is valid (matches an element in the list of rewards stored in request)
-        if request
-            .rewards
-            .iter()
-            .find(|rew| {
-                rew.0.ne(&HumanAddr::from("placeholder"))
-                    && rew.0.eq(&reward.0)
-                    && rew.2.eq(&reward.2)
-                    && rew.1.eq(&reward.1)
-            })
-            .is_none()
-        {
-            return Err(ContractError::InvalidReward {});
-        }
-
-        // send rewards to participants
-        let send_msg = BankMsg::Send {
-            from_address: env.contract.address.clone(),
-            to_address: reward.0,
-            amount: vec![Coin {
-                denom: reward.1,
-                amount: reward.2,
-            }],
-        };
-        cosmos_msgs.push(send_msg.into());
-    }
-
-    CLAIM.save(deps.storage, claim_key.as_bytes(), &true)?;
-
-    Ok(HandleResponse {
-        data: None,
-        messages: cosmos_msgs,
-        attributes: vec![
-            attr("action", "handle_claim"),
-            attr("stage", stage.to_string()),
-        ],
-    })
-}
-
 pub fn execute_register_merkle_root(
     deps: DepsMut,
     env: Env,
@@ -723,33 +462,6 @@ pub fn execute_register_merkle_root(
         Err(StdError::generic_err("Invalid request empty"))
     })?;
 
-    // check if can increase checkpoint. Can only increase when all requests in range have merkle root
-    let checkpoint_stage = CHECKPOINT.load(deps.storage)?;
-    let latest_stage = LATEST_STAGE.load(deps.storage)?;
-    let next_checkpoint = checkpoint_stage + checkpoint_threshold;
-    // check to boost performance. not everytime we need to query & check
-    if stage.eq(&latest_stage) || next_checkpoint.lt(&latest_stage) {
-        let requests = query_requests(
-            deps.as_ref(),
-            Some(checkpoint_stage - 1),
-            Some(checkpoint_threshold as u8),
-            Some(1),
-        )?;
-        // if we cannot find an empty merkle root request then increase checkpoint
-        if requests
-            .iter()
-            .find(|req| req.merkle_root.is_empty())
-            .is_none()
-        {
-            if next_checkpoint.gt(&(latest_stage + 1)) {
-                // force next checkpoint = latest + 1 => no new request coming
-                CHECKPOINT.save(deps.storage, &(latest_stage + 1))?;
-            } else {
-                CHECKPOINT.save(deps.storage, &next_checkpoint)?;
-            }
-        }
-    }
-
     // add executors' rewards into the pool
     for executor in executors {
         // only add reward if executor is in list
@@ -759,41 +471,16 @@ pub fn execute_register_merkle_root(
         }
         let executor_reward =
             get_participant_fee(deps.as_ref(), executor.clone(), service_addr.as_str())?;
-
-        let existing_executor_reward =
-            EXECUTORS_TRUSTING_POOL.may_load(deps.storage, executor.as_slice())?;
-
-        let mut final_new_executor_reward = Coin {
-            denom: request.preference_executor_fee.denom.clone(),
-            amount: request
-                .preference_executor_fee
-                .amount
-                .min(executor_reward.amount), // only collect minimum between the executor fee
-        };
-
-        let mut trusting_pool = TrustingPool {
-            amount_coin: final_new_executor_reward.clone(),
-            withdraw_height: 0u64,
-            withdraw_amount_coin: Coin {
-                amount: Uint128::from(0u64),
-                denom: final_new_executor_reward.denom.clone(),
-            },
-        };
-
-        if let Some(existing_executor_reward) = existing_executor_reward {
-            final_new_executor_reward.amount = Uint128::from(
-                final_new_executor_reward
-                    .amount
-                    .u128()
-                    .add(existing_executor_reward.amount_coin.amount.u128()),
-            );
-            trusting_pool.amount_coin = final_new_executor_reward;
-            trusting_pool.withdraw_height = existing_executor_reward.withdraw_height;
-            trusting_pool.withdraw_amount_coin = existing_executor_reward.withdraw_amount_coin;
-        }
-
-        EXECUTORS_TRUSTING_POOL.save(deps.storage, executor.as_slice(), &trusting_pool)?;
+        process_executors_pool(
+            deps.storage,
+            executor,
+            &request.preference_executor_fee,
+            executor_reward,
+        )?;
     }
+
+    // check if can increase checkpoint. Can only increase when all requests in range have merkle root
+    process_checkpoint(deps, stage, checkpoint_threshold)?;
 
     Ok(HandleResponse {
         data: None,
@@ -877,58 +564,6 @@ pub fn query_participant_fee(deps: Deps, pubkey: Binary) -> StdResult<Coin> {
         .map_err(|err| StdError::generic_err(err.to_string()))
 }
 
-pub fn query_trusting_pool(
-    deps: Deps,
-    env: Env,
-    pubkey: Binary,
-) -> StdResult<TrustingPoolResponse> {
-    let trusting_pool = EXECUTORS_TRUSTING_POOL.load(deps.storage, pubkey.as_slice())?;
-    let Config {
-        trusting_period, ..
-    } = CONFIG.load(deps.storage)?;
-    Ok(TrustingPoolResponse {
-        trusting_period,
-        pubkey,
-        trusting_pool,
-        current_height: env.block.height,
-    })
-}
-
-pub fn query_trusting_pools(
-    deps: Deps,
-    env: Env,
-    offset: Option<Binary>,
-    limit: Option<u8>,
-    order: Option<u8>,
-) -> StdResult<Vec<TrustingPoolResponse>> {
-    let Config {
-        trusting_period, ..
-    } = CONFIG.load(deps.storage)?;
-    let (limit, min, max, order_enum) = get_executors_params(offset, limit, order);
-
-    let res: StdResult<Vec<TrustingPoolResponse>> = EXECUTORS_TRUSTING_POOL
-        .range(deps.storage, min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| {
-            kv_item.and_then(|(pub_vec, trusting_pool)| {
-                // will panic if length is greater than 8, but we can make sure it is u64
-                // try_into will box vector to fixed array
-                Ok(TrustingPoolResponse {
-                    trusting_period,
-                    current_height: env.block.height,
-                    pubkey: Binary::from(pub_vec),
-                    trusting_pool,
-                })
-            })
-        })
-        .collect();
-    res
-}
-
-pub fn query_executor(deps: Deps, pubkey: Binary) -> StdResult<Executor> {
-    Ok(executors_map().load(deps.storage, pubkey.as_slice())?)
-}
-
 fn get_service_fees(deps: Deps, service: &str) -> StdResult<Vec<Reward>> {
     let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
     let rewards: Vec<Reward> = deps.querier.query_wasm_smart(
@@ -944,17 +579,6 @@ fn get_service_fees(deps: Deps, service: &str) -> StdResult<Vec<Reward>> {
 
 pub fn query_service_fees(deps: Deps, service: String) -> StdResult<Vec<Reward>> {
     Ok(get_service_fees(deps, &service)?)
-}
-
-pub fn query_bound_executor_fee(deps: Deps) -> StdResult<Coin> {
-    let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
-    let fees: Coin = deps.querier.query_wasm_smart(
-        service_addr,
-        &GetBoundExecutorFee {
-            get_bound_executor_fee: BoundExecutorFeeMsg {},
-        },
-    )?;
-    Ok(fees)
 }
 
 pub fn get_stage_info(deps: Deps) -> StdResult<StageInfo> {
@@ -1021,108 +645,6 @@ pub fn query_config(deps: Deps) -> StdResult<Config> {
 }
 
 // ============================== Query Handlers ==============================
-
-fn get_executors_params(
-    offset: Option<Binary>,
-    limit: Option<u8>,
-    order: Option<u8>,
-) -> (usize, Option<Bound>, Option<Bound>, Order) {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    // let mut max: Option<Bound> = None;
-    let mut order_enum = Order::Ascending;
-    let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
-    if let Some(num) = order {
-        if num == 2 {
-            order_enum = Order::Descending;
-        }
-    }
-    let offset_value = offset
-        .as_ref()
-        .map(|offset| Bound::Exclusive(offset.to_vec()));
-
-    // if there is offset, assign to min or max
-    match order_enum {
-        Order::Ascending => min = offset_value,
-        Order::Descending => max = offset_value,
-    }
-
-    (limit, min, max, order_enum)
-}
-
-pub fn query_executors(
-    deps: Deps,
-    offset: Option<Binary>,
-    limit: Option<u8>,
-    order: Option<u8>,
-) -> StdResult<Vec<Executor>> {
-    let (limit, min, max, order_enum) = get_executors_params(offset, limit, order);
-
-    let res: StdResult<Vec<Executor>> = executors_map()
-        .range(deps.storage, min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| {
-            kv_item.and_then(|(_, executor)| {
-                // will panic if length is greater than 8, but we can make sure it is u64
-                // try_into will box vector to fixed array
-                Ok(executor)
-            })
-        })
-        .collect();
-    res
-}
-
-fn get_executors_by_index_params(
-    offset: Option<u64>,
-    limit: Option<u8>,
-    order: Option<u8>,
-) -> (usize, Option<Bound>, Option<Bound>, Order) {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    // let mut max: Option<Bound> = None;
-    let mut order_enum = Order::Ascending;
-    let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
-    if let Some(num) = order {
-        if num == 2 {
-            order_enum = Order::Descending;
-        }
-    }
-    let offset_value = offset
-        .as_ref()
-        .map(|offset| Bound::Exclusive(offset.to_be_bytes().to_vec()));
-
-    // if there is offset, assign to min or max
-    match order_enum {
-        Order::Ascending => min = offset_value,
-        Order::Descending => max = offset_value,
-    }
-
-    (limit, min, max, order_enum)
-}
-
-pub fn query_executors_by_index(
-    deps: Deps,
-    offset: Option<u64>,
-    limit: Option<u8>,
-    order: Option<u8>,
-) -> StdResult<Vec<Executor>> {
-    let (limit, min, max, order_enum) = get_executors_by_index_params(offset, limit, order);
-
-    let res: StdResult<Vec<Executor>> = executors_map()
-        .idx
-        .index
-        .range(deps.storage, min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| {
-            kv_item.and_then(|(_, executor)| {
-                // will panic if length is greater than 8, but we can make sure it is u64
-                // try_into will box vector to fixed array
-                Ok(executor)
-            })
-        })
-        .collect();
-    res
-}
 
 pub fn query_request(deps: Deps, stage: u64) -> StdResult<Request> {
     let request = requests().load(deps.storage, &stage.to_be_bytes())?;
@@ -1304,25 +826,6 @@ pub fn verify_request_fees(sent_funds: &[Coin], rewards: &[Reward], threshold: u
     return true;
 }
 
-pub fn query_executor_size(deps: Deps) -> StdResult<u64> {
-    let executor_count = executors_map()
-        .range(deps.storage, None, None, Order::Ascending)
-        .count();
-    Ok(executor_count as u64)
-}
-
-pub fn pubkey_to_address(pubkey: &Binary) -> Result<HumanAddr, ContractError> {
-    let msg_hash_generic = sha2::Sha256::digest(pubkey.as_slice());
-    let msg_hash = msg_hash_generic.as_slice();
-    let mut hasher = Ripemd160::new();
-    hasher.update(msg_hash);
-    let result = hasher.finalize();
-    let result_slice = result.as_slice();
-    let encoded = bech32::encode("orai", result_slice.to_base32(), Variant::Bech32)
-        .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
-    Ok(HumanAddr::from(encoded))
-}
-
 pub fn get_participant_fee(
     deps: Deps,
     pubkey: Binary,
@@ -1345,4 +848,47 @@ pub fn get_participant_fee(
             amount: Uint128::from(0u64),
         });
     Ok(executor_reward)
+}
+
+pub fn pubkey_to_address(pubkey: &Binary) -> Result<HumanAddr, ContractError> {
+    let msg_hash_generic = sha2::Sha256::digest(pubkey.as_slice());
+    let msg_hash = msg_hash_generic.as_slice();
+    let mut hasher = Ripemd160::new();
+    hasher.update(msg_hash);
+    let result = hasher.finalize();
+    let result_slice = result.as_slice();
+    let encoded = bech32::encode("orai", result_slice.to_base32(), Variant::Bech32)
+        .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
+    Ok(HumanAddr::from(encoded))
+}
+
+fn process_checkpoint(deps: DepsMut, stage: u64, checkpoint_threshold: u64) -> StdResult<()> {
+    // check if can increase checkpoint. Can only increase when all requests in range have merkle root
+    let checkpoint_stage = CHECKPOINT.load(deps.storage)?;
+    let latest_stage = LATEST_STAGE.load(deps.storage)?;
+    let next_checkpoint = checkpoint_stage + checkpoint_threshold;
+    // check to boost performance. not everytime we need to query & check
+    if stage.eq(&latest_stage) || next_checkpoint.lt(&latest_stage) {
+        let requests = query_requests(
+            deps.as_ref(),
+            Some(checkpoint_stage - 1),
+            Some(checkpoint_threshold as u8),
+            Some(1),
+        )?;
+        // if we cannot find an empty merkle root request then increase checkpoint
+        if requests
+            .iter()
+            .find(|req| req.merkle_root.is_empty())
+            .is_none()
+        {
+            if next_checkpoint.gt(&(latest_stage + 1)) {
+                // force next checkpoint = latest + 1 => no new request coming
+                return CHECKPOINT.save(deps.storage, &(latest_stage + 1));
+            } else {
+                return CHECKPOINT.save(deps.storage, &next_checkpoint);
+            }
+        }
+        return Ok(());
+    }
+    Ok(())
 }

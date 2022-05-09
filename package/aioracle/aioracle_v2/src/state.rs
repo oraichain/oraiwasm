@@ -17,6 +17,7 @@ pub struct Config {
     pub trusting_period: u64,
     pub slashing_amount: u64,
     pub denom: String,
+    pub pending_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -49,7 +50,7 @@ pub struct TrustingPool {
     pub withdraw_height: u64,
 }
 
-pub const CONFIG_KEY: &str = "config";
+pub const CONFIG_KEY: &str = "config_v3";
 pub const CONFIG: Item<Config> = Item::new(CONFIG_KEY);
 
 pub const LATEST_STAGE_KEY: &str = "stage";
@@ -139,5 +140,5 @@ pub fn executors_map<'a>() -> IndexedMap<'a, &'a [u8], Executor, ExecutorIndexes
         ),
         index: UniqueIndex::new(|d| U64Key::new(d.index), "index"),
     };
-    IndexedMap::new("executors_v1.1", indexes)
+    IndexedMap::new("executors_v1.2", indexes)
 }

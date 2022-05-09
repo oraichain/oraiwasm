@@ -88,91 +88,91 @@ pub fn old_requests<'a>() -> IndexedMap<'a, &'a [u8], OldRequest, RequestIndexes
 pub const OLD_CONFIG_KEY: &str = "config";
 
 /// this takes a v0.1.x store and converts it to a v0.2.x format
-pub fn migrate_v02_to_v03(storage: &mut dyn Storage, migrate_msg: MigrateMsg) -> StdResult<()> {
-    let OldConfig {
-        owner,
-        service_addr,
-        contract_fee,
-        checkpoint_threshold,
-        max_req_threshold,
-        ping_contract,
-        trusting_period,
-    } = Item::<OldConfig>::new(OLD_CONFIG_KEY).load(storage)?;
-    let new_config = Item::<Config>::new(CONFIG_KEY);
-    let new_config_data = Config {
-        trusting_period,
-        owner,
-        service_addr,
-        contract_fee,
-        checkpoint_threshold,
-        max_req_threshold,
-        slashing_amount: migrate_msg.slash_amount,
-        denom: migrate_msg.denom,
-    };
-    new_config.save(storage, &new_config_data)?;
+// pub fn migrate_v02_to_v03(storage: &mut dyn Storage, migrate_msg: MigrateMsg) -> StdResult<()> {
+//     let OldConfig {
+//         owner,
+//         service_addr,
+//         contract_fee,
+//         checkpoint_threshold,
+//         max_req_threshold,
+//         ping_contract,
+//         trusting_period,
+//     } = Item::<OldConfig>::new(OLD_CONFIG_KEY).load(storage)?;
+//     let new_config = Item::<Config>::new(CONFIG_KEY);
+//     let new_config_data = Config {
+//         trusting_period,
+//         owner,
+//         service_addr,
+//         contract_fee,
+//         checkpoint_threshold,
+//         max_req_threshold,
+//         slashing_amount: migrate_msg.slash_amount,
+//         denom: migrate_msg.denom,
+//     };
+//     new_config.save(storage, &new_config_data)?;
 
-    // // migrate request storage
-    let request_maps_result: StdResult<Vec<(Vec<u8>, OldRequest)>> = old_requests()
-        .range(storage, None, None, Order::Ascending)
-        .collect();
+//     // // migrate request storage
+//     let request_maps_result: StdResult<Vec<(Vec<u8>, OldRequest)>> = old_requests()
+//         .range(storage, None, None, Order::Ascending)
+//         .collect();
 
-    let request_maps = request_maps_result?;
+//     let request_maps = request_maps_result?;
 
-    for request_map in request_maps {
-        requests().save(
-            storage,
-            request_map.0.as_slice(),
-            &Request {
-                requester: request_map.1.requester,
-                preference_executor_fee: Coin {
-                    denom: "orai".to_string(),
-                    amount: Uint128::from(0u64),
-                },
-                request_height: request_map.1.request_height,
-                submit_merkle_height: request_map.1.submit_merkle_height,
-                merkle_root: request_map.1.merkle_root,
-                threshold: request_map.1.threshold,
-                service: request_map.1.service,
-                input: request_map.1.input,
-                rewards: request_map.1.rewards,
-            },
-        )?;
-    }
+//     for request_map in request_maps {
+//         requests().save(
+//             storage,
+//             request_map.0.as_slice(),
+//             &Request {
+//                 requester: request_map.1.requester,
+//                 preference_executor_fee: Coin {
+//                     denom: "orai".to_string(),
+//                     amount: Uint128::from(0u64),
+//                 },
+//                 request_height: request_map.1.request_height,
+//                 submit_merkle_height: request_map.1.submit_merkle_height,
+//                 merkle_root: request_map.1.merkle_root,
+//                 threshold: request_map.1.threshold,
+//                 service: request_map.1.service,
+//                 input: request_map.1.input,
+//                 rewards: request_map.1.rewards,
+//             },
+//         )?;
+//     }
 
-    // let trusting_pools_results: StdResult<Vec<OldTrustingPoolResponse>> =
-    //     OLD_EXECUTORS_TRUSTING_POOL
-    //         .range(storage, None, None, Order::Ascending)
-    //         .map(|kv_item| {
-    //             kv_item.and_then(|(pub_vec, trusting_pool)| {
-    //                 // will panic if length is greater than 8, but we can make sure it is u64
-    //                 // try_into will box vector to fixed array
-    //                 Ok(OldTrustingPoolResponse {
-    //                     trusting_period: 1,
-    //                     current_height: 0,
-    //                     pubkey: Binary::from(pub_vec),
-    //                     trusting_pool,
-    //                 })
-    //             })
-    //         })
-    //         .collect();
-    // let trusting_pools = trusting_pools_results?;
-    // for pool in trusting_pools {
-    //     EXECUTORS_TRUSTING_POOL.save(
-    //         storage,
-    //         pool.pubkey.as_slice(),
-    //         &TrustingPool {
-    //             amount_coin: pool.trusting_pool.amount_coin.clone(),
-    //             withdraw_height: 0,
-    //             withdraw_amount_coin: Coin {
-    //                 denom: pool.trusting_pool.amount_coin.denom,
-    //                 amount: Uint128::from(0u64),
-    //             },
-    //         },
-    //     )?;
-    // }
+//     // let trusting_pools_results: StdResult<Vec<OldTrustingPoolResponse>> =
+//     //     OLD_EXECUTORS_TRUSTING_POOL
+//     //         .range(storage, None, None, Order::Ascending)
+//     //         .map(|kv_item| {
+//     //             kv_item.and_then(|(pub_vec, trusting_pool)| {
+//     //                 // will panic if length is greater than 8, but we can make sure it is u64
+//     //                 // try_into will box vector to fixed array
+//     //                 Ok(OldTrustingPoolResponse {
+//     //                     trusting_period: 1,
+//     //                     current_height: 0,
+//     //                     pubkey: Binary::from(pub_vec),
+//     //                     trusting_pool,
+//     //                 })
+//     //             })
+//     //         })
+//     //         .collect();
+//     // let trusting_pools = trusting_pools_results?;
+//     // for pool in trusting_pools {
+//     //     EXECUTORS_TRUSTING_POOL.save(
+//     //         storage,
+//     //         pool.pubkey.as_slice(),
+//     //         &TrustingPool {
+//     //             amount_coin: pool.trusting_pool.amount_coin.clone(),
+//     //             withdraw_height: 0,
+//     //             withdraw_amount_coin: Coin {
+//     //                 denom: pool.trusting_pool.amount_coin.denom,
+//     //                 amount: Uint128::from(0u64),
+//     //             },
+//     //         },
+//     //     )?;
+//     // }
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 #[cfg(test)]
 mod test {
@@ -249,46 +249,46 @@ mod test {
         deps
     }
 
-    #[test]
-    fn test_migrate() {
-        let mut deps = setup_old_contract();
-        let info = mock_info(HumanAddr::from("foobar"), &[]);
-        migrate(
-            deps.as_mut(),
-            mock_env(),
-            info,
-            MigrateMsg {
-                slash_amount: 50,
-                denom: String::from("orai"),
-            },
-        )
-        .unwrap();
+    // #[test]
+    // fn test_migrate() {
+    //     let mut deps = setup_old_contract();
+    //     let info = mock_info(HumanAddr::from("foobar"), &[]);
+    //     migrate(
+    //         deps.as_mut(),
+    //         mock_env(),
+    //         info,
+    //         MigrateMsg {
+    //             slash_amount: 50,
+    //             denom: String::from("orai"),
+    //         },
+    //     )
+    //     .unwrap();
 
-        // // query trusting pool
-        // let pool: TrustingPoolResponse = from_binary(
-        //     &query(
-        //         deps.as_ref(),
-        //         mock_env(),
-        //         QueryMsg::GetTrustingPool {
-        //             pubkey: Binary::from(&[1]),
-        //         },
-        //     )
-        //     .unwrap(),
-        // )
-        // .unwrap();
+    //     // // query trusting pool
+    //     // let pool: TrustingPoolResponse = from_binary(
+    //     //     &query(
+    //     //         deps.as_ref(),
+    //     //         mock_env(),
+    //     //         QueryMsg::GetTrustingPool {
+    //     //             pubkey: Binary::from(&[1]),
+    //     //         },
+    //     //     )
+    //     //     .unwrap(),
+    //     // )
+    //     // .unwrap();
 
-        // println!("pool: {:?}", pool);
+    //     // println!("pool: {:?}", pool);
 
-        // // query config
-        // let config: Config =
-        //     from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
-        // println!("config: {:?}", config);
-        // assert_eq!(config.slashing_amount, 50);
+    //     // // query config
+    //     // let config: Config =
+    //     //     from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+    //     // println!("config: {:?}", config);
+    //     // assert_eq!(config.slashing_amount, 50);
 
-        // query requests
-        let request: Request =
-            from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Request { stage: 1 }).unwrap())
-                .unwrap();
-        println!("request: {:?}", request);
-    }
+    //     // query requests
+    //     let request: Request =
+    //         from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Request { stage: 1 }).unwrap())
+    //             .unwrap();
+    //     println!("request: {:?}", request);
+    // }
 }
