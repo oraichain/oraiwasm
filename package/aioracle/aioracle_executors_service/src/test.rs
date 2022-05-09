@@ -1,4 +1,3 @@
-use aioracle_new::InitHook;
 use cosmwasm_std::{
     coins, from_binary,
     testing::{mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage},
@@ -7,7 +6,7 @@ use cosmwasm_std::{
 
 use crate::{
     contract::{handle, init, query},
-    msg::InitMsg,
+    msg::{InitHook, InitMsg},
     state::{Executor, TrustingPool},
 };
 

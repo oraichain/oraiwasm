@@ -1,9 +1,10 @@
-use std::ops::{Add, AddAssign, Mul, SubAssign};
+use std::ops::{Mul, SubAssign};
 
+use aioracle_base::executors::{HandleMsg, InitMsg, QueryMsg, TrustingPool, TrustingPoolResponse};
 use bech32::{self, ToBase32, Variant};
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, Decimal, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, Order, StdError, StdResult, Storage, Uint128, WasmMsg, WasmQuery,
+    attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse,
+    HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw_storage_plus::Bound;
 use ripemd::{Digest as RipeDigest, Ripemd160};
@@ -11,14 +12,14 @@ use sha2::Digest;
 
 use crate::{
     error::ContractError,
-    msg::{Evidence, HandleMsg, InitMsg, QueryMsg},
     state::{
-        executors_map, Config, Executor, TrustingPool, CONFIG, EVIDENCES, EXECUTORS_INDEX,
+        executors_map, Config, Executor, CONFIG, EVIDENCES, EXECUTORS_INDEX,
         EXECUTORS_TRUSTING_POOL,
     },
 };
 
 pub const DEFAULT_REJOIN_NUM_BLOCK: u64 = 28800u64;
+pub const TRUSTING_PERIOD: u64 = 100800;
 const MAX_LIMIT: u8 = 50;
 const DEFAULT_LIMIT: u8 = 20;
 
@@ -32,7 +33,7 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
                 None => DEFAULT_REJOIN_NUM_BLOCK,
             },
             multisig_addr: msg.multisig_addr,
-            slashing_amount: msg.slashing_amount,
+            trusting_period: TRUSTING_PERIOD,
         },
     )?;
     let mut index = 0u64;
@@ -115,10 +116,26 @@ pub fn handle(
         HandleMsg::BulkUpdateExecutorTrustingPools { data } => {
             handle_bulk_update_executor_trusting_pools(deps, env, info, data)
         }
+        HandleMsg::HandleSlashExecutorPool {
+            executor,
+            stage,
+            submit_merkle_height,
+            proposer,
+            slash_amount,
+        } => handle_slash_executor_pool(
+            deps,
+            env,
+            info,
+            executor,
+            stage,
+            submit_merkle_height,
+            proposer,
+            slash_amount,
+        ),
     }
 }
 
-pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
+pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetExecutor { pubkey } => to_binary(&query_executor(deps, pubkey)?),
         QueryMsg::GetExecutorSize {} => to_binary(&query_executor_size(deps)?),
@@ -134,11 +151,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             order,
         } => to_binary(&query_executors_by_index(deps, offset, limit, order)?),
         QueryMsg::GetExecutorTrustingPool { pubkey } => {
-            to_binary(&query_executor_trusting_pool(deps, pubkey)?)
+            to_binary(&query_executor_trusting_pool(deps, env, pubkey)?)
         }
-        QueryMsg::GetAllExecutorTrustingPools {} => {
-            to_binary(&query_all_executor_trusting_pools(deps)?)
-        }
+        QueryMsg::GetExecutorTrustingPools {
+            offset,
+            limit,
+            order,
+        } => to_binary(&query_trusting_pools(deps, env, offset, limit, order)?),
     }
 }
 
@@ -212,11 +231,9 @@ pub fn handle_bulk_insert_executors(
     info: MessageInfo,
     executors: Vec<Binary>,
 ) -> Result<HandleResponse, ContractError> {
-    let Config {
-        oracle_contract, ..
-    } = CONFIG.load(deps.storage)?;
+    let Config { multisig_addr, .. } = CONFIG.load(deps.storage)?;
 
-    if info.sender.ne(&oracle_contract) {
+    if info.sender.ne(&multisig_addr) {
         return Err(ContractError::Unauthorized {});
     }
     let mut executor_index = EXECUTORS_INDEX.load(deps.storage)?;
@@ -262,11 +279,9 @@ pub fn handle_bulk_remove_executors(
     info: MessageInfo,
     executors: Vec<Binary>,
 ) -> Result<HandleResponse, ContractError> {
-    let Config {
-        oracle_contract, ..
-    } = CONFIG.load(deps.storage)?;
+    let Config { multisig_addr, .. } = CONFIG.load(deps.storage)?;
 
-    if info.sender.ne(&oracle_contract) {
+    if info.sender.ne(&multisig_addr) {
         return Err(ContractError::Unauthorized {});
     }
     remove_executors(deps.storage, executors)?;
@@ -283,11 +298,9 @@ pub fn handle_bulk_update_executor_trusting_pools(
     info: MessageInfo,
     data: Vec<(Binary, TrustingPool)>,
 ) -> Result<HandleResponse, ContractError> {
-    let Config {
-        oracle_contract, ..
-    } = CONFIG.load(deps.storage)?;
+    let Config { multisig_addr, .. } = CONFIG.load(deps.storage)?;
 
-    if info.sender.ne(&oracle_contract) {
+    if info.sender.ne(&multisig_addr) {
         return Err(ContractError::Unauthorized {});
     }
     for (executor, trusting_pool) in data {
@@ -306,11 +319,9 @@ pub fn handle_update_executor_trusting_pool(
     pubkey: Binary,
     trusting_pool: TrustingPool,
 ) -> Result<HandleResponse, ContractError> {
-    let Config {
-        oracle_contract, ..
-    } = CONFIG.load(deps.storage)?;
+    let Config { multisig_addr, .. } = CONFIG.load(deps.storage)?;
 
-    if info.sender.ne(&oracle_contract) {
+    if info.sender.ne(&multisig_addr) {
         return Err(ContractError::Unauthorized {});
     }
     EXECUTORS_TRUSTING_POOL.save(deps.storage, &pubkey.as_slice(), &trusting_pool)?;
@@ -326,37 +337,23 @@ pub fn handle_update_executor_trusting_pool(
     })
 }
 
-pub fn handle_submit_evidence(
+pub fn handle_slash_executor_pool(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    proposal_pubkey: Binary,
-    evidence: Evidence,
+    executor: Binary,
+    stage: u64,
+    submit_merkle_height: u64,
+    proposer: HumanAddr,
+    slash_coin: Coin,
 ) -> Result<HandleResponse, ContractError> {
     let config = CONFIG.load(deps.storage)?;
-    if config.multisig_addr.ne(&info.sender) {
+    if config.oracle_contract.ne(&info.sender) && config.multisig_addr.ne(&info.sender) {
         return Err(ContractError::Unauthorized {});
     }
-    let address = pubkey_to_address(&proposal_pubkey)?;
-    let oracle_config = query_oracle_contract_config(deps.as_ref())?;
-    let evidence_clone = evidence.clone();
-    let is_verify = verify_data(
-        deps.as_ref(),
-        evidence.stage,
-        evidence.report,
-        evidence.proofs,
-    )?;
-    if !is_verify {
-        return Err(ContractError::Std(StdError::generic_err(
-            "Failed to verify envidence!",
-        )));
-    }
 
-    let report_struct: aioracle_v2::msg::Report = from_binary(&evidence_clone.report)
-        .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
-
-    let mut evidence_key = report_struct.executor.clone().to_base64();
-    evidence_key.push_str(&evidence.stage.to_string());
+    let mut evidence_key = executor.clone().to_base64();
+    evidence_key.push_str(&stage.to_string());
     let is_claimed = EVIDENCES.may_load(deps.storage, evidence_key.as_bytes())?;
 
     if let Some(is_claimed) = is_claimed {
@@ -364,11 +361,14 @@ pub fn handle_submit_evidence(
             return Err(ContractError::AlreadyFinishedEvidence {});
         }
     }
-    let request = get_oracle_request(deps.as_ref(), evidence.stage)?;
 
-    if request.submit_merkle_height + oracle_config.trusting_period > env.block.height {
+    let is_exist = executors_map().may_load(deps.storage, executor.as_slice())?;
+
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+
+    if is_exist.is_none() && submit_merkle_height + config.trusting_period > env.block.height {
         let executor_trusting_pool =
-            EXECUTORS_TRUSTING_POOL.load(deps.storage, report_struct.executor.as_slice())?;
+            EXECUTORS_TRUSTING_POOL.load(deps.storage, executor.as_slice())?;
         if executor_trusting_pool
             .amount_coin
             .amount
@@ -377,46 +377,39 @@ pub fn handle_submit_evidence(
             let slash_amount = executor_trusting_pool
                 .amount_coin
                 .amount
-                .mul(Decimal::permille(config.slashing_amount));
-            EXECUTORS_TRUSTING_POOL.update(deps.storage, &proposal_pubkey.as_slice(), |pool| {
+                .mul(Decimal::permille(slash_coin.amount.u128() as u64));
+
+            EXECUTORS_TRUSTING_POOL.update(deps.storage, &executor.as_slice(), |pool| {
                 if let Some(mut pool) = pool {
-                    pool.amount_coin.amount.add_assign(&slash_amount);
+                    pool.amount_coin.amount.0.sub_assign(&slash_amount.0);
+                    pool.is_freezing = true;
                     Ok(pool)
                 } else {
                     return Err(ContractError::Std(StdError::generic_err(
-                        "Error to update proposal trusting amount",
+                        "Error to slash executor trusting pool",
                     )));
                 }
             })?;
-            EXECUTORS_TRUSTING_POOL.update(
-                deps.storage,
-                &report_struct.executor.as_slice(),
-                |pool| {
-                    if let Some(mut pool) = pool {
-                        pool.amount_coin.amount.0.sub_assign(&slash_amount.0);
-                        pool.is_freezing = true;
-                        Ok(pool)
-                    } else {
-                        return Err(ContractError::Std(StdError::generic_err(
-                            "Error to slash executor trusting pool",
-                        )));
-                    }
-                },
-            )?;
-            executors_map().update(deps.storage, &address.as_bytes(), |executor| {
-                if let Some(mut executor) = executor {
-                    executor.is_active = false;
-                    Ok(executor)
-                } else {
-                    return Err(ContractError::Std(StdError::generic_err(
-                        "Error to update executor status",
-                    )));
+
+            cosmos_msgs.push(
+                BankMsg::Send {
+                    from_address: env.contract.address,
+                    to_address: proposer,
+                    amount: vec![Coin {
+                        denom: slash_coin.denom,
+                        amount: slash_amount,
+                    }],
                 }
-            })?;
+                .into(),
+            )
         }
     }
 
-    Ok(HandleResponse::default())
+    Ok(HandleResponse {
+        data: None,
+        messages: vec![],
+        attributes: vec![attr("action", "slash_executor_pool")],
+    })
 }
 
 pub fn query_all_executors(deps: Deps) -> StdResult<Vec<Executor>> {
@@ -435,16 +428,35 @@ pub fn query_all_executors(deps: Deps) -> StdResult<Vec<Executor>> {
     res
 }
 
-pub fn query_all_executor_trusting_pools(deps: Deps) -> StdResult<Vec<(Binary, TrustingPool)>> {
-    let executors = query_all_executors(deps)?;
-    let mut data: Vec<(Binary, TrustingPool)> = vec![];
-    for e in executors {
-        let trusting_pool = EXECUTORS_TRUSTING_POOL.may_load(deps.storage, e.pubkey.as_slice())?;
-        if let Some(trusting_pool) = trusting_pool {
-            data.push((e.pubkey, trusting_pool));
-        }
-    }
-    Ok(data)
+pub fn query_trusting_pools(
+    deps: Deps,
+    env: Env,
+    offset: Option<Binary>,
+    limit: Option<u8>,
+    order: Option<u8>,
+) -> StdResult<Vec<TrustingPoolResponse>> {
+    let Config {
+        trusting_period, ..
+    } = CONFIG.load(deps.storage)?;
+    let (limit, min, max, order_enum) = get_executors_params(offset, limit, order);
+
+    let res: StdResult<Vec<TrustingPoolResponse>> = EXECUTORS_TRUSTING_POOL
+        .range(deps.storage, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| {
+            kv_item.and_then(|(pub_vec, trusting_pool)| {
+                // will panic if length is greater than 8, but we can make sure it is u64
+                // try_into will box vector to fixed array
+                Ok(TrustingPoolResponse {
+                    trusting_period,
+                    current_height: env.block.height,
+                    pubkey: Binary::from(pub_vec),
+                    trusting_pool,
+                })
+            })
+        })
+        .collect();
+    res
 }
 
 pub fn query_executor(deps: Deps, pubkey: Binary) -> StdResult<Option<Executor>> {
@@ -453,9 +465,21 @@ pub fn query_executor(deps: Deps, pubkey: Binary) -> StdResult<Option<Executor>>
     Ok(executors_map().may_load(deps.storage, address.as_bytes())?)
 }
 
-pub fn query_executor_trusting_pool(deps: Deps, pubkey: Binary) -> StdResult<Option<TrustingPool>> {
-    let pool = EXECUTORS_TRUSTING_POOL.may_load(deps.storage, &pubkey.as_slice())?;
-    Ok(pool)
+pub fn query_executor_trusting_pool(
+    deps: Deps,
+    env: Env,
+    pubkey: Binary,
+) -> StdResult<TrustingPoolResponse> {
+    let trusting_pool = EXECUTORS_TRUSTING_POOL.load(deps.storage, pubkey.as_slice())?;
+    let Config {
+        trusting_period, ..
+    } = CONFIG.load(deps.storage)?;
+    Ok(TrustingPoolResponse {
+        trusting_period,
+        pubkey,
+        trusting_pool,
+        current_height: env.block.height,
+    })
 }
 
 pub fn query_executor_size(deps: Deps) -> StdResult<u64> {
@@ -577,56 +601,4 @@ pub fn pubkey_to_address(pubkey: &Binary) -> Result<HumanAddr, ContractError> {
     let encoded = bech32::encode("orai", result_slice.to_base32(), Variant::Bech32)
         .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
     Ok(HumanAddr::from(encoded))
-}
-
-pub fn query_oracle_contract_config(deps: Deps) -> StdResult<aioracle_v2::state::Config> {
-    let Config {
-        oracle_contract, ..
-    } = CONFIG.load(deps.storage)?;
-    let res: aioracle_v2::state::Config = deps.querier.query(
-        &WasmQuery::Smart {
-            contract_addr: oracle_contract,
-            msg: to_binary(&aioracle_v2::msg::QueryMsg::Config {})?,
-        }
-        .into(),
-    )?;
-
-    Ok(res)
-}
-
-pub fn verify_data(
-    deps: Deps,
-    stage: u64,
-    report: Binary,
-    proofs: Option<Vec<String>>,
-) -> StdResult<bool> {
-    let Config {
-        oracle_contract, ..
-    } = CONFIG.load(deps.storage)?;
-    let is_verify: bool = deps.querier.query(
-        &WasmQuery::Smart {
-            contract_addr: oracle_contract,
-            msg: to_binary(&aioracle_v2::msg::QueryMsg::VerifyData {
-                stage,
-                data: report,
-                proof: proofs,
-            })?,
-        }
-        .into(),
-    )?;
-    Ok(is_verify)
-}
-
-pub fn get_oracle_request(deps: Deps, stage: u64) -> StdResult<aioracle_v2::state::Request> {
-    let Config {
-        oracle_contract, ..
-    } = CONFIG.load(deps.storage)?;
-    let request = deps.querier.query(
-        &WasmQuery::Smart {
-            contract_addr: oracle_contract,
-            msg: to_binary(&aioracle_v2::msg::QueryMsg::Request { stage })?,
-        }
-        .into(),
-    )?;
-    Ok(request)
 }

@@ -1,4 +1,4 @@
-use aioracle_base::Reward;
+use aioracle_base::{Request, Reward};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{Binary, Coin, HumanAddr, Order, StdResult, Storage, Uint128};
 
 use crate::{
-    msg::{MigrateMsg, TrustingPoolResponse},
-    state::{requests, Config, Request, TrustingPool, CONFIG_KEY, EXECUTORS_TRUSTING_POOL},
+    msg::MigrateMsg,
+    state::{requests, Config, CONFIG_KEY},
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -178,8 +178,7 @@ pub fn migrate_v02_to_v03(storage: &mut dyn Storage, migrate_msg: MigrateMsg) ->
 mod test {
     use crate::contract::*;
     use crate::msg::*;
-    use crate::state::Config;
-    use crate::state::Request;
+    use aioracle_base::Request;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };

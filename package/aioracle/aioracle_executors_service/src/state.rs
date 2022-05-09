@@ -1,4 +1,5 @@
-use cosmwasm_std::{Binary, Coin, HumanAddr};
+use aioracle_base::executors::TrustingPool;
+use cosmwasm_std::{Binary, HumanAddr};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, U64Key, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -20,7 +21,7 @@ pub struct Config {
     pub multisig_addr: HumanAddr,
     pub oracle_contract: HumanAddr,
     pub pending_period: u64,
-    pub slashing_amount: u64,
+    pub trusting_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -56,15 +57,6 @@ pub fn executors_map<'a>() -> IndexedMap<'a, &'a [u8], Executor, ExecutorIndexes
         index: UniqueIndex::new(|d| U64Key::new(d.index), "index"),
     };
     IndexedMap::new("executors_v1.1", indexes)
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct TrustingPool {
-    /// Owner If None set, contract is frozen.
-    pub amount_coin: Coin,
-    pub withdraw_amount_coin: Coin,
-    pub withdraw_height: u64,
-    pub is_freezing: bool,
 }
 
 // pub struct TrustingPoolIndexes<'a> {

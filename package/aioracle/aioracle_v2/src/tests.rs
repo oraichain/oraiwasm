@@ -3,9 +3,9 @@ use crate::error::ContractError;
 use crate::msg::{
     HandleMsg, InitMsg, QueryMsg, RequestResponse, StageInfo, TrustingPoolResponse, UpdateConfigMsg,
 };
-use crate::state::{Config, Request, TrustingPool};
+use crate::state::{Config, TrustingPool};
 
-use aioracle_base::{Executor, Reward};
+use aioracle_base::{Executor, Request, Reward, VerifyDataMsg};
 use bech32::{self, FromBase32, ToBase32, Variant};
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
@@ -560,11 +560,11 @@ fn verify_data() {
         .wrap()
         .query_wasm_smart(
             aioracle_addr,
-            &QueryMsg::VerifyData {
+            &QueryMsg::VerifyData(VerifyDataMsg {
                 stage: test_data.request_id as u64,
                 data: test_data.data,
                 proof: Some(test_data.proofs),
-            },
+            }),
         )
         .unwrap();
 

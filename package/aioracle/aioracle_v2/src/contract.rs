@@ -1,4 +1,7 @@
-use aioracle_base::{Executor, GetServiceFeesMsg, Reward, ServiceMsg};
+use aioracle_base::{
+    executors::HandleMsg::HandleSlashExecutorPool, executors::QueryMsg::GetExecutorSize, Contracts,
+    Executor, GetServiceFeesMsg, Report, Request, Reward, ServiceMsg,
+};
 use cosmwasm_std::{
     attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError,
@@ -12,19 +15,17 @@ use cw_storage_plus::Bound;
 use ripemd::{Digest as RipeDigest, Ripemd160};
 use sha2::Digest;
 use std::convert::TryInto;
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Mul};
 
 use crate::error::ContractError;
-use crate::migrations::migrate_v02_to_v03;
+// use crate::migrations::migrate_v02_to_v03;
 use crate::msg::{
-    BoundExecutorFeeMsg, CurrentStageResponse, ExecutorsResponse, GetBoundExecutorFee,
-    GetParticipantFee, GetServiceContracts, GetServiceFees, HandleMsg, InitMsg, IsClaimedResponse,
-    LatestStageResponse, MigrateMsg, QueryMsg, Report, RequestResponse, StageInfo,
-    TrustingPoolResponse, UpdateConfigMsg,
+    BoundExecutorFeeMsg, CurrentStageResponse, GetBoundExecutorFee, GetParticipantFee,
+    GetServiceContracts, GetServiceFees, HandleMsg, InitMsg, IsClaimedResponse,
+    LatestStageResponse, MigrateMsg, QueryMsg, RequestResponse, StageInfo, UpdateConfigMsg,
 };
 use crate::state::{
-    executors_map, requests, Config, Contracts, Request, TrustingPool, CHECKPOINT, CLAIM, CONFIG,
-    EVIDENCES, EXECUTORS_INDEX, EXECUTORS_TRUSTING_POOL, LATEST_STAGE,
+    executors_map, requests, Config, CHECKPOINT, CLAIM, CONFIG, LATEST_STAGE, ORACLE_FEES,
 };
 use std::collections::HashMap;
 
@@ -47,6 +48,7 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     let config = Config {
         owner,
         service_addr: msg.service_addr,
+        executor_service_addr: msg.executor_service_addr,
         contract_fee: msg.contract_fee,
         checkpoint_threshold: CHECKPOINT_THRESHOLD,
         max_req_threshold: MAXIMUM_REQ_THRESHOLD,
@@ -61,23 +63,6 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     CHECKPOINT.save(deps.storage, &1)?;
 
     // first nonce
-    let mut executor_index = 0;
-    let final_executors = msg
-        .executors
-        .into_iter()
-        .map(|executor| -> Executor {
-            let final_executor: Executor = Executor {
-                pubkey: executor,
-                executing_power: 0u64,
-                index: executor_index,
-                is_active: true,
-            };
-            executor_index += 1;
-            final_executor
-        })
-        .collect();
-    save_executors(deps.storage, final_executors)?;
-    EXECUTORS_INDEX.save(deps.storage, &executor_index)?;
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(InitResponse::default())
 }
@@ -162,7 +147,7 @@ pub fn migrate(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: MigrateMsg,
+    _msg: MigrateMsg,
 ) -> StdResult<MigrateResponse> {
     // // if old_version.version != CONTRACT_VERSION {
     // //     return Err(StdError::generic_err(format!(
@@ -313,8 +298,6 @@ pub fn execute_update_config(
         new_owner,
         new_service_addr,
         new_contract_fee,
-        new_executors,
-        old_executors,
         new_checkpoint,
         new_checkpoint_threshold,
         new_max_req_threshold,
@@ -361,39 +344,6 @@ pub fn execute_update_config(
         CHECKPOINT.save(deps.storage, &new_checkpoint)?;
     }
 
-    if let Some(executors) = new_executors {
-        let mut executor_index = EXECUTORS_INDEX.load(deps.storage)?;
-        let final_executors = executors
-            .into_iter()
-            .map(|executor| -> Executor {
-                let old_executor_option = executors_map()
-                    .may_load(deps.storage, executor.as_slice())
-                    .unwrap_or(None);
-                // if executor exist then we dont increment executor index, reuse all config, only turn is active to true
-                if let Some(old_executor) = old_executor_option {
-                    return Executor {
-                        is_active: true,
-                        ..old_executor
-                    };
-                }
-                // otherwise, we return new executor data
-                let final_executor: Executor = Executor {
-                    pubkey: executor,
-                    executing_power: 0u64,
-                    index: executor_index,
-                    is_active: true,
-                };
-                executor_index += 1;
-                final_executor
-            })
-            .collect();
-        EXECUTORS_INDEX.save(deps.storage, &executor_index)?;
-        save_executors(deps.storage, final_executors)?;
-    }
-    if let Some(executors) = old_executors {
-        remove_executors(deps.storage, executors)?;
-    }
-
     Ok(HandleResponse {
         attributes: vec![attr("action", "update_config")],
         messages: vec![],
@@ -414,17 +364,26 @@ pub fn handle_request(
     let Config {
         contract_fee,
         max_req_threshold,
+        executor_service_addr,
         ..
     } = CONFIG.load(deps.storage)?;
-    if let Some(sent_fund) = info
+    let some_funds = info
         .sent_funds
         .iter()
-        .find(|fund| fund.denom.eq(&contract_fee.denom))
-    {
-        if sent_fund.amount.lt(&contract_fee.amount) {
-            return Err(ContractError::InsufficientFundsContractFees {});
-        }
+        .find(|fund| fund.denom.eq(&contract_fee.denom));
+    if some_funds.is_none() {
+        return Err(ContractError::Std(StdError::generic_err(
+            "sent funds is empty",
+        )));
     }
+    let mut fund = some_funds.unwrap();
+    if fund.amount.lt(&contract_fee.amount) {
+        return Err(ContractError::InsufficientFundsContractFees {});
+    }
+    // substract fee amount to collect fee
+    fund.amount = (fund.amount.u128() - contract_fee.amount.u128()).into();
+    // update fee in a store for better querying & keeping track of the fees
+    ORACLE_FEES.save(deps.storage, &contract_fee)?;
 
     // reward plus preference must match sent funds
     let bound_executor_fee: Coin = query_bound_executor_fee(deps.as_ref())?;
@@ -448,6 +407,7 @@ pub fn handle_request(
         ));
     }
 
+    // TODO: verify request fees against the fund after subtracting the contract fee
     if !verify_request_fees(&info.sent_funds, &rewards, threshold) {
         return Err(ContractError::InsufficientFundsRequestFees {});
     }
@@ -455,7 +415,9 @@ pub fn handle_request(
     rewards.pop(); // pop so we dont store the placeholder reward in the list
 
     // this will keep track of the executor list of the request
-    let current_size = query_executor_size(deps.as_ref())?;
+    let current_size: u64 = deps
+        .querier
+        .query_wasm_smart(executor_service_addr, &GetExecutorSize {})?;
 
     if Uint128::from(current_size)
         .mul(Decimal::from_ratio(
@@ -470,7 +432,7 @@ pub fn handle_request(
     requests().save(
         deps.storage,
         &stage.to_be_bytes(),
-        &crate::state::Request {
+        &Request {
             preference_executor_fee,
             requester: info.sender.clone(),
             request_height: env.block.height,
@@ -507,6 +469,7 @@ pub fn handle_submit_evidence(
         trusting_period,
         slashing_amount,
         denom,
+        executor_service_addr,
         ..
     } = CONFIG.load(deps.storage)?;
 
@@ -518,17 +481,6 @@ pub fn handle_submit_evidence(
     let report_struct: Report = from_slice(report.as_slice())
         .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
 
-    // check evidence, only allow evidence per executor
-    let mut evidence_key = report_struct.executor.clone().to_base64();
-    evidence_key.push_str(&stage.to_string());
-    let is_claimed = EVIDENCES.may_load(deps.storage, evidence_key.as_bytes())?;
-
-    if let Some(is_claimed) = is_claimed {
-        if is_claimed {
-            return Err(ContractError::AlreadyFinishedEvidence {});
-        }
-    }
-
     let Request {
         submit_merkle_height,
         ..
@@ -537,29 +489,35 @@ pub fn handle_submit_evidence(
     let is_exist = executors_map().may_load(deps.storage, report_struct.executor.as_slice())?;
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
-    // only slash if the executor cannot be found in the whitelist
-    if is_exist.is_none() && (submit_merkle_height + trusting_period).gt(&env.block.height) {
-        // query contract balance to slash
-        let balance = deps
-            .querier
-            .query_balance(env.contract.address.clone(), denom.as_str())
-            .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
-        // if executor does not exist & still in trusting period => can slash amount in contract by sending the percentage amount to the reporter who discovers the faulty stage.
-        let total_slash = balance.amount.mul(Decimal::permille(slashing_amount));
-        if !total_slash.is_zero() {
-            let send_msg = BankMsg::Send {
-                from_address: env.contract.address,
-                to_address: info.sender,
-                amount: vec![Coin {
-                    denom: balance.denom,
-                    amount: total_slash,
-                }],
-            };
-            cosmos_msgs.push(send_msg.into());
-        }
-
-        EVIDENCES.save(deps.storage, evidence_key.as_bytes(), &true)?;
+    // query contract balance to slash
+    let balance = deps
+        .querier
+        .query_balance(env.contract.address.clone(), denom.as_str())
+        .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
+    // if executor does not exist & still in trusting period => can slash amount in contract by sending the percentage amount to the reporter who discovers the faulty stage.
+    let total_slash = balance.amount.mul(Decimal::permille(slashing_amount));
+    if total_slash.is_zero() {
+        return Err(ContractError::InsufficientSlashBalance {});
     }
+    let slash_amount = Coin {
+        denom: balance.denom,
+        amount: total_slash,
+    };
+
+    cosmos_msgs.push(
+        WasmMsg::Execute {
+            contract_addr: executor_service_addr,
+            msg: to_binary(&HandleSlashExecutorPool {
+                executor: report_struct.executor,
+                stage: stage.clone(),
+                submit_merkle_height,
+                proposer: info.sender,
+                slash_amount: slash_amount.clone(),
+            })?,
+            send: vec![slash_amount],
+        }
+        .into(),
+    );
 
     Ok(HandleResponse {
         data: None,
@@ -810,18 +768,6 @@ pub fn execute_register_merkle_root(
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::GetExecutors {
-            offset,
-            limit,
-            order,
-        } => to_binary(&query_executors(deps, offset, limit, order)?),
-        QueryMsg::GetExecutorsByIndex {
-            offset,
-            limit,
-            order,
-        } => to_binary(&query_executors_by_index(deps, offset, limit, order)?),
-        QueryMsg::GetExecutor { pubkey } => to_binary(&query_executor(deps, pubkey)?),
-        QueryMsg::GetExecutorSize {} => to_binary(&query_executor_size(deps)?),
         QueryMsg::Request { stage } => to_binary(&query_request(deps, stage)?),
         QueryMsg::GetRequests {
             offset,
@@ -857,18 +803,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::IsClaimed { stage, executor } => {
             to_binary(&query_is_claimed(deps, stage, executor)?)
         }
-        QueryMsg::VerifyData { stage, data, proof } => {
-            to_binary(&verify_data(deps, stage, data, proof)?)
-        }
+        QueryMsg::VerifyData(verify_data_msg) => to_binary(&verify_data(
+            deps,
+            verify_data_msg.stage,
+            verify_data_msg.data,
+            verify_data_msg.proof,
+        )?),
         QueryMsg::GetServiceFees { service } => to_binary(&query_service_fees(deps, service)?),
         QueryMsg::GetBoundExecutorFee {} => to_binary(&query_bound_executor_fee(deps)?),
         QueryMsg::GetParticipantFee { pubkey } => to_binary(&query_participant_fee(deps, pubkey)?),
-        QueryMsg::GetTrustingPool { pubkey } => to_binary(&query_trusting_pool(deps, env, pubkey)?),
-        QueryMsg::GetTrustingPools {
-            offset,
-            limit,
-            order,
-        } => to_binary(&query_trusting_pools(deps, env, offset, limit, order)?),
     }
 }
 
@@ -876,54 +819,6 @@ pub fn query_participant_fee(deps: Deps, pubkey: Binary) -> StdResult<Coin> {
     let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
     get_participant_fee(deps, pubkey, service_addr.as_str())
         .map_err(|err| StdError::generic_err(err.to_string()))
-}
-
-pub fn query_trusting_pool(
-    deps: Deps,
-    env: Env,
-    pubkey: Binary,
-) -> StdResult<TrustingPoolResponse> {
-    let trusting_pool = EXECUTORS_TRUSTING_POOL.load(deps.storage, pubkey.as_slice())?;
-    let Config {
-        trusting_period, ..
-    } = CONFIG.load(deps.storage)?;
-    Ok(TrustingPoolResponse {
-        trusting_period,
-        pubkey,
-        trusting_pool,
-        current_height: env.block.height,
-    })
-}
-
-pub fn query_trusting_pools(
-    deps: Deps,
-    env: Env,
-    offset: Option<Binary>,
-    limit: Option<u8>,
-    order: Option<u8>,
-) -> StdResult<Vec<TrustingPoolResponse>> {
-    let Config {
-        trusting_period, ..
-    } = CONFIG.load(deps.storage)?;
-    let (limit, min, max, order_enum) = get_executors_params(offset, limit, order);
-
-    let res: StdResult<Vec<TrustingPoolResponse>> = EXECUTORS_TRUSTING_POOL
-        .range(deps.storage, min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| {
-            kv_item.and_then(|(pub_vec, trusting_pool)| {
-                // will panic if length is greater than 8, but we can make sure it is u64
-                // try_into will box vector to fixed array
-                Ok(TrustingPoolResponse {
-                    trusting_period,
-                    current_height: env.block.height,
-                    pubkey: Binary::from(pub_vec),
-                    trusting_pool,
-                })
-            })
-        })
-        .collect();
-    res
 }
 
 pub fn query_executor(deps: Deps, pubkey: Binary) -> StdResult<Executor> {
@@ -1022,108 +917,6 @@ pub fn query_config(deps: Deps) -> StdResult<Config> {
 }
 
 // ============================== Query Handlers ==============================
-
-fn get_executors_params(
-    offset: Option<Binary>,
-    limit: Option<u8>,
-    order: Option<u8>,
-) -> (usize, Option<Bound>, Option<Bound>, Order) {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    // let mut max: Option<Bound> = None;
-    let mut order_enum = Order::Ascending;
-    let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
-    if let Some(num) = order {
-        if num == 2 {
-            order_enum = Order::Descending;
-        }
-    }
-    let offset_value = offset
-        .as_ref()
-        .map(|offset| Bound::Exclusive(offset.to_vec()));
-
-    // if there is offset, assign to min or max
-    match order_enum {
-        Order::Ascending => min = offset_value,
-        Order::Descending => max = offset_value,
-    }
-
-    (limit, min, max, order_enum)
-}
-
-pub fn query_executors(
-    deps: Deps,
-    offset: Option<Binary>,
-    limit: Option<u8>,
-    order: Option<u8>,
-) -> StdResult<Vec<Executor>> {
-    let (limit, min, max, order_enum) = get_executors_params(offset, limit, order);
-
-    let res: StdResult<Vec<Executor>> = executors_map()
-        .range(deps.storage, min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| {
-            kv_item.and_then(|(_, executor)| {
-                // will panic if length is greater than 8, but we can make sure it is u64
-                // try_into will box vector to fixed array
-                Ok(executor)
-            })
-        })
-        .collect();
-    res
-}
-
-fn get_executors_by_index_params(
-    offset: Option<u64>,
-    limit: Option<u8>,
-    order: Option<u8>,
-) -> (usize, Option<Bound>, Option<Bound>, Order) {
-    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    // let mut max: Option<Bound> = None;
-    let mut order_enum = Order::Ascending;
-    let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
-    if let Some(num) = order {
-        if num == 2 {
-            order_enum = Order::Descending;
-        }
-    }
-    let offset_value = offset
-        .as_ref()
-        .map(|offset| Bound::Exclusive(offset.to_be_bytes().to_vec()));
-
-    // if there is offset, assign to min or max
-    match order_enum {
-        Order::Ascending => min = offset_value,
-        Order::Descending => max = offset_value,
-    }
-
-    (limit, min, max, order_enum)
-}
-
-pub fn query_executors_by_index(
-    deps: Deps,
-    offset: Option<u64>,
-    limit: Option<u8>,
-    order: Option<u8>,
-) -> StdResult<Vec<Executor>> {
-    let (limit, min, max, order_enum) = get_executors_by_index_params(offset, limit, order);
-
-    let res: StdResult<Vec<Executor>> = executors_map()
-        .idx
-        .index
-        .range(deps.storage, min, max, order_enum)
-        .take(limit)
-        .map(|kv_item| {
-            kv_item.and_then(|(_, executor)| {
-                // will panic if length is greater than 8, but we can make sure it is u64
-                // try_into will box vector to fixed array
-                Ok(executor)
-            })
-        })
-        .collect();
-    res
-}
 
 pub fn query_request(deps: Deps, stage: u64) -> StdResult<Request> {
     let request = requests().load(deps.storage, &stage.to_be_bytes())?;
@@ -1303,13 +1096,6 @@ pub fn verify_request_fees(sent_funds: &[Coin], rewards: &[Reward], threshold: u
         return false;
     }
     return true;
-}
-
-pub fn query_executor_size(deps: Deps) -> StdResult<u64> {
-    let executor_count = executors_map()
-        .range(deps.storage, None, None, Order::Ascending)
-        .count();
-    Ok(executor_count as u64)
 }
 
 pub fn pubkey_to_address(pubkey: &Binary) -> Result<HumanAddr, ContractError> {
