@@ -7,7 +7,7 @@ homepage = "https://cosmwasm.com"
 license = "Apache-2.0"
 name = "ow20"
 repository = "https://github.com/CosmWasm/cosmwasm-plus"
-version = "0.5.0"
+version = "0.5.1"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

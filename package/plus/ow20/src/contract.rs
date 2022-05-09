@@ -509,25 +509,25 @@ pub fn migrate(
     _info: MessageInfo,
     _msg: MigrateMsg,
 ) -> StdResult<MigrateResponse> {
-    let old_version = get_contract_version(deps.storage)?;
-    if old_version.contract != CONTRACT_NAME {
-        return Err(StdError::generic_err(format!(
-            "This is {}, cannot migrate from {}",
-            CONTRACT_NAME, old_version.contract
-        )));
-    }
-    // note: v0.1.0 were not auto-generated and started with v0.
-    // more recent versions do not have the v prefix
-    if old_version.version.starts_with("v0.1.") {
-        migrate_v01_to_v02(deps.storage)?;
-    } else if old_version.version.starts_with("0.2") {
-        // no migration between 0.2 and 0.3, correct?
-    } else {
-        return Err(StdError::generic_err(format!(
-            "Unknown version {}",
-            old_version.version
-        )));
-    }
+    // let old_version = get_contract_version(deps.storage)?;
+    // if old_version.contract != CONTRACT_NAME {
+    //     return Err(StdError::generic_err(format!(
+    //         "This is {}, cannot migrate from {}",
+    //         CONTRACT_NAME, old_version.contract
+    //     )));
+    // }
+    // // note: v0.1.0 were not auto-generated and started with v0.
+    // // more recent versions do not have the v prefix
+    // if old_version.version.starts_with("v0.1.") {
+    //     migrate_v01_to_v02(deps.storage)?;
+    // } else if old_version.version.starts_with("0.2") {
+    //     // no migration between 0.2 and 0.3, correct?
+    // } else {
+    //     return Err(StdError::generic_err(format!(
+    //         "Unknown version {}",
+    //         old_version.version
+    //     )));
+    // }
 
     // once we have "migrated", set the new version and return success
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
