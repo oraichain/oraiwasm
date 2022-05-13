@@ -73,24 +73,31 @@ pub fn handle_executor_leave(
     if info.sender.ne(&executor_human) {
         return Err(ContractError::Unauthorized {});
     }
-    executors_map().update(deps.storage, &executor, |executor| {
-        if let Some(mut executor) = executor {
-            executor.is_active = false;
-            executor.left_block = Some(env.block.height);
-            return Ok(executor);
-        }
-        return Err(ContractError::Std(StdError::generic_err(
-            "Executor not existed!",
-        )));
-    })?;
-    Ok(HandleResponse {
-        messages: vec![],
-        attributes: vec![
-            attr("action", "executor_leave_aioracle"),
-            attr("executor", executor),
-        ],
-        data: None,
-    })
+    let leaving_executor = executors_map()
+        .may_load(deps.storage, executor.as_slice())?
+        .unwrap();
+
+    if leaving_executor.is_active == true {
+        executors_map().update(deps.storage, &executor, |executor| {
+            if let Some(mut executor) = executor {
+                executor.is_active = false;
+                executor.left_block = Some(env.block.height);
+                return Ok(executor);
+            }
+            return Err(ContractError::Std(StdError::generic_err(
+                "Executor not existed!",
+            )));
+        })?;
+        return Ok(HandleResponse {
+            messages: vec![],
+            attributes: vec![
+                attr("action", "executor_leave_aioracle"),
+                attr("executor", executor),
+            ],
+            data: None,
+        });
+    }
+    Err(ContractError::ExecutorAlreadyLeft {})
 }
 
 pub fn process_executors_pool(

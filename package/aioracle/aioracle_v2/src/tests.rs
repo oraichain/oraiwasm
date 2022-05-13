@@ -21,6 +21,7 @@ use serde::Deserialize;
 use sha2::Digest;
 
 const DENOM: &str = "ORAI";
+const PENDING_PERIOD: u64 = 100800;
 const AIORACLE_OWNER: &str = "admin0002";
 const PROVIDER_OWNER: &str = "admin0001";
 const AIORACLE_SERVICE_FEES_OWNER: &str = "admin0003";
@@ -299,6 +300,7 @@ fn update_config() {
             new_trust_period: None,
             new_slashing_amount: None,
             new_denom: None,
+            new_pending_period: None,
         },
     };
 
@@ -335,6 +337,7 @@ fn update_config() {
             new_trust_period: None,
             new_slashing_amount: None,
             new_denom: None,
+            new_pending_period: None,
         },
     };
 
@@ -360,6 +363,7 @@ fn update_config() {
             new_trust_period: None,
             new_slashing_amount: None,
             new_denom: None,
+            new_pending_period: None,
         },
     };
     let res = app
@@ -1139,6 +1143,7 @@ fn test_query_executor() {
             new_trust_period: None,
             new_slashing_amount: None,
             new_denom: None,
+            new_pending_period: None,
         },
     };
 
@@ -1180,6 +1185,7 @@ fn test_executor_size() {
                 new_trust_period: None,
                 new_slashing_amount: None,
                 new_denom: None,
+                new_pending_period: None,
             },
         },
         &[],
@@ -1616,4 +1622,121 @@ pub fn get_maximum_executor_fee() {
 pub fn skip_trusting_period(block: &mut BlockInfo) {
     block.time += 5;
     block.height += 100801;
+}
+
+// fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
+//     let mut deps = mock_dependencies(&coins(100000, DENOM));
+//     deps.api.canonical_length = 54;
+//     let msg = InitMsg {
+//         owner:
+//     };
+//     let info = mock_info(CREATOR, &[]);
+//     let contract_env = mock_env();
+//     let res = init(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
+//     assert_eq!(0, res.messages.len());
+//     (deps, contract_env)
+// }
+
+#[test]
+fn test_executor_join() {
+    let msg = HandleMsg::ExecutorJoin {
+        executor: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0a").unwrap(),
+    };
+    let mut app = mock_app();
+    let info = mock_info("orai1nky8s7p7wc0whcmnatyn2spdxqvq6ntk8azd3x", &[]);
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
+
+    // Unauthorize case
+    let res = app
+        .execute_contract(info.sender.clone(), aioracle_addr.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(res, ContractError::Unauthorized {}.to_string());
+    
+    // Join a new executor
+    let info = mock_info("orai12lj8y27tmsag6hhjsucffvqrldfxjpja4sx84u", &[]);
+    let res = app
+        .execute_contract(info.sender.clone(), aioracle_addr.clone(), &msg, &[])
+        .unwrap();
+
+    // Query and check if test executor exist in list joined executors
+    let executor: Executor = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr.clone(),
+            &QueryMsg::GetExecutor {
+                pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0a")
+                    .unwrap(),
+            },
+        )
+        .unwrap();
+    assert_eq!(executor.is_active, true);
+
+    // Test pending period before an executor can join again.
+    let msg = HandleMsg::ExecutorLeave {
+        executor: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0a").unwrap(),
+    };
+    let res = app
+        .execute_contract(info.sender.clone(), aioracle_addr.clone(), &msg, &[])
+        .unwrap();
+
+    // Rejoining before pending period
+    let msg = HandleMsg::ExecutorJoin {
+        executor: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0a").unwrap(),
+    };
+    let res = app
+        .execute_contract(info.sender.clone(), aioracle_addr.clone(), &msg, &[])
+        .unwrap_err();
+    // assert_eq!(res, Err("Cannot rejoin before block { }"));
+
+    // Set block height and rejoining after pending period
+    app.set_block(BlockInfo {
+        height: 12_345 + PENDING_PERIOD + 4,
+        time: 1_571_797_419,
+        time_nanos: 879305533,
+        chain_id: "cosmos-testnet-14002".to_string(),
+    });
+    let res = app
+        .execute_contract(info.sender.clone(), aioracle_addr.clone(), &msg, &[])
+        .unwrap();
+}
+
+#[test]
+fn test_executor_leave() {
+    let mut app = mock_app();
+    let info = mock_info("orai1nky8s7p7wc0whcmnatyn2spdxqvq6ntk8azd3x", &[]);
+    let (_, _, aioracle_addr) = setup_test_case(&mut app);
+    let msg = HandleMsg::ExecutorLeave {
+        executor: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
+    };
+
+    // Unauthorize case
+    let res = app
+        .execute_contract(info.sender.clone(), aioracle_addr.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(res, ContractError::Unauthorized {}.to_string());
+
+    // Deactive an existing executor of list
+    let info = mock_info("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573", &[]);
+    let res = app
+        .execute_contract(info.sender.clone(), aioracle_addr.clone(), &msg, &[])
+        .unwrap();
+
+    // Query and check if executor is already left
+    let executor: Executor = app
+        .wrap()
+        .query_wasm_smart(
+            aioracle_addr.clone(),
+            &QueryMsg::GetExecutor {
+                pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
+                    .unwrap(),
+            },
+        )
+        .unwrap();
+    assert_eq!(executor.is_active, false);
+
+    // Calling executor leave again should be error
+    let res = app
+        .execute_contract(info.sender.clone(), aioracle_addr.clone(), &msg, &[])
+        .unwrap_err();
+    assert_eq!(res, ContractError::ExecutorAlreadyLeft {}.to_string());
 }
