@@ -149,10 +149,10 @@ pub fn migrate(
     _info: MessageInfo,
     _msg: MigrateMsg,
 ) -> StdResult<MigrateResponse> {
-    // migrate_v02_to_v03(deps.storage)?;
+    migrate_v02_to_v03(deps.storage)?;
 
     // once we have "migrated", set the new version and return success
-    // set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(MigrateResponse {
         attributes: vec![
             attr("new_contract_name", CONTRACT_NAME),

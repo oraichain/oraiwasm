@@ -8,7 +8,7 @@ use cosmwasm_std::{Binary, Coin, HumanAddr, Order, StdResult, Storage};
 use crate::{
     contract::PENDING_PERIOD,
     msg::MigrateMsg,
-    state::{executors_map, Config, CONFIG_KEY},
+    state::{executors_map, Config, CONFIG_KEY, CONTRACT_FEES},
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -105,6 +105,8 @@ pub fn migrate_v02_to_v03(storage: &mut dyn Storage) -> StdResult<()> {
             },
         )?;
     }
+
+    CONTRACT_FEES.save(storage, &new_config_data.contract_fee)?;
 
     Ok(())
 }
