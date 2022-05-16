@@ -75,6 +75,9 @@ pub const EVIDENCES: Map<&[u8], bool> = Map::new(EVIDENCE_PREFIX);
 pub const EXECUTORS_INDEX_PREFIX: &str = "executors_index";
 pub const EXECUTORS_INDEX: Item<u64> = Item::new(EXECUTORS_INDEX_PREFIX);
 
+pub const CONTRACT_FEES_INDEX: &str = "contract_fees_index";
+pub const CONTRACT_FEES: Item<Coin> = Item::new(CONTRACT_FEES_INDEX);
+
 pub const EXECUTORS_TRUSTING_POOL_PREFIX: &str = "executors_trusting_pool_v2";
 pub const EXECUTORS_TRUSTING_POOL: Map<&[u8], TrustingPool> =
     Map::new(EXECUTORS_TRUSTING_POOL_PREFIX);

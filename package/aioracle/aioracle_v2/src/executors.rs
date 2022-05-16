@@ -183,37 +183,39 @@ pub fn handle_prepare_withdraw_pool(
         // check with trusting period. Only allow withdrawing if trusting period has passed
         if (trusting_pool.withdraw_height + trusting_period).ge(&env.block.height) {
             return Err(ContractError::InvalidTrustingPeriod {});
-        } else {
-            // add execute tx to automatically withdraw orai from pool
-            cosmos_msgs.push(
-                BankMsg::Send {
-                    from_address: env.contract.address.clone(),
-                    to_address: executor_addr,
-                    amount: vec![Coin {
-                        denom: trusting_pool.withdraw_amount_coin.denom.clone(),
-                        amount: trusting_pool.withdraw_amount_coin.amount.clone(),
-                    }],
-                }
-                .into(),
-            );
-
-            // reduce amount coin
-            trusting_pool.amount_coin = Coin {
-                denom: trusting_pool.amount_coin.denom,
-                amount: Uint128::from(
-                    trusting_pool
-                        .amount_coin
-                        .amount
-                        .u128()
-                        .sub(trusting_pool.withdraw_amount_coin.amount.u128()),
-                ),
-            };
-            trusting_pool.withdraw_amount_coin = Coin {
-                denom: trusting_pool.amount_coin.denom.clone(),
-                amount: Uint128::from(0u64),
-            };
-            trusting_pool.withdraw_height = 0;
         }
+        if trusting_pool.withdraw_amount_coin.amount.is_zero() {
+            return Err(ContractError::EmptyRewardPool {});
+        }
+        // add execute tx to automatically withdraw orai from pool
+        cosmos_msgs.push(
+            BankMsg::Send {
+                from_address: env.contract.address.clone(),
+                to_address: executor_addr,
+                amount: vec![Coin {
+                    denom: trusting_pool.withdraw_amount_coin.denom.clone(),
+                    amount: trusting_pool.withdraw_amount_coin.amount.clone(),
+                }],
+            }
+            .into(),
+        );
+
+        // reduce amount coin
+        trusting_pool.amount_coin = Coin {
+            denom: trusting_pool.amount_coin.denom,
+            amount: Uint128::from(
+                trusting_pool
+                    .amount_coin
+                    .amount
+                    .u128()
+                    .sub(trusting_pool.withdraw_amount_coin.amount.u128()),
+            ),
+        };
+        trusting_pool.withdraw_amount_coin = Coin {
+            denom: trusting_pool.amount_coin.denom.clone(),
+            amount: Uint128::from(0u64),
+        };
+        trusting_pool.withdraw_height = 0;
     }
     EXECUTORS_TRUSTING_POOL.save(deps.storage, pubkey.as_slice(), &trusting_pool)?;
 

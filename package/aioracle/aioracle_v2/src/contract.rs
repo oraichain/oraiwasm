@@ -12,7 +12,7 @@ use cw_storage_plus::Bound;
 use ripemd::{Digest as RipeDigest, Ripemd160};
 use sha2::Digest;
 use std::convert::TryInto;
-use std::ops::Mul;
+use std::ops::{Add, Mul};
 
 use crate::error::ContractError;
 use crate::executors::{
@@ -27,8 +27,8 @@ use crate::msg::{
     StageInfo, UpdateConfigMsg,
 };
 use crate::state::{
-    executors_map, requests, Config, Contracts, Request, CHECKPOINT, CLAIM, CONFIG, EVIDENCES,
-    EXECUTORS_INDEX, LATEST_STAGE,
+    executors_map, requests, Config, Contracts, Request, CHECKPOINT, CLAIM, CONFIG, CONTRACT_FEES,
+    EVIDENCES, EXECUTORS_INDEX, LATEST_STAGE,
 };
 use std::collections::HashMap;
 
@@ -48,6 +48,8 @@ pub const DEFAULT_LIMIT: u8 = 20;
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
     let owner = msg.owner.unwrap_or(info.sender);
+
+    CONTRACT_FEES.save(deps.storage, &msg.contract_fee)?;
 
     let config = Config {
         owner,
@@ -265,15 +267,11 @@ pub fn handle_request(
         max_req_threshold,
         ..
     } = CONFIG.load(deps.storage)?;
-    if let Some(sent_fund) = info
-        .sent_funds
-        .iter()
-        .find(|fund| fund.denom.eq(&contract_fee.denom))
-    {
-        if sent_fund.amount.lt(&contract_fee.amount) {
-            return Err(ContractError::InsufficientFundsContractFees {});
-        }
-    }
+
+    CONTRACT_FEES.update(deps.storage, |mut fee| -> StdResult<_> {
+        fee.amount = fee.amount + contract_fee.amount;
+        Ok(fee)
+    })?;
 
     // reward plus preference must match sent funds
     let bound_executor_fee: Coin = query_bound_executor_fee(deps.as_ref())?;
@@ -298,7 +296,7 @@ pub fn handle_request(
     }
 
     // TODO: add substract contract fee & verify against it
-    if !verify_request_fees(&info.sent_funds, &rewards, threshold) {
+    if !verify_request_fees(&info.sent_funds, &rewards, threshold, &contract_fee) {
         return Err(ContractError::InsufficientFundsRequestFees {});
     }
 
@@ -792,7 +790,12 @@ pub fn query_is_claimed(deps: Deps, stage: u64, executor: Binary) -> StdResult<I
     Ok(resp)
 }
 
-pub fn verify_request_fees(sent_funds: &[Coin], rewards: &[Reward], threshold: u64) -> bool {
+pub fn verify_request_fees(
+    sent_funds: &[Coin],
+    rewards: &[Reward],
+    threshold: u64,
+    contract_fee: &Coin,
+) -> bool {
     let mut denoms: HashMap<&str, u128> = HashMap::new();
     let mut denom_count = 0; // count number of denoms in rewards
     for reward in rewards {
@@ -815,6 +818,16 @@ pub fn verify_request_fees(sent_funds: &[Coin], rewards: &[Reward], threshold: u
                 .amount
                 .u128()
                 .lt(&amount.mul(&Uint128::from(threshold).u128()))
+            {
+                return false;
+            }
+        }
+
+        // special case for contract fee. total fund must >= total request fee + contract fee
+        if let Some(amount) = denoms.get(contract_fee.denom.as_str()) {
+            if fund.amount.u128().lt(&amount
+                .mul(&Uint128::from(threshold).u128())
+                .add(contract_fee.amount.u128()))
             {
                 return false;
             }

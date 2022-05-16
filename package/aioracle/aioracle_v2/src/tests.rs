@@ -262,7 +262,7 @@ fn proper_instantiation() {
             service: "price".to_string(),
             preference_executor_fee: coin(1, "orai"),
         },
-        &coins(5u128, "orai"),
+        &coins(6u128, "orai"), // plus 1 for contract fee
     )
     .unwrap();
 
@@ -408,7 +408,7 @@ fn test_request() {
             service: "price".to_string(),
             preference_executor_fee: coin(1, "orai"),
         },
-        &coins(5u128, "orai"),
+        &coins(6u128, "orai"), // plus 1 for contract fee
     )
     .unwrap();
 
@@ -474,7 +474,7 @@ fn register_merkle_root() {
             service: "price".to_string(),
             preference_executor_fee: coin(1, "orai"),
         },
-        &coins(5u128, "orai"),
+        &coins(6u128, "orai"), // plus 1 for contract fee
     )
     .unwrap();
 
@@ -591,7 +591,7 @@ fn test_checkpoint() {
                 service: "price".to_string(),
                 preference_executor_fee: coin(1, "orai"),
             },
-            &coins(5u128, "orai"),
+            &coins(6u128, "orai"), // plus 1 for contract fee
         )
         .unwrap();
         if i.eq(&2) || i.eq(&7) {
@@ -723,7 +723,7 @@ fn test_checkpoint_no_new_request() {
             service: "price".to_string(),
             preference_executor_fee: coin(1, "orai"),
         },
-        &coins(5u128, "orai"),
+        &coins(6u128, "orai"), // plus 1 for contract fee
     )
     .unwrap();
 
@@ -841,10 +841,29 @@ fn verify_fees() {
             Uint128::from(1u64),
         ),
     ];
-    assert_eq!(verify_request_fees(&sent_funds, &rewards, 2u64), true);
+    assert_eq!(
+        verify_request_fees(
+            &sent_funds,
+            &rewards,
+            2u64,
+            &Coin {
+                denom: "abcdddd".to_string(),
+                amount: Uint128::from(0u64)
+            }
+        ),
+        true
+    );
 
     assert_eq!(
-        verify_request_fees(&coins(3, "orai"), &rewards, 2u64),
+        verify_request_fees(
+            &coins(3, "orai"),
+            &rewards,
+            2u64,
+            &Coin {
+                denom: "abcdddd".to_string(),
+                amount: Uint128::from(0u64)
+            }
+        ),
         false
     );
 
@@ -867,12 +886,28 @@ fn verify_fees() {
     ];
 
     assert_eq!(
-        verify_request_fees(&coins(5, "orai"), &rewards, 2u64),
+        verify_request_fees(
+            &coins(5, "orai"),
+            &rewards,
+            2u64,
+            &Coin {
+                denom: "abcdddd".to_string(),
+                amount: Uint128::from(0u64)
+            }
+        ),
         false
     );
 
     assert_eq!(
-        verify_request_fees(&vec![coin(4, "orai"), coin(2, "foobar")], &rewards, 2u64),
+        verify_request_fees(
+            &vec![coin(4, "orai"), coin(2, "foobar")],
+            &rewards,
+            2u64,
+            &Coin {
+                denom: "abcdddd".to_string(),
+                amount: Uint128::from(0u64)
+            }
+        ),
         true
     );
 }
