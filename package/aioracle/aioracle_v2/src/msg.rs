@@ -36,17 +36,23 @@ pub enum HandleMsg {
         threshold: u64,
         preference_executor_fee: Coin,
     },
-    ClaimReward {
-        stage: u64,
-        report: Binary,
-        proof: Option<Vec<String>>,
-    },
+    // ClaimReward {
+    //     stage: u64,
+    //     report: Binary,
+    //     proof: Option<Vec<String>>,
+    // },
     WithdrawFees {
         amount: Uint128,
         denom: String,
     },
     PrepareWithdrawPool {
         pubkey: Binary,
+    },
+    ExecutorJoin {
+        executor: Binary,
+    },
+    ExecutorLeave {
+        executor: Binary,
     },
     SubmitEvidence {
         stage: u64,
@@ -220,10 +226,7 @@ pub struct IsClaimedResponse {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub slash_amount: u64,
-    pub denom: String,
-}
+pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateConfigMsg {
@@ -238,4 +241,5 @@ pub struct UpdateConfigMsg {
     pub new_trust_period: Option<u64>,
     pub new_slashing_amount: Option<u64>,
     pub new_denom: Option<String>,
+    pub new_pending_period: Option<u64>,
 }

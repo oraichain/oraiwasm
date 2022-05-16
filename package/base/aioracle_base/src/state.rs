@@ -20,4 +20,5 @@ pub struct Executor {
     pub is_active: bool,
     pub executing_power: u64,
     pub index: u64,
+    pub left_block: Option<u64>,
 }

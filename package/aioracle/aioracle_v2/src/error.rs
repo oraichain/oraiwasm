@@ -23,6 +23,12 @@ pub enum ContractError {
     #[error("Already submitted")]
     AlreadySubmitted {},
 
+    #[error("Cannot rejoin before block {block}")]
+    RejoinError { block: u64 },
+
+    #[error("This executor is already left")]
+    ExecutorAlreadyLeft {},
+
     #[error("Empty trusting pool data")]
     EmptyTrustingPool {},
 
@@ -37,6 +43,8 @@ pub enum ContractError {
 
     #[error("Invalid reward from executor")]
     InvalidReward {},
+    #[error("Empty reward pool. Cannot withdraw")]
+    EmptyRewardPool {},
     #[error("The request has not had enough signatures to be fully verified. Cannot claim now. Total signatures needed: {threshold}; currently have:{signatures}")]
     InvalidClaim { threshold: u64, signatures: u64 },
 

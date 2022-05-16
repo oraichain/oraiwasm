@@ -17,6 +17,7 @@ pub struct Config {
     pub trusting_period: u64,
     pub slashing_amount: u64,
     pub denom: String,
+    pub pending_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -49,7 +50,7 @@ pub struct TrustingPool {
     pub withdraw_height: u64,
 }
 
-pub const CONFIG_KEY: &str = "config";
+pub const CONFIG_KEY: &str = "config_v3";
 pub const CONFIG: Item<Config> = Item::new(CONFIG_KEY);
 
 pub const LATEST_STAGE_KEY: &str = "stage";
@@ -73,6 +74,9 @@ pub const EVIDENCES: Map<&[u8], bool> = Map::new(EVIDENCE_PREFIX);
 
 pub const EXECUTORS_INDEX_PREFIX: &str = "executors_index";
 pub const EXECUTORS_INDEX: Item<u64> = Item::new(EXECUTORS_INDEX_PREFIX);
+
+pub const CONTRACT_FEES_INDEX: &str = "contract_fees_index";
+pub const CONTRACT_FEES: Item<Coin> = Item::new(CONTRACT_FEES_INDEX);
 
 pub const EXECUTORS_TRUSTING_POOL_PREFIX: &str = "executors_trusting_pool_v2";
 pub const EXECUTORS_TRUSTING_POOL: Map<&[u8], TrustingPool> =
@@ -137,7 +141,7 @@ pub fn executors_map<'a>() -> IndexedMap<'a, &'a [u8], Executor, ExecutorIndexes
             "executors",
             "executors_is_active",
         ),
-        index: UniqueIndex::new(|d| U64Key::new(d.index), "index"),
+        index: UniqueIndex::new(|d| U64Key::new(d.index), "index_v1.2"),
     };
-    IndexedMap::new("executors_v1.1", indexes)
+    IndexedMap::new("executors_v1.2", indexes)
 }
