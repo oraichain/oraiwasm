@@ -48,6 +48,12 @@ pub enum HandleMsg {
     PrepareWithdrawPool {
         pubkey: Binary,
     },
+    ExecutorJoin {
+        executor: Binary,
+    },
+    ExecutorLeave {
+        executor: Binary,
+    },
     SubmitEvidence {
         stage: u64,
         report: Binary,
@@ -235,4 +241,5 @@ pub struct UpdateConfigMsg {
     pub new_trust_period: Option<u64>,
     pub new_slashing_amount: Option<u64>,
     pub new_denom: Option<String>,
+    pub new_pending_period: Option<u64>,
 }

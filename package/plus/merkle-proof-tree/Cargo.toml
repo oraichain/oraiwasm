@@ -1,10 +1,8 @@
-cargo-features = ["edition2021"]
-
 [package]
 name = "merkle-proof-tree"
 version = "0.7.0"
 authors = ["Orkun Kulce <orkunkl@users.noreply.github.com>", "Terraform Labs, PTE.", "duc@orai.io"]
-edition = "2021"
+edition = "2018"
 description = "An Airdrop contract for allowing users to claim rewards with Merkle Tree based proof"
 license = "Apache-2.0"
 

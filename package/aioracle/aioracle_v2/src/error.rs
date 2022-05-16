@@ -26,6 +26,9 @@ pub enum ContractError {
     #[error("Cannot rejoin before block {block}")]
     RejoinError { block: u64 },
 
+    #[error("This executor is already left")]
+    ExecutorAlreadyLeft {},
+
     #[error("Empty trusting pool data")]
     EmptyTrustingPool {},
 

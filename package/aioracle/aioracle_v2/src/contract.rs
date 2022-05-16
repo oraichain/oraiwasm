@@ -16,9 +16,10 @@ use std::ops::{Add, Mul};
 
 use crate::error::ContractError;
 use crate::executors::{
-    handle_prepare_withdraw_pool, process_executors_pool, query_bound_executor_fee, query_executor,
-    query_executor_size, query_executors, query_executors_by_index, query_trusting_pool,
-    query_trusting_pools, remove_executors, save_executors, update_executors,
+    handle_executor_join, handle_executor_leave, handle_prepare_withdraw_pool,
+    process_executors_pool, query_bound_executor_fee, query_executor, query_executor_size,
+    query_executors, query_executors_by_index, query_trusting_pool, query_trusting_pools,
+    remove_executors, save_executors, update_executors,
 };
 use crate::migrations::migrate_v02_to_v03;
 use crate::msg::{
@@ -132,6 +133,8 @@ pub fn handle(
         HandleMsg::PrepareWithdrawPool { pubkey } => {
             handle_prepare_withdraw_pool(deps, env, info, pubkey)
         }
+        HandleMsg::ExecutorJoin { executor } => handle_executor_join(deps, env, info, executor),
+        HandleMsg::ExecutorLeave { executor } => handle_executor_leave(deps, env, info, executor),
         HandleMsg::SubmitEvidence {
             stage,
             report,
@@ -146,10 +149,10 @@ pub fn migrate(
     _info: MessageInfo,
     _msg: MigrateMsg,
 ) -> StdResult<MigrateResponse> {
-    migrate_v02_to_v03(deps.storage)?;
+    // migrate_v02_to_v03(deps.storage)?;
 
     // once we have "migrated", set the new version and return success
-    set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    // set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(MigrateResponse {
         attributes: vec![
             attr("new_contract_name", CONTRACT_NAME),
@@ -198,6 +201,7 @@ pub fn execute_update_config(
         new_trust_period,
         new_slashing_amount,
         new_denom,
+        new_pending_period,
     } = update_config_msg;
     let cfg = CONFIG.load(deps.storage)?;
     let owner = cfg.owner;
@@ -230,6 +234,9 @@ pub fn execute_update_config(
         }
         if let Some(denom) = new_denom {
             exists.denom = denom;
+        }
+        if let Some(pending_period) = new_pending_period {
+            exists.pending_period = pending_period;
         }
         Ok(exists)
     })?;
