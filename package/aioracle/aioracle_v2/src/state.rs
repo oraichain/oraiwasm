@@ -141,7 +141,7 @@ pub fn executors_map<'a>() -> IndexedMap<'a, &'a [u8], Executor, ExecutorIndexes
             "executors",
             "executors_is_active",
         ),
-        index: UniqueIndex::new(|d| U64Key::new(d.index), "index"),
+        index: UniqueIndex::new(|d| U64Key::new(d.index), "index_v1.2"),
     };
     IndexedMap::new("executors_v1.2", indexes)
 }

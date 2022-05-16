@@ -1,7 +1,7 @@
 use std::env::current_dir;
 use std::fs::create_dir_all;
 
-use aioracle_v2::msg::{HandleMsg, InitMsg, QueryMsg};
+use aioracle_v2::msg::{HandleMsg, InitMsg, MigrateMsg, QueryMsg};
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 fn main() {

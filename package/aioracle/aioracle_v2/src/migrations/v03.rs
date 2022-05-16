@@ -93,6 +93,7 @@ pub fn migrate_v02_to_v03(storage: &mut dyn Storage) -> StdResult<()> {
     let old_executors = old_executors_maps_result?;
 
     for old_executor in old_executors {
+        println!("old executor index: {}", old_executor.1.index);
         executors_map().save(
             storage,
             old_executor.0.as_slice(),
@@ -116,13 +117,17 @@ mod test {
     use crate::contract::*;
     use crate::msg::*;
     use crate::state::Request;
+    use aioracle_base::Executor;
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
+    use cosmwasm_std::Binary;
     use cosmwasm_std::HumanAddr;
     use cosmwasm_std::{coins, from_binary, Coin, OwnedDeps, Uint128};
     use cw_storage_plus::Item;
 
+    use super::old_executors_map;
+    use super::OldExecutor;
     use super::{OldConfig, OLD_CONFIG_KEY};
 
     fn setup_old_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
@@ -148,6 +153,38 @@ mod test {
             )
             .unwrap();
 
+        old_executors_map()
+            .save(
+                &mut deps.storage,
+                Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
+                    .unwrap()
+                    .as_slice(),
+                &OldExecutor {
+                    pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
+                        .unwrap(),
+                    is_active: true,
+                    executing_power: 1,
+                    index: 1,
+                },
+            )
+            .unwrap();
+
+        old_executors_map()
+            .save(
+                &mut deps.storage,
+                Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0a")
+                    .unwrap()
+                    .as_slice(),
+                &OldExecutor {
+                    pubkey: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0a")
+                        .unwrap(),
+                    is_active: true,
+                    executing_power: 2,
+                    index: 2,
+                },
+            )
+            .unwrap();
+
         deps
     }
 
@@ -157,31 +194,22 @@ mod test {
         let info = mock_info(HumanAddr::from("foobar"), &[]);
         migrate(deps.as_mut(), mock_env(), info, MigrateMsg {}).unwrap();
 
-        // // query trusting pool
-        // let pool: TrustingPoolResponse = from_binary(
-        //     &query(
-        //         deps.as_ref(),
-        //         mock_env(),
-        //         QueryMsg::GetTrustingPool {
-        //             pubkey: Binary::from(&[1]),
-        //         },
-        //     )
-        //     .unwrap(),
-        // )
-        // .unwrap();
+        // query executors
 
-        // println!("pool: {:?}", pool);
+        let executors: Vec<Executor> = from_binary(
+            &query(
+                deps.as_ref(),
+                mock_env(),
+                QueryMsg::GetExecutors {
+                    offset: None,
+                    limit: None,
+                    order: None,
+                },
+            )
+            .unwrap(),
+        )
+        .unwrap();
 
-        // // query config
-        // let config: Config =
-        //     from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
-        // println!("config: {:?}", config);
-        // assert_eq!(config.slashing_amount, 50);
-
-        // query requests
-        let request: Request =
-            from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Request { stage: 1 }).unwrap())
-                .unwrap();
-        println!("request: {:?}", request);
+        println!("executors: {:?}", executors);
     }
 }
