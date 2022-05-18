@@ -17,6 +17,11 @@ pub struct InitMsg {
     pub minter: HumanAddr,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {
+    pub test_field: String,
+}
+
 /// This is like Cw721HandleMsg but we add a Mint command for an owner
 /// to make this stand-alone. You will likely want to remove mint and
 /// use other control logic in any contract that inherits this.

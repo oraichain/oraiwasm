@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, to_binary, Api, Binary, BlockInfo, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, Order, StdError, StdResult, KV,
+    InitResponse, MessageInfo, Order, StdError, StdResult, KV, MigrateResponse,
 };
 
 use cw721::{
@@ -10,7 +10,7 @@ use cw721::{
 
 use crate::check_size;
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, MintMsg, MinterResponse, QueryMsg};
+use crate::msg::{HandleMsg, InitMsg, MintMsg, MinterResponse, QueryMsg, MigrateMsg};
 use crate::state::{
     decrement_tokens, increment_tokens, num_tokens, tokens, Approval, TokenInfo, CONTRACT_INFO,
     MINTER, OPERATORS, OWNER,
@@ -81,6 +81,25 @@ pub fn handle(
         } => handle_update_nft(deps, env, info, token_id, name, description, image),
         HandleMsg::ChangeMinter { minter } => handle_change_minter(deps, env, info, minter),
     }
+}
+
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: MigrateMsg,
+) -> StdResult<MigrateResponse> {
+    // migrate_v02_to_v03(deps.storage)?;
+
+    // // once we have "migrated", set the new version and return success
+    // set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
+    Ok(MigrateResponse {
+        attributes: vec![
+            attr("new_contract_name", CONTRACT_NAME),
+            attr("new_contract_version", CONTRACT_VERSION),
+        ],
+        ..MigrateResponse::default()
+    })
 }
 
 pub fn handle_mint(
