@@ -7,7 +7,7 @@ use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
     coin, coins, from_binary, from_slice, to_binary, Binary, ContractResult, CosmosMsg, Decimal,
     Env, HandleResponse, HumanAddr, MessageInfo, Order, OwnedDeps, QuerierResult, StdResult,
-    SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
+    SystemError, SystemResult, Uint128, WasmMsg, WasmQuery, StdError,
 };
 use cw20::{Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse};
 use cw721::{ApprovedForAllResponse, OwnerOfResponse};
@@ -23,6 +23,7 @@ use market_whitelist::MarketWhiteListHandleMsg;
 use std::mem::transmute;
 use std::ops::{Add, Mul};
 use std::ptr::null;
+use std::str::from_utf8;
 
 pub const CREATOR: &str = "owner";
 pub const MARKET_ADDR: &str = "market_addr";
@@ -671,6 +672,8 @@ fn test_royalty_auction_happy_path() {
 
         // beneficiary can release it
         let creator_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let contract_info: ContractInfo = from_binary(&manager.query(QueryMsg::GetContractInfo {  }).unwrap()).unwrap();
+        let market_fee = Decimal::permille(contract_info.fee);
         let mint = MintMsg {
             contract_addr: HumanAddr::from(OW721),
             creator: HumanAddr::from(PROVIDER),
@@ -744,7 +747,7 @@ fn test_royalty_auction_happy_path() {
 
         let after_claim_market_fee: Uint128 = from_binary(&manager.query(QueryMsg::GetMarketFees {  }).unwrap()).unwrap();
         // fee 2% of 200 = 4
-        assert_eq!(after_claim_market_fee, current_market_fee + Uint128::from(4u128));
+        assert_eq!(after_claim_market_fee, current_market_fee + market_fee * Uint128::from(200u128));
         assert_eq!(attr.value, PROVIDER_NFT);
         println!("{:?}", attributes);
 
@@ -2403,6 +2406,8 @@ fn test_royalties_ow20() {
 fn test_buy_market_fee_calculate() {
     unsafe {
         let manager = DepsManager::get_new();
+        let contract_info: ContractInfo = from_binary(&manager.query(QueryMsg::GetContractInfo {  }).unwrap()).unwrap();
+        let market_fee = Decimal::permille(contract_info.fee);
         handle_whitelist(manager);
         // Mint new NFT
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
@@ -2468,15 +2473,15 @@ fn test_buy_market_fee_calculate() {
         );
 
         // Buy nft and check market fee storage
-        let current_market_fee: Uint128 = from_binary(&manager.query(QueryMsg::GetMarketFees {  }).unwrap()).unwrap() ;
+        let current_market_fee: Uint128 = from_binary(&manager.query(QueryMsg::GetMarketFees {  }).unwrap()).unwrap();
 
         let buy_msg = HandleMsg::BuyNft { offering_id: 1 };
         let info_buy = mock_info("buyer", &coins(100, DENOM));
         let buy_result = manager.handle(info_buy, buy_msg).unwrap();
 
-        let after_buy_market_fee: Uint128 = from_binary(&manager.query(QueryMsg::GetMarketFees {  }).unwrap()).unwrap() ;
+        let after_buy_market_fee: Uint128 = from_binary(&manager.query(QueryMsg::GetMarketFees {  }).unwrap()).unwrap();
         // 2% market fee of 100 = 2
-        assert_eq!(after_buy_market_fee, current_market_fee + Uint128::from(2u128));
+        assert_eq!(after_buy_market_fee, current_market_fee + market_fee * Uint128::from(100u128));
     }
 }
 

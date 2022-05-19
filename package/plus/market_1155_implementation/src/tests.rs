@@ -1109,6 +1109,8 @@ fn cancel_bid_unhappy_path() {
 fn claim_winner_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
+        let contract_info: ContractInfo = from_binary(&manager.query(QueryMsg::GetContractInfo {  }).unwrap()).unwrap();
+        let market_fee = Decimal::permille(contract_info.fee);
         let contract_env = mock_env(MARKET_ADDR);
         handle_approve(manager);
         // beneficiary can release it
@@ -1176,7 +1178,7 @@ fn claim_winner_happy_path() {
             .unwrap();
         let after_claim_market_fee: Uint128 = from_binary(&manager.query(QueryMsg::GetMarketFees {  }).unwrap()).unwrap();
         // fee 2% * 50_000_000 is 1_000_000
-        assert_eq!(after_claim_market_fee, current_market_fee + Uint128::from(1_000_000u128));
+        assert_eq!(after_claim_market_fee, current_market_fee + market_fee * Uint128::from(50_000_000u128));
         // dbg!(res);
         // let attributes = &res.last().unwrap().attributes;
         // let attr = attributes
@@ -2301,6 +2303,8 @@ fn test_royalties_cw20() {
 fn test_buy_market_fee_calculate() {
     unsafe {
         let manager = DepsManager::get_new();
+        let contract_info: ContractInfo = from_binary(&manager.query(QueryMsg::GetContractInfo {  }).unwrap()).unwrap();
+        let market_fee = Decimal::permille(contract_info.fee);
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
 
@@ -2345,7 +2349,7 @@ fn test_buy_market_fee_calculate() {
         manager.handle(info_buy, buy_msg).unwrap();
         let after_buy_market_fee: Uint128 = from_binary(&manager.query(QueryMsg::GetMarketFees {  }).unwrap()).unwrap();
         // fee 2% * 5000 is 100
-        assert_eq!(after_buy_market_fee, current_market_fee + Uint128::from(100u128));
+        assert_eq!(after_buy_market_fee, current_market_fee + market_fee * Uint128::from(5000u128));
     }
 }
 
