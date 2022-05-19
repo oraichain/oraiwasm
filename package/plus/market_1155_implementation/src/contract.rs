@@ -12,7 +12,7 @@ use crate::error::ContractError;
 use crate::msg::{
     HandleMsg, InitMsg, MigrateMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, UpdateContractMsg,
 };
-use crate::state::{ContractInfo, CONTRACT_INFO};
+use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
     InitResponse, MessageInfo, MigrateResponse, StdError, StdResult, Uint128,
@@ -74,6 +74,7 @@ pub fn init(
         step_price: msg.step_price,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
+    MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
     Ok(InitResponse::default())
 }
 
@@ -151,6 +152,7 @@ pub fn migrate(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        QueryMsg::GetMarketFees {} => to_binary(&query_market_fees(deps)?),
         QueryMsg::Offering(msg) => query_storage_binary(deps, STORAGE_1155, msg),
         QueryMsg::AiRoyalty(ai_royalty_msg) => {
             query_storage_binary(deps, AI_ROYALTY_STORAGE, ai_royalty_msg)
@@ -350,6 +352,10 @@ pub fn verify_funds(
 
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
+}
+
+pub fn query_market_fees(deps: Deps) -> StdResult<Uint128> {
+    MARKET_FEES.load(deps.storage)
 }
 
 // remove recursive by query storage_addr first, then call query_proxy

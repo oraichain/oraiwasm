@@ -22,3 +22,4 @@ pub struct ContractInfo {
 }
 
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("contract_info");
+pub const MARKET_FEES: Item<Uint128> = Item::new("market_fees");

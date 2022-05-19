@@ -18,7 +18,7 @@ use crate::msg::{
     GiftNft, HandleMsg, InitMsg, MigrateMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg,
     UpdateContractMsg,
 };
-use crate::state::{ContractInfo, CONTRACT_INFO};
+use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
     InitResponse, MessageInfo, MigrateResponse, StdError, StdResult, Uint128, WasmMsg,
@@ -72,6 +72,7 @@ pub fn init(
         decimal_point: msg.max_decimal_point,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
+    MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
     Ok(InitResponse::default())
 }
 
@@ -175,6 +176,7 @@ pub fn handle(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        QueryMsg::GetMarketFees {} => to_binary(&query_market_fees(deps)?),
         QueryMsg::Auction(auction_msg) => query_auction(deps, auction_msg),
         QueryMsg::Offering(offering_msg) => query_offering(deps, offering_msg),
         QueryMsg::AiRoyalty(ai_royalty_msg) => query_ai_royalty(deps, ai_royalty_msg),
@@ -610,6 +612,11 @@ pub fn get_asset_info(token_id: &str, default_denom: &str) -> StdResult<(AssetIn
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
 }
+
+pub fn query_market_fees(deps: Deps) -> StdResult<Uint128> {
+    MARKET_FEES.load(deps.storage)
+}
+
 
 pub fn query_offering_payment_asset_info(
     deps: Deps,

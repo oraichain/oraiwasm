@@ -7,7 +7,7 @@ use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
 // use crate::offering::OFFERING_STORAGE;
 use crate::ai_royalty::get_royalties;
 use crate::offering::{get_offering_handle_msg, OFFERING_STORAGE};
-use crate::state::{ContractInfo, CONTRACT_INFO};
+use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
     attr, to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse, MessageInfo,
     StdResult, Uint128, WasmMsg,
@@ -213,6 +213,12 @@ pub fn try_claim_winner(
 
         let mut fund_amount = off.price;
         // minus market fees
+        let fee_amount = off.price.mul(Decimal::permille(fee));
+
+        MARKET_FEES.update(deps.storage, |current_fees| -> StdResult<_> {
+            Ok(current_fees.add(fee_amount))
+        })?;
+        
         fund_amount = fund_amount.mul(Decimal::permille(1000 - fee));
         let remaining_for_royalties = fund_amount;
 

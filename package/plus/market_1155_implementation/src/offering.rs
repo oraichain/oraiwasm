@@ -5,7 +5,7 @@ use crate::contract::{
 };
 use crate::error::ContractError;
 use crate::msg::{SellNft, TransferNftDirectlyMsg};
-use crate::state::{ContractInfo, CONTRACT_INFO};
+use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
     attr, to_binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse, MessageInfo,
     StdResult, Uint128, WasmMsg,
@@ -16,7 +16,7 @@ use market::MarketHubContract;
 use market_1155::{MarketHandleMsg, MarketQueryMsg, MintMsg, Offering};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties, AiRoyaltyHandleMsg, RoyaltyMsg};
 use market_payment::{Payment, PaymentHandleMsg};
-use std::ops::{Mul, Sub};
+use std::ops::{Mul, Sub, Add};
 
 pub fn add_msg_royalty(
     sender: &str,
@@ -211,6 +211,9 @@ pub fn try_buy(
         let fee_amount = price.mul(Decimal::permille(contract_info.fee));
         // Rust will automatically floor down the value to 0 if amount is too small => error
         seller_amount = seller_amount.sub(fee_amount)?;
+        MARKET_FEES.update(deps.storage, |current_fees| -> StdResult<_> {
+            Ok(current_fees.add(fee_amount))
+        })?;
         let remaining_for_royalties = seller_amount;
         // pay for creator, ai provider and others
         if let Ok(royalties) = get_royalties(deps.as_ref(), off.contract_addr.as_str(), &token_id) {

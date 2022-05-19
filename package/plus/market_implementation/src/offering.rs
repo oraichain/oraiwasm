@@ -5,7 +5,7 @@ use crate::contract::{
 };
 use crate::error::ContractError;
 use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
-use crate::state::{ContractInfo, CONTRACT_INFO};
+use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse,
     MessageInfo, StdResult, Uint128, WasmMsg,
@@ -16,7 +16,7 @@ use market::{query_proxy, AssetInfo, StorageHandleMsg};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties, sanitize_royalty, Royalty, RoyaltyMsg};
 use market_payment::{Payment, PaymentHandleMsg};
 use market_royalty::{MintMsg, Offering, OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty};
-use std::ops::{Mul, Sub};
+use std::ops::{Mul, Sub, Add};
 
 pub const OFFERING_STORAGE: &str = "offering_v1.1";
 pub const OFFERING_STORAGE_TEMP: &str = "offering_temp";
@@ -98,10 +98,9 @@ pub fn try_buy(
 
         // pay for the owner of this minter contract if there is fee set in marketplace
         let fee_amount = off.price.mul(Decimal::permille(contract_info.fee));
-        // Rust will automatically floor down the value to 0 if amount is too small => error
-        seller_amount = seller_amount.sub(fee_amount)?;
-
-        let remaining_for_royalties = seller_amount;
+        MARKET_FEES.update(deps.storage, |current_fees| -> StdResult<_> {
+            Ok(current_fees.add(fee_amount))
+        })?;
 
         // we collect asset info to check transfer method later
         verify_funds(
@@ -110,6 +109,12 @@ pub fn try_buy(
             asset_info.clone(),
             &seller_amount,
         )?;
+
+        // Rust will automatically floor down the value to 0 if amount is too small => error
+        seller_amount = seller_amount.sub(fee_amount)?;
+
+        let remaining_for_royalties = seller_amount;
+        
 
         // corner case for 721 which has previous owner
         let mut offering_royalty_result: OfferingRoyalty = deps

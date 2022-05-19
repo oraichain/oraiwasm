@@ -5,9 +5,9 @@ use crate::contract::{
 use crate::error::ContractError;
 use crate::msg::AskNftMsg;
 // use crate::offering::OFFERING_STORAGE;
-use crate::state::{ContractInfo, CONTRACT_INFO};
+use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
-    attr, to_binary, Decimal, DepsMut, Env, HandleResponse, MessageInfo, Uint128, WasmMsg,
+    attr, to_binary, Decimal, DepsMut, Env, HandleResponse, MessageInfo, Uint128, WasmMsg, StdResult,
 };
 use cosmwasm_std::{Coin, HumanAddr};
 use cw1155::Cw1155ExecuteMsg;
@@ -229,7 +229,12 @@ pub fn try_claim_winner(
 
         let mut fund_amount = price;
         // minus market fees
+        let fee_amount = price.mul(Decimal::permille(fee));
+        MARKET_FEES.update(deps.storage, |current_fees| -> StdResult<_> {
+            Ok(current_fees.add(fee_amount))
+        })?;
         fund_amount = fund_amount.mul(Decimal::permille(1000 - fee));
+        
         let remaining_for_royalties = fund_amount;
 
         // pay for creator, ai provider and others
