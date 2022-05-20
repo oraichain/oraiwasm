@@ -26,7 +26,7 @@ use cosmwasm_std::{
 use cosmwasm_std::{from_binary, HumanAddr};
 use cw20::Cw20ReceiveMsg;
 use cw721::{Cw721HandleMsg, Cw721QueryMsg, OwnerOfResponse};
-use market::{parse_token_id, AssetInfo, StorageHandleMsg, StorageQueryMsg, TokenInfo};
+use market::{parse_token_id, AssetInfo, Funds, StorageHandleMsg, StorageQueryMsg, TokenInfo};
 use market_ai_royalty::sanitize_royalty;
 use market_auction::{AuctionQueryMsg, QueryAuctionsResult};
 use market_payment::PaymentQueryMsg;
@@ -91,8 +91,10 @@ pub fn handle(
             info.sender,
             env,
             auction_id,
-            None,
-            Some(info.sent_funds),
+            Funds::Native {
+                fund: info.sent_funds,
+            },
+            // Some(info.sent_funds),
         ),
         HandleMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
         // HandleMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
@@ -144,8 +146,10 @@ pub fn handle(
             info.sender,
             env,
             offering_id,
-            None,
-            Some(info.sent_funds),
+            Funds::Native {
+                fund: info.sent_funds,
+            },
+            // Some(info.sent_funds),
         ),
         HandleMsg::MigrateVersion {
             nft_contract_addr,
@@ -207,16 +211,20 @@ pub fn try_receive_cw20(
             cw20_msg.sender,
             env,
             offering_id,
-            Some(cw20_msg.amount),
-            None,
+            // Some(cw20_msg.amount),
+            Funds::Cw20 {
+                fund: cw20_msg.amount,
+            },
         ),
         Ok(Cw20HookMsg::BidNft { auction_id }) => try_bid_nft(
             deps,
             cw20_msg.sender,
             env,
             auction_id,
-            Some(cw20_msg.amount),
-            None,
+            // Some(cw20_msg.amount),
+            Funds::Cw20 {
+                fund: cw20_msg.amount,
+            },
         ),
         Err(_) => Err(ContractError::Std(StdError::generic_err(
             "invalid cw20 hook message",
@@ -529,22 +537,14 @@ pub fn verify_nft(
     Ok(())
 }
 
-pub fn verify_native_funds(
-    native_funds: Option<&[Coin]>,
-    denom: &str,
-    price: &Uint128,
-) -> StdResult<()> {
+pub fn verify_native_funds(native_funds: &[Coin], denom: &str, price: &Uint128) -> StdResult<()> {
     // native case, and no extra data has been provided => use default denom, which is orai
-    if native_funds.is_none() {
-        return Err(StdError::generic_err(
-            ContractError::InvalidSentFundAmount {}.to_string(),
-        ));
-    }
-    if let Some(sent_fund) = native_funds
-        .unwrap()
-        .iter()
-        .find(|fund| fund.denom.eq(&denom))
-    {
+    // if native_funds.is_none() {
+    //     return Err(StdError::generic_err(
+    //         ContractError::InvalidSentFundAmount {}.to_string(),
+    //     ));
+    // }
+    if let Some(sent_fund) = native_funds.iter().find(|fund| fund.denom.eq(&denom)) {
         if sent_fund.amount.lt(price) {
             return Err(StdError::generic_err(
                 ContractError::InsufficientFunds {}.to_string(),
@@ -571,22 +571,30 @@ pub fn parse_asset_info(extra_data: ExtraData) -> AssetInfo {
 }
 
 pub fn verify_funds(
-    native_funds: Option<&[Coin]>,
-    token_funds: Option<Uint128>,
+    // native_funds: Option<&[Coin]>,
+    // token_funds: Option<Uint128>,
+    funds: &Funds,
     asset_info: AssetInfo,
     price: &Uint128,
 ) -> StdResult<()> {
+    let final_funds = match funds {
+        Funds::Native { fund } => fund.clone(),
+        Funds::Cw20 { fund } => vec![Coin {
+            denom: "placeholder".into(),
+            amount: *fund,
+        }],
+    };
     match asset_info {
         AssetInfo::NativeToken { denom } => {
-            return verify_native_funds(native_funds, &denom, price);
+            return verify_native_funds(&final_funds, &denom, price);
         }
         AssetInfo::Token { contract_addr: _ } => {
-            if token_funds.is_none() {
+            if final_funds.first().is_none() {
                 return Err(StdError::generic_err(
                     ContractError::InvalidSentFundAmount {}.to_string(),
                 ));
             }
-            if token_funds.unwrap().lt(price) {
+            if final_funds.first().unwrap().amount.lt(price) {
                 return Err(StdError::generic_err(
                     ContractError::InsufficientFunds {}.to_string(),
                 ));
@@ -616,7 +624,6 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
 pub fn query_market_fees(deps: Deps) -> StdResult<Uint128> {
     MARKET_FEES.load(deps.storage)
 }
-
 
 pub fn query_offering_payment_asset_info(
     deps: Deps,

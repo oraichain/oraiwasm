@@ -8,13 +8,13 @@ use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
 use crate::ai_royalty::get_royalties;
 use crate::offering::{get_offering_handle_msg, OFFERING_STORAGE};
 use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
+use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse, MessageInfo,
     StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{Coin, HumanAddr};
 use cw721::Cw721HandleMsg;
-use market::{query_proxy, AssetInfo, StorageHandleMsg};
+use market::{query_proxy, AssetInfo, Funds, StorageHandleMsg};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties, sanitize_royalty, Royalty};
 use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg};
 use market_payment::{Payment, PaymentHandleMsg};
@@ -33,8 +33,9 @@ pub fn try_bid_nft(
     sender: HumanAddr,
     env: Env,
     auction_id: u64,
-    token_funds: Option<Uint128>,
-    native_funds: Option<Vec<Coin>>,
+    funds: Funds,
+    // token_funds: Option<Uint128>,
+    // native_funds: Option<Vec<Coin>>,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
         denom, governance, ..
@@ -81,26 +82,18 @@ pub fn try_bid_nft(
     // check for enough coins, if has price then payout to all participants
     if !off.price.is_zero() {
         verify_funds(
-            native_funds.as_deref(),
-            token_funds,
+            &funds,
+            // native_funds.as_deref(),
+            // token_funds,
             asset_info.clone(),
             &off.price,
         )?;
 
         let off_price = &off.price;
 
-        let amount = match asset_info.clone() {
-            AssetInfo::NativeToken { denom: _ } => {
-                native_funds
-                    .unwrap_or(vec![Coin {
-                        denom,
-                        amount: Uint128::from(0u64),
-                    }])
-                    .first()
-                    .unwrap()
-                    .amount
-            } // temp: hardcode to collect only the first fund amount
-            AssetInfo::Token { contract_addr: _ } => token_funds.unwrap_or(Uint128::from(0u64)),
+        let amount = match funds.clone() {
+            Funds::Native { fund } => fund.first().unwrap().amount, // temp: hardcode to collect only the first fund amount
+            Funds::Cw20 { fund } => fund,
         };
 
         // in case fraction is too small, we fix it to 1uorai
@@ -218,7 +211,7 @@ pub fn try_claim_winner(
         MARKET_FEES.update(deps.storage, |current_fees| -> StdResult<_> {
             Ok(current_fees.add(fee_amount))
         })?;
-        
+
         fund_amount = fund_amount.mul(Decimal::permille(1000 - fee));
         let remaining_for_royalties = fund_amount;
 

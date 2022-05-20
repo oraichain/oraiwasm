@@ -12,11 +12,11 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{Coin, HumanAddr};
 use cw721::Cw721HandleMsg;
-use market::{query_proxy, AssetInfo, StorageHandleMsg};
+use market::{query_proxy, AssetInfo, Funds, StorageHandleMsg};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties, sanitize_royalty, Royalty, RoyaltyMsg};
 use market_payment::{Payment, PaymentHandleMsg};
 use market_royalty::{MintMsg, Offering, OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty};
-use std::ops::{Mul, Sub, Add};
+use std::ops::{Add, Mul, Sub};
 
 pub const OFFERING_STORAGE: &str = "offering_v1.1";
 pub const OFFERING_STORAGE_TEMP: &str = "offering_temp";
@@ -62,8 +62,9 @@ pub fn try_buy(
     sender: HumanAddr,
     env: Env,
     offering_id: u64,
-    token_funds: Option<Uint128>,
-    native_funds: Option<Vec<Coin>>,
+    // token_funds: Option<Uint128>,
+    // native_funds: Option<Vec<Coin>>,
+    funds: Funds,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
         governance,
@@ -104,8 +105,9 @@ pub fn try_buy(
 
         // we collect asset info to check transfer method later
         verify_funds(
-            native_funds.as_deref(),
-            token_funds,
+            &funds,
+            // native_funds.as_deref(),
+            // token_funds,
             asset_info.clone(),
             &seller_amount,
         )?;
@@ -114,7 +116,6 @@ pub fn try_buy(
         seller_amount = seller_amount.sub(fee_amount)?;
 
         let remaining_for_royalties = seller_amount;
-        
 
         // corner case for 721 which has previous owner
         let mut offering_royalty_result: OfferingRoyalty = deps
