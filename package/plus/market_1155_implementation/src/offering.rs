@@ -12,7 +12,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{HumanAddr, StdError};
 use cw1155::Cw1155ExecuteMsg;
-use market::MarketHubContract;
+use market::{MarketHubContract, Funds};
 use market_1155::{MarketHandleMsg, MarketQueryMsg, MintMsg, Offering};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties, AiRoyaltyHandleMsg, RoyaltyMsg};
 use market_payment::{Payment, PaymentHandleMsg};
@@ -160,8 +160,9 @@ pub fn try_buy(
     env: Env,
     offering_id: u64,
     amount: Uint128,
-    token_funds: Option<Uint128>,
-    native_funds: Option<Vec<Coin>>,
+    // token_funds: Option<Uint128>,
+    // native_funds: Option<Vec<Coin>>,
+    funds: Funds,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
         governance,
@@ -199,8 +200,9 @@ pub fn try_buy(
         let price = off.per_price.mul(Decimal::from_ratio(amount.u128(), 1u128));
 
         verify_funds(
-            native_funds.as_deref(),
-            token_funds,
+            // native_funds.as_deref(),
+            // token_funds,
+            &funds,
             asset_info.clone(),
             &price,
         )?;

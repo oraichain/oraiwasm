@@ -11,7 +11,7 @@ use cosmwasm_std::{
 };
 use cosmwasm_std::{Coin, HumanAddr};
 use cw1155::Cw1155ExecuteMsg;
-use market::AssetInfo;
+use market::{AssetInfo, Funds};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties};
 use market_auction_extend::{Auction, AuctionHandleMsg, AuctionQueryMsg};
 use market_payment::{Payment, PaymentHandleMsg};
@@ -30,8 +30,9 @@ pub fn try_bid_nft(
     env: Env,
     auction_id: u64,
     per_price: Uint128,
-    token_funds: Option<Uint128>,
-    native_funds: Option<Vec<Coin>>,
+    funds: Funds,
+    // token_funds: Option<Uint128>,
+    // native_funds: Option<Vec<Coin>>,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
         denom, governance, ..
@@ -82,24 +83,16 @@ pub fn try_bid_nft(
     // check for enough coins, if has price then payout to all participants
     if !off_price.is_zero() {
         verify_funds(
-            native_funds.as_deref(),
-            token_funds,
+            // native_funds.as_deref(),
+            // token_funds,
+            &funds,
             asset_info.clone(),
             &off_price,
         )?;
 
-        let amount = match asset_info.clone() {
-            AssetInfo::NativeToken { denom: _ } => {
-                native_funds
-                    .unwrap_or(vec![Coin {
-                        denom,
-                        amount: Uint128::from(0u64),
-                    }])
-                    .first()
-                    .unwrap()
-                    .amount
-            } // temp: hardcode to collect only the first fund amount
-            AssetInfo::Token { contract_addr: _ } => token_funds.unwrap_or(Uint128::from(0u64)),
+        let amount = match funds.clone() {
+            Funds::Native { fund } => fund.first().unwrap().amount, // temp: hardcode to collect only the first fund amount
+            Funds::Cw20 { fund } => fund,
         };
 
         // in case fraction is too small, we fix it to 1uorai
