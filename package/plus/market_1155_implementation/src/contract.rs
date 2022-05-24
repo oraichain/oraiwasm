@@ -145,11 +145,12 @@ pub fn handle(
 }
 
 pub fn migrate(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
     _msg: MigrateMsg,
 ) -> StdResult<MigrateResponse> {
+    MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
     Ok(MigrateResponse::default())
 }
 
@@ -289,7 +290,7 @@ pub fn verify_native_funds(native_funds: &[Coin], denom: &str, price: &Uint128) 
     //         ContractError::InvalidSentFundAmount {}.to_string(),
     //     ));
     // }
-    
+
     if let Some(sent_fund) = native_funds.iter().find(|fund| fund.denom.eq(&denom)) {
         if sent_fund.amount.lt(price) {
             return Err(StdError::generic_err(

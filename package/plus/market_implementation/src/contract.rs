@@ -189,11 +189,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub fn migrate(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
     _msg: MigrateMsg,
 ) -> StdResult<MigrateResponse> {
+    MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
     Ok(MigrateResponse::default())
 }
 
