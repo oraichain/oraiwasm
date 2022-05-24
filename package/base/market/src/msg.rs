@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, HumanAddr};
+use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -20,6 +20,13 @@ pub struct TokenInfo {
 pub enum AssetInfo {
     Token { contract_addr: HumanAddr },
     NativeToken { denom: String },
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum Funds {
+    Native { fund: Vec<Coin> },
+    Cw20 { fund: Uint128 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

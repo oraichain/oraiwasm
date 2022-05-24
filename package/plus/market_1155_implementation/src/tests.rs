@@ -1109,6 +1109,8 @@ fn cancel_bid_unhappy_path() {
 fn claim_winner_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
+        let contract_info: ContractInfo = from_binary(&manager.query(QueryMsg::GetContractInfo {  }).unwrap()).unwrap();
+        let market_fee = Decimal::permille(contract_info.fee);
         let contract_env = mock_env(MARKET_ADDR);
         handle_approve(manager);
         // beneficiary can release it
@@ -1166,6 +1168,7 @@ fn claim_winner_happy_path() {
             .unwrap();
 
         // now claim winner after expired
+        let current_market_fee: Uint128 = from_binary(&manager.query(QueryMsg::GetMarketFees {  }).unwrap()).unwrap();
         let claim_info = mock_info("claimer", &coins(0, DENOM));
         let claim_msg = HandleMsg::ClaimWinner { auction_id: 1 };
         let mut claim_contract_env = contract_env.clone();
@@ -1173,6 +1176,9 @@ fn claim_winner_happy_path() {
         let _res = manager
             .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
             .unwrap();
+        let after_claim_market_fee: Uint128 = from_binary(&manager.query(QueryMsg::GetMarketFees {  }).unwrap()).unwrap();
+        // fee 2% * 50_000_000 is 1_000_000
+        assert_eq!(after_claim_market_fee, current_market_fee + market_fee * Uint128::from(50_000_000u128));
         // dbg!(res);
         // let attributes = &res.last().unwrap().attributes;
         // let attr = attributes
@@ -2290,6 +2296,60 @@ fn test_royalties_cw20() {
 
         // sell total price is 500, minus market fee 2% => remaining = 490. royalty 1% for total price is 490 => total royalty is 4.9 => receive 485.1 ORAI
         assert_eq!(total_payment, Uint128::from(490u128));
+    }
+}
+
+#[test]
+fn test_buy_market_fee_calculate() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        let contract_info: ContractInfo = from_binary(&manager.query(QueryMsg::GetContractInfo {  }).unwrap()).unwrap();
+        let market_fee = Decimal::permille(contract_info.fee);
+
+        let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
+
+        handle_approve(manager);
+
+        // Mint a new NFT for sell
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            creator: HumanAddr::from(PROVIDER),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    to: String::from(PROVIDER),
+                    value: Uint128::from(100u64),
+                    token_id: String::from(SELLABLE_NFT),
+                    co_owner: None,
+                },
+            },
+            creator_type: String::from("cxacx"),
+            royalty: Some(10000000), // 1%
+        });
+
+        manager.handle(provider_info.clone(), mint_msg).unwrap();
+
+        // Sell it to market
+        let msg = HandleMsg::SellNft(SellNft {
+            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            per_price: Uint128(100),
+            token_id: String::from(SELLABLE_NFT_NATIVE),
+            amount: Uint128::from(100u64),
+            seller: None,
+        });
+        manager.handle(provider_info.clone(), msg).unwrap();
+
+        // Buy that nft and check market fee
+        let current_market_fee: Uint128 = from_binary(&manager.query(QueryMsg::GetMarketFees {  }).unwrap()).unwrap();
+        let buy_msg = HandleMsg::BuyNft {
+            offering_id: 1,
+            amount: Uint128::from(50u64),
+        };
+        let info_buy = mock_info("buyer", &coins(5000, DENOM));
+
+        manager.handle(info_buy, buy_msg).unwrap();
+        let after_buy_market_fee: Uint128 = from_binary(&manager.query(QueryMsg::GetMarketFees {  }).unwrap()).unwrap();
+        // fee 2% * 5000 is 100
+        assert_eq!(after_buy_market_fee, current_market_fee + market_fee * Uint128::from(5000u128));
     }
 }
 

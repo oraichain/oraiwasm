@@ -7,7 +7,7 @@ use cw721::{
     AllNftInfoResponse, ApprovedForAllResponse, ContractInfoResponse, NftInfoResponse,
     NumTokensResponse, OwnerOfResponse, TokensResponse,
 };
-use oraichain_nft::msg::{HandleMsg, InitMsg, QueryMsg};
+use oraichain_nft::msg::{HandleMsg, InitMsg, QueryMsg, MigrateMsg};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -18,6 +18,7 @@ fn main() {
     export_schema(&schema_for!(InitMsg), &out_dir);
     export_schema(&schema_for!(HandleMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
+    export_schema(&schema_for!(MigrateMsg), &out_dir);
     export_schema(&schema_for!(AllNftInfoResponse), &out_dir);
     export_schema(&schema_for!(ApprovedForAllResponse), &out_dir);
     export_schema(&schema_for!(ContractInfoResponse), &out_dir);
