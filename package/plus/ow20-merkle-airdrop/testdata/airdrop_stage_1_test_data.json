@@ -1,0 +1,10 @@
+{
+  "address": "wasm1k9hwzxs889jpvd7env8z49gad3a3633vg350tq",
+  "data": "{\"amount\":\"100\"}",
+  "root": "2e87823e965b9b423b891884d4c1ece9f7e3094d3ce29b08afae432a2ebee06e",
+  "proofs": [
+    "19d600c78b06216a74d698144f6fe1b7d04df88d156d04d95d21380e1ab72857",
+    "c3b6566571a1fc8a10edbb9f7886aa9a263a53b564718fcb0cdf678fe0e5ee49",
+    "8b89278337b7a87c45e3ec205a7661527c89a6df9b67395a045649e57c9f3ce8"
+  ]
+}

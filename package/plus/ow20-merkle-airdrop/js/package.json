@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "level": "^7.0.1",
+    "merkletreejs": "^0.2.27"
+  }
+}
