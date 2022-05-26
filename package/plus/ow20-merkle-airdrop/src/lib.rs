@@ -2,6 +2,7 @@ pub mod contract;
 mod error;
 pub mod msg;
 pub mod state;
+mod scheduled;
 
 pub use crate::error::ContractError;
 

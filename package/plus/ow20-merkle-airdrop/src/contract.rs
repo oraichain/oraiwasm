@@ -1,8 +1,9 @@
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, StdResult,
+    MessageInfo, StdResult, Uint128, WasmMsg,
 };
-
+use cw0::Expiration;
+use cw20::Cw20HandleMsg;
 use cw_storage_plus::U8Key;
 use sha2::Digest;
 use std::convert::TryInto;
@@ -10,14 +11,23 @@ use std::convert::TryInto;
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse, MerkleRootResponse,
-    QueryMsg,
+    MigrateMsg, QueryMsg, TotalClaimedResponse,
 };
-use crate::state::{Config, CLAIM, CONFIG, LATEST_STAGE, MERKLE_ROOT};
+use crate::scheduled::Scheduled;
+use crate::state::{
+    Config, CLAIM, CONFIG, LATEST_STAGE, MERKLE_ROOT, STAGE_AMOUNT, STAGE_AMOUNT_CLAIMED,
+    STAGE_EXPIRATION, STAGE_START,
+};
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+    // TODO
+    // set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     let owner = msg.owner.unwrap_or(info.sender);
 
-    let config = Config { owner: Some(owner) };
+    let config = Config {
+        owner: Some(owner),
+        cw20_token_address: msg.cw20_token_address,
+    };
     CONFIG.save(deps.storage, &config)?;
 
     let stage = 0;
@@ -34,12 +44,27 @@ pub fn handle(
 ) -> Result<HandleResponse, ContractError> {
     match msg {
         HandleMsg::UpdateConfig { new_owner } => execute_update_config(deps, env, info, new_owner),
-        HandleMsg::RegisterMerkleRoot { merkle_root } => {
-            execute_register_merkle_root(deps, env, info, merkle_root)
-        }
-        HandleMsg::Claim { stage, data, proof } => {
-            execute_claim(deps, env, info, stage, data, proof)
-        }
+        HandleMsg::RegisterMerkleRoot {
+            merkle_root,
+            expiration,
+            start,
+            total_amount,
+        } => execute_register_merkle_root(
+            deps,
+            env,
+            info,
+            merkle_root,
+            expiration,
+            start,
+            total_amount,
+        ),
+        HandleMsg::Claim {
+            stage,
+            amount,
+            proof,
+        } => execute_claim(deps, env, info, stage, amount, proof),
+        HandleMsg::Burn { stage } => execute_burn(deps, env, info, stage),
+        HandleMsg::Withdraw { stage } => execute_withdraw(deps, env, info, stage),
     }
 }
 
@@ -57,8 +82,13 @@ pub fn execute_update_config(
     }
 
     // if owner some validated to addr, otherwise set to none
+    let mut tmp_owner = None;
+    if let Some(addr) = new_owner {
+        tmp_owner = Some(addr)
+    }
+
     CONFIG.update(deps.storage, |mut exists| -> StdResult<_> {
-        exists.owner = new_owner;
+        exists.owner = tmp_owner;
         Ok(exists)
     })?;
 
@@ -74,6 +104,9 @@ pub fn execute_register_merkle_root(
     _env: Env,
     info: MessageInfo,
     merkle_root: String,
+    expiration: Option<Expiration>,
+    start: Option<Scheduled>,
+    total_amount: Option<Uint128>,
 ) -> Result<HandleResponse, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -90,6 +123,21 @@ pub fn execute_register_merkle_root(
     let stage = LATEST_STAGE.update(deps.storage, |stage| -> StdResult<_> { Ok(stage + 1) })?;
 
     MERKLE_ROOT.save(deps.storage, U8Key::from(stage), &merkle_root)?;
+    LATEST_STAGE.save(deps.storage, &stage)?;
+
+    // save expiration
+    let exp = expiration.unwrap_or(Expiration::Never {});
+    STAGE_EXPIRATION.save(deps.storage, U8Key::from(stage), &exp)?;
+
+    // save start
+    if let Some(start) = start {
+        STAGE_START.save(deps.storage, U8Key::from(stage), &start)?;
+    }
+
+    // save total airdropped amount
+    let amount = total_amount.unwrap_or_else(Uint128::zero);
+    STAGE_AMOUNT.save(deps.storage, U8Key::from(stage), &amount)?;
+    STAGE_AMOUNT_CLAIMED.save(deps.storage, U8Key::from(stage), &Uint128::zero())?;
 
     Ok(HandleResponse {
         data: None,
@@ -98,6 +146,7 @@ pub fn execute_register_merkle_root(
             attr("action", "register_merkle_root"),
             attr("stage", stage.to_string()),
             attr("merkle_root", merkle_root),
+            attr("total_amount", amount),
         ],
     })
 }
@@ -107,9 +156,22 @@ pub fn execute_claim(
     _env: Env,
     info: MessageInfo,
     stage: u8,
-    data: String,
+    amount: Uint128,
     proof: Vec<String>,
 ) -> Result<HandleResponse, ContractError> {
+    // airdrop begun
+    let start = STAGE_START.may_load(deps.storage, U8Key::from(stage))?;
+    if let Some(start) = start {
+        if !start.is_triggered(&_env.block) {
+            return Err(ContractError::StageNotBegun { stage, start });
+        }
+    }
+    // not expired
+    let expiration = STAGE_EXPIRATION.load(deps.storage, U8Key::from(stage))?;
+    if expiration.is_expired(&_env.block) {
+        return Err(ContractError::StageExpired { stage, expiration });
+    }
+
     // verify not claimed
     let mut key = deps.api.canonical_address(&info.sender)?.to_vec();
     key.push(stage);
@@ -118,9 +180,10 @@ pub fn execute_claim(
         return Err(ContractError::Claimed {});
     }
 
-    let merkle_root = MERKLE_ROOT.load(deps.storage, stage.into())?;
+    let merkle_root = MERKLE_ROOT.load(deps.storage, U8Key::from(stage))?;
 
-    let user_input = format!("{{\"address\":\"{}\",\"data\":{}}}", info.sender, data);
+    // let user_input = format!("{{\"address\":\"{}\",\"data\":{}}}", info.sender, data);
+    let user_input = format!("{}{}", info.sender, amount);
     let hash = sha2::Sha256::digest(user_input.as_bytes())
         .as_slice()
         .try_into()
@@ -146,16 +209,137 @@ pub fn execute_claim(
     // Update claim index to the current stage
     CLAIM.save(deps.storage, &key, &true)?;
 
+    // Update total claimed to reflect
+    let mut claimed_amount = STAGE_AMOUNT_CLAIMED.load(deps.storage, stage.into())?;
+    claimed_amount += amount;
+    STAGE_AMOUNT_CLAIMED.save(deps.storage, stage.into(), &claimed_amount)?;
+
+    let config = CONFIG.load(deps.storage)?;
+
     let res = HandleResponse {
         data: None,
-        messages: vec![],
+        messages: vec![WasmMsg::Execute {
+            contract_addr: config.cw20_token_address,
+            msg: to_binary(&Cw20HandleMsg::Transfer {
+                recipient: info.sender.clone(),
+                amount,
+            })?,
+            send: vec![],
+        }
+        .into()],
         attributes: vec![
             attr("action", "claim"),
             attr("stage", stage.to_string()),
-            attr("address", info.sender),
-            attr("data", data),
+            attr("address", info.sender.to_string()),
+            attr("amount", amount),
         ],
     };
+    Ok(res)
+}
+
+pub fn execute_burn(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    stage: u8,
+) -> Result<HandleResponse, ContractError> {
+    // authorize owner
+    let cfg = CONFIG.load(deps.storage)?;
+    let owner = cfg.owner.ok_or(ContractError::Unauthorized {})?;
+    if info.sender != owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // make sure is expired
+    let expiration = STAGE_EXPIRATION.load(deps.storage, stage.into())?;
+    if !expiration.is_expired(&env.block) {
+        return Err(ContractError::StageNotExpired { stage, expiration });
+    }
+
+    // Get total amount per stage and total claimed
+    let total_amount = STAGE_AMOUNT.load(deps.storage, stage.into())?;
+    let claimed_amount = STAGE_AMOUNT_CLAIMED.load(deps.storage, stage.into())?;
+
+    // impossible but who knows
+    if claimed_amount > total_amount {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // Get balance
+    let balance_to_burn = (total_amount - claimed_amount)?;
+
+    let res = HandleResponse {
+        messages: vec![WasmMsg::Execute {
+            contract_addr: cfg.cw20_token_address,
+            send: vec![],
+            msg: to_binary(&Cw20HandleMsg::Burn {
+                amount: balance_to_burn,
+            })?,
+        }
+        .into()],
+        attributes: vec![
+            attr("action", "burn"),
+            attr("stage", stage.to_string()),
+            attr("address", info.sender),
+            attr("amount", balance_to_burn),
+        ],
+        data: None,
+    };
+    Ok(res)
+}
+
+pub fn execute_withdraw(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    stage: u8,
+) -> Result<HandleResponse, ContractError> {
+    // authorize owner
+    let cfg = CONFIG.load(deps.storage)?;
+    let owner = cfg.owner.ok_or(ContractError::Unauthorized {})?;
+    if info.sender != owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // make sure is expired
+    let expiration = STAGE_EXPIRATION.load(deps.storage, stage.into())?;
+    if !expiration.is_expired(&env.block) {
+        return Err(ContractError::StageNotExpired { stage, expiration });
+    }
+
+    // Get total amount per stage and total claimed
+    let total_amount = STAGE_AMOUNT.load(deps.storage, stage.into())?;
+    let claimed_amount = STAGE_AMOUNT_CLAIMED.load(deps.storage, stage.into())?;
+
+    // impossible but who knows
+    if claimed_amount > total_amount {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    // Get balance
+    let balance_to_withdraw = (total_amount - claimed_amount)?;
+
+    // Withdraw the tokens and response
+    let res = HandleResponse {
+        messages: vec![WasmMsg::Execute {
+            contract_addr: cfg.cw20_token_address,
+            send: vec![],
+            msg: to_binary(&Cw20HandleMsg::Transfer {
+                recipient: owner.clone(),
+                amount: balance_to_withdraw,
+            })?,
+        }
+        .into()],
+        attributes: vec![
+            attr("action", "withdraw"),
+            attr("stage", stage.to_string()),
+            attr("address", info.sender),
+            attr("amount", balance_to_withdraw),
+            attr("recipient", owner),
+        ],
+        data: None,
+    };
+
     Ok(res)
 }
 
@@ -167,6 +351,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::IsClaimed { stage, address } => {
             to_binary(&query_is_claimed(deps, stage, address)?)
         }
+        QueryMsg::TotalClaimed { stage } => to_binary(&query_total_claimed(deps, stage)?),
     }
 }
 
@@ -174,12 +359,23 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let cfg = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
         owner: cfg.owner.map(|o| o.to_string()),
+        cw20_token_address: cfg.cw20_token_address,
     })
 }
 
 pub fn query_merkle_root(deps: Deps, stage: u8) -> StdResult<MerkleRootResponse> {
-    let merkle_root = MERKLE_ROOT.load(deps.storage, U8Key::from(stage))?;
-    let resp = MerkleRootResponse { stage, merkle_root };
+    let merkle_root = MERKLE_ROOT.load(deps.storage, stage.into())?;
+    let expiration = STAGE_EXPIRATION.load(deps.storage, stage.into())?;
+    let start = STAGE_START.may_load(deps.storage, stage.into())?;
+    let total_amount = STAGE_AMOUNT.load(deps.storage, stage.into())?;
+
+    let resp = MerkleRootResponse {
+        stage,
+        merkle_root,
+        expiration,
+        start,
+        total_amount,
+    };
 
     Ok(resp)
 }
@@ -198,4 +394,20 @@ pub fn query_is_claimed(deps: Deps, stage: u8, address: HumanAddr) -> StdResult<
     let resp = IsClaimedResponse { is_claimed };
 
     Ok(resp)
+}
+
+pub fn query_total_claimed(deps: Deps, stage: u8) -> StdResult<TotalClaimedResponse> {
+    let total_claimed = STAGE_AMOUNT_CLAIMED.load(deps.storage, stage.into())?;
+    let resp = TotalClaimedResponse { total_claimed };
+
+    Ok(resp)
+}
+
+pub fn migrate(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: MigrateMsg,
+) -> Result<HandleResponse, ContractError> {
+    Ok(HandleResponse::default())
 }
