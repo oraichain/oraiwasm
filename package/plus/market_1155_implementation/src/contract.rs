@@ -150,7 +150,7 @@ pub fn migrate(
     _info: MessageInfo,
     _msg: MigrateMsg,
 ) -> StdResult<MigrateResponse> {
-    MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
+    // MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
     Ok(MigrateResponse::default())
 }
 

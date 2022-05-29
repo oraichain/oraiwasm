@@ -14,7 +14,8 @@ basedir=$(pwd)
 build_release="${3:-true}"
 # name is extract from Cargo.toml
 name=$(basename "$contractdir")
-build_name=$(pcregrep -io1 'name\s*=\s*"(.*)"' $contractdir/Cargo.toml)
+
+build_name=$(grep -o 'name *=.*' $contractdir/Cargo.toml | awk -F'[="]' '{print $3}')
 build_name=${build_name//-/_}
 cd "$contractdir"
 CARGO=$([[ -f 'Xargo.toml' && $(rustup default) =~ ^nightly.* ]] && echo 'xargo' || echo 'cargo')
@@ -45,7 +46,7 @@ else
     cp "$basedir/target/wasm32-unknown-unknown/debug/$build_name.wasm" artifacts
 fi
 
-build_schema="${2:-false}"
+build_schema="${2:-true}"
 # create schema if there is
 if [ "$build_schema" == 'true' ]; then
     echo "Creating schema in $contractdir"
