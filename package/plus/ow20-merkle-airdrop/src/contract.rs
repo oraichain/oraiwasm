@@ -84,13 +84,12 @@ pub fn execute_update_config(
     // if owner some validated to addr, otherwise set to none
     let mut tmp_owner = None;
     if let Some(addr) = new_owner {
-        tmp_owner = Some(addr)
+        tmp_owner = Some(addr);
+        CONFIG.update(deps.storage, |mut exists| -> StdResult<_> {
+            exists.owner = tmp_owner;
+            Ok(exists)
+        })?;
     }
-
-    CONFIG.update(deps.storage, |mut exists| -> StdResult<_> {
-        exists.owner = tmp_owner;
-        Ok(exists)
-    })?;
 
     Ok(HandleResponse {
         attributes: vec![attr("action", "update_config")],
