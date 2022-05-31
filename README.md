@@ -45,4 +45,4 @@ Inside the remote container window, you can freely install extensions for Rust. 
 
 ## Handling smart contracts
 
-The detailed tutorials for the smart contracts are located [here](./smart-contracts/README.md#Create-a-new-Oraichain-smart-contract-tutorial)
+The detailed tutorials for the smart contracts are located [here](https://oraiwasm.web.app/)
