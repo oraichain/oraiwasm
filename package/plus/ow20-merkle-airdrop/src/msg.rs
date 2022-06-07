@@ -27,6 +27,7 @@ pub enum HandleMsg {
         expiration: Option<Expiration>,
         start: Option<Scheduled>,
         total_amount: Option<Uint128>,
+        metadata: String
     },
     /// Claim check the data is valid for a sender, each stage related to a merkle root.
     Claim {
@@ -66,6 +67,7 @@ pub struct MerkleRootResponse {
     pub expiration: Expiration,
     pub start: Option<Scheduled>,
     pub total_amount: Uint128,
+    pub metadata: String
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

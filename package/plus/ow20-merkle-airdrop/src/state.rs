@@ -36,3 +36,6 @@ pub const MERKLE_ROOT: Map<U8Key, String> = Map::new(MERKLE_ROOT_PREFIX);
 
 pub const CLAIM_PREFIX: &str = "claim";
 pub const CLAIM: Map<&[u8], bool> = Map::new(CLAIM_PREFIX);
+
+pub const STAGE_METADATA_KEY: &str = "stage_metadata";
+pub const STAGE_METADATA: Map<U8Key, String> = Map::new(STAGE_METADATA_KEY);

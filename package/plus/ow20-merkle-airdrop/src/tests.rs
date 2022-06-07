@@ -108,6 +108,7 @@ fn register_merkle_root() {
         expiration: None,
         start: None,
         total_amount: None,
+        metadata: "test_metadata;     ".into(),
     };
 
     let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -120,7 +121,8 @@ fn register_merkle_root() {
                 "merkle_root",
                 "634de21cde1044f41d90373733b0f0fb1c1c71f9652b905cdf159e73c4cf0d37"
             ),
-            attr("total_amount", "0")
+            attr("total_amount", "0"),
+            attr("metadata", "test_metadata;     ")
         ]
     );
 
@@ -141,6 +143,7 @@ fn register_merkle_root() {
         "634de21cde1044f41d90373733b0f0fb1c1c71f9652b905cdf159e73c4cf0d37".to_string(),
         merkle_root.merkle_root
     );
+    assert_eq!("test_metadata;     ".to_string(), merkle_root.metadata);
 }
 
 const TEST_DATA_1: &[u8] = include_bytes!("../testdata/airdrop_stage_1_test_data.json");
@@ -177,6 +180,7 @@ fn claim() {
         expiration: None,
         start: None,
         total_amount: None,
+        metadata: "test_metadata".into(),
     };
     let _res = handle(deps.as_mut(), env, info, msg).unwrap();
 
@@ -260,6 +264,7 @@ fn claim() {
         expiration: None,
         start: None,
         total_amount: None,
+        metadata: "test_metadata".into(),
     };
     let _res = handle(deps.as_mut(), env, info, msg).unwrap();
 
@@ -344,6 +349,7 @@ fn multiple_claim() {
         expiration: None,
         start: None,
         total_amount: None,
+        metadata: "test_metadata".into(),
     };
     let _res = handle(deps.as_mut(), env, info, msg).unwrap();
 
@@ -415,6 +421,7 @@ fn stage_expires() {
         expiration: Some(Expiration::AtHeight(100)),
         start: None,
         total_amount: None,
+        metadata: "test_metadata".into(),
     };
     handle(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
@@ -457,6 +464,7 @@ fn cant_burn() {
         expiration: Some(Expiration::AtHeight(12346)),
         start: None,
         total_amount: Some(Uint128::from(100000u128)),
+        metadata: "test_metadata".into(),
     };
     handle(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
@@ -494,6 +502,7 @@ fn can_burn() {
         expiration: Some(Expiration::AtHeight(12500)),
         start: None,
         total_amount: Some(Uint128::from(10000u128)),
+        metadata: "test_metadata".into(),
     };
     handle(deps.as_mut(), env.clone(), info, msg).unwrap();
 
@@ -578,6 +587,7 @@ fn cant_withdraw() {
         expiration: Some(Expiration::AtHeight(12346)),
         start: None,
         total_amount: Some(Uint128::from(100000u128)),
+        metadata: "test_metadata".into(),
     };
     handle(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
@@ -615,6 +625,7 @@ fn can_withdraw() {
         expiration: Some(Expiration::AtHeight(12500)),
         start: None,
         total_amount: Some(Uint128::from(10000u128)),
+        metadata: "test_metadata".into(),
     };
     handle(deps.as_mut(), env.clone(), info, msg).unwrap();
 
@@ -701,6 +712,7 @@ fn stage_starts() {
         expiration: None,
         start: Some(Scheduled::AtHeight(200_000)),
         total_amount: None,
+        metadata: "test_metadata".into(),
     };
     handle(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
@@ -742,6 +754,7 @@ fn owner_freeze() {
         expiration: None,
         start: None,
         total_amount: None,
+        metadata: "test_metadata".into(),
     };
     let _res = handle(deps.as_mut(), env, info, msg).unwrap();
 
@@ -771,6 +784,7 @@ fn owner_freeze() {
         expiration: None,
         start: None,
         total_amount: None,
+        metadata: "test_metadata".into(),
     };
     let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
@@ -783,6 +797,7 @@ fn owner_freeze() {
         expiration: None,
         start: None,
         total_amount: None,
+        metadata: "test_metadata".into(),
     };
     let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});

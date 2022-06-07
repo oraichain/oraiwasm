@@ -16,7 +16,7 @@ use crate::msg::{
 use crate::scheduled::Scheduled;
 use crate::state::{
     Config, CLAIM, CONFIG, LATEST_STAGE, MERKLE_ROOT, STAGE_AMOUNT, STAGE_AMOUNT_CLAIMED,
-    STAGE_EXPIRATION, STAGE_START,
+    STAGE_EXPIRATION, STAGE_METADATA, STAGE_START,
 };
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
@@ -49,6 +49,7 @@ pub fn handle(
             expiration,
             start,
             total_amount,
+            metadata,
         } => execute_register_merkle_root(
             deps,
             env,
@@ -57,6 +58,7 @@ pub fn handle(
             expiration,
             start,
             total_amount,
+            metadata,
         ),
         HandleMsg::Claim {
             stage,
@@ -106,6 +108,7 @@ pub fn execute_register_merkle_root(
     expiration: Option<Expiration>,
     start: Option<Scheduled>,
     total_amount: Option<Uint128>,
+    metadata: String,
 ) -> Result<HandleResponse, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
@@ -138,6 +141,8 @@ pub fn execute_register_merkle_root(
     STAGE_AMOUNT.save(deps.storage, U8Key::from(stage), &amount)?;
     STAGE_AMOUNT_CLAIMED.save(deps.storage, U8Key::from(stage), &Uint128::zero())?;
 
+    STAGE_METADATA.save(deps.storage, U8Key::from(stage), &metadata)?;
+
     Ok(HandleResponse {
         data: None,
         messages: vec![],
@@ -146,6 +151,7 @@ pub fn execute_register_merkle_root(
             attr("stage", stage.to_string()),
             attr("merkle_root", merkle_root),
             attr("total_amount", amount),
+            attr("metadata", metadata),
         ],
     })
 }
@@ -367,6 +373,7 @@ pub fn query_merkle_root(deps: Deps, stage: u8) -> StdResult<MerkleRootResponse>
     let expiration = STAGE_EXPIRATION.load(deps.storage, stage.into())?;
     let start = STAGE_START.may_load(deps.storage, stage.into())?;
     let total_amount = STAGE_AMOUNT.load(deps.storage, stage.into())?;
+    let metadata = STAGE_METADATA.load(deps.storage, stage.into())?;
 
     let resp = MerkleRootResponse {
         stage,
@@ -374,6 +381,7 @@ pub fn query_merkle_root(deps: Deps, stage: u8) -> StdResult<MerkleRootResponse>
         expiration,
         start,
         total_amount,
+        metadata,
     };
 
     Ok(resp)
