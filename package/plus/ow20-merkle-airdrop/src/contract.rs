@@ -108,7 +108,7 @@ pub fn execute_register_merkle_root(
     expiration: Option<Expiration>,
     start: Option<Scheduled>,
     total_amount: Option<Uint128>,
-    metadata: String,
+    metadata: Binary,
 ) -> Result<HandleResponse, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 

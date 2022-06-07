@@ -12,7 +12,7 @@ use sha2::Digest;
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
-    attr, coins, from_binary, from_slice, to_binary, CosmosMsg, HumanAddr, Uint128, WasmMsg,
+    attr, coins, from_binary, from_slice, to_binary, Binary, CosmosMsg, HumanAddr, Uint128, WasmMsg,
 };
 
 use serde::Deserialize;
@@ -108,7 +108,7 @@ fn register_merkle_root() {
         expiration: None,
         start: None,
         total_amount: None,
-        metadata: "test_metadata;     ".into(),
+        metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
 
     let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -122,7 +122,7 @@ fn register_merkle_root() {
                 "634de21cde1044f41d90373733b0f0fb1c1c71f9652b905cdf159e73c4cf0d37"
             ),
             attr("total_amount", "0"),
-            attr("metadata", "test_metadata;     ")
+            attr("metadata", "dGVzdF9tZXRhZGF0YTsgICAgIA==")
         ]
     );
 
@@ -143,7 +143,10 @@ fn register_merkle_root() {
         "634de21cde1044f41d90373733b0f0fb1c1c71f9652b905cdf159e73c4cf0d37".to_string(),
         merkle_root.merkle_root
     );
-    assert_eq!("test_metadata;     ".to_string(), merkle_root.metadata);
+    assert_eq!(
+        Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
+        merkle_root.metadata
+    );
 }
 
 const TEST_DATA_1: &[u8] = include_bytes!("../testdata/airdrop_stage_1_test_data.json");
@@ -180,7 +183,7 @@ fn claim() {
         expiration: None,
         start: None,
         total_amount: None,
-        metadata: "test_metadata".into(),
+        metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
     let _res = handle(deps.as_mut(), env, info, msg).unwrap();
 
@@ -264,7 +267,7 @@ fn claim() {
         expiration: None,
         start: None,
         total_amount: None,
-        metadata: "test_metadata".into(),
+        metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
     let _res = handle(deps.as_mut(), env, info, msg).unwrap();
 
@@ -349,7 +352,7 @@ fn multiple_claim() {
         expiration: None,
         start: None,
         total_amount: None,
-        metadata: "test_metadata".into(),
+        metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
     let _res = handle(deps.as_mut(), env, info, msg).unwrap();
 
@@ -421,7 +424,7 @@ fn stage_expires() {
         expiration: Some(Expiration::AtHeight(100)),
         start: None,
         total_amount: None,
-        metadata: "test_metadata".into(),
+        metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
     handle(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
@@ -464,7 +467,7 @@ fn cant_burn() {
         expiration: Some(Expiration::AtHeight(12346)),
         start: None,
         total_amount: Some(Uint128::from(100000u128)),
-        metadata: "test_metadata".into(),
+        metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
     handle(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
@@ -502,7 +505,7 @@ fn can_burn() {
         expiration: Some(Expiration::AtHeight(12500)),
         start: None,
         total_amount: Some(Uint128::from(10000u128)),
-        metadata: "test_metadata".into(),
+        metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
     handle(deps.as_mut(), env.clone(), info, msg).unwrap();
 
@@ -587,7 +590,7 @@ fn cant_withdraw() {
         expiration: Some(Expiration::AtHeight(12346)),
         start: None,
         total_amount: Some(Uint128::from(100000u128)),
-        metadata: "test_metadata".into(),
+        metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
     handle(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
@@ -625,7 +628,7 @@ fn can_withdraw() {
         expiration: Some(Expiration::AtHeight(12500)),
         start: None,
         total_amount: Some(Uint128::from(10000u128)),
-        metadata: "test_metadata".into(),
+        metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
     handle(deps.as_mut(), env.clone(), info, msg).unwrap();
 
@@ -712,7 +715,7 @@ fn stage_starts() {
         expiration: None,
         start: Some(Scheduled::AtHeight(200_000)),
         total_amount: None,
-        metadata: "test_metadata".into(),
+        metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
     handle(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
@@ -731,74 +734,4 @@ fn stage_starts() {
             start: Scheduled::AtHeight(200_000)
         }
     )
-}
-
-#[test]
-fn owner_freeze() {
-    let mut deps = mock_dependencies(&[]);
-    deps.api.canonical_length = 54;
-    let msg = InitMsg {
-        owner: Some("owner0000".into()),
-        cw20_token_address: "token0000".into(),
-    };
-
-    let env = mock_env();
-    let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
-
-    // can register merkle root
-    let env = mock_env();
-    let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
-        merkle_root: "5d4f48f147cb6cb742b376dce5626b2a036f69faec10cd73631c791780e150fc".into(),
-        expiration: None,
-        start: None,
-        total_amount: None,
-        metadata: "test_metadata".into(),
-    };
-    let _res = handle(deps.as_mut(), env, info, msg).unwrap();
-
-    // can update owner
-    let env = mock_env();
-    let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::UpdateConfig {
-        new_owner: Some("owner0001".into()),
-    };
-
-    let res = handle(deps.as_mut(), env, info, msg).unwrap();
-    assert_eq!(0, res.messages.len());
-
-    // freeze contract
-    let env = mock_env();
-    let info = mock_info("owner0001", &[]);
-    let msg = HandleMsg::UpdateConfig { new_owner: None };
-
-    let res = handle(deps.as_mut(), env, info, msg).unwrap();
-    assert_eq!(0, res.messages.len());
-
-    // cannot register new drop
-    let env = mock_env();
-    let info = mock_info("owner0001", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
-        merkle_root: "ebaa83c7eaf7467c378d2f37b5e46752d904d2d17acd380b24b02e3b398b3e5a".to_string(),
-        expiration: None,
-        start: None,
-        total_amount: None,
-        metadata: "test_metadata".into(),
-    };
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
-    assert_eq!(res, ContractError::Unauthorized {});
-
-    // cannot update config
-    let env = mock_env();
-    let info = mock_info("owner0001", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
-        merkle_root: "ebaa83c7eaf7467c378d2f37b5e46752d904d2d17acd380b24b02e3b398b3e5a".to_string(),
-        expiration: None,
-        start: None,
-        total_amount: None,
-        metadata: "test_metadata".into(),
-    };
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
-    assert_eq!(res, ContractError::Unauthorized {});
 }

@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::{Binary, HumanAddr, Uint128};
 use cw0::Expiration;
 
 use crate::scheduled::Scheduled;
@@ -27,7 +27,7 @@ pub enum HandleMsg {
         expiration: Option<Expiration>,
         start: Option<Scheduled>,
         total_amount: Option<Uint128>,
-        metadata: String
+        metadata: Binary,
     },
     /// Claim check the data is valid for a sender, each stage related to a merkle root.
     Claim {
@@ -67,7 +67,7 @@ pub struct MerkleRootResponse {
     pub expiration: Expiration,
     pub start: Option<Scheduled>,
     pub total_amount: Uint128,
-    pub metadata: String
+    pub metadata: Binary,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
