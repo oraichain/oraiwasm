@@ -29,6 +29,10 @@ pub enum HandleMsg {
         total_amount: Option<Uint128>,
         metadata: Binary,
     },
+    RemoveMerkleRoot {
+        /// MerkleRoot is hex-encoded merkle root.
+        stage: u8,
+    },
     /// Claim check the data is valid for a sender, each stage related to a merkle root.
     Claim {
         stage: u8,

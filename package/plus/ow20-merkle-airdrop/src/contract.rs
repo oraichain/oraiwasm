@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, StdResult, Uint128, WasmMsg,
+    MessageInfo, MigrateResponse, StdResult, Uint128, WasmMsg,
 };
 use cw0::Expiration;
 use cw20::Cw20HandleMsg;
@@ -66,6 +66,7 @@ pub fn handle(
             proof,
         } => execute_claim(deps, env, info, stage, amount, proof),
         HandleMsg::Burn { stage } => execute_burn(deps, env, info, stage),
+        HandleMsg::RemoveMerkleRoot { stage } => execute_remove_merkle_root(deps, env, info, stage),
         HandleMsg::Withdraw { stage } => execute_withdraw(deps, env, info, stage),
     }
 }
@@ -84,7 +85,7 @@ pub fn execute_update_config(
     }
 
     // if owner some validated to addr, otherwise set to none
-    let mut tmp_owner = None;
+    let tmp_owner;
     if let Some(addr) = new_owner {
         tmp_owner = Some(addr);
         CONFIG.update(deps.storage, |mut exists| -> StdResult<_> {
@@ -95,6 +96,28 @@ pub fn execute_update_config(
 
     Ok(HandleResponse {
         attributes: vec![attr("action", "update_config")],
+        messages: vec![],
+        data: None,
+    })
+}
+
+pub fn execute_remove_merkle_root(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    stage: u8,
+) -> Result<HandleResponse, ContractError> {
+    // authorize owner
+    let cfg = CONFIG.load(deps.storage)?;
+    let owner = cfg.owner.ok_or(ContractError::Unauthorized {})?;
+    if info.sender != owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    MERKLE_ROOT.save(deps.storage, U8Key::from(stage), &"".into())?;
+
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "remove_merkle_root"), attr("stage", stage)],
         messages: vec![],
         data: None,
     })
@@ -415,6 +438,6 @@ pub fn migrate(
     _env: Env,
     _info: MessageInfo,
     _msg: MigrateMsg,
-) -> Result<HandleResponse, ContractError> {
-    Ok(HandleResponse::default())
+) -> Result<MigrateResponse, ContractError> {
+    Ok(MigrateResponse::default())
 }
