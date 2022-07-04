@@ -28,31 +28,34 @@ pub fn handle_executor_join(
     }
     let config = CONFIG.load(deps.storage)?;
     let mut executor_index = EXECUTORS_INDEX.load(deps.storage)?;
-    executors_map().update(deps.storage, &executor.clone(), |some_executor| {
-        if some_executor.is_none() {
-            // otherwise, we return new executor data
-            let final_executor: Executor = Executor {
-                pubkey: executor.clone(),
-                executing_power: 0u64,
-                index: executor_index,
-                is_active: true,
-                left_block: None,
-            };
-            executor_index += 1;
-            return Ok(final_executor);
-        }
-        let mut executor = some_executor.unwrap();
-        if let Some(left_block) = executor.left_block {
-            if env.block.height < left_block + config.pending_period {
-                return Err(ContractError::RejoinError {
-                    block: left_block + config.pending_period,
-                });
+    let new_executor =
+        executors_map().update(deps.storage, &executor.clone(), |some_executor| {
+            if some_executor.is_none() {
+                // otherwise, we return new executor data
+                let final_executor: Executor = Executor {
+                    pubkey: executor.clone(),
+                    executing_power: 0u64,
+                    index: executor_index,
+                    is_active: true,
+                    left_block: None,
+                };
+                executor_index += 1;
+                return Ok(final_executor);
             }
-            executor.is_active = true;
-            executor.left_block = None;
-        }
-        Ok(executor)
-    })?;
+            let mut executor = some_executor.unwrap();
+            if let Some(left_block) = executor.left_block {
+                if env.block.height < left_block + config.pending_period {
+                    return Err(ContractError::RejoinError {
+                        block: left_block + config.pending_period,
+                    });
+                }
+                executor.is_active = true;
+                executor.left_block = None;
+            }
+            Ok(executor)
+        })?;
+    let new_index = executor_index.max(new_executor.index);
+    EXECUTORS_INDEX.save(deps.storage, &new_index)?;
     Ok(HandleResponse {
         data: None,
         messages: vec![],
