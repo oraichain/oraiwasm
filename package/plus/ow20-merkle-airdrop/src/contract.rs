@@ -10,8 +10,9 @@ use std::convert::TryInto;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ClaimKeysResponse, ConfigResponse, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse,
-    MerkleRootResponse, MigrateMsg, QueryMsg, TotalClaimedResponse,
+    ClaimKeyCountResponse, ClaimKeysResponse, ConfigResponse, HandleMsg, InitMsg,
+    IsClaimedResponse, LatestStageResponse, MerkleRootResponse, MigrateMsg, QueryMsg,
+    TotalClaimedResponse,
 };
 use crate::scheduled::Scheduled;
 use crate::state::{
@@ -381,6 +382,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::TotalClaimed { stage } => to_binary(&query_total_claimed(deps, stage)?),
         QueryMsg::ClaimKeys { offset, limit } => to_binary(&query_claim_keys(deps, offset, limit)?),
+        QueryMsg::ClaimKeyCount {} => to_binary(&query_claim_key_count(deps)?),
     }
 }
 
@@ -468,6 +470,18 @@ fn get_range_params(
 pub fn query_total_claimed(deps: Deps, stage: u8) -> StdResult<TotalClaimedResponse> {
     let total_claimed = STAGE_AMOUNT_CLAIMED.load(deps.storage, stage.into())?;
     let resp = TotalClaimedResponse { total_claimed };
+
+    Ok(resp)
+}
+
+pub fn query_claim_key_count(deps: Deps) -> StdResult<ClaimKeyCountResponse> {
+    let claim_keys: Vec<_> = CLAIM
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+
+    let resp = ClaimKeyCountResponse {
+        claim_key_count: claim_keys.len(),
+    };
 
     Ok(resp)
 }

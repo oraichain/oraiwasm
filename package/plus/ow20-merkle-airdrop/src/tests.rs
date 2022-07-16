@@ -3,8 +3,8 @@ use std::convert::TryInto;
 use crate::contract::{handle, init, query};
 use crate::error::ContractError;
 use crate::msg::{
-    ClaimKeysResponse, ConfigResponse, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse,
-    MerkleRootResponse, QueryMsg,
+    ClaimKeyCountResponse, ClaimKeysResponse, ConfigResponse, HandleMsg, InitMsg,
+    IsClaimedResponse, LatestStageResponse, MerkleRootResponse, QueryMsg,
 };
 use crate::scheduled::Scheduled;
 use crate::state::CLAIM;
@@ -507,6 +507,12 @@ fn test_query_claim_keys() {
         test_data.total_claimed_amount
     );
 
+    let count = from_binary::<ClaimKeyCountResponse>(
+        &query(deps.as_ref(), env.clone(), QueryMsg::ClaimKeyCount {}).unwrap(),
+    )
+    .unwrap();
+    println!("count {:?}", count.claim_key_count);
+
     let t1 = from_binary::<ClaimKeysResponse>(
         &query(
             deps.as_ref(),
@@ -525,11 +531,11 @@ fn test_query_claim_keys() {
             env.clone(),
             QueryMsg::ClaimKeys {
                 offset: Some(vec![
-                    0, 0, 0, 109, 110, 110, 57, 110, 55, 54, 100, 108, 54, 120, 0, 0, 119, 49, 97,
-                    97, 115, 55, 117, 108, 109, 112, 51, 0, 0, 0, 97, 121, 56, 99, 110, 113, 53,
-                    104, 116, 50, 120, 0, 0, 0, 115, 108, 56, 104, 53, 101, 108, 55, 54, 121, 1,
+                    115, 52, 117, 48, 99, 50, 120, 109, 97, 55, 118, 0, 0, 0, 109, 120, 53, 102,
+                    116, 117, 118, 106, 57, 122, 0, 0, 0, 119, 49, 54, 53, 117, 121, 108, 102, 99,
+                    50, 101, 0, 0, 0, 97, 97, 97, 115, 115, 106, 114, 112, 120, 107, 50, 0, 0, 1,
                 ]),
-                limit: Some(3),
+                limit: Some(4),
             },
         )
         .unwrap(),

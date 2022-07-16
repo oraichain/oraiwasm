@@ -65,6 +65,7 @@ pub enum QueryMsg {
         offset: Option<Vec<u8>>,
         limit: Option<u64>,
     },
+    ClaimKeyCount {},
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -98,6 +99,11 @@ pub struct IsClaimedResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ClaimKeysResponse {
     pub claim_keys: Vec<Vec<u8>>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ClaimKeyCountResponse {
+    pub claim_key_count: usize,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
