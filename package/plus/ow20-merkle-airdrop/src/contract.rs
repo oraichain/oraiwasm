@@ -1,17 +1,17 @@
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, MigrateResponse, StdResult, Uint128, WasmMsg,
+    MessageInfo, MigrateResponse, Order, StdResult, Uint128, WasmMsg,
 };
 use cw0::Expiration;
 use cw20::Cw20HandleMsg;
-use cw_storage_plus::U8Key;
+use cw_storage_plus::{Bound, U8Key};
 use sha2::Digest;
 use std::convert::TryInto;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse, MerkleRootResponse,
-    MigrateMsg, QueryMsg, TotalClaimedResponse,
+    ClaimKeysResponse, ConfigResponse, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse,
+    MerkleRootResponse, MigrateMsg, QueryMsg, TotalClaimedResponse,
 };
 use crate::scheduled::Scheduled;
 use crate::state::{
@@ -380,6 +380,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_is_claimed(deps, stage, address)?)
         }
         QueryMsg::TotalClaimed { stage } => to_binary(&query_total_claimed(deps, stage)?),
+        QueryMsg::ClaimKeys { offset, limit } => to_binary(&query_claim_keys(deps, offset, limit)?),
     }
 }
 
@@ -424,6 +425,44 @@ pub fn query_is_claimed(deps: Deps, stage: u8, address: HumanAddr) -> StdResult<
     let resp = IsClaimedResponse { is_claimed };
 
     Ok(resp)
+}
+
+pub fn query_claim_keys(
+    deps: Deps,
+    offset: Option<Vec<u8>>,
+    limit: Option<u64>,
+) -> StdResult<ClaimKeysResponse> {
+    let (limit, min, max) = get_range_params(offset, limit, Order::Ascending);
+    let claim_keys: Vec<_> = CLAIM
+        .range(deps.storage, min, max, Order::Ascending)
+        .take(limit)
+        .map(|x| x.unwrap().0)
+        .collect();
+
+    let resp = ClaimKeysResponse {
+        claim_keys: claim_keys,
+    };
+
+    Ok(resp)
+}
+
+fn get_range_params(
+    offset: Option<Vec<u8>>,
+    limit: Option<u64>,
+    order_enum: Order,
+) -> (usize, Option<Bound>, Option<Bound>) {
+    let limit = limit.unwrap_or(1000u64).min(1000u64) as usize;
+
+    let mut min: Option<Bound> = None;
+    let mut max: Option<Bound> = None;
+
+    let offset_value = offset.map(|offset| Bound::Exclusive(offset));
+    match order_enum {
+        Order::Ascending => min = offset_value,
+        Order::Descending => max = offset_value,
+    }
+
+    (limit, min, max)
 }
 
 pub fn query_total_claimed(deps: Deps, stage: u8) -> StdResult<TotalClaimedResponse> {

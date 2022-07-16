@@ -3,18 +3,20 @@ use std::convert::TryInto;
 use crate::contract::{handle, init, query};
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse, MerkleRootResponse,
-    QueryMsg,
+    ClaimKeysResponse, ConfigResponse, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse,
+    MerkleRootResponse, QueryMsg,
 };
 use crate::scheduled::Scheduled;
+use crate::state::CLAIM;
 
 use sha2::Digest;
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
-    attr, coins, from_binary, from_slice, to_binary, Binary, CosmosMsg, HumanAddr, Uint128, WasmMsg,
+    attr, coins, from_binary, from_slice, to_binary, Binary, CosmosMsg, HumanAddr, Order,
+    StdResult, Uint128, WasmMsg,
 };
-
+use cw_storage_plus::{Bound, U8Key};
 use serde::Deserialize;
 
 const DENOM: &str = "ORAI";
@@ -23,6 +25,34 @@ use crate::msg::TotalClaimedResponse;
 
 use cw0::Expiration;
 use cw20::Cw20HandleMsg;
+
+#[test]
+fn test_range() {
+    let mut deps = mock_dependencies(&[]);
+    let data = true;
+    CLAIM.save(&mut deps.storage, b"john", &data);
+    CLAIM.save(&mut deps.storage, b"jim", &data);
+
+    // iterate over them all
+    let all: StdResult<Vec<_>> = CLAIM
+        .range(&deps.storage, None, None, Order::Ascending)
+        .collect();
+    let all = all.unwrap();
+    println!("{:?}", all);
+
+    // or just show what is after jim
+    let all: StdResult<Vec<_>> = CLAIM
+        .range(
+            &deps.storage,
+            Some(Bound::Exclusive(1u64.to_be_bytes().to_vec())),
+            None,
+            Order::Ascending,
+        )
+        .collect();
+    let all = all.unwrap();
+    println!("{:?}", all);
+    // assert_eq!(all, vec![(b"john".to_vec(), data)]);
+}
 
 #[test]
 fn proper_instantiation() {
@@ -399,6 +429,116 @@ fn multiple_claim() {
         .total_claimed,
         test_data.total_claimed_amount
     );
+}
+
+#[test]
+fn test_query_claim_keys() {
+    // Run test 1
+    let mut deps = mock_dependencies(&[]);
+    deps.api.canonical_length = 54;
+    let test_data: MultipleData = from_slice(TEST_DATA_1_MULTI).unwrap();
+
+    let msg = InitMsg {
+        owner: Some("owner0000".into()),
+        cw20_token_address: "token0000".into(),
+    };
+
+    let env = mock_env();
+    let info = mock_info("addr0000", &[]);
+    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+
+    let env = mock_env();
+    let info = mock_info("owner0000", &[]);
+    let msg = HandleMsg::RegisterMerkleRoot {
+        merkle_root: test_data.root,
+        expiration: None,
+        start: None,
+        total_amount: None,
+        metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
+    };
+    let _res = handle(deps.as_mut(), env, info, msg).unwrap();
+
+    // Loop accounts and claim
+    for account in test_data.accounts.iter() {
+        let msg = HandleMsg::Claim {
+            amount: account.amount,
+            stage: 1u8,
+            proof: account.proofs.clone(),
+        };
+
+        let env = mock_env();
+        let info = mock_info(account.account.as_str(), &[]);
+        let res = handle(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+        let expected: CosmosMsg<_> = CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: "token0000".into(),
+            send: vec![],
+            msg: to_binary(&Cw20HandleMsg::Transfer {
+                recipient: account.account.clone().into(),
+                amount: account.amount,
+            })
+            .unwrap(),
+        });
+        assert_eq!(res.messages, vec![expected]);
+
+        assert_eq!(
+            res.attributes,
+            vec![
+                attr("action", "claim"),
+                attr("stage", "1"),
+                attr("address", account.account.clone()),
+                attr("amount", account.amount)
+            ]
+        );
+    }
+
+    // Check total claimed on stage 1
+    let env = mock_env();
+    assert_eq!(
+        from_binary::<TotalClaimedResponse>(
+            &query(
+                deps.as_ref(),
+                env.clone(),
+                QueryMsg::TotalClaimed { stage: 1 }
+            )
+            .unwrap()
+        )
+        .unwrap()
+        .total_claimed,
+        test_data.total_claimed_amount
+    );
+
+    let t1 = from_binary::<ClaimKeysResponse>(
+        &query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::ClaimKeys {
+                offset: None,
+                limit: Some(5),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let t2 = from_binary::<ClaimKeysResponse>(
+        &query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::ClaimKeys {
+                offset: Some(vec![
+                    0, 0, 0, 109, 110, 110, 57, 110, 55, 54, 100, 108, 54, 120, 0, 0, 119, 49, 97,
+                    97, 115, 55, 117, 108, 109, 112, 51, 0, 0, 0, 97, 121, 56, 99, 110, 113, 53,
+                    104, 116, 50, 120, 0, 0, 0, 115, 108, 56, 104, 53, 101, 108, 55, 54, 121, 1,
+                ]),
+                limit: Some(3),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+
+    println!("{:?} {:?}", t1, t1.claim_keys.len());
+    println!();
+    println!("{:?} {:?}", t2, t2.claim_keys.len());
 }
 
 // Check expiration. Chain height in tests is 12345

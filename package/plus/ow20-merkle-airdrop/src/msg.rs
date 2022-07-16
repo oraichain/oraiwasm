@@ -50,10 +50,21 @@ pub enum HandleMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
-    MerkleRoot { stage: u8 },
+    MerkleRoot {
+        stage: u8,
+    },
     LatestStage {},
-    IsClaimed { stage: u8, address: HumanAddr },
-    TotalClaimed { stage: u8 },
+    IsClaimed {
+        stage: u8,
+        address: HumanAddr,
+    },
+    TotalClaimed {
+        stage: u8,
+    },
+    ClaimKeys {
+        offset: Option<Vec<u8>>,
+        limit: Option<u64>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -82,6 +93,11 @@ pub struct LatestStageResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct IsClaimedResponse {
     pub is_claimed: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ClaimKeysResponse {
+    pub claim_keys: Vec<Vec<u8>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
