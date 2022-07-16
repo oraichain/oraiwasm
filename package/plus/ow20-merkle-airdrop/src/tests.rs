@@ -118,6 +118,54 @@ fn update_config() {
 }
 
 #[test]
+fn test_update_claim() {
+    let mut deps = mock_dependencies(&[]);
+
+    let msg = InitMsg {
+        owner: None,
+        cw20_token_address: "anchor0000".into(),
+    };
+
+    let env = mock_env();
+    let info = mock_info("owner0000", &[]);
+    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+
+    // update claim
+    let env = mock_env();
+    let info = mock_info("owner0000", &[]);
+    let msg = HandleMsg::UpdateClaim {
+        claim_keys: vec![vec![1], vec![2]],
+    };
+
+    let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    // it worked, let's query the state
+    let t1 = from_binary::<ClaimKeysResponse>(
+        &query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::ClaimKeys {
+                offset: None,
+                limit: None,
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(t1.claim_keys, vec![vec![1], vec![2]]);
+
+    // Unauthorized err
+    let env = mock_env();
+    let info = mock_info("owner0001", &[]);
+    let msg = HandleMsg::UpdateClaim {
+        claim_keys: vec![vec![1], vec![2]],
+    };
+    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
+    assert_eq!(res, ContractError::Unauthorized {});
+}
+
+#[test]
 fn register_merkle_root() {
     let mut deps = mock_dependencies(&[]);
 

@@ -1,7 +1,6 @@
 use crate::scheduled::Scheduled;
 use cosmwasm_std::StdError;
 use cw0::Expiration;
-use cw_storage_plus::U8Key;
 use hex::FromHexError;
 use thiserror::Error;
 

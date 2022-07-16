@@ -69,6 +69,7 @@ pub fn handle(
         HandleMsg::Burn { stage } => execute_burn(deps, env, info, stage),
         HandleMsg::RemoveMerkleRoot { stage } => execute_remove_merkle_root(deps, env, info, stage),
         HandleMsg::Withdraw { stage } => execute_withdraw(deps, env, info, stage),
+        HandleMsg::UpdateClaim { claim_keys } => execute_update_claim(deps, env, info, claim_keys),
     }
 }
 
@@ -97,6 +98,30 @@ pub fn execute_update_config(
 
     Ok(HandleResponse {
         attributes: vec![attr("action", "update_config")],
+        messages: vec![],
+        data: None,
+    })
+}
+
+pub fn execute_update_claim(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    claim_keys: Vec<Vec<u8>>,
+) -> Result<HandleResponse, ContractError> {
+    // authorize owner
+    let cfg = CONFIG.load(deps.storage)?;
+    let owner = cfg.owner.ok_or(ContractError::Unauthorized {})?;
+    if info.sender != owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    for key in claim_keys.iter() {
+        CLAIM.save(deps.storage, &key, &true)?;
+    }
+
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "update_claim")],
         messages: vec![],
         data: None,
     })

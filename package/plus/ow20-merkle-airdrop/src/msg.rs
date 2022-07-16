@@ -41,9 +41,16 @@ pub enum HandleMsg {
         proof: Vec<String>,
     },
     /// Burn the remaining tokens after expire time (only owner)
-    Burn { stage: u8 },
+    Burn {
+        stage: u8,
+    },
     /// Withdraw the remaining tokens after expire time (only owner)
-    Withdraw { stage: u8 },
+    Withdraw {
+        stage: u8,
+    },
+    UpdateClaim {
+        claim_keys: Vec<Vec<u8>>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
