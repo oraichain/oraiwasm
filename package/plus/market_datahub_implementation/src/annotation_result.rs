@@ -51,13 +51,9 @@ pub fn try_add_annotation_result(
     let old_annotation_results =
         get_annotation_results_by_annotation_id(deps.as_ref(), annotation_id)?;
 
-    let is_existed = old_annotation_results
+    let _is_existed = old_annotation_results
         .iter()
         .find(|r| r.reviewer_address.eq(&info.sender));
-
-    if is_existed.is_some() {
-        return Err(ContractError::AddResultError {});
-    }
 
     if old_annotation_results.len() > 0 {
         // The annotator's result array must be the same for every reviewer's data
@@ -146,15 +142,9 @@ pub fn try_add_reviewed_upload(
 
     let old_reviewed_upload = get_reviewed_upload_by_annotation_id(deps.as_ref(), annotation_id)?;
 
-    let is_existed = old_reviewed_upload
+    let _is_existed = old_reviewed_upload
         .iter()
         .find(|r| r.reviewer_address.eq(&info.sender));
-
-    if is_existed.is_some() {
-        return Err(ContractError::Std(StdError::generic_err(
-            "A reviewer can reviewer upload for only one time",
-        )));
-    }
 
     if old_reviewed_upload.len() > 0 {
         let first = &old_reviewed_upload[0];
