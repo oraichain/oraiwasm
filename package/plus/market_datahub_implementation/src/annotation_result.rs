@@ -48,16 +48,16 @@ pub fn try_add_annotation_result(
         }
     }
 
-    let old_annotation_results =
+    let old_all_annotation_results =
         get_annotation_results_by_annotation_id(deps.as_ref(), annotation_id)?;
 
-    let _is_existed = old_annotation_results
+    let existed_annotation_result_of_reviewer = old_all_annotation_results
         .iter()
         .find(|r| r.reviewer_address.eq(&info.sender));
 
-    if old_annotation_results.len() > 0 {
+    if old_all_annotation_results.len() > 0 {
         // The annotator's result array must be the same for every reviewer's data
-        let first = &old_annotation_results[0];
+        let first = &old_all_annotation_results[0];
 
         if first.data.len() != annotator_results.len() {
             return Err(ContractError::InvalidAnnotatorResults {});
@@ -92,7 +92,11 @@ pub fn try_add_annotation_result(
         DATAHUB_STORAGE,
         DataHubHandleMsg::AddAnnotationResult {
             annotation_result: AnnotationResult {
-                id: None,
+                id: if existed_annotation_result_of_reviewer.is_some() {
+                    existed_annotation_result_of_reviewer.unwrap().id
+                } else {
+                    None
+                },
                 annotation_id,
                 reviewer_address: info.sender.clone(),
                 data: annotator_results.clone(),
@@ -142,7 +146,7 @@ pub fn try_add_reviewed_upload(
 
     let old_reviewed_upload = get_reviewed_upload_by_annotation_id(deps.as_ref(), annotation_id)?;
 
-    let _is_existed = old_reviewed_upload
+    let old_reviewed_upload_by_reviewer = old_reviewed_upload
         .iter()
         .find(|r| r.reviewer_address.eq(&info.sender));
 
@@ -182,7 +186,11 @@ pub fn try_add_reviewed_upload(
         DATAHUB_STORAGE,
         DataHubHandleMsg::AddReviewedUpload {
             reviewed_result: AnnotationResult {
-                id: None,
+                id: if old_reviewed_upload_by_reviewer.is_some() {
+                    old_reviewed_upload_by_reviewer.unwrap().id
+                } else {
+                    None
+                },
                 annotation_id,
                 reviewer_address: info.sender.clone(),
                 data: reviewed_uploads,
