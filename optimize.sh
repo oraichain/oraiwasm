@@ -8,7 +8,7 @@ if [ $? -eq 0 ]; then
 fi
 set -o errexit -o nounset -o pipefail
 
-contractdir=$(realpath "$1")
+contractdir=$(readlink -f -- "$1")
 
 basedir=$(pwd)
 build_release="${3:-true}"
