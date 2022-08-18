@@ -11,13 +11,14 @@ use crate::offering::{handle_sell_nft, try_buy, try_handle_mint, try_sell, try_w
 
 use crate::error::ContractError;
 use crate::msg::{
-    HandleMsg, InitMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellRoyalty, UpdateContractMsg,
+    HandleMsg, InitMsg, MigrateMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, SellRoyalty,
+    UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::HumanAddr;
 use cosmwasm_std::{
     attr, from_binary, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
-    HandleResponse, InitResponse, MessageInfo, StdResult, Uint128, WasmMsg,
+    HandleResponse, InitResponse, MessageInfo, MigrateResponse, StdResult, Uint128, WasmMsg,
 };
 use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
 use market::{query_proxy, StorageHandleMsg, StorageQueryMsg};
@@ -345,4 +346,13 @@ pub fn query_ai_royalty(deps: Deps, msg: AiRoyaltyQueryMsg) -> StdResult<Binary>
         get_storage_addr(deps, contract_info.governance, AI_ROYALTY_STORAGE)?,
         to_binary(&ProxyQueryMsg::Msg(msg))?,
     )
+}
+
+pub fn migrate(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: MigrateMsg,
+) -> Result<MigrateResponse, ContractError> {
+    Ok(MigrateResponse::default())
 }

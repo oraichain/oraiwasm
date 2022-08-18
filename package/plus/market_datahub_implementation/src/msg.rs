@@ -160,3 +160,6 @@ where
     Msg(T),
     Storage(StorageHandleMsg),
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}

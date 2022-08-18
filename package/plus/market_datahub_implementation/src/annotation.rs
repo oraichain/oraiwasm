@@ -318,24 +318,27 @@ pub fn try_payout(
     for (annotator_address, valid_results) in annotator_valid_results_map {
         let reward = annotation.reward_per_sample.u128() * valid_results.annotation_valid_result
             + annotation.reward_per_upload_task.u128() * valid_results.upload_valid_result;
-        total_reward = total_reward + reward;
-        cosmos_msg.push(
-            BankMsg::Send {
-                from_address: env.contract.address.clone(),
-                to_address: annotator_address.clone(),
-                amount: coins(reward.into(), denom.clone()),
-            }
-            .into(),
-        );
-        attributes.push(attr("annotator", annotator_address.to_string()));
-        attributes.push(attr("reward", reward.to_string()));
+
+        if reward.gt(&0u128) {
+            total_reward = total_reward + reward;
+            cosmos_msg.push(
+                BankMsg::Send {
+                    from_address: env.contract.address.clone(),
+                    to_address: annotator_address.clone(),
+                    amount: coins(reward.into(), denom.clone()),
+                }
+                .into(),
+            );
+            attributes.push(attr("annotator", annotator_address.to_string()));
+            attributes.push(attr("reward", reward.to_string()));
+        }
     }
 
     println!("total bond: {:?}", total_bond);
     println!("total reward: {:?}", total_reward);
     // Payback the excess cash to the annotation's requestor
     let payback_amount = total_bond.u128() - total_reward;
-    if payback_amount.ge(&0u128) {
+    if payback_amount.gt(&0u128) {
         cosmos_msg.push(
             BankMsg::Send {
                 from_address: env.contract.address.clone(),
