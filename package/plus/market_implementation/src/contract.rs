@@ -381,12 +381,27 @@ pub fn handle_transfer_nft(
         recipient,
         ..
     } = gift_msg;
+
+    
     // verify owner. Wont allow to transfer if it's not the owner of the nft
-    verify_owner(
+    // verify_owner(
+        //     deps.as_ref(),
+        //     contract_addr.as_str(),
+        //     token_id.as_str(),
+        //     info.sender.as_str(),
+        // )?;
+        
+    let ContractInfo {
+            governance,
+            ..
+    } = CONTRACT_INFO.load(deps.storage)?;
+    
+    verify_nft(
         deps.as_ref(),
-        contract_addr.as_str(),
-        token_id.as_str(),
-        info.sender.as_str(),
+        &governance,
+        &contract_addr,
+        &token_id,
+        &info.sender,
     )?;
 
     let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];

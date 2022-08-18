@@ -140,7 +140,7 @@ pub fn handle(
             token_id,
             to,
         } => try_change_creator(deps, info, env, contract_addr, token_id, to),
-        HandleMsg::TransferNftDirectly(msg) => try_handle_transfer_directly(info, env, msg),
+        HandleMsg::TransferNftDirectly(msg) => try_handle_transfer_directly(deps, info, env, msg),
     }
 }
 

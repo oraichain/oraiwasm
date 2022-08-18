@@ -3036,6 +3036,65 @@ fn test_transfer_nft_directly() {
 }
 
 #[test]
+fn test_transfer_nft_onsale_directly() {
+    unsafe {
+        let manager = DepsManager::get_new();
+        handle_whitelist(manager);
+        let creator_info = mock_info("creator", &vec![coin(50, DENOM)]);
+        let mint_msg = HandleMsg::MintNft(MintMsg {
+            contract_addr: HumanAddr::from(OW721),
+            creator: HumanAddr::from(PROVIDER),
+            mint: MintIntermediate {
+                mint: MintStruct {
+                    token_id: String::from(SELLABLE_NFT),
+                    owner: HumanAddr::from(PROVIDER),
+                    name: String::from("asbv"),
+                    description: None,
+                    image: String::from("baxv"),
+                },
+            },
+            creator_type: String::from("sacx"),
+            royalty: Some(40 * DECIMAL),
+        });
+
+        manager.handle(creator_info.clone(), mint_msg).unwrap();
+
+        let _result = oraichain_nft::contract::handle(
+            manager.ow721.as_mut(),
+            mock_env(OW721),
+            mock_info(PROVIDER, &vec![]),
+            oraichain_nft::msg::HandleMsg::ApproveAll {
+                operator: HumanAddr::from(MARKET_ADDR),
+                expires: None,
+            },
+        );
+
+        let msg = HandleMsg::SellNft {
+            contract_addr: HumanAddr::from(OW721),
+            token_id: String::from(SELLABLE_NFT),
+            off_price: Uint128::from(11u64),
+            royalty: None,
+        };
+
+        let _res = manager
+            .handle(mock_info(PROVIDER, &vec![]), msg.clone())
+            .unwrap();
+
+        // Transfer nft onsale should not be successful
+        let ret = manager
+            .handle(
+                mock_info(PROVIDER, &vec![coin(50, DENOM)]),
+                HandleMsg::TransferNftDirectly(GiftNft {
+                    recipient: HumanAddr::from("somebody"),
+                    token_id: String::from(SELLABLE_NFT),
+                    contract_addr: HumanAddr::from(OW721),
+                }),
+            )
+            .unwrap_err();
+    }
+}
+
+#[test]
 fn update_approve_all() {
     unsafe {
         let manager = DepsManager::get_new();

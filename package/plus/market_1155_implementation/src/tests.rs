@@ -3077,6 +3077,7 @@ fn transfer_nft_directly_happy_path() {
 
 #[test]
 fn transfer_nft_directly_unhappy_path() {
+    // Token onsale shound not able to transfer
     unsafe {
         let manager = DepsManager::get_new();
         handle_approve(manager);
@@ -3120,47 +3121,49 @@ fn transfer_nft_directly_unhappy_path() {
             .handle(sender_info.clone(), sell_msg.clone())
             .unwrap();
 
-        let transfer_msg = TransferNftDirectlyMsg {
+        let transfer = TransferNftDirectlyMsg {
             amount: Uint128(10),
             contract_addr: HumanAddr::from(OW_1155_ADDR),
             token_id: String::from(token_id),
             to: HumanAddr::from(receiver),
         };
-        let msg = HandleMsg::TransferNftDirectly(transfer_msg);
+        let transfer_msg = HandleMsg::TransferNftDirectly(transfer);
 
-        // println!("ret: {:?}", ret);
+        let ret = manager
+        .handle(sender_info.clone(), transfer_msg.clone())
+        .unwrap_err();
 
         // let _ret_error = manager.handle(info.clone(), msg.clone());
         // assert_eq!(_ret_error.is_err(), true);
 
-        let receiver_balance: BalanceResponse = from_binary(
-            &ow1155::contract::query(
-                manager.ow1155.as_ref(),
-                mock_env(OW_1155_ADDR),
-                Cw1155QueryMsg::Balance {
-                    owner: String::from(receiver),
-                    token_id: String::from(token_id),
-                },
-            )
-            .unwrap(),
-        )
-        .unwrap();
+        // let receiver_balance: BalanceResponse = from_binary(
+        //     &ow1155::contract::query(
+        //         manager.ow1155.as_ref(),
+        //         mock_env(OW_1155_ADDR),
+        //         Cw1155QueryMsg::Balance {
+        //             owner: String::from(receiver),
+        //             token_id: String::from(token_id),
+        //         },
+        //     )
+        //     .unwrap(),
+        // )
+        // .unwrap();
 
-        let sender_balance: BalanceResponse = from_binary(
-            &ow1155::contract::query(
-                manager.ow1155.as_ref(),
-                mock_env(OW_1155_ADDR),
-                Cw1155QueryMsg::Balance {
-                    owner: String::from("sender"),
-                    token_id: String::from(token_id),
-                },
-            )
-            .unwrap(),
-        )
-        .unwrap();
+        // let sender_balance: BalanceResponse = from_binary(
+        //     &ow1155::contract::query(
+        //         manager.ow1155.as_ref(),
+        //         mock_env(OW_1155_ADDR),
+        //         Cw1155QueryMsg::Balance {
+        //             owner: String::from("sender"),
+        //             token_id: String::from(token_id),
+        //         },
+        //     )
+        //     .unwrap(),
+        // )
+        // .unwrap();
 
-        assert_eq!(receiver_balance.balance, Uint128(0));
-        assert_eq!(sender_balance.balance, Uint128(50));
+        // assert_eq!(receiver_balance.balance, Uint128(0));
+        // assert_eq!(sender_balance.balance, Uint128(50));
     }
 }
 

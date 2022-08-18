@@ -119,12 +119,23 @@ pub fn try_handle_mint(
 }
 
 pub fn try_handle_transfer_directly(
+    deps: DepsMut,
     info: MessageInfo,
     _env: Env,
     msg: TransferNftDirectlyMsg,
 ) -> Result<HandleResponse, ContractError> {
     let mut rsp = HandleResponse::default();
     let mut cosmos_msgs = vec![];
+
+    let final_seller = verify_nft(
+        deps.as_ref(),
+        _env.contract.address.as_str(),
+        msg.contract_addr.as_str(),
+        msg.token_id.clone().as_str(),
+        info.sender.as_str(),
+        None,
+        Some(msg.amount),
+    )?;
 
     let transfer_cw1155_msg = Cw1155ExecuteMsg::SendFrom {
         token_id: msg.token_id.clone(),
