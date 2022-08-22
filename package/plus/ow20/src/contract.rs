@@ -94,6 +94,7 @@ pub fn handle(
             msg,
         } => handle_send_native(deps, env, info, contract, rcpt, msg),
         HandleMsg::Mint { recipient, amount } => handle_mint(deps, env, info, recipient, amount),
+        HandleMsg::ChangeMinter { new_minter } => handle_change_minter(deps, env, info, new_minter),
         HandleMsg::IncreaseAllowance {
             spender,
             amount,
@@ -345,6 +346,34 @@ pub fn handle_mint(
             attr("action", "mint"),
             attr("to", recipient),
             attr("amount", amount),
+        ],
+        data: None,
+    };
+    Ok(res)
+}
+
+pub fn handle_change_minter(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    new_minter: MinterData,
+) -> Result<HandleResponse, ContractError> {
+    let mut config = token_info_read(deps.storage).load()?;
+    if config.mint.is_none()
+        || config.mint.as_ref().unwrap().minter != deps.api.canonical_address(&info.sender)?
+    {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    config.mint = Some(new_minter.clone());
+
+    token_info(deps.storage).save(&config)?;
+
+    let res = HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("action", "change_minter"),
+            attr("new_minter", new_minter.minter),
         ],
         data: None,
     };
@@ -1241,5 +1270,40 @@ mod tests {
             expires: Expiration::Never {},
         };
         assert_eq!(allow, expect);
+    }
+
+    #[test]
+    fn change_minter_test() {
+        let mut deps = mock_dependencies(&coins(2, "token"));
+        let addr1 = HumanAddr::from("addr0001");
+        let addr2 = HumanAddr::from("addr0002");
+        let amount1 = Uint128::from(12340000u128);
+
+        do_init_with_minter(deps.as_mut(), &addr1, amount1, &addr1, None);
+
+        let mut info = mock_info(addr2.clone(), &[]);
+
+        assert_eq!(query_minter(deps.as_ref()).unwrap().unwrap().minter, addr1);
+
+        // try update minter unauthorized
+        let msg = HandleMsg::ChangeMinter {
+            new_minter: MinterData {
+                minter: deps.api.canonical_address(&addr2).unwrap(),
+                cap: None,
+            },
+        };
+
+        // unauthorized minter change
+        let res = handle(deps.as_mut(), mock_env(), info, msg.clone());
+        match res.unwrap_err() {
+            ContractError::Unauthorized {} => {}
+            e => panic!("Unexpected error: {}", e),
+        }
+
+        // authorized change
+        info = mock_info(addr1.clone(), &[]);
+        let res = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+
+        assert_eq!(query_minter(deps.as_ref()).unwrap().unwrap().minter, addr2);
     }
 }

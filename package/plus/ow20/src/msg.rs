@@ -3,6 +3,8 @@ use cw20::{Cw20CoinHuman, Expiration, MinterResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::state::MinterData;
+
 #[derive(Serialize, Deserialize, JsonSchema)]
 pub struct InitMsg {
     pub name: String,
@@ -95,6 +97,10 @@ pub enum HandleMsg {
     Mint {
         recipient: HumanAddr,
         amount: Uint128,
+    },
+    /// Only with the "mintable" extension. If authorized, change to a different minter address
+    ChangeMinter {
+        new_minter: MinterData,
     },
     /// Only with "approval" extension. Allows spender to access an additional amount tokens
     /// from the owner's (env.sender) account. If expires is Some(), overwrites current allowance
