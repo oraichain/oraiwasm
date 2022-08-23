@@ -1,17 +1,18 @@
 use cosmwasm_std::{
     attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, MigrateResponse, StdResult, Uint128, WasmMsg,
+    MessageInfo, MigrateResponse, Order, StdResult, Uint128, WasmMsg,
 };
 use cw0::Expiration;
 use cw20::Cw20HandleMsg;
-use cw_storage_plus::U8Key;
+use cw_storage_plus::{Bound, U8Key};
 use sha2::Digest;
 use std::convert::TryInto;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse, MerkleRootResponse,
-    MigrateMsg, QueryMsg, TotalClaimedResponse,
+    ClaimKeyCountResponse, ClaimKeysResponse, ConfigResponse, HandleMsg, InitMsg,
+    IsClaimedResponse, LatestStageResponse, MerkleRootResponse, MigrateMsg, QueryMsg,
+    TotalClaimedResponse,
 };
 use crate::scheduled::Scheduled;
 use crate::state::{
@@ -68,6 +69,7 @@ pub fn handle(
         HandleMsg::Burn { stage } => execute_burn(deps, env, info, stage),
         HandleMsg::RemoveMerkleRoot { stage } => execute_remove_merkle_root(deps, env, info, stage),
         HandleMsg::Withdraw { stage } => execute_withdraw(deps, env, info, stage),
+        HandleMsg::UpdateClaim { claim_keys } => execute_update_claim(deps, env, info, claim_keys),
     }
 }
 
@@ -96,6 +98,30 @@ pub fn execute_update_config(
 
     Ok(HandleResponse {
         attributes: vec![attr("action", "update_config")],
+        messages: vec![],
+        data: None,
+    })
+}
+
+pub fn execute_update_claim(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    claim_keys: Vec<Vec<u8>>,
+) -> Result<HandleResponse, ContractError> {
+    // authorize owner
+    let cfg = CONFIG.load(deps.storage)?;
+    let owner = cfg.owner.ok_or(ContractError::Unauthorized {})?;
+    if info.sender != owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    for key in claim_keys.iter() {
+        CLAIM.save(deps.storage, &key, &true)?;
+    }
+
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "update_claim")],
         messages: vec![],
         data: None,
     })
@@ -380,6 +406,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&query_is_claimed(deps, stage, address)?)
         }
         QueryMsg::TotalClaimed { stage } => to_binary(&query_total_claimed(deps, stage)?),
+        QueryMsg::ClaimKeys { offset, limit } => to_binary(&query_claim_keys(deps, offset, limit)?),
+        QueryMsg::ClaimKeyCount {} => to_binary(&query_claim_key_count(deps)?),
     }
 }
 
@@ -426,9 +454,59 @@ pub fn query_is_claimed(deps: Deps, stage: u8, address: HumanAddr) -> StdResult<
     Ok(resp)
 }
 
+pub fn query_claim_keys(
+    deps: Deps,
+    offset: Option<Vec<u8>>,
+    limit: Option<u64>,
+) -> StdResult<ClaimKeysResponse> {
+    let (limit, min, max) = get_range_params(offset, limit, Order::Ascending);
+    let claim_keys: Vec<_> = CLAIM
+        .range(deps.storage, min, max, Order::Ascending)
+        .take(limit)
+        .map(|x| x.unwrap().0)
+        .collect();
+
+    let resp = ClaimKeysResponse {
+        claim_keys: claim_keys,
+    };
+
+    Ok(resp)
+}
+
+fn get_range_params(
+    offset: Option<Vec<u8>>,
+    limit: Option<u64>,
+    order_enum: Order,
+) -> (usize, Option<Bound>, Option<Bound>) {
+    let limit = limit.unwrap_or(1000u64).min(1000u64) as usize;
+
+    let mut min: Option<Bound> = None;
+    let mut max: Option<Bound> = None;
+
+    let offset_value = offset.map(|offset| Bound::Exclusive(offset));
+    match order_enum {
+        Order::Ascending => min = offset_value,
+        Order::Descending => max = offset_value,
+    }
+
+    (limit, min, max)
+}
+
 pub fn query_total_claimed(deps: Deps, stage: u8) -> StdResult<TotalClaimedResponse> {
     let total_claimed = STAGE_AMOUNT_CLAIMED.load(deps.storage, stage.into())?;
     let resp = TotalClaimedResponse { total_claimed };
+
+    Ok(resp)
+}
+
+pub fn query_claim_key_count(deps: Deps) -> StdResult<ClaimKeyCountResponse> {
+    let claim_keys: Vec<_> = CLAIM
+        .range(deps.storage, None, None, Order::Ascending)
+        .collect();
+
+    let resp = ClaimKeyCountResponse {
+        claim_key_count: claim_keys.len(),
+    };
 
     Ok(resp)
 }

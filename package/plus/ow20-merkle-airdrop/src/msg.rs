@@ -41,19 +41,38 @@ pub enum HandleMsg {
         proof: Vec<String>,
     },
     /// Burn the remaining tokens after expire time (only owner)
-    Burn { stage: u8 },
+    Burn {
+        stage: u8,
+    },
     /// Withdraw the remaining tokens after expire time (only owner)
-    Withdraw { stage: u8 },
+    Withdraw {
+        stage: u8,
+    },
+    UpdateClaim {
+        claim_keys: Vec<Vec<u8>>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Config {},
-    MerkleRoot { stage: u8 },
+    MerkleRoot {
+        stage: u8,
+    },
     LatestStage {},
-    IsClaimed { stage: u8, address: HumanAddr },
-    TotalClaimed { stage: u8 },
+    IsClaimed {
+        stage: u8,
+        address: HumanAddr,
+    },
+    TotalClaimed {
+        stage: u8,
+    },
+    ClaimKeys {
+        offset: Option<Vec<u8>>,
+        limit: Option<u64>,
+    },
+    ClaimKeyCount {},
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -82,6 +101,16 @@ pub struct LatestStageResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct IsClaimedResponse {
     pub is_claimed: bool,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ClaimKeysResponse {
+    pub claim_keys: Vec<Vec<u8>>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct ClaimKeyCountResponse {
+    pub claim_key_count: usize,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
