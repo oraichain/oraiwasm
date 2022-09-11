@@ -1,4 +1,4 @@
-image: orai/cosmwasm-gitpod:0.11.7
+image: oraichain/foundation-cw-gitpod:0.11.8
 workspaceLocation: '.'
 
 vscode:

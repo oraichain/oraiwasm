@@ -1,8 +1,8 @@
 {
-    "rpc": "http://localhost:26657",
-    "rest": "http://localhost:1317",
-    "chainId": "Oraichain-devnet",
-    "chainName": "Oraichain devnet",
+    "rpc": "http://10.10.37.188:26657",
+    "rest": "http://10.10.37.188:1317",
+    "chainId": "Oraichain-local",
+    "chainName": "Oraichain Local",
     "stakeCurrency": {
         "coinDenom": "ORAI",
         "coinMinimalDenom": "orai",
