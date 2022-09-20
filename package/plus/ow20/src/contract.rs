@@ -88,11 +88,6 @@ pub fn handle(
             amount,
             msg,
         } => handle_send(deps, env, info, contract, amount, msg),
-        HandleMsg::SendNative {
-            contract,
-            rcpt,
-            msg,
-        } => handle_send_native(deps, env, info, contract, rcpt, msg),
         HandleMsg::Mint { recipient, amount } => handle_mint(deps, env, info, recipient, amount),
         HandleMsg::ChangeMinter { new_minter } => handle_change_minter(deps, env, info, new_minter),
         HandleMsg::IncreaseAllowance {
@@ -341,59 +336,6 @@ pub fn handle_send(
 
     let res = HandleResponse {
         messages: vec![msg],
-        attributes: attrs,
-        data: None,
-    };
-    Ok(res)
-}
-
-pub fn handle_send_native(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    contract: HumanAddr,
-    rcpt: HumanAddr,
-    msg: Option<Binary>,
-) -> Result<HandleResponse, ContractError> {
-    let amount = info.sent_funds[0].amount;
-    if info.sent_funds.len() == 0 {
-        return Err(ContractError::InvalidSentFundAmount {});
-    }
-    if !info.sent_funds[0].denom.eq(&String::from("orai")) {
-        return Err(ContractError::InvalidDenomAmount {});
-    }
-
-    let rcpt_raw = deps.api.canonical_address(&contract)?;
-    let sender_raw = deps.api.canonical_address(&info.sender)?;
-
-    let sender = deps.api.human_address(&sender_raw)?;
-    let attrs = vec![
-        attr("action", "send"),
-        attr("from", &sender),
-        attr("to", &contract),
-        attr("amount", amount),
-    ];
-
-    // create a send message
-    let msg = Cw20ReceiveMsg {
-        sender,
-        amount,
-        msg,
-    }
-    .into_cosmos_msg(contract)?;
-
-    let bank_msg = BankMsg::Send {
-        from_address: env.contract.address,
-        to_address: rcpt,
-        amount: vec![Coin {
-            denom: String::from("orai"),
-            amount: amount,
-        }],
-    }
-    .into();
-
-    let res = HandleResponse {
-        messages: vec![bank_msg, msg],
         attributes: attrs,
         data: None,
     };

@@ -87,11 +87,6 @@ pub enum HandleMsg {
         amount: Uint128,
         msg: Option<Binary>,
     },
-    SendNative {
-        contract: HumanAddr,
-        rcpt: HumanAddr,
-        msg: Option<Binary>,
-    },
     /// Only with the "mintable" extension. If authorized, creates amount new tokens
     /// and adds to the recipient balance.
     Mint {
