@@ -133,11 +133,6 @@ pub enum HandleMsg {
         amount: Uint128,
         msg: Option<Binary>,
     },
-    Swap {},
-    Withdraw {
-        amount: Uint128,
-        addr: HumanAddr,
-    },
     /// Only with "approval" extension. Destroys tokens forever
     BurnFrom {
         owner: HumanAddr,
