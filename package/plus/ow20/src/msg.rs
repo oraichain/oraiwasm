@@ -87,11 +87,6 @@ pub enum HandleMsg {
         amount: Uint128,
         msg: Option<Binary>,
     },
-    SendNative {
-        contract: HumanAddr,
-        rcpt: HumanAddr,
-        msg: Option<Binary>,
-    },
     /// Only with the "mintable" extension. If authorized, creates amount new tokens
     /// and adds to the recipient balance.
     Mint {
@@ -132,11 +127,6 @@ pub enum HandleMsg {
         contract: HumanAddr,
         amount: Uint128,
         msg: Option<Binary>,
-    },
-    Swap {},
-    Withdraw {
-        amount: Uint128,
-        addr: HumanAddr,
     },
     /// Only with "approval" extension. Destroys tokens forever
     BurnFrom {

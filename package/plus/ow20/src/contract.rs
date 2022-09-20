@@ -88,11 +88,6 @@ pub fn handle(
             amount,
             msg,
         } => handle_send(deps, env, info, contract, amount, msg),
-        HandleMsg::SendNative {
-            contract,
-            rcpt,
-            msg,
-        } => handle_send_native(deps, env, info, contract, rcpt, msg),
         HandleMsg::Mint { recipient, amount } => handle_mint(deps, env, info, recipient, amount),
         HandleMsg::ChangeMinter { new_minter } => handle_change_minter(deps, env, info, new_minter),
         HandleMsg::IncreaseAllowance {
@@ -117,89 +112,7 @@ pub fn handle(
             amount,
             msg,
         } => handle_send_from(deps, env, info, owner, contract, amount, msg),
-        HandleMsg::Swap {} => handle_swap(deps, env, info),
-        HandleMsg::Withdraw { amount, addr } => handle_withdraw(deps, env, info, amount, addr),
     }
-}
-
-pub fn handle_swap(
-    deps: DepsMut,
-    _env: Env,
-    info: MessageInfo,
-) -> Result<HandleResponse, ContractError> {
-    if info.sent_funds.len() == 0 {
-        return Err(ContractError::InvalidSentFundAmount {});
-    }
-    let amount_coin = info.sent_funds[0].clone();
-    if amount_coin.amount == Uint128::zero() {
-        return Err(ContractError::InvalidZeroAmount {});
-    }
-    if !amount_coin.denom.eq(&String::from("orai")) {
-        return Err(ContractError::InvalidDenomAmount {});
-    }
-    // update balance
-    let token_info = token_info_read(deps.storage).load()?;
-    let rcpt_raw = deps.api.canonical_address(&info.sender)?;
-    let mut accounts = balances(deps.storage);
-    let balance = accounts.load(token_info.mint.clone().unwrap().minter.as_slice())?;
-    if balance < amount_coin.amount {
-        return Err(ContractError::InvalidSwapAmount {});
-    }
-    accounts.update(
-        token_info.mint.unwrap().minter.as_slice(),
-        |balance: Option<Uint128>| balance.unwrap_or_default() - amount_coin.amount,
-    )?;
-    accounts.update(
-        rcpt_raw.as_slice(),
-        |balance: Option<Uint128>| -> StdResult<_> {
-            Ok(balance.unwrap_or_default() + amount_coin.amount)
-        },
-    )?;
-    let mut res: Context = Context::new();
-    res.add_attribute("action", "swap");
-    Ok(res.into())
-}
-
-pub fn handle_withdraw(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    amount: Uint128,
-    addr: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
-    if amount == Uint128::zero() {
-        return Err(ContractError::InvalidZeroAmount {});
-    }
-    let token_info = token_info_read(deps.storage).load()?;
-    let withdrawer_raw = deps.api.canonical_address(&addr)?;
-    let mut accounts = balances(deps.storage);
-    let balance = accounts.load(withdrawer_raw.as_slice())?;
-    // check balance to catch error
-    if balance < amount {
-        return Err(ContractError::ErrorInsufficientFunds {});
-    }
-    accounts.update(
-        withdrawer_raw.as_slice(),
-        |balance: Option<Uint128>| -> StdResult<_> { balance.unwrap_or_default() - amount },
-    )?;
-    // reduce balance of owner
-    accounts.update(
-        token_info.mint.unwrap().minter.as_slice(),
-        |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
-    )?;
-    let mut res = Context::new();
-    //let mut res = Context::new();
-    // send native tokens of the same amount from the balance of native contract address to withdrawer
-    res.add_message(BankMsg::Send {
-        from_address: env.contract.address,
-        to_address: addr,
-        amount: vec![Coin {
-            denom: String::from("orai"),
-            amount: amount,
-        }],
-    });
-    res.add_attribute("action", "withdraw");
-    Ok(res.into())
 }
 
 pub fn handle_transfer(
@@ -423,59 +336,6 @@ pub fn handle_send(
 
     let res = HandleResponse {
         messages: vec![msg],
-        attributes: attrs,
-        data: None,
-    };
-    Ok(res)
-}
-
-pub fn handle_send_native(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    contract: HumanAddr,
-    rcpt: HumanAddr,
-    msg: Option<Binary>,
-) -> Result<HandleResponse, ContractError> {
-    let amount = info.sent_funds[0].amount;
-    if info.sent_funds.len() == 0 {
-        return Err(ContractError::InvalidSentFundAmount {});
-    }
-    if !info.sent_funds[0].denom.eq(&String::from("orai")) {
-        return Err(ContractError::InvalidDenomAmount {});
-    }
-
-    let rcpt_raw = deps.api.canonical_address(&contract)?;
-    let sender_raw = deps.api.canonical_address(&info.sender)?;
-
-    let sender = deps.api.human_address(&sender_raw)?;
-    let attrs = vec![
-        attr("action", "send"),
-        attr("from", &sender),
-        attr("to", &contract),
-        attr("amount", amount),
-    ];
-
-    // create a send message
-    let msg = Cw20ReceiveMsg {
-        sender,
-        amount,
-        msg,
-    }
-    .into_cosmos_msg(contract)?;
-
-    let bank_msg = BankMsg::Send {
-        from_address: env.contract.address,
-        to_address: rcpt,
-        amount: vec![Coin {
-            denom: String::from("orai"),
-            amount: amount,
-        }],
-    }
-    .into();
-
-    let res = HandleResponse {
-        messages: vec![bank_msg, msg],
         attributes: attrs,
         data: None,
     };
