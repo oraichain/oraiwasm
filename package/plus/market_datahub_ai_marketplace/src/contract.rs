@@ -1,8 +1,8 @@
-use std::ops::{Mul, Sub};
+use std::convert::TryFrom;
 
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse,
-    HumanAddr, InitResponse, MessageInfo, Order, StdResult, Uint128,
+    attr, to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr,
+    InitResponse, MessageInfo, Order, StdResult, Uint128,
 };
 
 use crate::error::ContractError;
@@ -136,45 +136,32 @@ pub fn try_init_offering(
     }
 
     // main logic
-    let offering_maybe = package_offerings().may_load(deps.storage, &id.to_be_bytes())?;
-    if let None = offering_maybe {
-        return Err(ContractError::PackageOfferingNotFound {});
-    } else {
-        let offering = offering_maybe.clone().unwrap();
-        if offering.is_init {
-            return Err(ContractError::PackageOfferingAlreadyInitialized {});
-        }
+    let mut package_offering = package_offerings()
+        .load(deps.storage, &id.to_be_bytes())
+        .map_err(|_| ContractError::PackageOfferingNotFound {})?;
+
+    if package_offering.is_init {
+        return Err(ContractError::PackageOfferingAlreadyInitialized {});
     }
-    let initialize =
-        |offering_maybe: Option<PackageOffering>| -> Result<PackageOffering, ContractError> {
-            match offering_maybe {
-                None => Err(ContractError::PackageOfferingNotFound {}),
-                Some(offering) => Ok(PackageOffering {
-                    id: offering.id,
-                    package_id: offering.package_id,
-                    customer: offering.customer,
-                    seller: offering.seller,
-                    total_amount_paid: offering.total_amount_paid,
-                    number_requests,
-                    unit_price,
-                    success_requests: Uint128(0),
-                    claimable_amount: Uint128(0),
-                    claimed: Uint128(0),
-                    claimable: true,
-                    is_init: true,
-                }),
-            }
-        };
-    package_offerings().update(deps.storage, &id.to_be_bytes(), initialize)?;
+
+    package_offering.number_requests = number_requests;
+    package_offering.unit_price = unit_price;
+    package_offering.success_requests = Uint128(0);
+    package_offering.claimable_amount = Uint128(0);
+    package_offering.claimed = Uint128(0);
+    package_offering.claimable = true;
+    package_offering.is_init = true;
+
+    package_offerings().save(deps.storage, &id.to_be_bytes(), &package_offering)?;
 
     Ok(HandleResponse {
         messages: vec![],
         attributes: vec![
             attr("action", "create_package_offering_on_an_invoice"),
-            attr("owner", offering_maybe.clone().unwrap().seller),
+            attr("owner", package_offering.seller),
             attr("number_request", number_requests),
             attr("unit_price", unit_price),
-            attr("offering_id", offering_maybe.unwrap().id),
+            attr("offering_id", package_offering.id),
         ],
         data: None,
     })
@@ -193,38 +180,33 @@ pub fn try_update_success_request(
         return Err(ContractError::Unauthorized {});
     }
 
-    let package_offering_maybe = package_offerings().may_load(deps.storage, &id.to_be_bytes())?;
+    let mut package_offering = package_offerings()
+        .load(deps.storage, &id.to_be_bytes())
+        .map_err(|_| ContractError::PackageOfferingNotFound {})?;
 
-    if let Some(package_offering) = package_offering_maybe {
-        if success_requests.lt(&package_offering.success_requests)
-            || success_requests.gt(&package_offering.number_requests)
-        {
-            return Err(ContractError::InvalidNumberOfSuccessRequest {});
-        }
-        let amount = package_offering
-            .unit_price
-            .mul(Decimal::from_ratio(success_requests, Uint128(1)));
-        let claimable_amount = amount.sub(package_offering.claimed).unwrap_or_default();
-
-        let update = |package_offering_maybe: Option<PackageOffering>| -> Result<PackageOffering, ContractError> {
-            let package_offering = package_offering_maybe.unwrap();
-            Ok(PackageOffering { success_requests, claimable_amount, ..package_offering })
-        };
-
-        package_offerings().update(deps.storage, &id.to_be_bytes(), update)?;
-
-        Ok(HandleResponse {
-            messages: vec![],
-            attributes: vec![
-                attr("action", "update_success_request"),
-                attr("id", id),
-                attr("success_requests", success_requests),
-            ],
-            data: None,
-        })
-    } else {
-        return Err(ContractError::PackageOfferingNotFound {});
+    if success_requests.lt(&package_offering.success_requests)
+        || success_requests.gt(&package_offering.number_requests)
+    {
+        return Err(ContractError::InvalidNumberOfSuccessRequest {});
     }
+    let claimable_amount = (package_offering.unit_price.u128() * success_requests.u128())
+        .checked_sub(package_offering.claimed.u128())
+        .unwrap_or_default();
+
+    package_offering.success_requests = success_requests;
+    package_offering.claimable_amount = claimable_amount.into();
+
+    package_offerings().save(deps.storage, &id.to_be_bytes(), &package_offering)?;
+
+    Ok(HandleResponse {
+        messages: vec![],
+        attributes: vec![
+            attr("action", "update_success_request"),
+            attr("id", id),
+            attr("success_requests", success_requests),
+        ],
+        data: None,
+    })
 }
 
 pub fn try_claim(
@@ -237,55 +219,52 @@ pub fn try_claim(
 
     let owner = info.sender.clone();
 
-    let package_offering_maybe = package_offerings().may_load(deps.storage, &id.to_be_bytes())?;
-    if let None = package_offering_maybe {
-        return Err(ContractError::PackageOfferingUnclaimable {});
-    } else {
-        let package_offering = package_offering_maybe.unwrap();
-        if package_offering.seller.ne(&owner) {
-            return Err(ContractError::Unauthorized {});
-        }
+    let mut package_offering = package_offerings()
+        .load(deps.storage, &id.to_be_bytes())
+        .map_err(|_| ContractError::PackageOfferingNotFound {})?;
 
-        if !package_offering.claimable {
-            return Err(ContractError::PackageOfferingUnclaimable {});
-        }
-        if package_offering.claimable_amount.eq(&Uint128(0)) {
-            return Err(ContractError::PackageOfferingZeroClaimable {});
-        }
-        // let amount = package_offering.unit_price.mul(Decimal::from_ratio(
-        //     package_offering.success_requests,
-        //     Uint128(1),
-        // ));
-
-        let bank_msg: CosmosMsg = BankMsg::Send {
-            from_address: env.contract.address,
-            to_address: info.sender.clone(),
-            amount: vec![Coin {
-                amount: package_offering.claimable_amount.clone(),
-                denom: contract_info.denom.clone(),
-            }],
-        }
-        .into();
-
-        let update = |package_offering_maybe: Option<PackageOffering>| -> Result<PackageOffering, ContractError> {
-
-            let package_offering = package_offering_maybe.unwrap();
-            Ok(PackageOffering { claimed: package_offering.claimable_amount + package_offering.claimed, claimable_amount: Uint128(0), ..package_offering })
-        };
-
-        package_offerings().update(deps.storage, &id.to_be_bytes(), update)?;
-
-        Ok(HandleResponse {
-            messages: vec![bank_msg],
-            attributes: vec![
-                attr("action", "claim_ai_package_offering"),
-                attr("id", id),
-                attr("claim_amount", package_offering.claimable_amount),
-                attr("claimer", info.sender),
-            ],
-            data: None,
-        })
+    if package_offering.seller.ne(&owner) {
+        return Err(ContractError::Unauthorized {});
     }
+
+    if !package_offering.claimable {
+        return Err(ContractError::PackageOfferingUnclaimable {});
+    }
+    if package_offering.claimable_amount.eq(&Uint128(0)) {
+        return Err(ContractError::PackageOfferingZeroClaimable {});
+    }
+    // let amount = package_offering.unit_price.mul(Decimal::from_ratio(
+    //     package_offering.success_requests,
+    //     Uint128(1),
+    // ));
+
+    let claimable_amount = package_offering.claimable_amount;
+
+    let bank_msg = BankMsg::Send {
+        from_address: env.contract.address,
+        to_address: info.sender.clone(),
+        amount: vec![Coin {
+            amount: claimable_amount,
+            denom: contract_info.denom,
+        }],
+    }
+    .into();
+
+    package_offering.claimed += claimable_amount;
+    package_offering.claimable_amount = Uint128(0);
+
+    package_offerings().save(deps.storage, &id.to_be_bytes(), &package_offering)?;
+
+    Ok(HandleResponse {
+        messages: vec![bank_msg],
+        attributes: vec![
+            attr("action", "claim_ai_package_offering"),
+            attr("id", id),
+            attr("claim_amount", claimable_amount),
+            attr("claimer", info.sender),
+        ],
+        data: None,
+    })
 }
 
 /** QUERY HANDLER **/
@@ -301,12 +280,7 @@ fn _get_range_params(
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min: Option<Bound> = None;
     let mut max: Option<Bound> = None;
-    let mut order_enum = Order::Descending;
-    if let Some(num) = order {
-        if num == 1 {
-            order_enum = Order::Ascending;
-        }
-    }
+    let order_enum = Order::try_from(order.unwrap_or_default() as i32).unwrap_or(Order::Ascending);
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
@@ -319,8 +293,7 @@ fn _get_range_params(
     (limit, min, max, order_enum)
 }
 pub fn query_package_offering_by_id(deps: Deps, id: u64) -> StdResult<PackageOffering> {
-    let info = package_offerings().load(deps.storage, &id.to_be_bytes())?;
-    Ok(info)
+    package_offerings().load(deps.storage, &id.to_be_bytes())
 }
 
 pub fn query_package_offerings_by_seller(
@@ -331,12 +304,11 @@ pub fn query_package_offerings_by_seller(
     order: Option<u8>,
 ) -> StdResult<Vec<PackageOffering>> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
-    let all: StdResult<Vec<PackageOffering>> = package_offerings()
+    package_offerings()
         .idx
         .seller
         .items(deps.storage, seller.as_bytes(), min, max, order_enum)
         .take(limit)
         .map(|kv_item| kv_item.and_then(|(_, package_offering)| Ok(package_offering)))
-        .collect();
-    Ok(all?)
+        .collect()
 }
