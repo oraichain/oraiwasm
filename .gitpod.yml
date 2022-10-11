@@ -1,4 +1,4 @@
-image: oraichain/foundation-cw-gitpod:0.11.8
+image: oraichain/foundation-cw-gitpod:0.11.9
 
 vscode:
   extensions:
