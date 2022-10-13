@@ -257,15 +257,15 @@ const processRequest = async (skShare) => {
   );
 
   // sign on the sig
-  let signedSignature = null;
+  let signedSignature = "";
   if (!roundInfo.signed_combined_sig && roundInfo.combined_sig) {
-    signedSignature = signSignature(roundInfo.randomness, cosmos.getECPairPriv(childKey));
+    signedSignature = Buffer.from(signSignature(roundInfo.randomness, cosmos.getECPairPriv(childKey))).toString('base64');
   }
 
   const share = {
     sig: Buffer.from(sig).toString('base64'),
     round: roundInfo.round,
-    signed_sig: signedSignature ? Buffer.from(signedSignature).toString('base64') : Buffer.from('').toString('base64'),
+    signed_sig: signedSignature,
   };
 
   // console.log(address, shareSig);

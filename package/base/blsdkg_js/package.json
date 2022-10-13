@@ -8,7 +8,7 @@
   "bin": "index.js",
   "scripts": {
     "start": "node index.js",
-    "prepackage": "cp package.json -r pkg *.js dist",
+    "prepackage": "mkdir -p dist && cp package.json -r pkg *.js dist",
     "package": "pkg dist"
   },
   "version": "0.0.2",
