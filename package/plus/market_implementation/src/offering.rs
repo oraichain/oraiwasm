@@ -417,18 +417,22 @@ pub fn try_handle_sell_nft(
     let prev_owner = offering_royalty_result
         .previous_owner
         .map(|owner| owner.to_string())
-        .unwrap_or(String::from(""));
+        .unwrap_or_else(|| String::from(""));
+
+    let mut attributes = vec![
+        attr("action", "sell_nft"),
+        attr("seller", info.sender),
+        attr("price", offering.price.to_string()),
+        attr("token_id", token_id),
+        attr("initial_token_id", initial_token_id),
+    ];
+    if !prev_owner.is_empty() {
+        attributes.push(attr("previous_owner", prev_owner));
+    }
 
     Ok(HandleResponse {
         messages: cosmos_msgs,
-        attributes: vec![
-            attr("action", "sell_nft"),
-            attr("seller", info.sender),
-            attr("previous_owner", prev_owner),
-            attr("price", offering.price.to_string()),
-            attr("token_id", token_id),
-            attr("initial_token_id", initial_token_id),
-        ],
+        attributes,
         data: None,
     })
 }
