@@ -1,9 +1,9 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{HandleMsg, InitMsg, MigrateMsg, QueryMsg};
 use crate::state::{config, config_read, State, MAPPED_TXS};
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
-    StdResult,
+    MigrateResponse, StdResult,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -31,6 +31,15 @@ pub fn handle(
         HandleMsg::ChangeOwner { owner } => change_owner(deps, info, owner),
         HandleMsg::AddTx { hash, value } => add_tx(deps, info, hash, value),
     }
+}
+
+pub fn migrate(
+    deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    msg: MigrateMsg,
+) -> StdResult<MigrateResponse> {
+    Ok(MigrateResponse::default())
 }
 
 pub fn change_owner(
