@@ -30,14 +30,15 @@ pub fn handle(
     match msg {
         HandleMsg::ChangeOwner { owner } => change_owner(deps, info, owner),
         HandleMsg::AddTx { hash, value } => add_tx(deps, info, hash, value),
+        HandleMsg::Ping {} => ping(deps, info),
     }
 }
 
 pub fn migrate(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: MigrateMsg,
+    _msg: MigrateMsg,
 ) -> StdResult<MigrateResponse> {
     Ok(MigrateResponse::default())
 }
@@ -56,6 +57,10 @@ pub fn change_owner(
     state.owner = owner;
     config(deps.storage).save(&state)?;
 
+    Ok(HandleResponse::default())
+}
+
+pub fn ping(_deps: DepsMut, _info: MessageInfo) -> Result<HandleResponse, ContractError> {
     Ok(HandleResponse::default())
 }
 

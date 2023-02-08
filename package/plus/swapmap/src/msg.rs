@@ -14,6 +14,7 @@ pub struct MigrateMsg {}
 pub enum HandleMsg {
     ChangeOwner { owner: HumanAddr },
     AddTx { hash: Binary, value: Binary },
+    Ping {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
