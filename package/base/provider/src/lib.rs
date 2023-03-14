@@ -3,6 +3,9 @@ pub mod helpers;
 pub mod msg;
 pub mod state;
 
+#[cfg(test)]
+mod tests;
+
 pub use crate::error::ContractError;
 pub use crate::msg::{HandleMsg, InitMsg, QueryMsg};
 pub use cosmwasm_std::{
