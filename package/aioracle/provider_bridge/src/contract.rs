@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::msg::{GetServiceFees, HandleMsg, InitMsg, MigrateMsg, QueryMsg};
 use crate::state::{
-    Contracts, BOUND_EXECUTOR_FEE, OWNER, SERVICE_CONTRACTS, SERVICE_FEES_CONTRACT,
+    Contracts, ServiceInfo, SERVICE_INFO, 
 };
 use aioracle_base::{GetServiceFeesMsg, Reward, ServiceFeesResponse};
 use cosmwasm_std::{
@@ -10,16 +10,16 @@ use cosmwasm_std::{
 };
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
-    SERVICE_CONTRACTS.save(deps.storage, msg.service.as_bytes(), &msg.service_contracts)?;
-    SERVICE_FEES_CONTRACT.save(deps.storage, &msg.service_fees_contract)?;
-    OWNER.save(deps.storage, &info.sender)?;
-    BOUND_EXECUTOR_FEE.save(
-        deps.storage,
-        &Coin {
+    let service_info = ServiceInfo {
+        owner: info.sender,
+        contracts: msg.service_contracts,
+        fee_contract: msg.service_fees_contract,
+        bound_executor_fee: Coin {
             denom: String::from("orai"),
             amount: msg.bound_executor_fee,
-        },
-    )?;
+        }
+    };
+    set_service_info(deps, &msg.service, &service_info);
     Ok(InitResponse::default())
 }
 
@@ -30,15 +30,17 @@ pub fn handle(
     info: MessageInfo,
     msg: HandleMsg,
 ) -> Result<HandleResponse, ContractError> {
+    
     match msg {
         HandleMsg::UpdateServiceContracts { service, contracts } => {
             handle_update_service_contracts(deps, info, service, contracts)
         }
         HandleMsg::UpdateConfig {
+            service,
             owner,
             service_fees_contract,
             bound_executor_fee,
-        } => handle_update_config(deps, info, owner, service_fees_contract, bound_executor_fee),
+        } => handle_update_config(deps, info, service, owner, service_fees_contract, bound_executor_fee),
     }
 }
 
@@ -67,26 +69,49 @@ pub fn migrate(
 pub fn handle_update_config(
     deps: DepsMut,
     info: MessageInfo,
+    service: String,
     owner: Option<HumanAddr>,
     service_fees_contract: Option<HumanAddr>,
     bound_executor_fee: Option<Coin>,
 ) -> Result<HandleResponse, ContractError> {
-    let cur_owner = OWNER.load(deps.storage)?;
-    if info.sender.ne(&cur_owner) {
+    let mut service_info = get_service_info(deps.as_ref(), service.to_string())?;
+    if service_info.owner.ne(&info.sender) {
         return Err(ContractError::Unauthorized {});
     }
     if let Some(owner) = owner {
-        OWNER.save(deps.storage, &owner)?;
+        service_info.owner = owner;
     }
     if let Some(service_fees_contract) = service_fees_contract {
-        SERVICE_FEES_CONTRACT.save(deps.storage, &service_fees_contract)?;
+        service_info.fee_contract = service_fees_contract;
     }
 
     if let Some(bound_executor_fee) = bound_executor_fee {
-        BOUND_EXECUTOR_FEE.save(deps.storage, &bound_executor_fee)?;
+        service_info.bound_executor_fee = bound_executor_fee;
     }
+    set_service_info(deps, &service, &service_info);
     Ok(HandleResponse {
         attributes: vec![attr("action", "update_config")],
+        ..HandleResponse::default()
+    })
+}
+
+pub fn handle_update_service_contracts(
+    deps: DepsMut,
+    info: MessageInfo,
+    service: String,
+    contracts: Contracts,
+) -> Result<HandleResponse, ContractError> {
+    let mut service_info = get_service_info(deps.as_ref(), service.to_string())?;
+    if service_info.owner.ne(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+    service_info.contracts = contracts;
+    set_service_info(deps, &service, &service_info);
+    Ok(HandleResponse {
+        attributes: vec![
+            attr("action", "update_service_contracts"),
+            attr("service", service),
+        ],
         ..HandleResponse::default()
     })
 }
@@ -97,58 +122,48 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&get_service_contracts(deps, service)?)
         }
         QueryMsg::ServiceFeeMsg { service } => to_binary(&get_service_fees(deps, service)?),
-        QueryMsg::GetParticipantFee { addr } => to_binary(&get_participant_fee(deps, addr)?),
-        QueryMsg::GetBoundExecutorFee {} => to_binary(&get_bound_executor_fee(deps)?),
+        QueryMsg::GetParticipantFee { service, addr } => to_binary(&get_participant_fee(deps, service, addr)?),
+        QueryMsg::GetBoundExecutorFee {service} => to_binary(&get_bound_executor_fee(deps, service)?),
+        QueryMsg::ServiceInfoMsg { service } => to_binary(&get_service_info(deps, service)?),
     }
 }
 
-pub fn get_bound_executor_fee(deps: Deps) -> StdResult<Coin> {
-    BOUND_EXECUTOR_FEE.load(deps.storage)
-}
-
-pub fn handle_update_service_contracts(
-    deps: DepsMut,
-    info: MessageInfo,
-    service: String,
-    contracts: Contracts,
-) -> Result<HandleResponse, ContractError> {
-    let owner = OWNER.load(deps.storage)?;
-    if info.sender.ne(&owner) {
-        return Err(ContractError::Unauthorized {});
-    }
-    SERVICE_CONTRACTS.save(deps.storage, service.as_bytes(), &contracts)?;
-    Ok(HandleResponse {
-        attributes: vec![
-            attr("action", "update_service_contracts"),
-            attr("service", service),
-        ],
-        ..HandleResponse::default()
-    })
+pub fn get_bound_executor_fee(deps: Deps, service: String) -> StdResult<Coin> {
+    let service_info: ServiceInfo = get_service_info(deps, service)?;
+    Ok(service_info.bound_executor_fee)
 }
 
 fn get_service_contracts(deps: Deps, service: String) -> StdResult<Contracts> {
-    let contracts = SERVICE_CONTRACTS.load(deps.storage, service.as_bytes())?;
-    Ok(contracts)
+    let service_info: ServiceInfo = get_service_info(deps, service)?;
+    Ok(service_info.contracts)
+}
+
+fn get_service_info(deps: Deps, service: String) -> StdResult<ServiceInfo> {
+    let service_info = SERVICE_INFO.load(deps.storage, service.as_bytes())?;
+    Ok(service_info)
+}
+
+fn set_service_info(deps: DepsMut, service: &String, service_info: &ServiceInfo) {
+    SERVICE_INFO.save(deps.storage, service.as_bytes(), &service_info).ok();
 }
 
 fn get_service_fees(deps: Deps, service: String) -> StdResult<Vec<Reward>> {
-    let contracts = SERVICE_CONTRACTS.load(deps.storage, service.as_bytes())?;
+    let service_info: ServiceInfo = get_service_info(deps, service)?;
     let mut rewards = vec![];
-    let service_fees_contract = SERVICE_FEES_CONTRACT.load(deps.storage)?;
     rewards.append(&mut collect_rewards(
         deps,
-        &contracts.dsources,
-        &service_fees_contract,
+        &service_info.contracts.dsources,
+        &service_info.fee_contract
     )?);
     rewards.append(&mut collect_rewards(
         deps,
-        &contracts.tcases,
-        &service_fees_contract,
+        &service_info.contracts.tcases,
+        &service_info.fee_contract,
     )?);
     rewards.append(&mut collect_rewards(
         deps,
-        &vec![contracts.oscript],
-        &service_fees_contract,
+        &vec![service_info.contracts.oscript],
+        &service_info.fee_contract,
     )?);
 
     // let bound_executor_fee = MAX_EXECUTOR_FEE.load(deps.storage)?;
@@ -162,10 +177,10 @@ fn get_service_fees(deps: Deps, service: String) -> StdResult<Vec<Reward>> {
     Ok(rewards)
 }
 
-fn get_participant_fee(deps: Deps, addr: HumanAddr) -> StdResult<Coin> {
-    let service_fees_contract = SERVICE_FEES_CONTRACT.load(deps.storage)?;
+fn get_participant_fee(deps: Deps, service: String, addr: HumanAddr) -> StdResult<Coin> {
+    let service_info: ServiceInfo = get_service_info(deps, service)?;
     let reward_result: ServiceFeesResponse = deps.querier.query_wasm_smart(
-        service_fees_contract.clone(),
+        service_info.fee_contract,
         &GetServiceFees {
             get_service_fees: GetServiceFeesMsg {
                 addr: addr.to_owned(),

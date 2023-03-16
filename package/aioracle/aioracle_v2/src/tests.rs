@@ -1501,6 +1501,7 @@ fn test_increment_executor_when_register_merkle() {
         HumanAddr::from(PROVIDER_OWNER),
         provider_bridge_addr.clone(),
         &provider_bridge::msg::HandleMsg::UpdateConfig {
+            service: "price".to_owned(),
             bound_executor_fee: Some(Coin {
                 denom: String::from("orai"),
                 amount: Uint128::from(20u64),

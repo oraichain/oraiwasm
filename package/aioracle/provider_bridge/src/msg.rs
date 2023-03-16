@@ -36,6 +36,7 @@ pub enum HandleMsg {
         contracts: Contracts,
     },
     UpdateConfig {
+        service: String,
         owner: Option<HumanAddr>,
         service_fees_contract: Option<HumanAddr>,
         bound_executor_fee: Option<Coin>,
@@ -52,8 +53,9 @@ pub struct MigrateMsg {}
 pub enum QueryMsg {
     ServiceContractsMsg { service: String },
     ServiceFeeMsg { service: String },
-    GetParticipantFee { addr: HumanAddr },
-    GetBoundExecutorFee {},
+    GetParticipantFee { service: String, addr: HumanAddr },
+    GetBoundExecutorFee { service: String },
+    ServiceInfoMsg { service: String }
 }
 
 // for query other contract
