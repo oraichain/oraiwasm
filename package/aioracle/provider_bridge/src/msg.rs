@@ -41,6 +41,12 @@ pub enum HandleMsg {
         service_fees_contract: Option<HumanAddr>,
         bound_executor_fee: Option<Coin>,
     },
+    AddServiceInfo {
+        service: String,
+        contracts: Contracts,
+        service_fees_contract: HumanAddr,
+        bound_executor_fee: Coin
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

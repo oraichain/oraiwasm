@@ -21,9 +21,3 @@ pub struct ServiceInfo {
 }
 
 pub const SERVICE_INFO: Map<&[u8], ServiceInfo> = Map::new("service_info");
-
-// TODO remove
-// pub const SERVICE_CONTRACTS: Map<&[u8], Contracts> = Map::new("service_contracts");
-// pub const SERVICE_FEES_CONTRACT: Item<HumanAddr> = Item::new("service_fees_contract");
-// pub const BOUND_EXECUTOR_FEE: Item<Coin> = Item::new("bound_executor_fee");
-// pub const OWNER: Item<HumanAddr> = Item::new("owner");

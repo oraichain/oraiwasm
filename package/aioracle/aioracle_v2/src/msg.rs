@@ -1,4 +1,4 @@
-use aioracle_base::{GetServiceFeesMsg, Reward, ServiceMsg};
+use aioracle_base::{Reward, ServiceMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -29,6 +29,7 @@ pub enum HandleMsg {
         stage: u64,
         merkle_root: String,
         executors: Vec<Binary>,
+        service: Option<String>
     },
     Request {
         service: String,
@@ -116,9 +117,10 @@ pub enum QueryMsg {
     GetServiceFees {
         service: String,
     },
-    GetBoundExecutorFee {},
+    GetBoundExecutorFee { service: Option<String> },
     GetParticipantFee {
         pubkey: Binary,
+        service: Option<String>
     },
     GetTrustingPool {
         pubkey: Binary,
@@ -188,12 +190,19 @@ pub struct GetBoundExecutorFee {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub struct BoundExecutorFeeMsg {}
+pub struct BoundExecutorFeeMsg { pub service: Option<String> }
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[serde(rename_all = "snake_case")]
+pub struct GetServiceFeesMsg {
+    pub addr: HumanAddr,
+    pub service: Option<String>
+}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct GetParticipantFee {
-    pub get_participant_fee: GetServiceFeesMsg,
+    pub get_participant_fee: GetServiceFeesMsg
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

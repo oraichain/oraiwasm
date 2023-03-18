@@ -188,6 +188,9 @@ mod test {
         deps
     }
 
+    /*
+        TODO run error? recheck ...
+    */
     #[test]
     fn test_migrate() {
         let mut deps = setup_old_contract();

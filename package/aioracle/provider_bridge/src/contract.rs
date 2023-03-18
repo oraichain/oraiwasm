@@ -6,7 +6,7 @@ use crate::state::{
 use aioracle_base::{GetServiceFeesMsg, Reward, ServiceFeesResponse};
 use cosmwasm_std::{
     attr, to_binary, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, MigrateResponse, StdResult,
+    MessageInfo, MigrateResponse, StdResult, StdError,
 };
 
 pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
@@ -41,6 +41,12 @@ pub fn handle(
             service_fees_contract,
             bound_executor_fee,
         } => handle_update_config(deps, info, service, owner, service_fees_contract, bound_executor_fee),
+        HandleMsg::AddServiceInfo {
+            service,
+            contracts,
+            service_fees_contract,
+            bound_executor_fee
+        } => handle_add_service_info(deps, info, service, contracts, service_fees_contract, bound_executor_fee)
     }
 }
 
@@ -112,6 +118,35 @@ pub fn handle_update_service_contracts(
             attr("action", "update_service_contracts"),
             attr("service", service),
         ],
+        ..HandleResponse::default()
+    })
+}
+
+pub fn handle_add_service_info(
+    deps: DepsMut,
+    info: MessageInfo,
+    service: String,
+    contracts: Contracts,
+    service_fees_contract: HumanAddr,
+    bound_executor_fee: Coin
+) -> Result<HandleResponse, ContractError> {
+    let service_info = get_service_info(deps.as_ref(), service.to_string());
+    if service_info.is_ok() {
+        return Err(ContractError::ServiceExists {});
+    }
+    if service_info.unwrap_err().ne(&StdError::NotFound { kind: String::from("provider_bridge::state::ServiceInfo") }) {
+        // if no not found => error system
+        return Err(ContractError::StorageError {});
+    }
+    let service_info_new = ServiceInfo {
+        owner: info.sender,
+        contracts,
+        fee_contract: service_fees_contract,
+        bound_executor_fee
+    };
+    set_service_info(deps, &service, &service_info_new);
+    Ok(HandleResponse {
+        attributes: vec![attr("action", "add_service_info")],
         ..HandleResponse::default()
     })
 }

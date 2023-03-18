@@ -13,14 +13,18 @@ const AIORACLE_SERVICE_FEES_OWNER: &str = "admin0010";
 const AIORACLE_SERVICE_FEES_OWNER_2: &str = "admin0011";
 const CLIENT: &str = "client";
 const DENOM: &str = "orai";
-const SENDER1: &str = "orai188efpndge9hqayll4cp9gzv0dw6rvj25e4slk1";
-const SENDER2: &str = "orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrw2";
-const SENDER3: &str = "orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxg3";
+const SENDER1: &str = "orai188efpndge9hqayll4cp9gzv0dw6rvj25e4slkp";
+const SENDER2: &str = "orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt";
+const SENDER3: &str = "orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj";
+const SENDER4: &str = "orai4";
+const SENDER5: &str = "orai5";
+const SENDER6: &str = "orai6";
 const FEE_1: Uint128 = Uint128(20);
 const FEE_2: Uint128 = Uint128(23);
 const FEE_3: Uint128 = Uint128(27);
 
 const SERVICE_NAME: &str = "price";
+const SERVICE_NAME_1: &str = "price_1";
 
 pub fn contract_provider_demo() -> Box<dyn Contract> {
     let contract = ContractWrapper::new(
@@ -264,6 +268,92 @@ fn exec_update_service_contract() {
         assert!(false);
     }
     println!("4 test exec_update_service_contract {:?} ", service_info4);
+}
+
+#[test]
+fn exec_add_service_info() {
+    let (mut app, provider_contract, service_fees_contract) = init_app1(PROVIDER_OWNER);
+
+    /*
+     * testcase 1
+     * query service info after init
+     */
+    let service_info: ServiceInfo = app
+        .wrap()
+        .query_wasm_smart(
+            &provider_contract,
+            &QueryMsg::ServiceInfoMsg {
+                service: SERVICE_NAME.to_string(),
+            },
+        )
+        .unwrap();
+    if service_info.owner.eq(&PROVIDER_OWNER)
+        && service_info.contracts.dsources.eq(&vec![HumanAddr::from(SENDER1)]) {
+        assert!(true);
+    } else {
+        assert!(false);
+    }
+    println!("1 test exec_add_service_info get service info contract: {:?} {:?} ", provider_contract, service_info);
+
+    /*
+     * testcase 2
+     * add service info exsits after init
+     */
+    let exec_add_service2 = app.execute_contract(
+        PROVIDER_OWNER,
+        &provider_contract,
+        &HandleMsg::AddServiceInfo {
+            service: SERVICE_NAME.to_string(),
+            contracts: Contracts {
+                dsources: vec![HumanAddr::from(SENDER4)],
+                tcases: vec![HumanAddr::from(SENDER5)],
+                oscript: HumanAddr::from(SENDER6),
+            },
+            service_fees_contract: service_fees_contract.clone(),
+            bound_executor_fee: Coin { denom: DENOM.to_owned(), amount: FEE_1 }
+        },
+        &[],
+    ).unwrap_err();
+    assert_eq!(exec_add_service2.to_string(), ContractError::ServiceExists {}.to_string());
+
+    /*
+     * testcase 3
+     * add service info exsits after init
+     */
+    app.execute_contract(
+        PROVIDER_OWNER_2,
+        &provider_contract,
+        &HandleMsg::AddServiceInfo {
+            service: SERVICE_NAME_1.to_string(),
+            contracts: Contracts {
+                dsources: vec![HumanAddr::from(SENDER4)],
+                tcases: vec![HumanAddr::from(SENDER5)],
+                oscript: HumanAddr::from(SENDER6),
+            },
+            service_fees_contract,
+            bound_executor_fee: Coin { denom: DENOM.to_owned(), amount: FEE_1 }
+        },
+        &[],
+    ).ok();
+
+    let service_info3: ServiceInfo = app
+        .wrap()
+        .query_wasm_smart(
+            &provider_contract,
+            &QueryMsg::ServiceInfoMsg {
+                service: SERVICE_NAME_1.to_string(),
+            },
+        )
+        .unwrap();
+    if service_info3.owner.eq(&PROVIDER_OWNER_2)
+        && service_info3.contracts.dsources.eq(&vec![HumanAddr::from(SENDER4)])
+        && service_info3.bound_executor_fee.amount.eq(&FEE_1)
+    {
+        assert!(true);
+    } else {
+        assert!(false);
+    }
+    println!("3 test exec_add_service_info add new service info: {:?} ", service_info3);
 }
 
 #[test]

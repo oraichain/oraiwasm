@@ -1,4 +1,4 @@
-use aioracle_base::{Executor, GetServiceFeesMsg, Reward, ServiceMsg};
+use aioracle_base::{Executor, Reward, ServiceMsg};
 use cosmwasm_std::{
     attr, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env,
     HandleResponse, HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError,
@@ -25,11 +25,11 @@ use crate::migrations::migrate_v02_to_v03;
 use crate::msg::{
     CurrentStageResponse, GetParticipantFee, GetServiceContracts, GetServiceFees, HandleMsg,
     InitMsg, IsClaimedResponse, LatestStageResponse, MigrateMsg, QueryMsg, Report, RequestResponse,
-    StageInfo, UpdateConfigMsg,
+    StageInfo, UpdateConfigMsg, GetServiceFeesMsg
 };
 use crate::state::{
     executors_map, requests, Config, Contracts, Request, CHECKPOINT, CLAIM, CONFIG, CONTRACT_FEES,
-    EVIDENCES, EXECUTORS_INDEX, LATEST_STAGE,
+    EVIDENCES, EXECUTORS_INDEX, LATEST_STAGE, SERVICE_NAME_DEFAULT,
 };
 use std::collections::HashMap;
 
@@ -109,7 +109,8 @@ pub fn handle(
             stage,
             merkle_root,
             executors,
-        } => execute_register_merkle_root(deps, env, info, stage, merkle_root, executors),
+            service
+        } => execute_register_merkle_root(deps, env, info, stage, merkle_root, executors, service),
         HandleMsg::Request {
             service,
             input,
@@ -152,7 +153,6 @@ pub fn migrate(
     // migrate_v02_to_v03(deps.storage)?;
     let executor_index = EXECUTORS_INDEX.load(deps.storage)?;
     EXECUTORS_INDEX.save(deps.storage, &(executor_index + 1))?;
-
     // once we have "migrated", set the new version and return success
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(MigrateResponse {
@@ -281,10 +281,8 @@ pub fn handle_request(
         fee.amount = fee.amount + contract_fee.amount;
         Ok(fee)
     })?;
-
     // reward plus preference must match sent funds
-    let bound_executor_fee: Coin = query_bound_executor_fee(deps.as_ref())?;
-
+    let bound_executor_fee: Coin = query_bound_executor_fee(deps.as_ref(), Some(service.to_string()))?;
     if preference_executor_fee.denom.ne(&bound_executor_fee.denom)
         || preference_executor_fee
             .amount
@@ -292,10 +290,8 @@ pub fn handle_request(
     {
         return Err(ContractError::InsufficientFundsBoundFees {});
     }
-
     // collect fees
     let mut rewards = get_service_fees(deps.as_ref(), &service)?;
-
     if !bound_executor_fee.amount.is_zero() {
         rewards.push((
             HumanAddr::from("placeholder"),
@@ -303,7 +299,6 @@ pub fn handle_request(
             bound_executor_fee.amount,
         ));
     }
-
     // TODO: add substract contract fee & verify against it
     if !verify_request_fees(&info.sent_funds, &rewards, threshold, &contract_fee) {
         return Err(ContractError::InsufficientFundsRequestFees {});
@@ -435,6 +430,7 @@ pub fn execute_register_merkle_root(
     stage: u64,
     mroot: String,
     executors: Vec<Binary>,
+    service: Option<String>
 ) -> Result<HandleResponse, ContractError> {
     let Config {
         owner,
@@ -477,7 +473,7 @@ pub fn execute_register_merkle_root(
             continue;
         }
         let executor_reward =
-            get_participant_fee(deps.as_ref(), executor.clone(), service_addr.as_str())?;
+            get_participant_fee(deps.as_ref(), executor.clone(), service_addr.as_str(), service.clone())?;
         process_executors_pool(
             deps.storage,
             executor,
@@ -554,8 +550,8 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&verify_data(deps, stage, data, proof)?)
         }
         QueryMsg::GetServiceFees { service } => to_binary(&query_service_fees(deps, service)?),
-        QueryMsg::GetBoundExecutorFee {} => to_binary(&query_bound_executor_fee(deps)?),
-        QueryMsg::GetParticipantFee { pubkey } => to_binary(&query_participant_fee(deps, pubkey)?),
+        QueryMsg::GetBoundExecutorFee {service} => to_binary(&query_bound_executor_fee(deps, service)?),
+        QueryMsg::GetParticipantFee { pubkey, service } => to_binary(&query_participant_fee(deps, pubkey, service)?),
         QueryMsg::GetTrustingPool { pubkey } => to_binary(&query_trusting_pool(deps, env, pubkey)?),
         QueryMsg::GetTrustingPools {
             offset,
@@ -565,9 +561,9 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn query_participant_fee(deps: Deps, pubkey: Binary) -> StdResult<Coin> {
+pub fn query_participant_fee(deps: Deps, pubkey: Binary, service: Option<String>) -> StdResult<Coin> {
     let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
-    get_participant_fee(deps, pubkey, service_addr.as_str())
+    get_participant_fee(deps, pubkey, service_addr.as_str(), service)
         .map_err(|err| StdError::generic_err(err.to_string()))
 }
 
@@ -852,9 +848,13 @@ pub fn get_participant_fee(
     deps: Deps,
     pubkey: Binary,
     service_addr: &str,
+    mut service: Option<String>
 ) -> Result<Coin, ContractError> {
     let Config { denom, .. } = CONFIG.load(deps.storage)?;
     let executor_addr = pubkey_to_address(&pubkey)?;
+    if service.is_none() {
+        service = Some(SERVICE_NAME_DEFAULT.to_string());
+    }
     let executor_reward: Coin = deps
         .querier
         .query_wasm_smart(
@@ -862,7 +862,8 @@ pub fn get_participant_fee(
             &GetParticipantFee {
                 get_participant_fee: GetServiceFeesMsg {
                     addr: executor_addr,
-                },
+                    service
+                }
             },
         )
         .unwrap_or(Coin {
