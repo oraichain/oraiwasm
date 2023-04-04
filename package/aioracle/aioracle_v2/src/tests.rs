@@ -3,7 +3,7 @@ use crate::error::ContractError;
 use crate::msg::{
     HandleMsg, InitMsg, QueryMsg, RequestResponse, StageInfo, TrustingPoolResponse, UpdateConfigMsg,
 };
-use crate::state::{Config, Request, TrustingPool, SERVICE_NAME_DEFAULT};
+use crate::state::{Config, Request, TrustingPool};
 
 use aioracle_base::{Executor, Reward};
 use bech32::{self, FromBase32, ToBase32, Variant};
@@ -16,6 +16,7 @@ use cosmwasm_std::{
 };
 use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
 use provider_bridge::state::Contracts;
+use provider_bridge::msg::HandleMsg as ProviderHandleMsg;
 use ripemd::{Digest as RipeDigest, Ripemd160};
 use serde::Deserialize;
 use sha2::Digest;
@@ -27,6 +28,7 @@ const AIORACLE_OWNER: &str = "admin0002";
 const PROVIDER_OWNER: &str = "admin0001";
 const AIORACLE_SERVICE_FEES_OWNER: &str = "admin0003";
 const CLIENT: &str = "client";
+const SERVICE_NAME: &str = "price";
 
 #[test]
 fn test_bech32() {
@@ -476,7 +478,7 @@ fn register_merkle_root() {
         &HandleMsg::Request {
             threshold: 1,
             input: None,
-            service: "price".to_string(),
+            service: SERVICE_NAME.to_string(),
             preference_executor_fee: coin(1, "orai"),
         },
         &coins(6u128, "orai"), // plus 1 for contract fee
@@ -490,7 +492,7 @@ fn register_merkle_root() {
         executors: vec![
             Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
         ],
-        service: Some(SERVICE_NAME_DEFAULT.to_string())
+        service: SERVICE_NAME.to_string()
     };
 
     app.execute_contract(
@@ -552,7 +554,7 @@ fn verify_data() {
         executors: vec![
             Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
         ],
-        service: Some(SERVICE_NAME_DEFAULT.to_string())
+        service: SERVICE_NAME.to_string()
     };
 
     app.execute_contract(
@@ -612,7 +614,7 @@ fn test_checkpoint() {
             executors: vec![
                 Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
             ],
-            service: Some(SERVICE_NAME_DEFAULT.to_string())
+            service: SERVICE_NAME.to_string()
         };
 
         app.execute_contract(
@@ -663,7 +665,7 @@ fn test_checkpoint() {
             executors: vec![
                 Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
             ],
-            service: Some(SERVICE_NAME_DEFAULT.to_string())
+            service: SERVICE_NAME.to_string()
         },
         &[],
     )
@@ -679,7 +681,7 @@ fn test_checkpoint() {
             executors: vec![
                 Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
             ],
-            service: Some(SERVICE_NAME_DEFAULT.to_string())
+            service: SERVICE_NAME.to_string()
         },
         &[],
     )
@@ -744,7 +746,7 @@ fn test_checkpoint_no_new_request() {
         executors: vec![
             Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
         ],
-        service: Some(SERVICE_NAME_DEFAULT.to_string())
+        service: SERVICE_NAME.to_string()
     };
 
     app.execute_contract(
@@ -1026,7 +1028,7 @@ fn test_query_requests_indexes() {
         app.execute_contract(
             &HumanAddr::from(PROVIDER_OWNER),
             &provider_addr,
-            &provider_bridge::msg::HandleMsg::AddServiceInfo {
+            &ProviderHandleMsg::AddServiceInfo {
                 service: format!("price{:?}", i),
                 contracts: Contracts {
                     dsources: vec![],
@@ -1070,7 +1072,7 @@ fn test_query_requests_indexes() {
             executors: vec![
                 Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
             ],
-            service: Some(SERVICE_NAME_DEFAULT.to_string())
+            service: SERVICE_NAME.to_string()
         };
 
         app.execute_contract(
@@ -1273,7 +1275,7 @@ fn test_handle_withdraw_pool() {
         stage: 1,
         merkle_root: test_data.root.clone(),
         executors: vec![pubkey.clone()],
-        service: Some(SERVICE_NAME_DEFAULT.to_string())
+        service: SERVICE_NAME.to_string()
     };
 
     app.execute_contract(
@@ -1345,7 +1347,7 @@ fn test_handle_withdraw_pool() {
         stage: 2,
         merkle_root: test_data.root,
         executors: vec![pubkey.clone()],
-        service: Some(SERVICE_NAME_DEFAULT.to_string())
+        service: SERVICE_NAME.to_string()
     };
 
     app.execute_contract(
@@ -1441,7 +1443,7 @@ fn test_increment_executor_when_register_merkle() {
         stage: 1,
         merkle_root: test_data.root.clone(),
         executors: vec![pubkey.clone()],
-        service: Some(SERVICE_NAME_DEFAULT.to_string())
+        service: SERVICE_NAME.to_string()
     };
 
     app.execute_contract(
@@ -1488,7 +1490,7 @@ fn test_increment_executor_when_register_merkle() {
             stage: 2,
             merkle_root: test_data.root.clone(),
             executors: vec![pubkey.clone()],
-            service: Some(SERVICE_NAME_DEFAULT.to_string())
+            service: SERVICE_NAME.to_string()
         },
         &[],
     )
@@ -1569,7 +1571,7 @@ fn test_increment_executor_when_register_merkle() {
             stage: 3,
             merkle_root: test_data.root,
             executors: vec![pubkey.clone()],
-            service: Some(SERVICE_NAME_DEFAULT.to_string())
+            service: SERVICE_NAME.to_string()
         },
         &[],
     )
@@ -1665,13 +1667,13 @@ pub fn get_maximum_executor_fee() {
 
     let bound_executor_fee: Coin = app
         .wrap()
-        .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::GetBoundExecutorFee {service: Some(SERVICE_NAME_DEFAULT.to_string())})
+        .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::GetBoundExecutorFee {service: SERVICE_NAME.to_string()})
         .unwrap();
     assert_eq!(bound_executor_fee.amount, Uint128::from(1u64));
 
     let bound_executor_fee2: Coin = app
         .wrap()
-        .query_wasm_smart(aioracle_addr, &QueryMsg::GetBoundExecutorFee {service: None})
+        .query_wasm_smart(aioracle_addr, &QueryMsg::GetBoundExecutorFee {service: SERVICE_NAME.to_string()})
         .unwrap();
     assert_eq!(bound_executor_fee2.amount, Uint128::from(1u64));
 }

@@ -29,7 +29,7 @@ use crate::msg::{
 };
 use crate::state::{
     executors_map, requests, Config, Contracts, Request, CHECKPOINT, CLAIM, CONFIG, CONTRACT_FEES,
-    EVIDENCES, EXECUTORS_INDEX, LATEST_STAGE, SERVICE_NAME_DEFAULT,
+    EVIDENCES, EXECUTORS_INDEX, LATEST_STAGE,
 };
 use std::collections::HashMap;
 
@@ -282,7 +282,7 @@ pub fn handle_request(
         Ok(fee)
     })?;
     // reward plus preference must match sent funds
-    let bound_executor_fee: Coin = query_bound_executor_fee(deps.as_ref(), Some(service.to_string()))?;
+    let bound_executor_fee: Coin = query_bound_executor_fee(deps.as_ref(), service.to_string())?;
     if preference_executor_fee.denom.ne(&bound_executor_fee.denom)
         || preference_executor_fee
             .amount
@@ -430,7 +430,7 @@ pub fn execute_register_merkle_root(
     stage: u64,
     mroot: String,
     executors: Vec<Binary>,
-    service: Option<String>
+    service: String
 ) -> Result<HandleResponse, ContractError> {
     let Config {
         owner,
@@ -561,7 +561,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn query_participant_fee(deps: Deps, pubkey: Binary, service: Option<String>) -> StdResult<Coin> {
+pub fn query_participant_fee(deps: Deps, pubkey: Binary, service: String) -> StdResult<Coin> {
     let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
     get_participant_fee(deps, pubkey, service_addr.as_str(), service)
         .map_err(|err| StdError::generic_err(err.to_string()))
@@ -848,13 +848,10 @@ pub fn get_participant_fee(
     deps: Deps,
     pubkey: Binary,
     service_addr: &str,
-    mut service: Option<String>
+    mut service: String
 ) -> Result<Coin, ContractError> {
     let Config { denom, .. } = CONFIG.load(deps.storage)?;
     let executor_addr = pubkey_to_address(&pubkey)?;
-    if service.is_none() {
-        service = Some(SERVICE_NAME_DEFAULT.to_string());
-    }
     let executor_reward: Coin = deps
         .querier
         .query_wasm_smart(

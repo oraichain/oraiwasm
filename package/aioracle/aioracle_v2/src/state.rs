@@ -82,7 +82,7 @@ pub const EXECUTORS_TRUSTING_POOL_PREFIX: &str = "executors_trusting_pool_v2";
 pub const EXECUTORS_TRUSTING_POOL: Map<&[u8], TrustingPool> =
     Map::new(EXECUTORS_TRUSTING_POOL_PREFIX);
 
-pub const SERVICE_NAME_DEFAULT: &str = "price";
+// pub const SERVICE_NAME_DEFAULT: &str = "price";
 
 // indexes requests
 // for structures
