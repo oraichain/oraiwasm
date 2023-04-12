@@ -1,0 +1,36 @@
+# compiled output
+/dist
+/migrations
+/node_modules
+
+# Logs
+logs
+*.log*
+
+# OS
+.DS_Store
+
+# Tests
+/coverage
+/.nyc_output
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode
+
+.env
+*.env
+*-db
+.scannerwork
+
+build
+
+build_bin/*
