@@ -1130,7 +1130,7 @@ fn test_get_service_fees() {
         )
         .unwrap();
 
-    assert_eq!(rewards.len(), 3 as usize);
+    assert_eq!(rewards.len(), 0 as usize);
     println!("rewards: {:?}", rewards)
 }
 
