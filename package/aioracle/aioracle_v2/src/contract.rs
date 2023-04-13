@@ -21,11 +21,10 @@ use crate::executors::{
     query_executors, query_executors_by_index, query_trusting_pool, query_trusting_pools,
     remove_executors, save_executors, update_executors,
 };
-use crate::migrations::migrate_v02_to_v03;
 use crate::msg::{
-    CurrentStageResponse, GetParticipantFee, GetServiceContracts, GetServiceFees, HandleMsg,
-    InitMsg, IsClaimedResponse, LatestStageResponse, MigrateMsg, QueryMsg, Report, RequestResponse,
-    StageInfo, UpdateConfigMsg, GetServiceFeesMsg
+    CurrentStageResponse, GetParticipantFee, GetServiceContracts, GetServiceFees,
+    GetServiceFeesMsg, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse, MigrateMsg,
+    QueryMsg, Report, RequestResponse, StageInfo, UpdateConfigMsg,
 };
 use crate::state::{
     executors_map, requests, Config, Contracts, Request, CHECKPOINT, CLAIM, CONFIG, CONTRACT_FEES,
@@ -109,8 +108,7 @@ pub fn handle(
             stage,
             merkle_root,
             executors,
-            service
-        } => execute_register_merkle_root(deps, env, info, stage, merkle_root, executors, service),
+        } => execute_register_merkle_root(deps, env, info, stage, merkle_root, executors),
         HandleMsg::Request {
             service,
             input,
@@ -136,11 +134,11 @@ pub fn handle(
         }
         HandleMsg::ExecutorJoin { executor } => handle_executor_join(deps, env, info, executor),
         HandleMsg::ExecutorLeave { executor } => handle_executor_leave(deps, env, info, executor),
-        HandleMsg::SubmitEvidence {
-            stage,
-            report,
-            proof,
-        } => handle_submit_evidence(deps, env, info, stage, report, proof),
+        // HandleMsg::SubmitEvidence {
+        //     stage,
+        //     report,
+        //     proof,
+        // } => handle_submit_evidence(deps, env, info, stage, report, proof),
     }
 }
 
@@ -281,30 +279,31 @@ pub fn handle_request(
         fee.amount = fee.amount + contract_fee.amount;
         Ok(fee)
     })?;
-    // reward plus preference must match sent funds
-    let bound_executor_fee: Coin = query_bound_executor_fee(deps.as_ref(), service.to_string())?;
-    if preference_executor_fee.denom.ne(&bound_executor_fee.denom)
-        || preference_executor_fee
-            .amount
-            .lt(&bound_executor_fee.amount)
-    {
-        return Err(ContractError::InsufficientFundsBoundFees {});
-    }
-    // collect fees
-    let mut rewards = get_service_fees(deps.as_ref(), &service)?;
-    if !bound_executor_fee.amount.is_zero() {
-        rewards.push((
-            HumanAddr::from("placeholder"),
-            bound_executor_fee.denom,
-            bound_executor_fee.amount,
-        ));
-    }
-    // TODO: add substract contract fee & verify against it
-    if !verify_request_fees(&info.sent_funds, &rewards, threshold, &contract_fee) {
-        return Err(ContractError::InsufficientFundsRequestFees {});
-    }
+    //////////////////////////////////////////////////// deprecated. We dont care abt rewards anymore
+    // // reward plus preference must match sent funds
+    // let bound_executor_fee: Coin = query_bound_executor_fee(deps.as_ref())?;
+    // if preference_executor_fee.denom.ne(&bound_executor_fee.denom)
+    //     || preference_executor_fee
+    //         .amount
+    //         .lt(&bound_executor_fee.amount)
+    // {
+    //     return Err(ContractError::InsufficientFundsBoundFees {});
+    // }
+    // // collect fees
+    // let mut rewards = get_service_fees(deps.as_ref(), &service)?;
+    // if !bound_executor_fee.amount.is_zero() {
+    //     rewards.push((
+    //         HumanAddr::from("placeholder"),
+    //         bound_executor_fee.denom,
+    //         bound_executor_fee.amount,
+    //     ));
+    // }
+    // // TODO: add substract contract fee & verify against it
+    // if !verify_request_fees(&info.sent_funds, &rewards, threshold, &contract_fee) {
+    //     return Err(ContractError::InsufficientFundsRequestFees {});
+    // }
 
-    rewards.pop(); // pop so we dont store the placeholder reward in the list
+    // rewards.pop(); // pop so we dont store the placeholder reward in the list
 
     // this will keep track of the executor list of the request
     let current_size = query_executor_size(deps.as_ref())?;
@@ -331,7 +330,7 @@ pub fn handle_request(
             threshold,
             service: service.clone(),
             input,
-            rewards,
+            rewards: vec![],
         },
     )?;
 
@@ -347,81 +346,81 @@ pub fn handle_request(
     })
 }
 
-pub fn handle_submit_evidence(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-    stage: u64,
-    report: Binary,
-    proofs: Option<Vec<String>>,
-) -> Result<HandleResponse, ContractError> {
-    let Config {
-        trusting_period,
-        slashing_amount,
-        denom,
-        ..
-    } = CONFIG.load(deps.storage)?;
+// pub fn handle_submit_evidence(
+//     deps: DepsMut,
+//     env: Env,
+//     info: MessageInfo,
+//     stage: u64,
+//     report: Binary,
+//     proofs: Option<Vec<String>>,
+// ) -> Result<HandleResponse, ContractError> {
+//     let Config {
+//         trusting_period,
+//         slashing_amount,
+//         denom,
+//         ..
+//     } = CONFIG.load(deps.storage)?;
 
-    let is_verified = verify_data(deps.as_ref(), stage, report.clone(), proofs)?;
-    if !is_verified {
-        return Err(ContractError::Unauthorized {});
-    }
+//     let is_verified = verify_data(deps.as_ref(), stage, report.clone(), proofs)?;
+//     if !is_verified {
+//         return Err(ContractError::Unauthorized {});
+//     }
 
-    let report_struct: Report = from_slice(report.as_slice())
-        .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
+//     let report_struct: Report = from_slice(report.as_slice())
+//         .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
 
-    // check evidence, only allow evidence per executor
-    let mut evidence_key = report_struct.executor.clone().to_base64();
-    evidence_key.push_str(&stage.to_string());
-    let is_claimed = EVIDENCES.may_load(deps.storage, evidence_key.as_bytes())?;
+//     // check evidence, only allow evidence per executor
+//     let mut evidence_key = report_struct.executor.clone().to_base64();
+//     evidence_key.push_str(&stage.to_string());
+//     let is_claimed = EVIDENCES.may_load(deps.storage, evidence_key.as_bytes())?;
 
-    if let Some(is_claimed) = is_claimed {
-        if is_claimed {
-            return Err(ContractError::AlreadyFinishedEvidence {});
-        }
-    }
+//     if let Some(is_claimed) = is_claimed {
+//         if is_claimed {
+//             return Err(ContractError::AlreadyFinishedEvidence {});
+//         }
+//     }
 
-    let Request {
-        submit_merkle_height,
-        ..
-    } = requests().load(deps.storage, &stage.to_be_bytes())?;
+//     let Request {
+//         submit_merkle_height,
+//         ..
+//     } = requests().load(deps.storage, &stage.to_be_bytes())?;
 
-    let is_exist = executors_map().may_load(deps.storage, report_struct.executor.as_slice())?;
-    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
+//     let is_exist = executors_map().may_load(deps.storage, report_struct.executor.as_slice())?;
+//     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
-    // only slash if the executor cannot be found in the whitelist
-    if is_exist.is_none() && (submit_merkle_height + trusting_period).gt(&env.block.height) {
-        // query contract balance to slash
-        let balance = deps
-            .querier
-            .query_balance(env.contract.address.clone(), denom.as_str())
-            .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
-        // if executor does not exist & still in trusting period => can slash amount in contract by sending the percentage amount to the reporter who discovers the faulty stage.
-        let total_slash = balance.amount.mul(Decimal::permille(slashing_amount));
-        if !total_slash.is_zero() {
-            let send_msg = BankMsg::Send {
-                from_address: env.contract.address,
-                to_address: info.sender,
-                amount: vec![Coin {
-                    denom: balance.denom,
-                    amount: total_slash,
-                }],
-            };
-            cosmos_msgs.push(send_msg.into());
-        }
+//     // only slash if the executor cannot be found in the whitelist
+//     if is_exist.is_none() && (submit_merkle_height + trusting_period).gt(&env.block.height) {
+//         // query contract balance to slash
+//         let balance = deps
+//             .querier
+//             .query_balance(env.contract.address.clone(), denom.as_str())
+//             .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
+//         // if executor does not exist & still in trusting period => can slash amount in contract by sending the percentage amount to the reporter who discovers the faulty stage.
+//         let total_slash = balance.amount.mul(Decimal::permille(slashing_amount));
+//         if !total_slash.is_zero() {
+//             let send_msg = BankMsg::Send {
+//                 from_address: env.contract.address,
+//                 to_address: info.sender,
+//                 amount: vec![Coin {
+//                     denom: balance.denom,
+//                     amount: total_slash,
+//                 }],
+//             };
+//             cosmos_msgs.push(send_msg.into());
+//         }
 
-        EVIDENCES.save(deps.storage, evidence_key.as_bytes(), &true)?;
-    }
+//         EVIDENCES.save(deps.storage, evidence_key.as_bytes(), &true)?;
+//     }
 
-    Ok(HandleResponse {
-        data: None,
-        messages: cosmos_msgs,
-        attributes: vec![
-            attr("action", "handle_submit_evidence"),
-            attr("stage", stage.to_string()),
-        ],
-    })
-}
+//     Ok(HandleResponse {
+//         data: None,
+//         messages: cosmos_msgs,
+//         attributes: vec![
+//             attr("action", "handle_submit_evidence"),
+//             attr("stage", stage.to_string()),
+//         ],
+//     })
+// }
 
 pub fn execute_register_merkle_root(
     deps: DepsMut,
@@ -430,7 +429,6 @@ pub fn execute_register_merkle_root(
     stage: u64,
     mroot: String,
     executors: Vec<Binary>,
-    service: String
 ) -> Result<HandleResponse, ContractError> {
     let Config {
         owner,
@@ -454,7 +452,7 @@ pub fn execute_register_merkle_root(
     }
 
     // if merkle root empty then update new
-    let request = requests().update(deps.storage, &stage.to_be_bytes(), |request| {
+    requests().update(deps.storage, &stage.to_be_bytes(), |request| {
         if let Some(mut request) = request {
             request.merkle_root = mroot.clone();
             request.submit_merkle_height = env.block.height;
@@ -465,22 +463,23 @@ pub fn execute_register_merkle_root(
         Err(StdError::generic_err("Invalid request empty"))
     })?;
 
-    // add executors' rewards into the pool
-    for executor in executors {
-        // only add reward if executor is in list
-        let executor_check = executors_map().may_load(deps.storage, &executor)?;
-        if executor_check.is_none() || !executor_check.unwrap().is_active {
-            continue;
-        }
-        let executor_reward =
-            get_participant_fee(deps.as_ref(), executor.clone(), service_addr.as_str(), service.clone())?;
-        process_executors_pool(
-            deps.storage,
-            executor,
-            &request.preference_executor_fee,
-            executor_reward,
-        )?;
-    }
+    /////////////////////////////////////////////// Deprecated. We no longer care about executor rewards
+    // // add executors' rewards into the pool
+    // for executor in executors {
+    //     // only add reward if executor is in list
+    //     let executor_check = executors_map().may_load(deps.storage, &executor)?;
+    //     if executor_check.is_none() || !executor_check.unwrap().is_active {
+    //         continue;
+    //     }
+    //     let executor_reward =
+    //         get_participant_fee(deps.as_ref(), executor.clone(), service_addr.as_str())?;
+    //     process_executors_pool(
+    //         deps.storage,
+    //         executor,
+    //         &request.preference_executor_fee,
+    //         executor_reward,
+    //     )?;
+    // }
 
     // check if can increase checkpoint. Can only increase when all requests in range have merkle root
     process_checkpoint(deps, stage, checkpoint_threshold)?;
@@ -550,8 +549,10 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_binary(&verify_data(deps, stage, data, proof)?)
         }
         QueryMsg::GetServiceFees { service } => to_binary(&query_service_fees(deps, service)?),
-        QueryMsg::GetBoundExecutorFee {service} => to_binary(&query_bound_executor_fee(deps, service)?),
-        QueryMsg::GetParticipantFee { pubkey, service } => to_binary(&query_participant_fee(deps, pubkey, service)?),
+        QueryMsg::GetBoundExecutorFee {} => to_binary(&query_bound_executor_fee(deps)?),
+        QueryMsg::GetParticipantFee { pubkey, service } => {
+            to_binary(&query_participant_fee(deps, pubkey, service)?)
+        }
         QueryMsg::GetTrustingPool { pubkey } => to_binary(&query_trusting_pool(deps, env, pubkey)?),
         QueryMsg::GetTrustingPools {
             offset,
@@ -561,7 +562,11 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn query_participant_fee(deps: Deps, pubkey: Binary, service: Option<String>) -> StdResult<Coin> {
+pub fn query_participant_fee(
+    _deps: Deps,
+    _pubkey: Binary,
+    _service: Option<String>,
+) -> StdResult<Coin> {
     Ok(Coin {
         denom: String::from("orai"),
         amount: Uint128::from(0u64),
@@ -852,7 +857,6 @@ pub fn get_participant_fee(
     deps: Deps,
     pubkey: Binary,
     service_addr: &str,
-    mut service: String
 ) -> Result<Coin, ContractError> {
     let Config { denom, .. } = CONFIG.load(deps.storage)?;
     let executor_addr = pubkey_to_address(&pubkey)?;
@@ -863,8 +867,7 @@ pub fn get_participant_fee(
             &GetParticipantFee {
                 get_participant_fee: GetServiceFeesMsg {
                     addr: executor_addr,
-                    service
-                }
+                },
             },
         )
         .unwrap_or(Coin {

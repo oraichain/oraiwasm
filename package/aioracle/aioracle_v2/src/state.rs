@@ -1,5 +1,5 @@
 use aioracle_base::{Executor, Reward};
-use cosmwasm_std::{Binary, Coin, HumanAddr};
+use cosmwasm_std::{Coin, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

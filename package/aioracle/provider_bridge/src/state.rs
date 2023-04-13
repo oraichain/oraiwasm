@@ -1,5 +1,5 @@
 use cosmwasm_std::{Coin, HumanAddr};
-use cw_storage_plus::Map;
+use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -17,7 +17,7 @@ pub struct ServiceInfo {
     pub owner: HumanAddr,
     pub contracts: Contracts,
     pub fee_contract: HumanAddr,
-    pub bound_executor_fee: Coin
 }
 
+pub const BOUND_EXECUTOR_FEE: Item<Coin> = Item::new("bound_executor_fee");
 pub const SERVICE_INFO: Map<&[u8], ServiceInfo> = Map::new("service_info");

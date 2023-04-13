@@ -29,7 +29,6 @@ pub enum HandleMsg {
         stage: u64,
         merkle_root: String,
         executors: Vec<Binary>,
-        service: String
     },
     Request {
         service: String,
@@ -55,11 +54,11 @@ pub enum HandleMsg {
     ExecutorLeave {
         executor: Binary,
     },
-    SubmitEvidence {
-        stage: u64,
-        report: Binary,
-        proof: Option<Vec<String>>,
-    },
+    // SubmitEvidence {
+    //     stage: u64,
+    //     report: Binary,
+    //     proof: Option<Vec<String>>,
+    // },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -117,10 +116,10 @@ pub enum QueryMsg {
     GetServiceFees {
         service: String,
     },
-    GetBoundExecutorFee { service: String },
+    GetBoundExecutorFee {},
     GetParticipantFee {
         pubkey: Binary,
-        service: Option<String>
+        service: Option<String>,
     },
     GetTrustingPool {
         pubkey: Binary,
@@ -190,19 +189,18 @@ pub struct GetBoundExecutorFee {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub struct BoundExecutorFeeMsg { pub service: String }
+pub struct BoundExecutorFeeMsg {}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct GetServiceFeesMsg {
     pub addr: HumanAddr,
-    pub service: String
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
 pub struct GetParticipantFee {
-    pub get_participant_fee: GetServiceFeesMsg
+    pub get_participant_fee: GetServiceFeesMsg,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

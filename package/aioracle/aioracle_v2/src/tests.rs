@@ -15,8 +15,8 @@ use cosmwasm_std::{
     OwnedDeps, StdError, Uint128,
 };
 use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
-use provider_bridge::state::Contracts;
 use provider_bridge::msg::HandleMsg as ProviderHandleMsg;
+use provider_bridge::state::Contracts;
 use ripemd::{Digest as RipeDigest, Ripemd160};
 use serde::Deserialize;
 use sha2::Digest;
@@ -492,7 +492,6 @@ fn register_merkle_root() {
         executors: vec![
             Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
         ],
-        service: SERVICE_NAME.to_string()
     };
 
     app.execute_contract(
@@ -554,7 +553,6 @@ fn verify_data() {
         executors: vec![
             Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
         ],
-        service: SERVICE_NAME.to_string()
     };
 
     app.execute_contract(
@@ -614,7 +612,6 @@ fn test_checkpoint() {
             executors: vec![
                 Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
             ],
-            service: SERVICE_NAME.to_string()
         };
 
         app.execute_contract(
@@ -665,7 +662,6 @@ fn test_checkpoint() {
             executors: vec![
                 Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
             ],
-            service: SERVICE_NAME.to_string()
         },
         &[],
     )
@@ -681,7 +677,6 @@ fn test_checkpoint() {
             executors: vec![
                 Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
             ],
-            service: SERVICE_NAME.to_string()
         },
         &[],
     )
@@ -746,7 +741,6 @@ fn test_checkpoint_no_new_request() {
         executors: vec![
             Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
         ],
-        service: SERVICE_NAME.to_string()
     };
 
     app.execute_contract(
@@ -1036,7 +1030,6 @@ fn test_query_requests_indexes() {
                     oscript: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
                 },
                 service_fees_contract: service_fees_contract.clone(),
-                bound_executor_fee: Coin { denom: DENOM_LOWER.to_owned(), amount: Uint128::from(1u64) }
             },
             &[],
         )
@@ -1072,7 +1065,6 @@ fn test_query_requests_indexes() {
             executors: vec![
                 Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
             ],
-            service: SERVICE_NAME.to_string()
         };
 
         app.execute_contract(
@@ -1246,173 +1238,172 @@ fn test_executor_size() {
     assert_eq!(size, 103u64)
 }
 
-#[test]
-fn test_handle_withdraw_pool() {
-    // Run test 1
-    let test_data: Encoded = from_slice(TEST_DATA_1).unwrap();
+//////////////////////////// deprecated because we wont be using this incentive mechanism anymore
+// #[test]
+// fn test_handle_withdraw_pool() {
+//     // Run test 1
+//     let test_data: Encoded = from_slice(TEST_DATA_1).unwrap();
 
-    let mut app = mock_app();
-    let (_, _, aioracle_addr) = setup_test_case(&mut app);
+//     let mut app = mock_app();
+//     let (_, _, aioracle_addr) = setup_test_case(&mut app);
 
-    let pubkey = Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap();
+//     let pubkey = Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap();
 
-    // create a new request
-    app.execute_contract(
-        &HumanAddr::from("client"),
-        &aioracle_addr,
-        &HandleMsg::Request {
-            threshold: 1,
-            input: None,
-            service: "price".to_string(),
-            preference_executor_fee: coin(1, "orai"),
-        },
-        &coins(6u128, "orai"),
-    )
-    .unwrap();
+//     // create a new request
+//     app.execute_contract(
+//         &HumanAddr::from("client"),
+//         &aioracle_addr,
+//         &HandleMsg::Request {
+//             threshold: 1,
+//             input: None,
+//             service: "price".to_string(),
+//             preference_executor_fee: coin(1, "orai"),
+//         },
+//         &coins(6u128, "orai"),
+//     )
+//     .unwrap();
 
-    // register new merkle root
-    let msg = HandleMsg::RegisterMerkleRoot {
-        stage: 1,
-        merkle_root: test_data.root.clone(),
-        executors: vec![pubkey.clone()],
-        service: SERVICE_NAME.to_string()
-    };
+//     // register new merkle root
+//     let msg = HandleMsg::RegisterMerkleRoot {
+//         stage: 1,
+//         merkle_root: test_data.root.clone(),
+//         executors: vec![pubkey.clone()],
+//     };
 
-    app.execute_contract(
-        HumanAddr::from(AIORACLE_OWNER),
-        aioracle_addr.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
+//     app.execute_contract(
+//         HumanAddr::from(AIORACLE_OWNER),
+//         aioracle_addr.clone(),
+//         &msg,
+//         &[],
+//     )
+//     .unwrap();
 
-    // invoke withdraw pool unauthorized case
-    assert_eq!(
-        app.execute_contract(
-            HumanAddr::from(AIORACLE_OWNER),
-            aioracle_addr.clone(),
-            &HandleMsg::PrepareWithdrawPool {
-                pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
-                    .unwrap(),
-            },
-            &[],
-        )
-        .unwrap_err(),
-        ContractError::Unauthorized {}.to_string()
-    );
+//     // invoke withdraw pool unauthorized case
+//     assert_eq!(
+//         app.execute_contract(
+//             HumanAddr::from(AIORACLE_OWNER),
+//             aioracle_addr.clone(),
+//             &HandleMsg::PrepareWithdrawPool {
+//                 pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
+//                     .unwrap(),
+//             },
+//             &[],
+//         )
+//         .unwrap_err(),
+//         ContractError::Unauthorized {}.to_string()
+//     );
 
-    // successful case
-    app.execute_contract(
-        HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
-        aioracle_addr.clone(),
-        &HandleMsg::PrepareWithdrawPool {
-            pubkey: pubkey.clone(),
-        },
-        &[],
-    )
-    .unwrap();
+//     // successful case
+//     app.execute_contract(
+//         HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+//         aioracle_addr.clone(),
+//         &HandleMsg::PrepareWithdrawPool {
+//             pubkey: pubkey.clone(),
+//         },
+//         &[],
+//     )
+//     .unwrap();
 
-    // if invoke once again => invalid trusting period
-    assert_eq!(
-        app.execute_contract(
-            HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
-            aioracle_addr.clone(),
-            &HandleMsg::PrepareWithdrawPool {
-                pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
-                    .unwrap(),
-            },
-            &[],
-        )
-        .unwrap_err(),
-        ContractError::InvalidTrustingPeriod {}.to_string()
-    );
+//     // if invoke once again => invalid trusting period
+//     assert_eq!(
+//         app.execute_contract(
+//             HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+//             aioracle_addr.clone(),
+//             &HandleMsg::PrepareWithdrawPool {
+//                 pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
+//                     .unwrap(),
+//             },
+//             &[],
+//         )
+//         .unwrap_err(),
+//         ContractError::InvalidTrustingPeriod {}.to_string()
+//     );
 
-    // add another merkle tree root to increment balance in pool
-    // create a new request
-    app.execute_contract(
-        &HumanAddr::from("client"),
-        &aioracle_addr,
-        &HandleMsg::Request {
-            threshold: 1,
-            input: None,
-            service: "price".to_string(),
-            preference_executor_fee: coin(1, "orai"),
-        },
-        &coins(6u128, "orai"),
-    )
-    .unwrap();
+//     // add another merkle tree root to increment balance in pool
+//     // create a new request
+//     app.execute_contract(
+//         &HumanAddr::from("client"),
+//         &aioracle_addr,
+//         &HandleMsg::Request {
+//             threshold: 1,
+//             input: None,
+//             service: "price".to_string(),
+//             preference_executor_fee: coin(1, "orai"),
+//         },
+//         &coins(6u128, "orai"),
+//     )
+//     .unwrap();
 
-    // register new merkle root
-    let msg = HandleMsg::RegisterMerkleRoot {
-        stage: 2,
-        merkle_root: test_data.root,
-        executors: vec![pubkey.clone()],
-        service: SERVICE_NAME.to_string()
-    };
+//     // register new merkle root
+//     let msg = HandleMsg::RegisterMerkleRoot {
+//         stage: 2,
+//         merkle_root: test_data.root,
+//         executors: vec![pubkey.clone()],
+//     };
 
-    app.execute_contract(
-        HumanAddr::from(AIORACLE_OWNER),
-        aioracle_addr.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
+//     app.execute_contract(
+//         HumanAddr::from(AIORACLE_OWNER),
+//         aioracle_addr.clone(),
+//         &msg,
+//         &[],
+//     )
+//     .unwrap();
 
-    app.update_block(skip_trusting_period);
+//     app.update_block(skip_trusting_period);
 
-    // query trusting pool, now amount coin should be two, withdraw amount should be 1
-    // query trusting pool, should be 0
-    let trusting_pool: TrustingPoolResponse = app
-        .wrap()
-        .query_wasm_smart(
-            aioracle_addr.clone(),
-            &QueryMsg::GetTrustingPool {
-                pubkey: pubkey.clone(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        trusting_pool.trusting_pool.amount_coin.amount,
-        Uint128::from(2u64)
-    );
-    assert_eq!(
-        trusting_pool.trusting_pool.withdraw_amount_coin.amount,
-        Uint128::from(1u64)
-    );
+//     // query trusting pool, now amount coin should be two, withdraw amount should be 1
+//     // query trusting pool, should be 0
+//     let trusting_pool: TrustingPoolResponse = app
+//         .wrap()
+//         .query_wasm_smart(
+//             aioracle_addr.clone(),
+//             &QueryMsg::GetTrustingPool {
+//                 pubkey: pubkey.clone(),
+//             },
+//         )
+//         .unwrap();
+//     assert_eq!(
+//         trusting_pool.trusting_pool.amount_coin.amount,
+//         Uint128::from(0u64)
+//     );
+//     assert_eq!(
+//         trusting_pool.trusting_pool.withdraw_amount_coin.amount,
+//         Uint128::from(0u64)
+//     );
 
-    // can now move all balance to withdraw pool and should automatically withdraw from pool
-    app.execute_contract(
-        HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
-        aioracle_addr.clone(),
-        &HandleMsg::PrepareWithdrawPool {
-            pubkey: pubkey.clone(),
-        },
-        &[],
-    )
-    .unwrap();
+//     // can now move all balance to withdraw pool and should automatically withdraw from pool
+//     app.execute_contract(
+//         HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+//         aioracle_addr.clone(),
+//         &HandleMsg::PrepareWithdrawPool {
+//             pubkey: pubkey.clone(),
+//         },
+//         &[],
+//     )
+//     .unwrap();
 
-    app.update_block(next_block);
+//     app.update_block(next_block);
 
-    // query trusting pool, withdraw height and amount should be 0. amount coin should be 1
-    let trusting_pool: TrustingPoolResponse = app
-        .wrap()
-        .query_wasm_smart(
-            aioracle_addr.clone(),
-            &QueryMsg::GetTrustingPool {
-                pubkey: pubkey.clone(),
-            },
-        )
-        .unwrap();
-    assert_eq!(
-        trusting_pool.trusting_pool.amount_coin.amount,
-        Uint128::from(1u64)
-    );
-    assert_eq!(
-        trusting_pool.trusting_pool.withdraw_amount_coin.amount,
-        Uint128::from(0u64)
-    );
-    assert_eq!(trusting_pool.trusting_pool.withdraw_height, 0u64);
-}
+//     // query trusting pool, withdraw height and amount should be 0. amount coin should be 1
+//     let trusting_pool: TrustingPoolResponse = app
+//         .wrap()
+//         .query_wasm_smart(
+//             aioracle_addr.clone(),
+//             &QueryMsg::GetTrustingPool {
+//                 pubkey: pubkey.clone(),
+//             },
+//         )
+//         .unwrap();
+//     assert_eq!(
+//         trusting_pool.trusting_pool.amount_coin.amount,
+//         Uint128::from(1u64)
+//     );
+//     assert_eq!(
+//         trusting_pool.trusting_pool.withdraw_amount_coin.amount,
+//         Uint128::from(0u64)
+//     );
+//     assert_eq!(trusting_pool.trusting_pool.withdraw_height, 0u64);
+// }
 
 #[test]
 fn test_increment_executor_when_register_merkle() {
@@ -1443,7 +1434,6 @@ fn test_increment_executor_when_register_merkle() {
         stage: 1,
         merkle_root: test_data.root.clone(),
         executors: vec![pubkey.clone()],
-        service: SERVICE_NAME.to_string()
     };
 
     app.execute_contract(
@@ -1490,64 +1480,61 @@ fn test_increment_executor_when_register_merkle() {
             stage: 2,
             merkle_root: test_data.root.clone(),
             executors: vec![pubkey.clone()],
-            service: SERVICE_NAME.to_string()
         },
         &[],
     )
     .unwrap();
 
-    // query trusting pool
-    let trusting_pool: TrustingPoolResponse = app
-        .wrap()
-        .query_wasm_smart(
-            aioracle_addr.clone(),
-            &QueryMsg::GetTrustingPool {
-                pubkey: pubkey.clone(),
-            },
-        )
-        .unwrap();
+    //////////////////////////// Deprecated. Dont care abt trusting pool
+    // // query trusting pool
+    // let trusting_pool: TrustingPoolResponse = app
+    //     .wrap()
+    //     .query_wasm_smart(
+    //         aioracle_addr.clone(),
+    //         &QueryMsg::GetTrustingPool {
+    //             pubkey: pubkey.clone(),
+    //         },
+    //     )
+    //     .unwrap();
 
-    assert_eq!(
-        trusting_pool.trusting_pool.amount_coin.amount,
-        Uint128::from(2u64)
-    );
+    // assert_eq!(
+    //     trusting_pool.trusting_pool.amount_coin.amount,
+    //     Uint128::from(0u64)
+    // );
 
-    // try increasing the bound executor fee to 20
-    app.execute_contract(
-        HumanAddr::from(PROVIDER_OWNER),
-        provider_bridge_addr.clone(),
-        &provider_bridge::msg::HandleMsg::UpdateConfig {
-            service: "price".to_owned(),
-            bound_executor_fee: Some(Coin {
-                denom: String::from("orai"),
-                amount: Uint128::from(20u64),
-            }),
-            owner: None,
-            service_fees_contract: None,
-        },
-        &[],
-    )
-    .unwrap();
+    // // try increasing the bound executor fee to 20
+    // app.execute_contract(
+    //     HumanAddr::from(PROVIDER_OWNER),
+    //     provider_bridge_addr.clone(),
+    //     &provider_bridge::msg::HandleMsg::UpdateServiceInfo {
+    //         service: "price".to_owned(),
+    //         owner: None,
+    //         service_fees_contract: None,
+    //     },
+    //     &[],
+    // )
+    // .unwrap();
 
     // create a third register root. Should increase trusting pool to 12 instead of 3
     // create a new request to register for new merkle root
 
     // preference executor fee should be increased to 20 because min bound is 20 already
-    assert_eq!(
-        app.execute_contract(
-            &HumanAddr::from("client"),
-            &aioracle_addr,
-            &HandleMsg::Request {
-                threshold: 1,
-                input: None,
-                service: "price".to_string(),
-                preference_executor_fee: coin(19, "orai"),
-            },
-            &coins(26u128, "orai"),
-        )
-        .unwrap_err(),
-        ContractError::InsufficientFundsBoundFees {}.to_string()
-    );
+    /////////////////////////// Deprecated. Maximum executor fee is 0
+    // assert_eq!(
+    //     app.execute_contract(
+    //         &HumanAddr::from("client"),
+    //         &aioracle_addr,
+    //         &HandleMsg::Request {
+    //             threshold: 1,
+    //             input: None,
+    //             service: "price".to_string(),
+    //             preference_executor_fee: coin(19, "orai"),
+    //         },
+    //         &coins(26u128, "orai"),
+    //     )
+    //     .unwrap_err(),
+    //     ContractError::InsufficientFundsBoundFees {}.to_string()
+    // );
 
     // successful case
     app.execute_contract(
@@ -1571,27 +1558,27 @@ fn test_increment_executor_when_register_merkle() {
             stage: 3,
             merkle_root: test_data.root,
             executors: vec![pubkey.clone()],
-            service: SERVICE_NAME.to_string()
         },
         &[],
     )
     .unwrap();
 
-    // query trusting pool
-    let trusting_pool: TrustingPoolResponse = app
-        .wrap()
-        .query_wasm_smart(
-            aioracle_addr.clone(),
-            &QueryMsg::GetTrustingPool {
-                pubkey: pubkey.clone(),
-            },
-        )
-        .unwrap();
+    ////////////////////////////////// Deprecated. Dont care abt trusting pool
+    // // query trusting pool
+    // let trusting_pool: TrustingPoolResponse = app
+    //     .wrap()
+    //     .query_wasm_smart(
+    //         aioracle_addr.clone(),
+    //         &QueryMsg::GetTrustingPool {
+    //             pubkey: pubkey.clone(),
+    //         },
+    //     )
+    //     .unwrap();
 
-    assert_eq!(
-        trusting_pool.trusting_pool.amount_coin.amount,
-        Uint128::from(12u64)
-    );
+    // assert_eq!(
+    //     trusting_pool.trusting_pool.amount_coin.amount,
+    //     Uint128::from(0u64)
+    // );
 }
 
 #[test]
@@ -1660,28 +1647,24 @@ pub fn test_query_executors_by_index() {
     );
 }
 
-#[test]
-pub fn get_maximum_executor_fee() {
-    let mut app = mock_app();
-    let (_, _, aioracle_addr) = setup_test_case(&mut app);
+//////////////////// deprecated. Auto maximum executor fee is 0
+// #[test]
+// pub fn get_maximum_executor_fee() {
+//     let mut app = mock_app();
+//     let (_, _, aioracle_addr) = setup_test_case(&mut app);
 
-    let bound_executor_fee: Coin = app
-        .wrap()
-        .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::GetBoundExecutorFee {service: SERVICE_NAME.to_string()})
-        .unwrap();
-    assert_eq!(bound_executor_fee.amount, Uint128::from(1u64));
+//     let bound_executor_fee: Coin = app
+//         .wrap()
+//         .query_wasm_smart(aioracle_addr.clone(), &QueryMsg::GetBoundExecutorFee {})
+//         .unwrap();
+//     assert_eq!(bound_executor_fee.amount, Uint128::from(1u64));
 
-    let bound_executor_fee2: Coin = app
-        .wrap()
-        .query_wasm_smart(aioracle_addr, &QueryMsg::GetBoundExecutorFee {service: SERVICE_NAME.to_string()})
-        .unwrap();
-    assert_eq!(bound_executor_fee2.amount, Uint128::from(1u64));
-}
-
-pub fn skip_trusting_period(block: &mut BlockInfo) {
-    block.time += 5;
-    block.height += 100801;
-}
+//     let bound_executor_fee2: Coin = app
+//         .wrap()
+//         .query_wasm_smart(aioracle_addr, &QueryMsg::GetBoundExecutorFee {})
+//         .unwrap();
+//     assert_eq!(bound_executor_fee2.amount, Uint128::from(1u64));
+// }
 
 // fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
 //     let mut deps = mock_dependencies(&coins(100000, DENOM));
@@ -1710,7 +1693,7 @@ fn test_executor_join() {
         .execute_contract(info.sender.clone(), aioracle_addr.clone(), &msg, &[])
         .unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {}.to_string());
-    
+
     // Join a new executor
     let info = mock_info("orai12lj8y27tmsag6hhjsucffvqrldfxjpja4sx84u", &[]);
     let res = app

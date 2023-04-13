@@ -11,7 +11,7 @@ use crate::{
     contract::{pubkey_to_address, DEFAULT_LIMIT, MAX_LIMIT},
     msg::{BoundExecutorFeeMsg, GetBoundExecutorFee, TrustingPoolResponse},
     state::{
-        executors_map, Config, TrustingPool, CONFIG, EXECUTORS_INDEX, EXECUTORS_TRUSTING_POOL
+        executors_map, Config, TrustingPool, CONFIG, EXECUTORS_INDEX, EXECUTORS_TRUSTING_POOL,
     },
     ContractError,
 };
@@ -424,12 +424,12 @@ pub fn query_executors_by_index(
     res
 }
 
-pub fn query_bound_executor_fee(deps: Deps, mut service: String) -> StdResult<Coin> {
+pub fn query_bound_executor_fee(deps: Deps) -> StdResult<Coin> {
     let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
     let fees: Coin = deps.querier.query_wasm_smart(
         service_addr,
         &GetBoundExecutorFee {
-            get_bound_executor_fee: BoundExecutorFeeMsg {service},
+            get_bound_executor_fee: BoundExecutorFeeMsg {},
         },
     )?;
     Ok(fees)
