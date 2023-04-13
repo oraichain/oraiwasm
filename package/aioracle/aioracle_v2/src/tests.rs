@@ -75,7 +75,6 @@ fn init_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
                 oscript: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
             },
             service_fees_contract: HumanAddr::from("orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt"),
-            bound_executor_fee: Uint128::from(1u64),
         },
     )
     .unwrap();
@@ -149,7 +148,6 @@ fn init_provider(
         service,
         service_contracts,
         service_fees_contract,
-        bound_executor_fee: Uint128::from(1u64),
     };
 
     app.instantiate_contract(group_id, PROVIDER_OWNER, &msg, &[], "provider_bridge")
