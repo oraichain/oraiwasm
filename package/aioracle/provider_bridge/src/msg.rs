@@ -1,5 +1,5 @@
 use aioracle_base::GetServiceFeesMsg;
-use cosmwasm_std::{Binary, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

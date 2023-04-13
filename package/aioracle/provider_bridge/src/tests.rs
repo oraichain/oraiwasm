@@ -431,11 +431,7 @@ fn query_service_contract() {
             },
         )
         .unwrap();
-    if service_fee.len() == 3
-        && service_fee[2].0.eq(&SENDER3)
-        && service_fee[2].1.eq(&DENOM)
-        && service_fee[2].2.eq(&FEE_3)
-    {
+    if service_fee.len() == 0 {
         assert!(true);
     } else {
         assert!(false);

@@ -170,24 +170,23 @@ fn set_service_info(deps: DepsMut, service: &String, service_info: &ServiceInfo)
         .ok();
 }
 
-fn get_service_fees(deps: Deps, service: String) -> StdResult<Vec<Reward>> {
-    let service_info: ServiceInfo = get_service_info(deps, service)?;
-    let mut rewards = vec![];
-    rewards.append(&mut collect_rewards(
-        deps,
-        &service_info.contracts.dsources,
-        &service_info.fee_contract,
-    )?);
-    rewards.append(&mut collect_rewards(
-        deps,
-        &service_info.contracts.tcases,
-        &service_info.fee_contract,
-    )?);
-    rewards.append(&mut collect_rewards(
-        deps,
-        &vec![service_info.contracts.oscript],
-        &service_info.fee_contract,
-    )?);
+fn get_service_fees(_deps: Deps, _service: String) -> StdResult<Vec<Reward>> {
+    let rewards = vec![];
+    // rewards.append(&mut collect_rewards(
+    //     deps,
+    //     &service_info.contracts.dsources,
+    //     &service_info.fee_contract,
+    // )?);
+    // rewards.append(&mut collect_rewards(
+    //     deps,
+    //     &service_info.contracts.tcases,
+    //     &service_info.fee_contract,
+    // )?);
+    // rewards.append(&mut collect_rewards(
+    //     deps,
+    //     &vec![service_info.contracts.oscript],
+    //     &service_info.fee_contract,
+    // )?);
 
     // let bound_executor_fee = MAX_EXECUTOR_FEE.load(deps.storage)?;
     // // add a reward for an executor with maximum rewards required
