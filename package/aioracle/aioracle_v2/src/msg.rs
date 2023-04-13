@@ -120,7 +120,7 @@ pub enum QueryMsg {
     GetBoundExecutorFee { service: String },
     GetParticipantFee {
         pubkey: Binary,
-        service: String
+        service: Option<String>
     },
     GetTrustingPool {
         pubkey: Binary,

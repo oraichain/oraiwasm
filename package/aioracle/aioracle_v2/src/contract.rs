@@ -561,10 +561,14 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn query_participant_fee(deps: Deps, pubkey: Binary, service: String) -> StdResult<Coin> {
-    let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
-    get_participant_fee(deps, pubkey, service_addr.as_str(), service)
-        .map_err(|err| StdError::generic_err(err.to_string()))
+pub fn query_participant_fee(deps: Deps, pubkey: Binary, service: Option<String>) -> StdResult<Coin> {
+    Ok(Coin {
+        denom: String::from("orai"),
+        amount: Uint128::from(0u64),
+    })
+    // let Config { service_addr, .. } = CONFIG.load(deps.storage)?;
+    // get_participant_fee(deps, pubkey, service_addr.as_str(), service)
+    //     .map_err(|err| StdError::generic_err(err.to_string()))
 }
 
 fn get_service_fees(deps: Deps, service: &str) -> StdResult<Vec<Reward>> {
