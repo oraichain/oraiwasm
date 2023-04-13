@@ -65,7 +65,6 @@ fn init_provider(
         service,
         service_contracts,
         service_fees_contract,
-        bound_executor_fee: Uint128::from(1u64),
     };
 
     app.instantiate_contract(group_id, sender_info_addr, &msg, &[], "provider_bridge")

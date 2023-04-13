@@ -10,7 +10,6 @@ pub struct InitMsg {
     pub service: String,
     pub service_contracts: Contracts,
     pub service_fees_contract: HumanAddr,
-    pub bound_executor_fee: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
