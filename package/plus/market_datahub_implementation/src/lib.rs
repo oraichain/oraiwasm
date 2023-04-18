@@ -6,6 +6,7 @@ pub mod offering;
 pub mod state;
 
 mod error;
+
 #[cfg(test)]
 mod tests;
 
