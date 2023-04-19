@@ -7,45 +7,80 @@ use serde::{Deserialize, Serialize};
 pub const TYPE_DATASET_NORMAL: &str = "NORMAL";
 pub const TYPE_DATASET_TESTCASE: &str = "TESTCASE";
 
-pub trait DatasetFactory<Attrs> {
-    fn create(id: Option<u64>, contract_addr: HumanAddr, owner: HumanAddr, attrs: Attrs) -> Self;
-    fn get_type(&self) -> &'static str;
+/* STORAGE TYPE */
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub enum Datasource {
+    Eueno {
+        project_id: String,
+        folder_path: String,
+    },
 }
+
+impl Datasource {
+    pub fn get_name(&self) -> &'static str {
+        match self {
+            Self::Eueno {
+                project_id,
+                folder_path,
+            } => "eueno",
+        }
+    }
+}
+
+/* NORMAL DATASET */
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct NormalDatasetAttrs {}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct NormalDataset {
-    pub id: Option<u64>,
+    pub token_id: String,
     pub contract_addr: HumanAddr,
     pub owner: HumanAddr,
     pub attrs: NormalDatasetAttrs,
+    pub datasource: Datasource,
 }
+
+/* TESTCASE */
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct TestcaseAttrs {}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Testcase {
-    pub id: Option<u64>,
+    pub token_id: String,
     pub contract_addr: HumanAddr,
     pub owner: HumanAddr,
     pub attrs: TestcaseAttrs,
+    pub datasource: Datasource,
+}
+
+pub trait DatasetFactory<Attrs> {
+    fn create(
+        token_id: String,
+        contract_addr: HumanAddr,
+        owner: HumanAddr,
+        datasource: Datasource,
+        attrs: Attrs,
+    ) -> Self;
+    fn get_type(&self) -> &'static str;
 }
 
 impl DatasetFactory<NormalDatasetAttrs> for NormalDataset {
     fn create(
-        id: Option<u64>,
+        token_id: String,
         contract_addr: HumanAddr,
         owner: HumanAddr,
+        datasource: Datasource,
         attrs: NormalDatasetAttrs,
     ) -> NormalDataset {
         NormalDataset {
-            id,
+            token_id,
             contract_addr,
             owner,
             attrs,
+            datasource,
         }
     }
     fn get_type(&self) -> &'static str {
@@ -55,16 +90,18 @@ impl DatasetFactory<NormalDatasetAttrs> for NormalDataset {
 
 impl DatasetFactory<TestcaseAttrs> for Testcase {
     fn create(
-        id: Option<u64>,
+        token_id: String,
         contract_addr: HumanAddr,
         owner: HumanAddr,
+        datasource: Datasource,
         attrs: TestcaseAttrs,
     ) -> Testcase {
         Testcase {
-            id,
+            token_id,
             contract_addr,
             owner,
             attrs,
+            datasource,
         }
     }
     fn get_type(&self) -> &'static str {
