@@ -9,6 +9,8 @@ pub const TYPE_DATASET_TESTCASE: &str = "TESTCASE";
 
 /* STORAGE TYPE */
 
+const EUENO_STORAGE_NAME: &str = "EUENO";
+
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub enum Datasource {
     Eueno {
@@ -23,7 +25,7 @@ impl Datasource {
             Self::Eueno {
                 project_id,
                 folder_path,
-            } => "eueno",
+            } => EUENO_STORAGE_NAME,
         }
     }
 }
