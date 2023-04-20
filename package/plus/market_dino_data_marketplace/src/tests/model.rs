@@ -3,6 +3,7 @@ use crate::model::dataset::{
     TYPE_DATASET_NORMAL, TYPE_DATASET_TESTCASE,
 };
 use cosmwasm_std::HumanAddr;
+
 #[test]
 fn test_dataset_type() {
     let owner_addr: HumanAddr = HumanAddr::from("cosmos1yqyakmh22p4zdlksspgz393m9glcc0uzjf7eh5");
@@ -35,5 +36,5 @@ fn test_datasource_get_name() {
         folder_path: "project/path".to_owned(),
     };
 
-    assert_eq!(eueno_instance.get_name(), "eueno")
+    assert_eq!(eueno_instance.get_name(), "EUENO")
 }

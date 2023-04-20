@@ -23,8 +23,8 @@ impl Datasource {
     pub fn get_name(&self) -> &'static str {
         match self {
             Self::Eueno {
-                project_id,
-                folder_path,
+                project_id: _,
+                folder_path: _,
             } => EUENO_STORAGE_NAME,
         }
     }
@@ -40,7 +40,6 @@ pub struct NormalDataset {
     pub token_id: String,
     pub contract_addr: HumanAddr,
     pub owner: HumanAddr,
-    pub attrs: NormalDatasetAttrs,
     pub datasource: Datasource,
 }
 
@@ -75,13 +74,12 @@ impl DatasetFactory<NormalDatasetAttrs> for NormalDataset {
         contract_addr: HumanAddr,
         owner: HumanAddr,
         datasource: Datasource,
-        attrs: NormalDatasetAttrs,
+        _attrs: NormalDatasetAttrs,
     ) -> NormalDataset {
         NormalDataset {
             token_id,
             contract_addr,
             owner,
-            attrs,
             datasource,
         }
     }
@@ -109,4 +107,9 @@ impl DatasetFactory<TestcaseAttrs> for Testcase {
     fn get_type(&self) -> &'static str {
         TYPE_DATASET_TESTCASE
     }
+}
+
+pub enum Dataset {
+    Normal(NormalDataset),
+    Testcase(Testcase),
 }

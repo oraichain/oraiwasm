@@ -1064,7 +1064,6 @@ fn test_add_annotation_reviewer() {
 
         let _res = manager.handle(info.clone(), msg).unwrap();
 
-
         let msg = QueryMsg::DataHub(DataHubQueryMsg::GetAnnotationReviewerByAnnotationId {
             annotation_id: 1,
         });

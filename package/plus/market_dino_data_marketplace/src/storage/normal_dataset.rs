@@ -1,12 +1,13 @@
 use cosmwasm_std::{DepsMut, StdResult};
 use cw_storage_plus::{Index, IndexList, IndexedMap, MultiIndex, PkOwned, UniqueIndex};
 
-use crate::model::dataset::NormalDataset;
+use crate::model::dataset::{DatasetFactory, NormalDataset};
 
 pub struct NormalDatasetIndexes<'a> {
     pub token_id: UniqueIndex<'a, PkOwned, NormalDataset>,
     pub owner_addr: MultiIndex<'a, NormalDataset>,
     pub datasource: MultiIndex<'a, NormalDataset>,
+    pub d_type: MultiIndex<'a, NormalDataset>,
 }
 
 impl<'a> IndexList<NormalDataset> for NormalDatasetIndexes<'a> {
@@ -29,7 +30,12 @@ pub fn storage_datasets<'a>() -> IndexedMap<'a, &'a [u8], NormalDataset, NormalD
         datasource: MultiIndex::new(
             |o| o.datasource.get_name().as_bytes().to_vec(),
             "normal_dataset",
-            "normal_dataset_datasource",
+            "normal_dataset__datasource",
+        ),
+        d_type: MultiIndex::new(
+            |o| o.to_owned().get_type().as_bytes().to_vec(),
+            "normal_dataset",
+            "normal_dataset__type",
         ),
         token_id: UniqueIndex::new(
             |o| PkOwned(o.token_id.as_bytes().to_vec()),

@@ -10,13 +10,15 @@ use super::{normal_dataset::get_normal_dataset_by_id, utils::StorageMapper};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct TestcaseDB {
-    token_id: String,
+    pub token_id: String,
+    pub attrs: TestcaseAttrs,
 }
 
 impl StorageMapper<TestcaseDB> for Testcase {
     fn to_db(&self) -> TestcaseDB {
         TestcaseDB {
             token_id: self.token_id.clone(),
+            attrs: self.attrs.clone(),
         }
     }
 }
@@ -36,12 +38,9 @@ impl<'a> IndexList<TestcaseDB> for TestcaseIndexes<'a> {
 
 pub fn storage_testcases<'a>() -> IndexedMap<'a, &'a [u8], TestcaseDB, TestcaseIndexes<'a>> {
     let indexes = TestcaseIndexes {
-        token_id: UniqueIndex::new(
-            |o| PkOwned(o.token_id.as_bytes().to_vec()),
-            "normal_dataset",
-        ),
+        token_id: UniqueIndex::new(|o| PkOwned(o.token_id.as_bytes().to_vec()), "testcase"),
     };
-    IndexedMap::new("normal_dataset", indexes)
+    IndexedMap::new("testcase", indexes)
 }
 
 pub fn get_testcase_by_id(deps: DepsMut, token_id: &str) -> StdResult<Testcase> {
