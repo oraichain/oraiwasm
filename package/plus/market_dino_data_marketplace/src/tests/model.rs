@@ -1,8 +1,13 @@
-use crate::model::dataset::{
-    DatasetFactory, Datasource, NormalDataset, NormalDatasetAttrs, Testcase, TestcaseAttrs,
-    TYPE_DATASET_NORMAL, TYPE_DATASET_TESTCASE,
+use crate::model::{
+    dataset::{
+        DatasetFactory, Datasource, NormalDataset, NormalDatasetAttrs, Testcase, TestcaseAttrs,
+        TYPE_DATASET_NORMAL, TYPE_DATASET_TESTCASE,
+    },
+    offering::UsageOfferingSold,
 };
 use cosmwasm_std::HumanAddr;
+
+use crate::model::CompositeKeyModel;
 
 #[test]
 fn test_dataset_type() {
@@ -37,4 +42,18 @@ fn test_datasource_get_name() {
     };
 
     assert_eq!(eueno_instance.get_name(), "EUENO")
+}
+
+#[test]
+fn test_composite_key_on_usage_offering_solds() {
+    let usage_offering_sold_ins = UsageOfferingSold {
+        offering_id: String::from("offering_id"),
+        version: String::from("1.0.1"),
+        buyer: HumanAddr::from("buyer_addr"),
+        is_available: true,
+    };
+    assert_eq!(
+        usage_offering_sold_ins.get_composite_key(),
+        "offering_id/buyer_addr/1.0.1"
+    );
 }
