@@ -79,7 +79,7 @@ pub enum QueryMsg {
         pubkey: Binary,
     },
     GetExecutorSize {},
-    Request {
+    GetRequest {
         stage: u64,
     },
     GetRequests {

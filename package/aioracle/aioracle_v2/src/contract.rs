@@ -21,7 +21,7 @@ use crate::executors::{
     query_executors, query_executors_by_index, query_trusting_pool, query_trusting_pools,
     remove_executors, save_executors, update_executors,
 };
-use crate::migrations::migrate_v02_to_v03;
+
 use crate::msg::{
     CurrentStageResponse, GetParticipantFee, GetServiceContracts, GetServiceFees, HandleMsg,
     InitMsg, IsClaimedResponse, LatestStageResponse, MigrateMsg, QueryMsg, Report, RequestResponse,
@@ -515,7 +515,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => to_binary(&query_executors_by_index(deps, offset, limit, order)?),
         QueryMsg::GetExecutor { pubkey } => to_binary(&query_executor(deps, pubkey)?),
         QueryMsg::GetExecutorSize {} => to_binary(&query_executor_size(deps)?),
-        QueryMsg::Request { stage } => to_binary(&query_request(deps, stage)?),
+        QueryMsg::GetRequest { stage } => to_binary(&query_request(deps, stage)?),
         QueryMsg::GetRequests {
             offset,
             limit,
