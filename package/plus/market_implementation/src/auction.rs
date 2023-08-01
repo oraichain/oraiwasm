@@ -38,7 +38,7 @@ pub fn try_bid_nft(
     // native_funds: Option<Vec<Coin>>,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
-        denom, governance, ..
+         governance, ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if auction exists, when return StdError => it will show EOF while parsing a JSON value.

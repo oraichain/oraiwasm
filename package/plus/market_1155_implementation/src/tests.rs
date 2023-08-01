@@ -277,6 +277,7 @@ impl DepsManager {
             governance: HumanAddr::from(HUB_ADDR),
             auction_duration: Uint128::from(10000000000000u64),
             step_price: 1,
+            admin: ["admin".into()].into()
         };
 
         let _res = init(deps.as_mut(), mock_env(MARKET_ADDR), info.clone(), msg).unwrap();

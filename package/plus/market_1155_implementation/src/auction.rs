@@ -9,9 +9,9 @@ use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
     attr, to_binary, Decimal, DepsMut, Env, HandleResponse, MessageInfo, Uint128, WasmMsg, StdResult,
 };
-use cosmwasm_std::{Coin, HumanAddr};
+use cosmwasm_std:: HumanAddr;
 use cw1155::Cw1155ExecuteMsg;
-use market::{AssetInfo, Funds};
+use market::Funds;
 use market_ai_royalty::{parse_transfer_msg, pay_royalties};
 use market_auction_extend::{Auction, AuctionHandleMsg, AuctionQueryMsg};
 use market_payment::{Payment, PaymentHandleMsg};
@@ -35,7 +35,7 @@ pub fn try_bid_nft(
     // native_funds: Option<Vec<Coin>>,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
-        denom, governance, ..
+         governance, ..
     } = CONTRACT_INFO.load(deps.storage)?;
 
     // check if auction exists, when return StdError => it will show EOF while parsing a JSON value.
@@ -76,8 +76,6 @@ pub fn try_bid_nft(
         &token_id,
         deps.api.human_address(&off.asker)?.as_str(),
     )?;
-
-    println!("asset info: {:?}", asset_info);
 
     // check minimum price
     // check for enough coins, if has price then payout to all participants

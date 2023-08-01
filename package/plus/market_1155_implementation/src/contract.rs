@@ -4,7 +4,7 @@ use crate::auction::{
 };
 use crate::offering::{
     try_burn, try_buy, try_change_creator, try_handle_mint, try_handle_transfer_directly,
-    try_sell_nft, try_withdraw,
+    try_sell_nft, try_withdraw, try_handle_mint_for,
 };
 use std::fmt;
 
@@ -12,7 +12,7 @@ use crate::error::ContractError;
 use crate::msg::{
     HandleMsg, InitMsg, MigrateMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, UpdateContractMsg,
 };
-use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
+use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES, ADMIN};
 use cosmwasm_std::{
     attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
     InitResponse, MessageInfo, MigrateResponse, StdError, StdResult, Uint128,
@@ -73,6 +73,11 @@ pub fn init(
         auction_duration: msg.auction_duration,
         step_price: msg.step_price,
     };
+
+    for admin in msg.admin.iter(){
+        ADMIN.save(deps.storage, admin.as_bytes(), &true)?;
+    }
+
     CONTRACT_INFO.save(deps.storage, &info)?;
     MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
     Ok(InitResponse::default())
@@ -141,11 +146,12 @@ pub fn handle(
             to,
         } => try_change_creator(deps, info, env, contract_addr, token_id, to),
         HandleMsg::TransferNftDirectly(msg) => try_handle_transfer_directly(deps, info, env, msg),
+        HandleMsg::MintForNft(msg) => try_handle_mint_for(deps, info, msg),
     }
 }
 
 pub fn migrate(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
     _msg: MigrateMsg,

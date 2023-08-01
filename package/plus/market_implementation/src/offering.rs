@@ -10,7 +10,7 @@ use cosmwasm_std::{
     attr, from_binary, to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse,
     MessageInfo, StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{Coin, HumanAddr};
+use cosmwasm_std::HumanAddr;
 use cw721::Cw721HandleMsg;
 use market::{query_proxy, AssetInfo, Funds, StorageHandleMsg};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties, sanitize_royalty, Royalty, RoyaltyMsg};

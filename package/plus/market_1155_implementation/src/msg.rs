@@ -16,6 +16,7 @@ pub struct InitMsg {
     pub governance: HumanAddr,
     pub auction_duration: Uint128,
     pub step_price: u64,
+    pub admin: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -42,6 +43,7 @@ pub enum HandleMsg {
     },
     /// Mint a new NFT, can only be called by the contract minter
     MintNft(MintMsg),
+    MintForNft(MintMsg),
     BurnNft {
         contract_addr: HumanAddr,
         token_id: String,

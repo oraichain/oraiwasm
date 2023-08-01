@@ -7,7 +7,7 @@ use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
     coin, coins, from_binary, from_slice, to_binary, Binary, ContractResult, CosmosMsg, Decimal,
     Env, HandleResponse, HumanAddr, MessageInfo, Order, OwnedDeps, QuerierResult, StdResult,
-    SystemError, SystemResult, Uint128, WasmMsg, WasmQuery, StdError,
+    SystemError, SystemResult, Uint128, WasmMsg, WasmQuery
 };
 use cw20::{Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse};
 use cw721::{ApprovedForAllResponse, OwnerOfResponse};
@@ -23,7 +23,6 @@ use market_whitelist::MarketWhiteListHandleMsg;
 use std::mem::transmute;
 use std::ops::{Add, Mul};
 use std::ptr::null;
-use std::str::from_utf8;
 
 pub const CREATOR: &str = "owner";
 pub const MARKET_ADDR: &str = "market_addr";

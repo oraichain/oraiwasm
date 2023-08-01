@@ -7,7 +7,7 @@ use crate::error::ContractError;
 use crate::msg::{SellNft, TransferNftDirectlyMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
-    attr, to_binary, Coin, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse, MessageInfo,
+    attr, to_binary, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse, MessageInfo,
     StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{HumanAddr, StdError};
@@ -118,6 +118,52 @@ pub fn try_handle_mint(
     Ok(response)
 }
 
+pub fn try_handle_mint_for(
+    deps: DepsMut,
+    info: MessageInfo,
+    msg: MintMsg,
+) -> Result<HandleResponse, ContractError> {
+    // query nft royalties. If exist => check, only creator can continue minting
+    let royalty_result = get_royalties(
+        deps.as_ref(),
+        msg.contract_addr.as_str(),
+        msg.mint.mint.token_id.as_str(),
+    )
+    .ok();
+
+    if let Some(royalties) = royalty_result {
+        if royalties.len() > 0
+            && royalties
+                .iter()
+                .find(|royalty| royalty.creator.eq(&info.sender))
+                .is_none()
+        {
+            return Err(ContractError::Std(StdError::generic_err(
+                "You're not the creator of the nft, cannot mint",
+            )));
+        }
+    }
+
+    let mint_msg = WasmMsg::Execute {
+        contract_addr: msg.contract_addr.clone(),
+        msg: to_binary(&msg.mint)?,
+        send: vec![],
+    }
+    .into();
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+
+    let mut cosmos_msgs = add_msg_royalty(info.sender.as_str(), &governance, msg)?;
+    cosmos_msgs.push(mint_msg);
+
+    let response = HandleResponse {
+        messages: cosmos_msgs,
+        attributes: vec![attr("action", "mint_nft_for"), attr("minter", info.sender)],
+        data: None,
+    };
+
+    Ok(response)
+}
+
 pub fn try_handle_transfer_directly(
     deps: DepsMut,
     info: MessageInfo,
@@ -127,7 +173,7 @@ pub fn try_handle_transfer_directly(
     let mut rsp = HandleResponse::default();
     let mut cosmos_msgs = vec![];
 
-    let final_seller = verify_nft(
+    verify_nft(
         deps.as_ref(),
         _env.contract.address.as_str(),
         msg.contract_addr.as_str(),

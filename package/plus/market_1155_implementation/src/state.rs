@@ -3,7 +3,7 @@ use market::MarketHubContract;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cw_storage_plus::Item;
+use cw_storage_plus::{Item, Map};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
@@ -23,3 +23,4 @@ pub struct ContractInfo {
 
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("contract_info");
 pub const MARKET_FEES: Item<Uint128> = Item::new("market_fees");
+pub const ADMIN: Map<&[u8], bool> = Map::new("admin");

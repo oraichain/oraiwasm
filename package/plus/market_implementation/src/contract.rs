@@ -10,7 +10,7 @@ use crate::auction::{
 };
 
 use crate::offering::{
-    query_offering, try_buy, try_handle_mint, try_handle_sell_nft, try_withdraw, OFFERING_STORAGE,
+    query_offering, try_buy, try_handle_mint, try_handle_sell_nft, try_withdraw, OFFERING_STORAGE
 };
 
 use crate::error::ContractError;
@@ -71,6 +71,7 @@ pub fn init(
         max_royalty: sanitize_royalty(msg.max_royalty, MAX_ROYALTY_PERCENT, "max_royalty")?,
         decimal_point: msg.max_decimal_point,
     };
+
     CONTRACT_INFO.save(deps.storage, &info)?;
     MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
     Ok(InitResponse::default())
@@ -189,7 +190,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub fn migrate(
-    deps: DepsMut,
+    _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
     _msg: MigrateMsg,
