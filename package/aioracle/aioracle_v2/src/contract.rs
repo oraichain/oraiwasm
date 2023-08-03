@@ -21,7 +21,6 @@ use crate::executors::{
     query_executors, query_executors_by_index, query_trusting_pool, query_trusting_pools,
     remove_executors, save_executors, update_executors,
 };
-use crate::migrations::migrate_v02_to_v03;
 use crate::msg::{
     CurrentStageResponse, GetParticipantFee, GetServiceContracts, GetServiceFees, HandleMsg,
     InitMsg, IsClaimedResponse, LatestStageResponse, MigrateMsg, QueryMsg, Report, RequestResponse,
@@ -152,7 +151,6 @@ pub fn migrate(
     // migrate_v02_to_v03(deps.storage)?;
     let executor_index = EXECUTORS_INDEX.load(deps.storage)?;
     EXECUTORS_INDEX.save(deps.storage, &(executor_index + 1))?;
-
     // once we have "migrated", set the new version and return success
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(MigrateResponse {

@@ -1,5 +1,5 @@
 use aioracle_base::GetServiceFeesMsg;
-use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, HumanAddr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +10,6 @@ pub struct InitMsg {
     pub service: String,
     pub service_contracts: Contracts,
     pub service_fees_contract: HumanAddr,
-    pub bound_executor_fee: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -35,10 +34,15 @@ pub enum HandleMsg {
         service: String,
         contracts: Contracts,
     },
-    UpdateConfig {
+    UpdateServiceInfo {
+        service: String,
         owner: Option<HumanAddr>,
         service_fees_contract: Option<HumanAddr>,
-        bound_executor_fee: Option<Coin>,
+    },
+    AddServiceInfo {
+        service: String,
+        contracts: Contracts,
+        service_fees_contract: HumanAddr,
     },
 }
 
@@ -54,6 +58,7 @@ pub enum QueryMsg {
     ServiceFeeMsg { service: String },
     GetParticipantFee { addr: HumanAddr },
     GetBoundExecutorFee {},
+    ServiceInfoMsg { service: String },
 }
 
 // for query other contract
