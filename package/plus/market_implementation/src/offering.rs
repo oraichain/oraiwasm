@@ -59,11 +59,9 @@ pub fn try_handle_mint(
 
 pub fn try_buy(
     deps: DepsMut,
-    sender: HumanAddr,
+    buyer: HumanAddr,
     env: Env,
     offering_id: u64,
-    // token_funds: Option<Uint128>,
-    // native_funds: Option<Vec<Coin>>,
     funds: Funds,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
@@ -106,8 +104,6 @@ pub fn try_buy(
         // we collect asset info to check transfer method later
         verify_funds(
             &funds,
-            // native_funds.as_deref(),
-            // token_funds,
             asset_info.clone(),
             &seller_amount,
         )?;
@@ -182,7 +178,7 @@ pub fn try_buy(
 
     // create transfer cw721 msg
     let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
-        recipient: sender.clone(),
+        recipient: buyer.clone(),
         token_id: token_id.clone(),
     };
 
@@ -205,7 +201,7 @@ pub fn try_buy(
 
     rsp.messages = cosmos_msgs;
     rsp.attributes.extend(vec![
-        attr("buyer", sender),
+        attr("buyer", buyer),
         attr("seller", seller_addr),
         attr("token_id", token_id.clone()),
         attr("offering_id", offering_id),
@@ -213,28 +209,6 @@ pub fn try_buy(
         attr("royalty", true),
     ]);
 
-    // let mut handle_response = HandleResponse {
-    //     messages: cosmos_msgs,
-    //     attributes: vec![
-    //         attr("action", "buy_nft"),
-    //         attr("buyer", info.sender),
-    //         attr("seller", seller_addr),
-    //         attr("token_id", off.token_id.clone()),
-    //         attr("offering_id", offering_id),
-    //         attr("total_price", off.price),
-    //         attr("royalty", true),
-    //     ],
-    //     data: None,
-    // };
-    // let royalties = get_royalties(deps.as_ref(), contract_addr.as_str(), &off.token_id)
-    //     .ok()
-    //     .unwrap_or(vec![]);
-    // for royalty in royalties {
-    //     handle_response.attributes.push(attr(
-    //         format!("royalty_{}_{}", royalty.creator_type, royalty.creator),
-    //         royalty.royalty,
-    //     ));
-    // }
 
     Ok(rsp)
 }

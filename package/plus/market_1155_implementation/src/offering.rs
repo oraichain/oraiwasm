@@ -42,21 +42,6 @@ pub fn add_msg_royalty(
         }),
     )?);
 
-    // providers are the list that the minter wants to share royalty with
-    // if let Some(providers) = msg.providers {
-    //     for provider in providers {
-    //         cosmos_msgs.push(get_handle_msg(
-    //             governance,
-    //             AI_ROYALTY_STORAGE,
-    //             AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
-    //                 creator: provider.address,
-    //                 creator_type: provider.creator_tpye,
-    //                 royalty: provider.royalty,
-    //                 ..royalty_msg.clone()
-    //             }),
-    //         )?);
-    //     }
-    // }
 
     // update creator as the caller of the mint tx
     cosmos_msgs.push(get_handle_msg(
@@ -217,12 +202,10 @@ pub fn try_handle_transfer_directly(
 
 pub fn try_buy(
     deps: DepsMut,
-    sender: HumanAddr,
+    buyer: HumanAddr,
     env: Env,
     offering_id: u64,
     amount: Uint128,
-    // token_funds: Option<Uint128>,
-    // native_funds: Option<Vec<Coin>>,
     funds: Funds,
 ) -> Result<HandleResponse, ContractError> {
     let ContractInfo {
@@ -261,8 +244,6 @@ pub fn try_buy(
         let price = off.per_price.mul(Decimal::from_ratio(amount.u128(), 1u128));
 
         verify_funds(
-            // native_funds.as_deref(),
-            // token_funds,
             &funds,
             asset_info.clone(),
             &price,
@@ -310,7 +291,7 @@ pub fn try_buy(
     let transfer_cw721_msg = Cw1155ExecuteMsg::SendFrom {
         token_id: token_id.clone(),
         from: off.seller.to_string(),
-        to: sender.clone().to_string(),
+        to: buyer.clone().to_string(),
         value: amount,
         msg: None,
     };
@@ -345,7 +326,7 @@ pub fn try_buy(
     }
     rsp.messages = cosmos_msgs;
     rsp.attributes.extend(vec![
-        attr("buyer", sender),
+        attr("buyer", buyer),
         attr("seller", seller_addr),
         attr("offering_id", offering_id),
         attr("per_price", off.per_price),

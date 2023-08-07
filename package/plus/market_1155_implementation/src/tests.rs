@@ -10,7 +10,7 @@ use cosmwasm_std::{
     SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw1155::{BalanceResponse, Cw1155ExecuteMsg, Cw1155QueryMsg};
-use cw20::{Cw20CoinHuman, Cw20HandleMsg, Cw20ReceiveMsg, MinterResponse};
+use cw20::{Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse};
 use market::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_1155::{Cw20HookMsg, MarketQueryMsg, MintIntermediate, MintMsg, MintStruct, Offering};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
@@ -2017,6 +2017,7 @@ fn test_royalties() {
         let buy_msg = HandleMsg::BuyNft {
             offering_id: 1,
             amount: Uint128::from(50u64),
+            buyer: None
         };
         let info_buy = mock_info("seller", &coins(500, DENOM));
 
@@ -2046,6 +2047,7 @@ fn test_royalties() {
         let buy_msg = HandleMsg::BuyNft {
             offering_id: 2,
             amount: Uint128::from(50u64),
+            buyer: None
         };
         let info_buy = mock_info("buyer1", &coins(500, DENOM));
 
@@ -2344,6 +2346,7 @@ fn test_buy_market_fee_calculate() {
         let buy_msg = HandleMsg::BuyNft {
             offering_id: 1,
             amount: Uint128::from(50u64),
+            buyer: None
         };
         let info_buy = mock_info("buyer", &coins(5000, DENOM));
 
@@ -2683,6 +2686,7 @@ fn test_buy_nft_unhappy() {
         let buy_msg = HandleMsg::BuyNft {
             offering_id: 1,
             amount: Uint128::from(5u64),
+            buyer: None
         };
         let info_buy = mock_info("buyer", &coins(10, DENOM));
 

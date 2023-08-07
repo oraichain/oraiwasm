@@ -142,16 +142,18 @@ pub fn handle(
         // royalty
         HandleMsg::MintNft(msg) => try_handle_mint(deps, info, msg),
         HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, env, offering_id),
-        HandleMsg::BuyNft { offering_id } => try_buy(
-            deps,
-            info.sender,
-            env,
-            offering_id,
-            Funds::Native {
-                fund: info.sent_funds,
-            },
-            // Some(info.sent_funds),
-        ),
+        HandleMsg::BuyNft { offering_id,buyer } => {
+            let buyer = buyer.unwrap_or(info.sender);
+            try_buy(
+                deps,
+                buyer,
+                env,
+                offering_id,
+                Funds::Native {
+                    fund: info.sent_funds,
+                },
+            )
+        },
         HandleMsg::MigrateVersion {
             nft_contract_addr,
             token_ids,
@@ -307,27 +309,6 @@ pub fn try_update_info(
     })
 }
 
-// when user sell NFT to
-// pub fn try_receive_nft(
-//     deps: DepsMut,
-//     info: MessageInfo,
-//     env: Env,
-//     rcv_msg: Cw721ReceiveMsg,
-// ) -> Result<HandleResponse, ContractError> {
-//     if let Some(msg) = rcv_msg.msg.clone() {
-//         if let Ok(ask_msg) = from_binary::<AskNftMsg>(&msg) {
-//             return handle_ask_auction(deps, info, env, ask_msg, rcv_msg);
-//         }
-//         if let Ok(sell_msg) = from_binary::<SellNft>(&msg) {
-//             return handle_sell_nft(deps, info, sell_msg, rcv_msg);
-//         }
-//         if let Ok(gift_msg) = from_binary::<GiftNft>(&msg) {
-//             return handle_transfer_nft(info, gift_msg, rcv_msg);
-//         }
-//     }
-//     Err(ContractError::NoData {})
-// }
-
 pub fn try_migrate(
     deps: DepsMut,
     info: MessageInfo,
@@ -382,15 +363,6 @@ pub fn handle_transfer_nft(
         recipient,
         ..
     } = gift_msg;
-
-    
-    // verify owner. Wont allow to transfer if it's not the owner of the nft
-    // verify_owner(
-        //     deps.as_ref(),
-        //     contract_addr.as_str(),
-        //     token_id.as_str(),
-        //     info.sender.as_str(),
-        // )?;
         
     let ContractInfo {
             governance,
@@ -555,12 +527,6 @@ pub fn verify_nft(
 }
 
 pub fn verify_native_funds(native_funds: &[Coin], denom: &str, price: &Uint128) -> StdResult<()> {
-    // native case, and no extra data has been provided => use default denom, which is orai
-    // if native_funds.is_none() {
-    //     return Err(StdError::generic_err(
-    //         ContractError::InvalidSentFundAmount {}.to_string(),
-    //     ));
-    // }
     if let Some(sent_fund) = native_funds.iter().find(|fund| fund.denom.eq(&denom)) {
         if sent_fund.amount.lt(price) {
             return Err(StdError::generic_err(
@@ -588,8 +554,6 @@ pub fn parse_asset_info(extra_data: ExtraData) -> AssetInfo {
 }
 
 pub fn verify_funds(
-    // native_funds: Option<&[Coin]>,
-    // token_funds: Option<Uint128>,
     funds: &Funds,
     asset_info: AssetInfo,
     price: &Uint128,

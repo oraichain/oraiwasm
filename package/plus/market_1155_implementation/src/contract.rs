@@ -101,18 +101,19 @@ pub fn handle(
         HandleMsg::BuyNft {
             offering_id,
             amount,
-        } => try_buy(
+            buyer
+        } => {
+            let buyer = buyer.unwrap_or(info.sender);
+            try_buy(
             deps,
-            info.sender,
+            buyer,
             env,
             offering_id,
             amount,
             Funds::Native {
                 fund: info.sent_funds,
             },
-            // None,
-            // Some(info.sent_funds),
-        ),
+        )},
         HandleMsg::BurnNft {
             contract_addr,
             token_id,

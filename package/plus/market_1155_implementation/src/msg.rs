@@ -40,6 +40,7 @@ pub enum HandleMsg {
     BuyNft {
         offering_id: u64,
         amount: Uint128,
+        buyer: Option<HumanAddr>
     },
     /// Mint a new NFT, can only be called by the contract minter
     MintNft(MintMsg),

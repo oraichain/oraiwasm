@@ -1948,7 +1948,7 @@ fn test_royalties() {
         .unwrap();
         println!("offerings: {:?}", result);
 
-        let buy_msg = HandleMsg::BuyNft { offering_id: 1 };
+        let buy_msg = HandleMsg::BuyNft { offering_id: 1, buyer: None };
         let info_buy = mock_info("buyer", &coins(50, DENOM));
         manager.handle(info_buy, buy_msg).unwrap();
 
@@ -1984,7 +1984,7 @@ fn test_royalties() {
         println!("{:?}", result);
 
         // other buyer
-        let buy_msg = HandleMsg::BuyNft { offering_id: 2 };
+        let buy_msg = HandleMsg::BuyNft { offering_id: 2, buyer: None };
         let info_buy = mock_info("buyer1", &coins(70, DENOM));
         manager.handle(info_buy, buy_msg).unwrap();
 
@@ -2013,7 +2013,7 @@ fn test_royalties() {
             .unwrap();
         let offering: QueryOfferingsResult = from_binary(&offering_bin).unwrap();
         // other buyer again
-        let buy_msg = HandleMsg::BuyNft { offering_id: 3 };
+        let buy_msg = HandleMsg::BuyNft { offering_id: 3, buyer: None };
         let info_buy = mock_info("buyer2", &coins(9000000, DENOM));
 
         // before the final buy
@@ -2193,7 +2193,7 @@ fn test_royalties_ow20() {
         let buy_msg = HandleMsg::Receive(Cw20ReceiveMsg {
             sender: HumanAddr::from("buyer"),
             amount: Uint128::from(50u64),
-            msg: Some(to_binary(&Cw20HookMsg::BuyNft { offering_id: 1 }).unwrap()),
+            msg: Some(to_binary(&Cw20HookMsg::BuyNft { offering_id: 1}).unwrap()),
         });
         let _res = manager
             .handle(mock_info("buyer", &vec![]), buy_msg)
@@ -2474,9 +2474,9 @@ fn test_buy_market_fee_calculate() {
         // Buy nft and check market fee storage
         let current_market_fee: Uint128 = from_binary(&manager.query(QueryMsg::GetMarketFees {  }).unwrap()).unwrap();
 
-        let buy_msg = HandleMsg::BuyNft { offering_id: 1 };
+        let buy_msg = HandleMsg::BuyNft { offering_id: 1, buyer: None };
         let info_buy = mock_info("buyer", &coins(100, DENOM));
-        let buy_result = manager.handle(info_buy, buy_msg).unwrap();
+        let _buy_result = manager.handle(info_buy, buy_msg).unwrap();
 
         let after_buy_market_fee: Uint128 = from_binary(&manager.query(QueryMsg::GetMarketFees {  }).unwrap()).unwrap();
         // 2% market fee of 100 = 2
@@ -2818,7 +2818,7 @@ fn test_buy_nft_unhappy() {
     unsafe {
         let manager = DepsManager::get_new();
         handle_whitelist(manager);
-        let buy_msg = HandleMsg::BuyNft { offering_id: 1 };
+        let buy_msg = HandleMsg::BuyNft { offering_id: 1, buyer:None };
         let info_buy = mock_info("buyer", &coins(10, DENOM));
 
         // offering not found
