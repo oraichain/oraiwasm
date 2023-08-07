@@ -4,6 +4,10 @@
     "gen-ts": "node gen-ts.js"
   },
   "dependencies": {
+    "@cosmjs/cosmwasm-stargate": "^0.29.5",
+    "@cosmjs/proto-signing": "^0.29.5",
+    "@cosmjs/stargate": "^0.29.5",
+    "dotenv": "^16.3.1",
     "json-schema-to-typescript": "^10.1.5"
   }
 }

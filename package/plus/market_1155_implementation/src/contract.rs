@@ -147,6 +147,7 @@ pub fn handle(
         } => try_change_creator(deps, info, env, contract_addr, token_id, to),
         HandleMsg::TransferNftDirectly(msg) => try_handle_transfer_directly(deps, info, env, msg),
         HandleMsg::MintForNft(msg) => try_handle_mint_for(deps, info, msg),
+        HandleMsg::UpdateAdmin { admin, permission } => try_handle_update_admin(deps, info, admin, permission),
     }
 }
 
@@ -171,6 +172,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             query_storage_binary(deps, AI_ROYALTY_STORAGE, ai_royalty_msg)
         }
         QueryMsg::Auction(auction) => query_storage_binary(deps, AUCTION_STORAGE, auction),
+        QueryMsg::Admin { address } => to_binary(&ADMIN.load(deps.storage, address.as_bytes())?),
     }
 }
 
@@ -289,6 +291,29 @@ pub fn try_update_info(
     })
 }
 
+pub fn try_handle_update_admin(
+    deps: DepsMut,
+    info: MessageInfo,
+    admin: HumanAddr,
+    permission: bool,
+)-> Result<HandleResponse, ContractError>{
+    let contract_info = CONTRACT_INFO.load(deps.as_ref().storage)?;
+
+    if !info.sender.to_string().eq(&contract_info.creator) {
+        return Err(ContractError::Unauthorized {
+            sender: info.sender.to_string(),
+        });
+    }
+
+    ADMIN.save(deps.storage, admin.as_bytes(), &permission)?;
+
+    Ok(HandleResponse{
+        messages: vec![],
+        attributes: vec![attr("action", "update_admin")],
+        data: to_binary(&admin).ok(),
+    })
+
+}
 pub fn verify_native_funds(native_funds: &[Coin], denom: &str, price: &Uint128) -> StdResult<()> {
     // native case, and no extra data has been provided => use default denom, which is orai
     // if native_funds.is_none() {

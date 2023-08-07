@@ -5,7 +5,7 @@ use crate::contract::{
 };
 use crate::error::ContractError;
 use crate::msg::{SellNft, TransferNftDirectlyMsg};
-use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
+use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES, ADMIN};
 use cosmwasm_std::{
     attr, to_binary, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse, MessageInfo,
     StdResult, Uint128, WasmMsg,
@@ -123,6 +123,10 @@ pub fn try_handle_mint_for(
     info: MessageInfo,
     msg: MintMsg,
 ) -> Result<HandleResponse, ContractError> {
+    let is_admin = ADMIN.load(deps.storage, &info.sender.as_bytes())?;
+    if !is_admin {
+        return Err(ContractError::Unauthorized { sender: info.sender.to_string()});
+    }
     // query nft royalties. If exist => check, only creator can continue minting
     let royalty_result = get_royalties(
         deps.as_ref(),

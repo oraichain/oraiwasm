@@ -69,6 +69,10 @@ pub enum HandleMsg {
     },
     AskAuctionNft(AskNftMsg),
     TransferNftDirectly(TransferNftDirectlyMsg),
+    UpdateAdmin{
+        admin: HumanAddr,
+        permission: bool
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -127,6 +131,7 @@ pub enum QueryMsg {
     Offering(MarketQueryMsg),
     AiRoyalty(AiRoyaltyQueryMsg),
     Auction(AuctionQueryMsg),
+    Admin{address:HumanAddr}
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
