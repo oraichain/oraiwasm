@@ -5,7 +5,7 @@ use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, s
 
 use cosmwasm_std::{Binary, Uint128};
 use market_auction::Auction;
-use market_implementation::msg::{AskNftMsg, HandleMsg, InitMsg, QueryMsg};
+use market_implementation::msg::{HandleMsg, InitMsg, QueryMsg};
 use market_implementation::state::ContractInfo;
 use market_royalty::Offering;
 
@@ -18,7 +18,6 @@ fn main() {
     export_schema_with_title(&mut schema_for!(InitMsg), &out_dir, "InstantiateMsg");
     export_schema_with_title(&mut schema_for!(HandleMsg), &out_dir, "ExecuteMsg");
     export_schema(&schema_for!(QueryMsg), &out_dir);
-    export_schema(&schema_for!(AskNftMsg), &out_dir);
 
     export_schema_with_title(
         &mut schema_for!(ContractInfo),
