@@ -70,7 +70,8 @@ async function setUp() {
     uploadResult.codeId,
     initMsg,
     "orai_market_1155_implementation",
-    "auto"
+    "auto",
+    { admin: signer.address }
   );
 
   console.log(response.contractAddress);
