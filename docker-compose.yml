@@ -1,7 +1,0 @@
-version: '3.3'
-services:
-  app:
-    image: orai/cosmwasm-optimizer:0.0.1 # derived from cosmwasm/workspace-optimizer:0.12.6. Source: https://github.com/CosmWasm/rust-optimizer
-    entrypoint: tail -f /dev/null
-    volumes:
-      - ./:/code
