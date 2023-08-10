@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Cw20HookMsg {
-    BuyNft { offering_id: u64, amount: Uint128 },
+    BuyNft { offering_id: u64, amount: Uint128, buyer: Option<HumanAddr> },
     BidNft { auction_id: u64, per_price: Uint128 },
 }
 

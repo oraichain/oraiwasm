@@ -210,12 +210,11 @@ pub fn try_receive_cw20(
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<HandleResponse, ContractError> {
     match from_binary(&cw20_msg.msg.unwrap_or(Binary::default())) {
-        Ok(Cw20HookMsg::BuyNft { offering_id }) => try_buy(
+        Ok(Cw20HookMsg::BuyNft { offering_id, buyer }) => try_buy(
             deps,
-            cw20_msg.sender,
+            buyer.unwrap_or(cw20_msg.sender),
             env,
             offering_id,
-            // Some(cw20_msg.amount),
             Funds::Cw20 {
                 fund: cw20_msg.amount,
             },

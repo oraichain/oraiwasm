@@ -584,6 +584,7 @@ fn generate_msg_buy_cw20(offering_id: u64, amount: u64, nft_amount: u64) -> Hand
             to_binary(&Cw20HookMsg::BuyNft {
                 offering_id,
                 amount: Uint128::from(nft_amount),
+                buyer:None
             })
             .unwrap(),
         ),

@@ -189,9 +189,10 @@ pub fn try_receive_cw20(
         Ok(Cw20HookMsg::BuyNft {
             offering_id,
             amount,
+            buyer
         }) => try_buy(
             deps,
-            cw20_msg.sender,
+            buyer.unwrap_or(cw20_msg.sender),
             env,
             offering_id,
             amount,

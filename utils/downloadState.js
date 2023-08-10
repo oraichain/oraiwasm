@@ -1,7 +1,11 @@
 const { appendFileSync } = require("fs");
 
-const downloadState = async (contractAddress, writeCallback, limit = 200) => {
-  let nextKey;
+const downloadState = async (
+  contractAddress,
+  writeCallback,
+  nextKey = undefined,
+  limit = 200
+) => {
   while (true) {
     const url = new URL(
       `https://lcd.orai.io/cosmwasm/wasm/v1/contract/${contractAddress}/state`

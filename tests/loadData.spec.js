@@ -12,12 +12,22 @@ describe("Test load data", () => {
   it("should load data successfully", async () => {
     const admin = "orai1zsqaw40hcj4hk7r2g3xz864gda9vpq3ze9vpxc";
     const contractTest = "orai14tqq093nu88tzs7ryyslr78sm3tzrmnpem6fak";
+
+    const {
+      contract_info: { code_id },
+    } = await fetch(
+      `https://lcd.orai.io/cosmwasm/wasm/v1/contract/${contractTest}`
+    ).then((res) => res.json());
+    const { data: wasm } = await fetch(
+      `https://lcd.orai.io/cosmwasm/wasm/v1/code/${code_id}`
+    ).then((res) => res.json());
+
     const { codeId } = await client.upload(
       admin,
-      readFileSync(
-        resolve(__dirname, "../artifacts/market_hub/market_hub.wasm")
-      )
+      Buffer.from(wasm, "base64"),
+      "auto"
     );
+
     await client.loadContract(
       contractTest,
       {

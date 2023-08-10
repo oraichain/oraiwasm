@@ -2193,7 +2193,7 @@ fn test_royalties_ow20() {
         let buy_msg = HandleMsg::Receive(Cw20ReceiveMsg {
             sender: HumanAddr::from("buyer"),
             amount: Uint128::from(50u64),
-            msg: Some(to_binary(&Cw20HookMsg::BuyNft { offering_id: 1}).unwrap()),
+            msg: Some(to_binary(&Cw20HookMsg::BuyNft { offering_id: 1, buyer:None}).unwrap()),
         });
         let _res = manager
             .handle(mock_info("buyer", &vec![]), buy_msg)
@@ -2234,7 +2234,7 @@ fn test_royalties_ow20() {
         let buy_msg = HandleMsg::Receive(Cw20ReceiveMsg {
             sender: HumanAddr::from("buyer1"),
             amount: Uint128::from(70u64),
-            msg: Some(to_binary(&Cw20HookMsg::BuyNft { offering_id: 2 }).unwrap()),
+            msg: Some(to_binary(&Cw20HookMsg::BuyNft { offering_id: 2, buyer:None }).unwrap()),
         });
         let _res = manager
             .handle(mock_info("buyer1", &vec![]), buy_msg)
@@ -2270,7 +2270,7 @@ fn test_royalties_ow20() {
         let buy_msg = HandleMsg::Receive(Cw20ReceiveMsg {
             sender: HumanAddr::from("buyer2"),
             amount: Uint128::from(9000000u64),
-            msg: Some(to_binary(&Cw20HookMsg::BuyNft { offering_id: 3 }).unwrap()),
+            msg: Some(to_binary(&Cw20HookMsg::BuyNft { offering_id: 3, buyer:None }).unwrap()),
         });
         // before the final buy
         let result_royalty: OfferingRoyalty = from_binary(

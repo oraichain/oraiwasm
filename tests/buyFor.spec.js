@@ -4,39 +4,10 @@ const { SimulateCosmWasmClient } = require("@oraichain/cw-simulate");
 
 const admin = "orai14vcw5qk0tdvknpa38wz46js5g7vrvut8lk0lk6";
 
-const market_hub = "orai14tqq093nu88tzs7ryyslr78sm3tzrmnpem6fak";
-const market_offering_storage = "orai1hur7m6wu7v79t6m3qal6qe0ufklw8uckrxk5lt";
-const market_1155_storage = "orai1v2psavrxwgh39v0ead7z4rcn4qq2cfnast98m9";
-const market_rejected_storage = "orai1fp9lernzdwkg5z9l9ejrwjmjvezzypacspmw27";
-const market_whitelist_storage = "orai1u4zqgyt8adq45a8xffc356dr8dqsny6merh0h0";
-const market_721_payment_storage =
-  "orai1ynvtgqffwgcxxx0hnehj4t7gsmv25nrr770s83";
-const market_1155_payment_storage =
-  "orai1l783x7q0yvr9aklr2zkpkpspq7vmxmfnndgl7c";
-const market_auction_storage = "orai1u8r0kkmevkgjkeacfgh0jv268kap82af937pwz";
-const market_ai_royalty_storage = "orai1s5jlhcnqc00hqmldhts5jtd7f3tfwmr4lfheg8";
-const ow1155 = "orai1c3phe2dcu852ypgvt0peqj8f5kx4x0s4zqcky4";
-const ow721 = "orai1ase8wkkhczqdda83f0cd9lnuyvf47465j70hyk";
-let market_1155_impl, market_721_impl;
-
-const setUpList = [
-  ["market_hub", "orai14tqq093nu88tzs7ryyslr78sm3tzrmnpem6fak"],
-  ["market_offering_storage", "orai1hur7m6wu7v79t6m3qal6qe0ufklw8uckrxk5lt"],
-  ["market_1155_storage", "orai1v2psavrxwgh39v0ead7z4rcn4qq2cfnast98m9"],
-  ["market_rejected_storage", "orai1fp9lernzdwkg5z9l9ejrwjmjvezzypacspmw27"],
-  ["market_whitelist_storage", "orai1u4zqgyt8adq45a8xffc356dr8dqsny6merh0h0"],
-  ["market_721_payment_storage", "orai1ynvtgqffwgcxxx0hnehj4t7gsmv25nrr770s83"],
-  [
-    "market_1155_payment_storage",
-    "orai1l783x7q0yvr9aklr2zkpkpspq7vmxmfnndgl7c",
-  ],
-  ["market_auction_storage", "orai1u8r0kkmevkgjkeacfgh0jv268kap82af937pwz"],
-  ["market_ai_royalty_storage", "orai1s5jlhcnqc00hqmldhts5jtd7f3tfwmr4lfheg8"],
-  ["ow1155", "orai1c3phe2dcu852ypgvt0peqj8f5kx4x0s4zqcky4"],
-  ["ow721", "orai1ase8wkkhczqdda83f0cd9lnuyvf47465j70hyk"],
-];
-
 async function setUpMarketPlaceEnviroment() {
+  const registry = JSON.parse(
+    readFileSync(resolve(__dirname, "../utils/registry.json"))
+  );
   const client = new SimulateCosmWasmClient({
     chainId: "Oraichain",
     bech32Prefix: "orai",
@@ -45,10 +16,11 @@ async function setUpMarketPlaceEnviroment() {
 
   client.app.bank.setBalance(admin, [{ amount: "10000000000", denom: "orai" }]);
 
-  const codeIdPromises = setUpList.map(([name, _address]) => {
+  const codeIdPromises = Object.entries(registry).map(([_label, address]) => {
     return client.upload(
       admin,
-      readFileSync(resolve(__dirname, `../artifacts/${name}/${name}.wasm`))
+      readFileSync(resolve(__dirname, `./wasm/${address}`)),
+      "auto"
     );
   });
 
@@ -56,21 +28,25 @@ async function setUpMarketPlaceEnviroment() {
     (result) => result.codeId
   );
 
-  const loadPromises = setUpList.map(([name, address], index) => {
-    const data = JSON.parse(
-      readFileSync(resolve(__dirname, `./testdata/${address}.json`)).toString()
-    );
-    return client.loadContract(
-      address,
-      {
-        codeId: codeIds[index],
-        label: name,
-        admin,
-        creator: admin,
-      },
-      data
-    );
-  });
+  const loadPromises = Object.entries(registry).map(
+    ([name, address], index) => {
+      const data = JSON.parse(
+        readFileSync(
+          resolve(__dirname, `./testdata/${address}.json`)
+        ).toString()
+      );
+      return client.loadContract(
+        address,
+        {
+          codeId: codeIds[index],
+          label: name,
+          admin,
+          creator: admin,
+        },
+        data
+      );
+    }
+  );
   await Promise.all(loadPromises);
 
   const market1155ImplInitMsg = JSON.parse(
@@ -130,24 +106,34 @@ async function setUpMarketPlaceEnviroment() {
       }),
   ]);
 
-  market_721_impl = market721.contractAddress;
-  market_1155_impl = market1155.contractAddress;
+  registry["market_721_impl"] = market721.contractAddress;
+  registry["market_1155_impl"] = market1155.contractAddress;
 
-  return client;
+  return { client, registry };
 }
 
 describe("Test marketplace buy for", () => {
-  let client;
+  let client, registry, offering1155, offering721;
   const ownerNFT = "orai14vcw5qk0tdvknpa38wz46js5g7vrvut8lk0lk6";
   const admin1155 = "orai1zsqaw40hcj4hk7r2g3xz864gda9vpq3ze9vpxc";
   const mintForAddress = "orai1w0emvx75v79x2rm0afcw7sn8hqt5f4fhtd3pw7";
+  const buyForAddress = "orai149uraxsj6vqqugzth8drw8akjcuktkfl3tafue";
+
   beforeAll(async () => {
-    client = await setUpMarketPlaceEnviroment();
+    ({ client, registry } = await setUpMarketPlaceEnviroment());
     client.app.bank.setBalance(ownerNFT, [
       { amount: "10000000000", denom: "orai" },
     ]);
     client.app.bank.setBalance(admin1155, [
       { amount: "10000000000", denom: "orai" },
+    ]);
+    [offering1155, offering721] = await Promise.all([
+      client.queryContractSmart(registry["market_1155_storage"], {
+        msg: { get_offerings: {} },
+      }),
+      client.queryContractSmart(registry["market_offering_storage"], {
+        offering: { get_offerings: {} },
+      }),
     ]);
   }, 30000);
 
@@ -156,27 +142,27 @@ describe("Test marketplace buy for", () => {
   });
 
   it("Should return registry & adminlist from market_hub", async () => {
-    const [registry, canExecute] = await Promise.all([
-      client.queryContractSmart(market_hub, {
+    const [registryData, canExecute] = await Promise.all([
+      client.queryContractSmart(registry["market_hub"], {
         registry: {},
       }),
-      client.queryContractSmart(market_hub, {
+      client.queryContractSmart(registry["market_hub"], {
         can_execute: {
           sender: "orai14vcw5qk0tdvknpa38wz46js5g7vrvut8lk0lk6",
         },
       }),
     ]);
     expect(canExecute).toBeTruthy();
-    expect(registry).toBeTruthy();
+    expect(registryData).toBeTruthy();
   });
 
   it("should add the the new implement in market_hub", async () => {
     await client.execute(
       admin,
-      market_hub,
+      registry["market_hub"],
       {
         update_implementation: {
-          implementation: market_1155_impl,
+          implementation: registry["market_1155_impl"],
         },
       },
       "auto"
@@ -184,48 +170,51 @@ describe("Test marketplace buy for", () => {
 
     await client.execute(
       admin,
-      market_hub,
+      registry["market_hub"],
       {
         update_implementation: {
-          implementation: market_721_impl,
+          implementation: registry["market_721_impl"],
         },
       },
       "auto"
     );
-    const registry = await client.queryContractSmart(market_hub, {
-      registry: {},
-    });
+    const registryData = await client.queryContractSmart(
+      registry["market_hub"],
+      {
+        registry: {},
+      }
+    );
 
-    expect(registry.implementations.length).toBe(5);
+    expect(registryData.implementations.length).toBe(5);
   });
 
   it("should change minter in collection", async () => {
     await Promise.all([
-      client.execute(ownerNFT, ow1155, {
-        change_minter: { minter: market_1155_impl },
+      client.execute(ownerNFT, registry["ow1155"], {
+        change_minter: { minter: registry["market_1155_impl"] },
       }),
-      client.execute(ownerNFT, ow721, {
-        change_minter: { minter: market_721_impl },
+      client.execute(ownerNFT, registry["ow721"], {
+        change_minter: { minter: registry["market_721_impl"] },
       }),
     ]);
 
     const [minter1155] = await Promise.all([
-      client.queryContractSmart(ow1155, {
+      client.queryContractSmart(registry["ow1155"], {
         minter: {},
       }),
     ]);
 
-    expect(minter1155).toEqual(market_1155_impl);
+    expect(minter1155).toEqual(registry["market_1155_impl"]);
   });
 
   it("should mint for another user", async () => {
     await Promise.all([
       client.execute(
         admin1155,
-        market_1155_impl,
+        registry["market_1155_impl"],
         {
           mint_for_nft: {
-            contract_addr: ow1155,
+            contract_addr: registry["ow1155"],
             creator: mintForAddress,
             creator_type: "creator",
             mint: {
@@ -241,10 +230,10 @@ describe("Test marketplace buy for", () => {
       ),
       client.execute(
         admin1155,
-        market_721_impl,
+        registry["market_721_impl"],
         {
           mint_nft: {
-            contract_addr: ow721,
+            contract_addr: registry["ow721"],
             creator: mintForAddress,
             creator_type: "creator",
             mint: {
@@ -262,12 +251,12 @@ describe("Test marketplace buy for", () => {
     ]);
 
     const [token721Info, balance1155] = await Promise.all([
-      client.queryContractSmart(ow721, {
+      client.queryContractSmart(registry["ow721"], {
         nft_info: {
           token_id: "260900",
         },
       }),
-      client.queryContractSmart(ow1155, {
+      client.queryContractSmart(registry["ow1155"], {
         balance: {
           owner: mintForAddress,
           token_id: "260900",
@@ -279,18 +268,13 @@ describe("Test marketplace buy for", () => {
     expect(balance1155.balance).toEqual("2000");
   });
 
-  it("should buy for another user", async () => {
-    const buyForAddress = "orai149uraxsj6vqqugzth8drw8akjcuktkfl3tafue";
-
-    const [offering1155, offering721] = await Promise.all([
-      client.queryContractSmart(market_1155_storage, {
-        msg: { get_offerings: {} },
-      }),
-      client.queryContractSmart(market_offering_storage, {
-        offering: { get_offerings: {} },
-      }),
-    ]);
-
+  it("should buy for another user by native", async () => {
+    const {
+      id: offer_id_721,
+      token_id: token_id_721,
+      seller: seller_721,
+      price,
+    } = offering721.offerings.pop();
     const {
       id: latest_offering,
       token_id,
@@ -302,13 +286,25 @@ describe("Test marketplace buy for", () => {
       { amount: "10000000000", denom: "orai" },
     ]);
 
+    client.app.bank.setBalance(seller_721, [
+      { amount: "10000000000", denom: "orai" },
+    ]);
+
     // Approve
     await Promise.all([
       client.execute(
         seller,
-        ow1155,
+        registry["ow1155"],
         {
-          approve_all: { operator: market_1155_impl },
+          approve_all: { operator: registry["market_1155_impl"] },
+        },
+        "auto"
+      ),
+      client.execute(
+        seller_721,
+        registry["ow721"],
+        {
+          approve_all: { operator: registry["market_721_impl"] },
         },
         "auto"
       ),
@@ -317,7 +313,7 @@ describe("Test marketplace buy for", () => {
     await Promise.all([
       client.execute(
         admin1155,
-        market_1155_impl,
+        registry["market_1155_impl"],
         {
           buy_nft: {
             offering_id: latest_offering,
@@ -329,24 +325,102 @@ describe("Test marketplace buy for", () => {
         "memo",
         [{ amount: per_price, denom: "orai" }]
       ),
+      client.execute(
+        admin1155,
+        registry["market_721_impl"],
+        {
+          buy_nft: {
+            offering_id: offer_id_721,
+            buyer: buyForAddress,
+          },
+        },
+        "auto",
+        "memo",
+        [{ amount: price, denom: "orai" }]
+      ),
     ]);
 
-    const [sellerBalance, buyForBalance] = await Promise.all([
-      client.queryContractSmart(ow1155, {
+    const [sellerBalance, buyForBalance, owner_token_721] = await Promise.all([
+      client.queryContractSmart(registry["ow1155"], {
         balance: {
           owner: seller,
           token_id,
         },
       }),
-      client.queryContractSmart(ow1155, {
+      client.queryContractSmart(registry["ow1155"], {
         balance: {
           owner: buyForAddress,
           token_id,
+        },
+      }),
+      client.queryContractSmart(registry["ow721"], {
+        owner_of: {
+          token_id: token_id_721,
         },
       }),
     ]);
 
     expect(sellerBalance.balance).toBe("0");
     expect(buyForBalance.balance).toBe("1");
+    expect(owner_token_721.owner).toBe(buyForAddress);
+  });
+
+  it("should buy for another user by aiRight", async () => {
+    const tokenIdPriceByAiRight = "15246";
+    const owner = "orai1k8g0vlfmctyqtwahrxhudksz7rgrm6nsuwh8eq";
+    const richAccount = "orai1xzmgjjlz7kacgkpxk5gn6lqa0dvavg8r9ng2vu";
+
+    const [owner721, offering] = await Promise.all([
+      client.queryContractSmart(registry["ow721"], {
+        owner_of: {
+          token_id: tokenIdPriceByAiRight,
+        },
+      }),
+      client.queryContractSmart(registry["market_offering_storage"], {
+        offering: {
+          get_offering_by_contract_token_id: {
+            contract: registry["ow721"],
+            token_id: tokenIdPriceByAiRight,
+          },
+        },
+      }),
+    ]);
+
+    const { id, token_id, price, contract_addr, seller } = offering;
+
+    expect(owner721.owner).toBe(owner);
+
+    await client.execute(
+      owner,
+      registry["ow721"],
+      {
+        approve_all: { operator: registry["market_721_impl"] },
+      },
+      "auto"
+    );
+
+    const tx_response = await client.execute(
+      richAccount,
+      registry["ai_right"],
+      {
+        send: {
+          contract: registry["market_721_impl"],
+          amount: price,
+          msg: Buffer.from(
+            JSON.stringify({
+              cw20_hook_msg: {
+                buy_nft: {
+                  offering_id: tokenIdPriceByAiRight,
+                  buyer: buyForAddress,
+                },
+              },
+            })
+          ).toString("base64"),
+        },
+      },
+      "auto"
+    );
+
+    console.log(tx_response);
   });
 });

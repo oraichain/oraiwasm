@@ -12,7 +12,7 @@
     "json-schema-to-typescript": "^10.1.5"
   },
   "devDependencies": {
-    "@oraichain/cw-simulate": "^2.8.38",
+    "@oraichain/cw-simulate": "^2.8.41",
     "@types/jest": "^29.5.3",
     "immutable": "^4.3.2",
     "jest": "^29.6.2"
