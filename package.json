@@ -1,6 +1,7 @@
 {
   "scripts": {
     "optimize": "./optimize.sh",
+    "test:ci": "./tests/setup.sh && jest ./tests",
     "test": "jest",
     "gen-ts": "node gen-ts.js"
   },

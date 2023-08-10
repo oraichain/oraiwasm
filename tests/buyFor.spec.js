@@ -399,7 +399,7 @@ describe("Test marketplace buy for", () => {
       "auto"
     );
 
-    const tx_response = await client.execute(
+    await client.execute(
       richAccount,
       registry["ai_right"],
       {
@@ -408,11 +408,9 @@ describe("Test marketplace buy for", () => {
           amount: price,
           msg: Buffer.from(
             JSON.stringify({
-              cw20_hook_msg: {
-                buy_nft: {
-                  offering_id: tokenIdPriceByAiRight,
-                  buyer: buyForAddress,
-                },
+              buy_nft: {
+                offering_id: parseInt(id),
+                buyer: buyForAddress,
               },
             })
           ).toString("base64"),
@@ -421,6 +419,12 @@ describe("Test marketplace buy for", () => {
       "auto"
     );
 
-    console.log(tx_response);
+    const newOwner = await client.queryContractSmart(registry["ow721"], {
+      owner_of: {
+        token_id: tokenIdPriceByAiRight,
+      },
+    });
+
+    expect(newOwner.owner).toBe(buyForAddress);
   });
 });
