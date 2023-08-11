@@ -30,6 +30,7 @@ pub fn handle(
     match msg {
         HandleMsg::ChangeOwner { owner } => change_owner(deps, info, owner),
         HandleMsg::AddTx { hash, value } => add_tx(deps, info, hash, value),
+        HandleMsg::Ping {} => Ok(HandleResponse::default()),
     }
 }
 
