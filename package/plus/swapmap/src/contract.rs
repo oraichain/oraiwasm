@@ -1,9 +1,9 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{HandleMsg, InitMsg, MigrateMsg, QueryMsg};
 use crate::state::{config, config_read, State, MAPPED_TXS};
 use cosmwasm_std::{
     to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
-    StdResult,
+    MigrateResponse, StdResult,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -75,4 +75,13 @@ fn query_tx(deps: Deps, hash: Binary) -> StdResult<Binary> {
     // same StdErr can use ?
     let hash = MAPPED_TXS.load(deps.storage, hash.as_slice())?;
     to_binary(&hash)
+}
+
+pub fn migrate(
+    _deps: DepsMut,
+    _env: Env,
+    _info: MessageInfo,
+    _msg: MigrateMsg,
+) -> StdResult<MigrateResponse> {
+    Ok(MigrateResponse::default())
 }
