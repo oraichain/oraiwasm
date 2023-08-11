@@ -2,8 +2,8 @@ use crate::error::ContractError;
 use crate::msg::{HandleMsg, InitMsg, MigrateMsg, QueryMsg};
 use crate::state::{config, config_read, State, MAPPED_TXS};
 use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
-    MigrateResponse, StdResult,
+    to_binary, Attribute, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
+    MessageInfo, MigrateResponse, StdResult,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -30,7 +30,17 @@ pub fn handle(
     match msg {
         HandleMsg::ChangeOwner { owner } => change_owner(deps, info, owner),
         HandleMsg::AddTx { hash, value } => add_tx(deps, info, hash, value),
-        HandleMsg::Ping {} => Ok(HandleResponse::default()),
+        HandleMsg::Ping {} => {
+            let response = HandleResponse {
+                messages: vec![],
+                attributes: vec![Attribute {
+                    key: "action".to_string(),
+                    value: "ping".to_string(),
+                }],
+                data: None,
+            };
+            Ok(response)
+        }
     }
 }
 
