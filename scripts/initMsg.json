@@ -1,0 +1,84 @@
+{
+  "market_hub": {
+    "admins": [
+      "orai1mw5ua2gttkw0e4whh0z59zpq0eg3e9gtse3uns"
+    ],
+    "mutable": true,
+    "storages": [],
+    "implementations": []
+  },
+  "auction": {
+    "governance": ""
+  },
+  "ai_royalty": {
+    "governance": ""
+  },
+  "market_offering_storage": {
+    "governance": ""
+  },
+  "datahub_storage": {
+    "governance": ""
+  },
+  "market_1155_storage": {
+    "governance": ""
+  },
+  "auction_extend": {
+    "governance": ""
+  },
+  "rejected_storage": {
+    "governance": ""
+  },
+  "whitelist_storage": {
+    "governance": ""
+  },
+  "market_721_payment_storage": {
+    "governance": ""
+  },
+  "market_1155_payment_storage": {
+    "governance": ""
+  },
+  "ow1155": {
+    "minter": "orai1mw5ua2gttkw0e4whh0z59zpq0eg3e9gtse3uns"
+  },
+  "ow721": {
+    "name": "ow721 testnet collection",
+    "version": "1.1.0",
+    "symbol": "AIRIGHT 721",
+    "minter": "orai1mw5ua2gttkw0e4whh0z59zpq0eg3e9gtse3uns"
+  },
+  "market_1155_implementation": {
+    "name": "airight market 1155 implementation v3.2",
+    "denom": "orai",
+    "fee": 20,
+    "governance": "orai1sjrl4fw9nfn3yx9euqwk4zdec0mumfpf6u4k7l3z9cm9cgms30yqq3hwvm",
+    "auction_duration": "3600000",
+    "step_price": 1,
+    "admin": [
+      "orai1mw5ua2gttkw0e4whh0z59zpq0eg3e9gtse3uns"
+    ]
+  },
+  "market_implementation": {
+    "name": "airight market 721 implementation v3.2",
+    "denom": "orai",
+    "fee": 20,
+    "governance": "orai1sjrl4fw9nfn3yx9euqwk4zdec0mumfpf6u4k7l3z9cm9cgms30yqq3hwvm",
+    "auction_duration": "3600000",
+    "step_price": 1,
+    "max_royalty": 1000000000,
+    "max_decimal_point": 1000000000
+  },
+  "ai_right": {
+    "name": "ai_right",
+    "symbol": "AIRI",
+    "decimals": 6,
+    "initial_balances": [
+      {
+        "address": "orai1mw5ua2gttkw0e4whh0z59zpq0eg3e9gtse3uns",
+        "amount": "1000000000000000"
+      }
+    ],
+    "mint": {
+      "minter": "orai1mw5ua2gttkw0e4whh0z59zpq0eg3e9gtse3uns"
+    }
+  }
+}
