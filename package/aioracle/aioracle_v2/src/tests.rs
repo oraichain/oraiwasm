@@ -3,10 +3,10 @@ use crate::error::ContractError;
 use crate::msg::{
     HandleMsg, InitMsg, QueryMsg, RequestResponse, StageInfo, TrustingPoolResponse, UpdateConfigMsg,
 };
-use crate::state::{Config, Request, TrustingPool};
+use crate::state::{Config, Request};
 
 use aioracle_base::{Executor, Reward};
-use bech32::{self, FromBase32, ToBase32, Variant};
+use bech32::{self, ToBase32, Variant};
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
@@ -499,7 +499,7 @@ fn register_merkle_root() {
 
     let merkle_root: Request = app
         .wrap()
-        .query_wasm_smart(aioracle_addr, &QueryMsg::Request { stage: 1u64 })
+        .query_wasm_smart(aioracle_addr, &QueryMsg::GetRequest { stage: 1u64 })
         .unwrap();
     assert_eq!(
         "4a2e27a2befb41a0655b8fe98d9c1a9f18ece280dc78b442734ead617e6bf3fc".to_string(),

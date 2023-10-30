@@ -135,8 +135,8 @@ pub fn try_execute_request_annotation(
     }
 
     let mut expired_block_annotation = env.block.height + expired_block;
-    if let Some(expired_block) = expired_after {
-        expired_block_annotation = env.block.height + expired_block;
+    if let Some(custom_expired_block) = expired_after {
+        expired_block_annotation = env.block.height + custom_expired_block;
     };
 
     // allow multiple annotations on the market with the same contract and token id
