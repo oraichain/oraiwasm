@@ -21,13 +21,13 @@ fn main() {
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(MigrateMsg), &out_dir);
 
-    export_schema_with_title(&mut schema_for!(ContractInfo), &out_dir, "GetContractInfo");
-
-    export_schema_with_title(&mut schema_for!(Uint128), &out_dir, "GetMarketFees");
-
-    export_schema_with_title(&mut schema_for!(Offering), &out_dir, "Offering");
-
-    export_schema_with_title(&mut schema_for!(Royalty), &out_dir, "AiRoyalty");
-
-    export_schema_with_title(&mut schema_for!(Auction), &out_dir, "Auction");
+    export_schema_with_title(
+        &mut schema_for!(ContractInfo),
+        &out_dir,
+        "GetContractInfoResponse",
+    );
+    export_schema_with_title(&mut schema_for!(Uint128), &out_dir, "GetMarketFeesResponse");
+    export_schema_with_title(&mut schema_for!(Offering), &out_dir, "OfferingResponse");
+    export_schema_with_title(&mut schema_for!(Royalty), &out_dir, "AiRoyaltyResponse");
+    export_schema_with_title(&mut schema_for!(Auction), &out_dir, "AuctionResponse");
 }

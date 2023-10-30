@@ -526,7 +526,7 @@ pub fn verify_nft(
 
     // verify if the final seller has approved the marketplace or not => fail if not
     let is_approved: IsApprovedForAllResponse = deps.querier.query_wasm_smart(
-        contract_addr.clone(),
+        contract_addr,
         &Cw1155QueryMsg::IsApprovedForAll {
             owner: final_seller.clone(),
             operator: market_addr.to_string(),
