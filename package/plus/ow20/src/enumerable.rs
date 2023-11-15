@@ -59,9 +59,13 @@ pub fn query_all_accounts(
 pub fn query_top_holders(deps: Deps, limit: Option<u32>) -> StdResult<TopHoldersResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let api = &deps.api;
-    let mut all: Vec<_> = balances_prefix_read(deps.storage)
+    let mut all = balances_prefix_read(deps.storage)
         .range(None, None, Order::Ascending)
-        .collect();
+        .map(|(k, v)| {
+            let balance: Uint128 = from_slice(&v)?;
+            Ok((k, balance))
+        })
+        .collect::<StdResult<Vec<_>>>()?;
 
     all.sort_by(|a, b| b.1.cmp(&a.1));
 
@@ -69,12 +73,11 @@ pub fn query_top_holders(deps: Deps, limit: Option<u32>) -> StdResult<TopHolders
         all = all[0..limit].to_vec();
     }
 
-    let holders: Vec<_> = all
-        .iter()
+    let holders = all
+        .into_iter()
         .map(|(k, v)| {
-            let addr = api.human_address(&CanonicalAddr::from(k.as_slice()))?;
-            let balance: Uint128 = from_slice(&v)?;
-            Ok((addr, balance))
+            let addr = api.human_address(&CanonicalAddr::from(k))?;
+            Ok((addr, v))
         })
         .collect::<StdResult<Vec<_>>>()?;
 
