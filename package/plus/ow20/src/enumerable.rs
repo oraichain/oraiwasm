@@ -1,8 +1,8 @@
-use cosmwasm_std::{CanonicalAddr, Deps, HumanAddr, Order, StdResult};
+use crate::msg::TopHoldersResponse;
+use crate::state::{allowances_read, balances_prefix_read};
+use cosmwasm_std::{from_slice, CanonicalAddr, Deps, HumanAddr, Order, StdResult, Uint128};
 use cw0::calc_range_start_human;
 use cw20::{AllAccountsResponse, AllAllowancesResponse, AllowanceInfo};
-
-use crate::state::{allowances_read, balances_prefix_read};
 
 // settings for pagination
 const MAX_LIMIT: u32 = 30;
@@ -54,6 +54,31 @@ pub fn query_all_accounts(
     Ok(AllAccountsResponse {
         accounts: accounts?,
     })
+}
+
+pub fn query_top_holders(deps: Deps, limit: Option<u32>) -> StdResult<TopHoldersResponse> {
+    let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
+    let api = &deps.api;
+    let mut all: Vec<_> = balances_prefix_read(deps.storage)
+        .range(None, None, Order::Ascending)
+        .collect();
+
+    all.sort_by(|a, b| b.1.cmp(&a.1));
+
+    if limit < all.len() {
+        all = all[0..limit].to_vec();
+    }
+
+    let holders: Vec<_> = all
+        .iter()
+        .map(|(k, v)| {
+            let addr = api.human_address(&CanonicalAddr::from(k.as_slice()))?;
+            let balance: Uint128 = from_slice(&v)?;
+            Ok((addr, balance))
+        })
+        .collect::<StdResult<Vec<_>>>()?;
+
+    Ok(TopHoldersResponse { holders })
 }
 
 #[cfg(test)]

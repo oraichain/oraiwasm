@@ -140,7 +140,9 @@ pub enum HandleMsg {
 pub enum QueryMsg {
     /// Returns the current balance of the given address, 0 if unset.
     /// Return type: BalanceResponse.
-    Balance { address: HumanAddr },
+    Balance {
+        address: HumanAddr,
+    },
     /// Returns metadata on the contract - name, decimals, supply, etc.
     /// Return type: TokenInfoResponse.
     TokenInfo {},
@@ -170,8 +172,17 @@ pub enum QueryMsg {
         start_after: Option<HumanAddr>,
         limit: Option<u32>,
     },
+
+    TopHolders {
+        limit: Option<u32>,
+    },
 }
 
 /// We currently take no arguments for migrations
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct MigrateMsg {}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+pub struct TopHoldersResponse {
+    pub holders: Vec<(HumanAddr, Uint128)>,
+}

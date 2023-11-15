@@ -1,18 +1,17 @@
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Binary, Coin, Context, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, MigrateResponse, StdError, StdResult, Uint128,
+    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
+    MessageInfo, MigrateResponse, StdError, StdResult, Uint128,
 };
 
-use cw2::{get_contract_version, set_contract_version};
+use cw2::set_contract_version;
 use cw20::{BalanceResponse, Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse, TokenInfoResponse};
 
 use crate::allowances::{
     handle_burn_from, handle_decrease_allowance, handle_increase_allowance, handle_send_from,
     handle_transfer_from, query_allowance,
 };
-use crate::enumerable::{query_all_accounts, query_all_allowances};
+use crate::enumerable::{query_all_accounts, query_all_allowances, query_top_holders};
 use crate::error::ContractError;
-use crate::migrations::migrate_v01_to_v02;
 use crate::msg::{HandleMsg, InitMsg, MigrateMsg, QueryMsg, TransferInfo};
 use crate::state::{balances, balances_read, token_info, token_info_read, MinterData, TokenInfo};
 
@@ -358,6 +357,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::AllAccounts { start_after, limit } => {
             to_binary(&query_all_accounts(deps, start_after, limit)?)
         }
+        QueryMsg::TopHolders { limit } => to_binary(&query_top_holders(deps, limit)?),
     }
 }
 
@@ -428,7 +428,7 @@ mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coins, from_binary, from_slice, Api, CosmosMsg, Order, StdError, WasmMsg};
 
-    use cw2::ContractVersion;
+    use cw2::{get_contract_version, ContractVersion};
     use cw20::{AllowanceResponse, Expiration};
 
     use crate::migrations::generate_v01_test_data;
