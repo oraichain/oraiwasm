@@ -1,4 +1,5 @@
 use cosmwasm_std::{Binary, StdError};
+use cw_utils::PaymentError;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -7,6 +8,8 @@ pub enum ContractError {
     StdError(#[from] StdError),
     #[error("Unauthorized, {0}")]
     Unauthorized(String),
+    #[error("{0}")]
+    Payment(#[from] PaymentError),
     #[error("Dealer must be greater than 0 and less than total member")]
     InvalidDealer {},
     #[error("Threshold must be greater than 0 and less than total member")]

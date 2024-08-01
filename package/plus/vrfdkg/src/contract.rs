@@ -2,19 +2,20 @@ use std::collections::BTreeMap;
 
 use blsdkg::poly::{Commitment, Poly};
 use cosmwasm_std::{
-    attr, coins, from_slice, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult, Storage,
+    attr, coins, entry_point, from_json, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps,
+    DepsMut, Env, MessageInfo, Order, Response, StdResult, Storage,
 };
 
 use blsdkg::{
     derive_randomness, hash_g2, PublicKey, PublicKeySet, PublicKeyShare, Signature, SignatureShare,
     PK_SIZE, SIG_SIZE,
 };
+use cw_utils::one_coin;
 
 use crate::errors::ContractError;
 use crate::msg::{
-    DistributedShareData, HandleMsg, InitMsg, Member, MemberMsg, QueryMsg, ShareSig, ShareSigMsg,
-    SharedDealerMsg, SharedRowMsg, SharedStatus,
+    DistributedShareData, ExecuteMsg, InstantiateMsg, Member, MemberMsg, MigrateMsg, QueryMsg,
+    ShareSig, ShareSigMsg, SharedDealerMsg, SharedRowMsg, SharedStatus,
 };
 use crate::state::{
     beacons_storage, beacons_storage_read, clear_store, config, config_read, members_storage,
@@ -27,12 +28,13 @@ use cosmwasm_crypto::secp256k1_verify;
 const MAX_LIMIT: u8 = 30;
 const DEFAULT_LIMIT: u8 = 5;
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn init(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     let total = msg.members.len() as u16;
     if msg.threshold == 0 || msg.threshold > total {
         return Err(ContractError::InvalidThreshold {});
@@ -65,44 +67,46 @@ pub fn init(
     // init round count
     round_count(deps.storage).save(&1u64)?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle(
+#[entry_point]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::ShareDealer { share } => share_dealer(deps, info, share),
-        HandleMsg::ShareRow { share } => share_row(deps, info, share),
-        HandleMsg::ShareSig { share } => update_share_sig(deps, env, info, share),
-        HandleMsg::RequestRandom { input } => request_random(deps, info, input),
-        HandleMsg::UpdateFees { fee } => update_fees(deps, info, fee),
-        HandleMsg::Reset { threshold, members } => reset(deps, info, threshold, members),
-        HandleMsg::ForceNextRound {} => force_next_round(deps, info),
+        ExecuteMsg::ShareDealer { share } => share_dealer(deps, info, share),
+        ExecuteMsg::ShareRow { share } => share_row(deps, info, share),
+        ExecuteMsg::ShareSig { share } => update_share_sig(deps, env, info, share),
+        ExecuteMsg::RequestRandom { input } => request_random(deps, info, input),
+        ExecuteMsg::UpdateFees { fee } => update_fees(deps, info, fee),
+        ExecuteMsg::Reset { threshold, members } => reset(deps, info, threshold, members),
+        ExecuteMsg::ForceNextRound {} => force_next_round(deps, info),
     }
 }
 
+#[entry_point]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     let response = match msg {
-        QueryMsg::ContractInfo {} => to_binary(&query_contract_info(deps)?)?,
-        QueryMsg::GetRound { round } => to_binary(&query_get(deps, round)?)?,
-        QueryMsg::GetMember { address } => to_binary(&query_member(deps, address.as_str())?)?,
+        QueryMsg::ContractInfo {} => to_json_binary(&query_contract_info(deps)?)?,
+        QueryMsg::GetRound { round } => to_json_binary(&query_get(deps, round)?)?,
+        QueryMsg::GetMember { address } => to_json_binary(&query_member(deps, address.as_str())?)?,
         QueryMsg::GetMembers {
             limit,
             offset,
             order,
-        } => to_binary(&query_members(deps, limit, offset, order)?)?,
-        QueryMsg::LatestRound {} => to_binary(&query_latest(deps)?)?,
+        } => to_json_binary(&query_members(deps, limit, offset, order)?)?,
+        QueryMsg::LatestRound {} => to_json_binary(&query_latest(deps)?)?,
         QueryMsg::GetRounds {
             limit,
             offset,
             order,
-        } => to_binary(&query_rounds(deps, limit, offset, order)?)?,
-        QueryMsg::CurrentHandling {} => to_binary(&query_current(deps)?)?,
-        QueryMsg::VerifyRound(round) => to_binary(&verify_round(deps, round)?)?,
+        } => to_json_binary(&query_rounds(deps, limit, offset, order)?)?,
+        QueryMsg::CurrentHandling {} => to_json_binary(&query_current(deps)?)?,
+        QueryMsg::VerifyRound(round) => to_json_binary(&verify_round(deps, round)?)?,
     };
     Ok(response)
 }
@@ -129,7 +133,7 @@ fn store_members(storage: &mut dyn Storage, members: Vec<MemberMsg>, clear: bool
             shared_dealer: None,
         };
 
-        members_store.set(member.address.as_bytes(), &to_binary(&member)?);
+        members_store.set(member.address.as_bytes(), &to_json_binary(&member)?);
     }
     Ok(())
 }
@@ -141,7 +145,7 @@ pub fn reset(
     info: MessageInfo,
     threshold: Option<u16>,
     members: Option<Vec<MemberMsg>>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let owner = owner_read(deps.storage).load()?;
     if !owner.owner.eq(info.sender.as_str()) {
         return Err(ContractError::Unauthorized(
@@ -185,16 +189,12 @@ pub fn reset(
     config_data.status = SharedStatus::WaitForDealer;
     config(deps.storage).save(&config_data)?;
 
-    let mut response = HandleResponse::default();
+    let mut response = Response::default();
     response.attributes = vec![attr("action", "update_members")];
     Ok(response)
 }
 
-pub fn update_fees(
-    deps: DepsMut,
-    info: MessageInfo,
-    fee: Coin,
-) -> Result<HandleResponse, ContractError> {
+pub fn update_fees(deps: DepsMut, info: MessageInfo, fee: Coin) -> Result<Response, ContractError> {
     let owner = owner_read(deps.storage).load()?;
     if !owner.owner.eq(info.sender.as_str()) {
         return Err(ContractError::Unauthorized(
@@ -205,7 +205,7 @@ pub fn update_fees(
     config_data.fee = Some(fee);
     // init with a signature, pubkey and denom for bounty
     config(deps.storage).save(&config_data)?;
-    let mut response = HandleResponse::default();
+    let mut response = Response::default();
     response.attributes = vec![attr("action", "update_fees")];
     Ok(response)
 }
@@ -213,7 +213,7 @@ pub fn update_fees(
 fn query_and_check(deps: Deps, address: &str) -> Result<Member, ContractError> {
     match members_storage_read(deps.storage).get(address.as_bytes()) {
         Some(value) => {
-            let member: Member = from_slice(value.as_slice())?;
+            let member: Member = from_json(value.as_slice())?;
             if member.deleted {
                 return Err(ContractError::Unauthorized(format!(
                     "{} is removed from the group",
@@ -235,7 +235,7 @@ pub fn share_dealer(
     deps: DepsMut,
     info: MessageInfo,
     share: SharedDealerMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let mut config_data = config_read(deps.storage).load()?;
     if config_data.status != SharedStatus::WaitForDealer {
         return Err(ContractError::Unauthorized(format!(
@@ -258,7 +258,7 @@ pub fn share_dealer(
     // update shared dealer
     member.shared_dealer = Some(share);
     // save member
-    members_storage(deps.storage).set(member.address.as_bytes(), &to_binary(&member)?);
+    members_storage(deps.storage).set(member.address.as_bytes(), &to_json_binary(&member)?);
 
     config_data.shared_dealer += 1;
     if config_data.shared_dealer >= config_data.dealer {
@@ -267,7 +267,7 @@ pub fn share_dealer(
     config(deps.storage).save(&config_data)?;
 
     // check if total shared_dealder is greater than dealer
-    let mut response = HandleResponse::default();
+    let mut response = Response::default();
     response.attributes = vec![attr("action", "share_dealer"), attr("member", info.sender)];
     Ok(response)
 }
@@ -276,7 +276,7 @@ pub fn share_row(
     deps: DepsMut,
     info: MessageInfo,
     share: SharedRowMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let mut config_data = config_read(deps.storage).load()?;
     if config_data.status != SharedStatus::WaitForRow {
         return Err(ContractError::Unauthorized(format!(
@@ -300,7 +300,7 @@ pub fn share_row(
     member.shared_row = Some(share);
 
     // save member
-    members_storage(deps.storage).set(member.address.as_bytes(), &to_binary(&member)?);
+    members_storage(deps.storage).set(member.address.as_bytes(), &to_json_binary(&member)?);
 
     // increase shared_row
     config_data.shared_row += 1;
@@ -311,17 +311,17 @@ pub fn share_row(
     config(deps.storage).save(&config_data)?;
 
     // check if total shared_dealder is greater than dealer
-    let mut response = HandleResponse::default();
+    let mut response = Response::default();
     response.attributes = vec![attr("action", "share_row"), attr("member", info.sender)];
     Ok(response)
 }
 
 pub fn update_share_sig(
     deps: DepsMut,
-    env: Env,
+    _env: Env,
     info: MessageInfo,
     share: ShareSigMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let member = match query_member(deps.as_ref(), info.sender.as_str()) {
         Ok(m) => m,
         Err(_) => {
@@ -342,7 +342,7 @@ pub fn update_share_sig(
 
     let beacons = beacons_storage_read(deps.storage);
     let value = beacons.get(&round_key).ok_or(ContractError::NoBeacon {})?;
-    let mut share_data: DistributedShareData = from_slice(value.as_slice())?;
+    let mut share_data: DistributedShareData = from_json(value.as_slice())?;
 
     // if too late, check signed signature. If still empty => update then increase round count
     if share_data.sigs.len() > threshold as usize {
@@ -360,17 +360,14 @@ pub fn update_share_sig(
                 round_count(deps.storage).save(&(share.round + 1))?;
                 share_data.signed_eth_combined_sig = Some(share.signed_sig);
                 share_data.signed_eth_pubkey = Some(member.pubkey); // update back data
-                beacons_storage(deps.storage).set(&round_key, &to_binary(&share_data)?);
-                return Ok(HandleResponse {
-                    attributes: vec![
-                        attr("action", "update_signed_sig"),
-                        attr("executor", member.address),
-                    ],
-                    ..HandleResponse::default()
-                });
+                beacons_storage(deps.storage).set(&round_key, &to_json_binary(&share_data)?);
+                return Ok(Response::new().add_attributes(vec![
+                    attr("action", "update_signed_sig"),
+                    attr("executor", member.address),
+                ]));
             }
         }
-        return Ok(HandleResponse::default());
+        return Ok(Response::default());
     }
 
     if share_data
@@ -452,9 +449,9 @@ pub fn update_share_sig(
     }
 
     // update back data
-    beacons_storage(deps.storage).set(&round_key, &to_binary(&share_data)?);
+    beacons_storage(deps.storage).set(&round_key, &to_json_binary(&share_data)?);
 
-    let mut response = HandleResponse::default();
+    let mut response = Response::default();
     // send fund to member, by fund / threshold, the late member will not get paid
     if let Some(fee) = fee_val {
         if !fee.amount.is_zero() {
@@ -462,20 +459,19 @@ pub fn update_share_sig(
             let fee_amount = fee.amount.multiply_ratio(1u128, threshold as u128).u128();
             if fee_amount > 0 {
                 let paid_fee = coins(fee_amount, fee.denom);
-                response.messages = vec![CosmosMsg::Bank(BankMsg::Send {
-                    from_address: env.contract.address,
-                    to_address: info.sender.clone(),
+                response = response.add_messages(vec![CosmosMsg::Bank(BankMsg::Send {
+                    to_address: info.sender.to_string(),
                     amount: paid_fee,
-                })];
+                })]);
             }
         }
     }
 
-    response.attributes = vec![
+    response = response.add_attributes(vec![
         attr("action", "share_sig"),
         attr("sender", info.sender),
-        attr("round", share.round),
-    ];
+        attr("round", share.round.to_string()),
+    ]);
     Ok(response)
 }
 
@@ -483,7 +479,7 @@ pub fn request_random(
     deps: DepsMut,
     info: MessageInfo,
     input: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let Config {
         fee: fee_val,
         status,
@@ -511,26 +507,15 @@ pub fn request_random(
     };
 
     // check sent_fund is enough
-    if let Some(fee) = fee_val {
-        if !fee.amount.is_zero() {
-            match info.sent_funds.into_iter().find(|i| i.denom.eq(&fee.denom)) {
-                None => {
-                    return Err(ContractError::NoFundsSent {
-                        expected_denom: fee.denom,
-                    })
-                }
-                Some(sent_fund) => {
-                    if sent_fund.amount.lt(&fee.amount) {
-                        return Err(ContractError::LessFundsSent {
-                            expected_denom: fee.denom,
-                        });
-                    }
-                }
-            }
-        }
+    let coin = one_coin(&info)?;
+    let fee = fee_val.unwrap_or_default();
+    if coin.amount.lt(&fee.amount) {
+        return Err(ContractError::LessFundsSent {
+            expected_denom: fee.denom,
+        });
     }
 
-    let msg = to_binary(&DistributedShareData {
+    let msg = to_json_binary(&DistributedShareData {
         round,
         sigs: vec![],
         input: input.clone(),
@@ -546,19 +531,17 @@ pub fn request_random(
     beacons_storage(deps.storage).set(&round.to_be_bytes(), &msg);
 
     // return the round
-    let response = HandleResponse {
-        messages: vec![],
-        attributes: vec![
+    let response = Response::new()
+        .add_attributes(vec![
             attr("action", "request_random"),
-            attr("input", input),
-            attr("round", round),
-        ],
-        data: Some(Binary::from(round.to_be_bytes())),
-    };
+            attr("input", input.to_base64()),
+            attr("round", round.to_string()),
+        ])
+        .set_data(Binary::from(round.to_be_bytes()));
     Ok(response)
 }
 
-pub fn force_next_round(deps: DepsMut, info: MessageInfo) -> Result<HandleResponse, ContractError> {
+pub fn force_next_round(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let owner = owner_read(deps.storage).load()?;
     if info.sender.to_string().ne(&owner.owner) {
         return Err(ContractError::Unauthorized(format!(
@@ -568,7 +551,7 @@ pub fn force_next_round(deps: DepsMut, info: MessageInfo) -> Result<HandleRespon
     }
     // increment round count since this round has finished
     round_count(deps.storage).update(|round| Ok(round + 1) as StdResult<_>)?;
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
 /// Query
@@ -577,7 +560,7 @@ fn query_member(deps: Deps, address: &str) -> Result<Member, ContractError> {
     let value = members_storage_read(deps.storage)
         .get(address.as_bytes())
         .ok_or(ContractError::NoMember {})?;
-    let member = from_slice(value.as_slice())?;
+    let member = from_json(value.as_slice())?;
     Ok(member)
 }
 
@@ -609,7 +592,7 @@ fn get_query_params<'a>(
 fn query_members(
     deps: Deps,
     limit: Option<u8>,
-    offset: Option<HumanAddr>,
+    offset: Option<String>,
     order: Option<u8>,
 ) -> Result<Vec<Member>, ContractError> {
     let offset_human = offset.unwrap_or_default();
@@ -617,7 +600,7 @@ fn query_members(
     let members = members_storage_read(deps.storage)
         .range(min, max, order_enum)
         .take(limit)
-        .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
+        .map(|(_key, value)| from_json(value.as_slice()).unwrap())
         .collect();
     Ok(members)
 }
@@ -632,7 +615,7 @@ fn query_get(deps: Deps, round: u64) -> Result<DistributedShareData, ContractErr
     let value = beacons
         .get(&round.to_be_bytes())
         .ok_or(ContractError::NoBeacon {})?;
-    let share_data: DistributedShareData = from_slice(value.as_slice())?;
+    let share_data: DistributedShareData = from_json(value.as_slice())?;
     Ok(share_data)
 }
 
@@ -640,7 +623,7 @@ fn query_latest(deps: Deps) -> Result<DistributedShareData, ContractError> {
     let store = beacons_storage_read(deps.storage);
     let mut iter = store.range(None, None, Order::Descending);
     let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
-    let share_data: DistributedShareData = from_slice(value.as_slice())?;
+    let share_data: DistributedShareData = from_json(value.as_slice())?;
     Ok(share_data)
 }
 
@@ -656,7 +639,7 @@ fn query_rounds(
     let rounds: Vec<DistributedShareData> = store
         .range(min, max, order_enum)
         .take(limit)
-        .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
+        .map(|(_key, value)| from_json(value.as_slice()).unwrap())
         .collect();
     println!("rounds: {:?}", rounds[0].round);
     Ok(rounds)
@@ -677,7 +660,7 @@ fn get_input(input: &[u8], round: &[u8]) -> Vec<u8> {
 pub fn get_all_dealers(deps: Deps) -> Result<Vec<Member>, ContractError> {
     let mut members: Vec<Member> = members_storage_read(deps.storage)
         .range(None, None, Order::Ascending)
-        .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
+        .map(|(_key, value)| from_json(value.as_slice()).unwrap())
         .collect();
     members.retain(|m| m.shared_dealer.is_some());
     return Ok(members);
@@ -686,7 +669,7 @@ pub fn get_all_dealers(deps: Deps) -> Result<Vec<Member>, ContractError> {
 pub fn get_all_members(deps: Deps) -> Result<Vec<Member>, ContractError> {
     let members: Vec<Member> = members_storage_read(deps.storage)
         .range(None, None, Order::Ascending)
-        .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
+        .map(|(_key, value)| from_json(value.as_slice()).unwrap())
         .collect();
     return Ok(members);
 }
@@ -725,4 +708,9 @@ pub fn get_final_signed_message(group_sig: &[u8]) -> String {
 pub fn to_hex_string(bytes: Vec<u8>) -> String {
     let strs: Vec<String> = bytes.iter().map(|b| format!("{:02x}", b)).collect();
     strs.join("")
+}
+
+#[entry_point]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Ok(Response::default())
 }

@@ -1,3 +1,4 @@
+use cosmwasm_schema::cw_serde;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +16,7 @@ const MEMBERS_KEY: &[u8] = b"members";
 const BEACONS_KEY: &[u8] = b"beacons";
 const OWNER_KEY: &[u8] = b"owner";
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Config {
     /// The denom in which bounties are paid. This is typically the fee token of the chain.
     pub total: u16,
@@ -28,7 +29,7 @@ pub struct Config {
     pub status: SharedStatus,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Owner {
     pub owner: String,
 }

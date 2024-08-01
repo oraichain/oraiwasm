@@ -1,34 +1,35 @@
-use cosmwasm_std::{Binary, Coin, HumanAddr};
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Binary, Coin};
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+use crate::state::Config;
+
+#[cw_serde]
 pub struct SharedRowMsg {
     // is public share
     pub pk_share: Binary,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct SharedDealerMsg {
     pub commits: Vec<Binary>,
     // is public share
     pub rows: Vec<Binary>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ShareSig {
     pub sender: String,
     pub index: u16,
     pub sig: Binary,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct MemberMsg {
     pub address: String, // orai wallet for easy lookup
     pub pubkey: Binary,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct Member {
     pub address: String, // orai wallet for easy lookup
     pub pubkey: Binary,
@@ -41,8 +42,8 @@ pub struct Member {
     pub deleted: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+#[cw_serde]
+pub struct InstantiateMsg {
     // readable
     pub members: Vec<MemberMsg>,
     /// The denom in which bounties are paid. This is typically the fee token of the chain.
@@ -51,16 +52,15 @@ pub struct InitMsg {
     pub fee: Option<Coin>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct ShareSigMsg {
     pub sig: Binary,
     pub signed_sig: Binary,
     pub round: u64,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+#[cw_serde]
+pub enum ExecuteMsg {
     ShareDealer {
         share: SharedDealerMsg,
     },
@@ -83,32 +83,39 @@ pub enum HandleMsg {
     ForceNextRound {},
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
+    #[returns(Config)]
     ContractInfo {},
-    GetRound {
-        round: u64,
-    },
-    GetMember {
-        address: String,
-    },
+    #[returns(DistributedShareData)]
+    GetRound { round: u64 },
+    #[returns(Member)]
+    GetMember { address: String },
+    #[returns(Vec<Member>)]
     GetMembers {
         limit: Option<u8>,
-        offset: Option<HumanAddr>,
+        offset: Option<String>,
         order: Option<u8>,
     },
+    #[returns(DistributedShareData)]
     LatestRound {},
+    #[returns(Vec<DistributedShareData>)]
     GetRounds {
         limit: Option<u8>,
         offset: Option<u64>,
         order: Option<u8>,
     },
+    #[returns(DistributedShareData)]
     CurrentHandling {},
+    #[returns(bool)]
     VerifyRound(u64),
 }
+/// We currently take no arguments for migrations
+#[cw_serde]
+pub struct MigrateMsg {}
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub struct DistributedShareData {
     /// The randomness if available. When the beacon does not exist, this is an empty value. like waiting
     pub sigs: Vec<ShareSig>,
@@ -122,7 +129,7 @@ pub struct DistributedShareData {
 }
 
 #[repr(i32)]
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[cw_serde]
 pub enum SharedStatus {
     WaitForDealer = 1,
     WaitForRow,
