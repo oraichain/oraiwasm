@@ -28,8 +28,8 @@ use cosmwasm_crypto::secp256k1_verify;
 const MAX_LIMIT: u8 = 30;
 const DEFAULT_LIMIT: u8 = 5;
 
-#[cfg_attr(not(feature = "library"), entry_point)]
-pub fn init(
+#[entry_point]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
