@@ -18,7 +18,7 @@ use blsdkg::{
 use cosmwasm_std::{
     from_json,
     testing::{mock_dependencies, mock_env, mock_info},
-    Binary, DepsMut, Response,
+    Binary, Coin, DepsMut, Response, Uint128,
 };
 use pairing::bls12_381::Fr;
 
@@ -323,7 +323,13 @@ fn request_round() {
     for _ in 1u64..=3u64 {
         let input = Binary::from_base64("aGVsbG8=").unwrap();
         // anyone request commit
-        let info = mock_info("anyone", &vec![]);
+        let info = mock_info(
+            "anyone",
+            &vec![Coin {
+                denom: "orai".to_string(),
+                amount: Uint128::from(100u128),
+            }],
+        );
         let msg = ExecuteMsg::RequestRandom {
             input: input.clone(),
         };
@@ -442,7 +448,13 @@ fn test_reset() {
     for _ in 1u64..=3u64 {
         let input = Binary::from_base64("aGVsbG8=").unwrap();
         // anyone request commit
-        let info = mock_info("anyone", &vec![]);
+        let info = mock_info(
+            "anyone",
+            &vec![Coin {
+                denom: "orai".to_string(),
+                amount: Uint128::from(100u128),
+            }],
+        );
         let msg = ExecuteMsg::RequestRandom {
             input: input.clone(),
         };
