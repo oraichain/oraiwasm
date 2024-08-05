@@ -55,7 +55,7 @@ pub struct InstantiateMsg {
 #[cw_serde]
 pub struct ShareSigMsg {
     pub sig: Binary,
-    pub signed_sig: Binary,
+    pub signed_sig: Option<Binary>,
     pub round: u64,
 }
 

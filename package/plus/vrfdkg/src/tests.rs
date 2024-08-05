@@ -364,8 +364,10 @@ fn request_round() {
                 share: ShareSigMsg {
                     sig,
                     round: current_round.round,
-                    signed_sig: Binary::from_base64(signed_sig[(current_round.round - 1) as usize])
-                        .unwrap(),
+                    signed_sig: Some(
+                        Binary::from_base64(signed_sig[(current_round.round - 1) as usize])
+                            .unwrap(),
+                    ),
                 },
             };
             execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -480,7 +482,7 @@ fn test_reset() {
             share: ShareSigMsg {
                 sig,
                 round: current_round.round,
-                signed_sig: Binary::from_base64("aGVsbG8=").unwrap(),
+                signed_sig: None,
             },
         };
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();

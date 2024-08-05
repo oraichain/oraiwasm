@@ -346,19 +346,18 @@ pub fn update_share_sig(
 
     // if too late, check signed signature. If still empty => update then increase round count
     if share_data.sigs.len() > threshold as usize {
-        if share_data.signed_eth_combined_sig.is_none() && share_data.randomness.is_some() {
+        if let (Some(signed_sig), Some(randomness)) =
+            (share.signed_sig, share_data.randomness.clone())
+        {
             // also verify the signed signature against the signature received
-            let hash = share_data.randomness.clone().unwrap();
-            let signed_verifed = secp256k1_verify(
-                hash.as_slice(),
-                share.signed_sig.as_slice(),
-                member.pubkey.as_slice(),
-            )
-            .map_err(|_| ContractError::InvalidSignedSignature {})?;
-            if signed_verifed {
+            let hash = randomness;
+            let signed_verifed =
+                secp256k1_verify(hash.as_slice(), &signed_sig, member.pubkey.as_slice())
+                    .map_err(|_| ContractError::InvalidSignedSignature {})?;
+            if signed_verifed && share_data.signed_eth_combined_sig.is_none() {
                 // increment round count since this round has finished and verified
                 round_count(deps.storage).save(&(share.round + 1))?;
-                share_data.signed_eth_combined_sig = Some(share.signed_sig);
+                share_data.signed_eth_combined_sig = Some(signed_sig);
                 share_data.signed_eth_pubkey = Some(member.pubkey); // update back data
                 beacons_storage(deps.storage).set(&round_key, &to_json_binary(&share_data)?);
                 return Ok(Response::new().add_attributes(vec![

@@ -1,6 +1,6 @@
 [package]
 authors = ["Thanh tu <tu@orai.io>"]
-edition = "2018"
+edition = "2021"
 license = "AGPL-3.0"
 name = "vrfdkg"
 version = "0.1.0"
@@ -31,16 +31,15 @@ cosmwasm-std = { version = "1.5" }
 cosmwasm-storage = { version = "1.5", features = ["iterator"] }
 cosmwasm-schema = { version = "1.5" }
 blsdkg = { path = "../../base/blsdkg" }
-schemars = "0.7"
-serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+schemars = "0.8"
+serde = { version = "1.0.204", default-features = false, features = ["derive"] }
 thiserror = "1.0"
-cosmwasm-crypto = "0.14.0"
-sha3 = "0.9.1"
+cosmwasm-crypto = "1.5"
+sha3 = "0.10"
 cw-utils = { workspace = true }
 
 [dev-dependencies]
 cosmwasm-vm = { version = "1.5", default-features = false }
-cosmwasm-crypto = "1.5"
-sha3 = "0.9.1"
+sha3 = "0.10"
 rand = "0.7.3"
 pairing = "0.16.0"
