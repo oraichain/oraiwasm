@@ -462,34 +462,28 @@ fn test_reset() {
     }
 
     // query rounds and sign signatures
-    let mut current_round_result = query_current(deps.as_ref());
-    while current_round_result.is_ok() {
-        let current_round = query_current(deps.as_ref()).unwrap();
-        // threshold is 2, so need 3,4,5 as honest member to contribute sig
-        let contributors: Vec<&Member> = [2, 3, 4].iter().map(|i| &members[*i]).collect();
-        for contributor in contributors {
-            // now can share secret pubkey for contract to verify
-            let sk = get_sk_key(contributor, &dealers);
-            let mut msg = current_round.input.to_vec();
-            msg.extend(current_round.round.to_be_bytes().to_vec());
-            let msg_hash = hash_g2(msg);
-            let mut sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
-            sig_bytes.copy_from_slice(&sk.sign_g2(msg_hash).to_bytes());
-            let sig = Binary::from(sig_bytes);
-            let info = mock_info(&contributor.address.clone(), &vec![]);
+    let current_round = query_current(deps.as_ref()).unwrap();
+    // contribute share sig for test, after that we will reset everything
+    let contributors: Vec<&Member> = [0].iter().map(|i| &members[*i]).collect();
+    for contributor in contributors {
+        // now can share secret pubkey for contract to verify
+        let sk = get_sk_key(contributor, &dealers);
+        let mut msg = current_round.input.to_vec();
+        msg.extend(current_round.round.to_be_bytes().to_vec());
+        let msg_hash = hash_g2(msg);
+        let mut sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
+        sig_bytes.copy_from_slice(&sk.sign_g2(msg_hash).to_bytes());
+        let sig = Binary::from(sig_bytes);
+        let info = mock_info(&contributor.address.clone(), &vec![]);
 
-            let msg = ExecuteMsg::ShareSig {
-                share: ShareSigMsg {
-                    sig,
-                    round: current_round.round,
-                    signed_sig: Binary::from_base64("aGVsbG8=").unwrap(),
-                },
-            };
-            execute(deps.as_mut(), mock_env(), info, msg).unwrap();
-
-            // update to get next round
-            current_round_result = query_current(deps.as_ref());
-        }
+        let msg = ExecuteMsg::ShareSig {
+            share: ShareSigMsg {
+                sig,
+                round: current_round.round,
+                signed_sig: Binary::from_base64("aGVsbG8=").unwrap(),
+            },
+        };
+        execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     }
 
     // now should query randomness successfully
@@ -525,7 +519,7 @@ fn test_reset() {
 
     // update threshold
     let threshold_msg = ExecuteMsg::Reset {
-        threshold: Some(4),
+        threshold: Some(2),
         members: None,
     };
     execute(
