@@ -1,6 +1,6 @@
 [package]
 authors = ["Thanh tu <tu@orai.io>"]
-edition = "2021"
+edition = "2018"
 license = "AGPL-3.0"
 name = "vrfdkg"
 version = "0.1.0"
@@ -15,16 +15,12 @@ exclude = [
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[profile.release]
-codegen-units = 1
-debug = false
-debug-assertions = false
-incremental = false
-lto = true
-opt-level = 3
-overflow-checks = true
-panic = 'abort'
-rpath = false
+[features]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+# for quicker tests, cargo test --lib
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 cosmwasm-std = { version = "1.5" }
@@ -35,11 +31,12 @@ schemars = "0.8"
 serde = { version = "1.0.204", default-features = false, features = ["derive"] }
 thiserror = "1.0"
 cosmwasm-crypto = "1.5"
-sha3 = "0.10"
+sha3 = "0.9.1"
 cw-utils = { workspace = true }
+cw-storage-plus = { workspace = true }
 
 [dev-dependencies]
 cosmwasm-vm = { version = "1.5", default-features = false }
-sha3 = "0.10"
+sha3 = "0.9.1"
 rand = "0.7.3"
 pairing = "0.16.0"

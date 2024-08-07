@@ -1,6 +1,19 @@
 [workspace]
+resolver = '2'
 
 members = ["package/*/*"]
 
 [workspace.dependencies]
-cw-utils = "1.0.1"
+cw-utils = "1.0.3"
+cw-storage-plus = { version = "1.0.1" }
+
+[profile.release]
+opt-level = 3
+debug = false
+debug-assertions = false
+codegen-units = 1
+incremental = false
+rpath = false
+lto = true
+overflow-checks = true
+panic = 'abort'

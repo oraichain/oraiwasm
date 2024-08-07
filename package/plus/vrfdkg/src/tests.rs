@@ -6,7 +6,7 @@ use crate::{
         DistributedShareData, ExecuteMsg, InstantiateMsg, Member, MemberMsg, QueryMsg, ShareSigMsg,
         SharedDealerMsg, SharedRowMsg, SharedStatus,
     },
-    state::{round_count, round_count_read, Config},
+    state::{Config, ROUND_COUNT},
 };
 
 use blsdkg::{
@@ -577,7 +577,7 @@ fn test_reset() {
 fn force_next_round() {
     let mut deps = mock_dependencies();
     let _res = initialization(deps.as_mut());
-    round_count(deps.as_mut().storage).save(&10).unwrap();
+    ROUND_COUNT.save(deps.as_mut().storage, &10).unwrap();
 
     // update round
     let round_msg = ExecuteMsg::ForceNextRound {};
@@ -589,7 +589,7 @@ fn force_next_round() {
     )
     .unwrap();
 
-    let current_round: u64 = round_count_read(deps.as_ref().storage).load().unwrap();
+    let current_round: u64 = ROUND_COUNT.load(deps.as_ref().storage).unwrap();
     println!("current round: {:?}", current_round);
     assert_eq!(current_round, 11);
 }
