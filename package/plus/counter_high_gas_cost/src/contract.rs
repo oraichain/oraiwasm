@@ -1,7 +1,4 @@
-use cosmwasm_std::{
-    entry_point,  Binary, Deps, DepsMut, Env,
-    MessageInfo, Response
-};
+use cosmwasm_std::{entry_point, Binary, Deps, DepsMut, Env, MessageInfo, Response};
 
 use crate::errors::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -29,6 +26,15 @@ pub fn execute(
 }
 
 pub fn ping(_deps: DepsMut) -> Result<Response, ContractError> {
+    // very expensive operation
+    let mut i = 0;
+    let mut str = "".to_string();
+    let mut clone_str = "".to_string();
+    while i < 700000 {
+        i += 1;
+        str.push_str("x");
+        clone_str = str.clone().clone().clone().clone();
+    }
     Ok(Response::default())
 }
 
