@@ -30,7 +30,7 @@ pub fn ping(_deps: DepsMut) -> Result<Response, ContractError> {
     let mut i = 0;
     let mut str = "".to_string();
     let mut clone_str = "".to_string();
-    while i < 700000 {
+    while i < 100000 {
         i += 1;
         str.push_str("x");
         clone_str = str.clone().clone().clone().clone();
