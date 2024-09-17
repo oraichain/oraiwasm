@@ -2,12 +2,12 @@ use crate::{
     contract::{
         execute, get_all_members, get_final_signed_message, instantiate, query, query_current,
     },
-    msg::{
-        DistributedShareData, ExecuteMsg, InstantiateMsg, Member, MemberMsg, QueryMsg, ShareSigMsg,
-        SharedDealerMsg, SharedRowMsg, SharedStatus,
-    },
-    state::{Config, ROUND_COUNT},
+    state::ROUND_COUNT,
 };
+use vrfdkgp::{msg::{
+    DistributedShareData, ExecuteMsg, InstantiateMsg, Member, MemberMsg, QueryMsg, ShareSigMsg,
+    SharedDealerMsg, SharedRowMsg, SharedStatus,
+}, state::Config};
 
 use blsdkg::{
     ff::Field,

@@ -1,8 +1,8 @@
 [package]
-authors = ["Thanh tu <tu@orai.io>"]
+authors = ["Oraichain Labs"]
 edition = "2021"
 license = "AGPL-3.0"
-name = "vrfdkg"
+name = "vrfdkgp"
 version = "0.1.0"
 
 exclude = [
@@ -24,20 +24,8 @@ backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 cosmwasm-std = { version = "1.5" }
-cosmwasm-storage = { version = "1.5", features = ["iterator"] }
 cosmwasm-schema = { version = "1.5" }
-blsdkg = { path = "../../base/blsdkg" }
-vrfdkgp = { path = "../../base/vrfdkgp" }
 schemars = "0.8"
 serde = { version = "1.0.204", default-features = false, features = ["derive"] }
 thiserror = "1.0"
-cosmwasm-crypto = "0.14"
-sha3 = "0.10"
 cw-utils = { workspace = true }
-cw-storage-plus = { workspace = true }
-
-[dev-dependencies]
-cosmwasm-vm = { version = "1.5", default-features = false }
-sha3 = "0.10"
-rand = "0.7.3"
-pairing = "0.16.0"

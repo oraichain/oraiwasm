@@ -1,6 +1,6 @@
 use cosmwasm_schema::write_api;
 
-use vrfdkg::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
+use vrfdkgp::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 
 fn main() {
     write_api! {

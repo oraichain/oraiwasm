@@ -12,13 +12,14 @@ use blsdkg::{
 };
 use cw_storage_plus::Bound;
 use cw_utils::one_coin;
+use vrfdkgp::state::{Config, Owner};
 
-use crate::errors::ContractError;
-use crate::msg::{
+use crate::state::{BEACONS, CONFIG, MEMBERS, OWNER, ROUND_COUNT};
+use vrfdkgp::errors::ContractError;
+use vrfdkgp::msg::{
     DistributedShareData, ExecuteMsg, InstantiateMsg, Member, MemberMsg, MigrateMsg, QueryMsg,
     ShareSig, ShareSigMsg, SharedDealerMsg, SharedRowMsg, SharedStatus,
 };
-use crate::state::{Config, Owner, BEACONS, CONFIG, MEMBERS, OWNER, ROUND_COUNT};
 
 use cosmwasm_crypto::secp256k1_verify;
 
