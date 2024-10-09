@@ -2,7 +2,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{config, config_read, State};
 use crate::{error::ContractError, msg::Input};
 use cosmwasm_std::{
-    from_slice, to_json_binary, Api, Binary, Env, Extern, Response, Response, MessageInfo,
+    from_json, to_json_binary, Api, Binary, Env, Extern, Response, Response, MessageInfo,
     Querier, StdResult, Storage,
 };
 
@@ -17,7 +17,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     let state = State {
         ai_data_source: msg.ai_data_source,
         testcase: msg.testcase,
-        owner: deps.api.canonical_address(&info.sender)?,
+        owner: deps.api.addr_canonicalize(&info.sender)?,
     };
     config(&mut deps.storage).save(&state)?;
 
@@ -44,7 +44,7 @@ pub fn try_update_datasource<S: Storage, A: Api, Q: Querier>(
 ) -> Result<Response, ContractError> {
     let api = &deps.api;
     config(&mut deps.storage).update(|mut state| -> Result<_, ContractError> {
-        if api.canonical_address(&info.sender)? != state.owner {
+        if api.addr_canonicalize(&info.sender)? != state.owner {
             return Err(ContractError::Unauthorized {});
         }
         state.ai_data_source = name;
@@ -60,7 +60,7 @@ pub fn try_update_testcase<S: Storage, A: Api, Q: Querier>(
 ) -> Result<Response, ContractError> {
     let api = &deps.api;
     config(&mut deps.storage).update(|mut state| -> Result<_, ContractError> {
-        if api.canonical_address(&info.sender)? != state.owner {
+        if api.addr_canonicalize(&info.sender)? != state.owner {
             return Err(ContractError::Unauthorized {});
         }
         state.testcase = name;
@@ -108,7 +108,7 @@ fn query_aggregation<S: Storage, A: Api, Q: Querier>(
     for input in results {
         // have to replace since escape string in rust is \\\" not \"
         let input_edit = str::replace(&input, "\\\"", "\"");
-        let input_struct: Input = from_slice(&(input_edit.as_bytes())).unwrap();
+        let input_struct: Input = from_json(&(input_edit.as_bytes())).unwrap();
         final_result.push_str("Hash=");
         final_result.push_str(&input_struct.Hash);
         final_result.push('&');

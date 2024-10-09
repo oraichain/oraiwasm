@@ -28,7 +28,7 @@ pub fn instantiate(
         // Initial balances
         let mut balances_store = PrefixedStorage::new(deps.storage, PREFIX_BALANCES);
         for row in msg.initial_balances {
-            let raw_address = deps.api.canonical_address(&row.address)?;
+            let raw_address = deps.api.addr_canonicalize(&row.address)?;
             let amount_raw = row.amount.u128();
             balances_store.set(raw_address.as_slice(), &amount_raw.to_be_bytes());
             total_supply += amount_raw;
@@ -82,7 +82,7 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::Balance { address } => {
-            let address_key = deps.api.canonical_address(&address)?;
+            let address_key = deps.api.addr_canonicalize(&address)?;
             let balance = read_balance(deps.storage, &address_key)?;
             let out = to_json_binary(&BalanceResponse {
                 balance: Uint128::from(balance),
@@ -90,8 +90,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             Ok(out)
         }
         QueryMsg::Allowance { owner, spender } => {
-            let owner_key = deps.api.canonical_address(&owner)?;
-            let spender_key = deps.api.canonical_address(&spender)?;
+            let owner_key = deps.api.addr_canonicalize(&owner)?;
+            let spender_key = deps.api.addr_canonicalize(&spender)?;
             let allowance = read_allowance(deps.storage, &owner_key, &spender_key)?;
             let out = to_json_binary(&AllowanceResponse {
                 allowance: Uint128::from(allowance),
@@ -108,8 +108,8 @@ fn try_transfer(
     recipient: &Addr,
     amount: &Uint128,
 ) -> Result<Response, ContractError> {
-    let sender_address_raw = deps.api.canonical_address(&info.sender)?;
-    let recipient_address_raw = deps.api.canonical_address(recipient)?;
+    let sender_address_raw = deps.api.addr_canonicalize(&info.sender)?;
+    let recipient_address_raw = deps.api.addr_canonicalize(recipient)?;
     let amount_raw = amount.u128();
 
     perform_transfer(
@@ -139,9 +139,9 @@ fn try_transfer_from(
     recipient: &Addr,
     amount: &Uint128,
 ) -> Result<Response, ContractError> {
-    let spender_address_raw = deps.api.canonical_address(&info.sender)?;
-    let owner_address_raw = deps.api.canonical_address(owner)?;
-    let recipient_address_raw = deps.api.canonical_address(recipient)?;
+    let spender_address_raw = deps.api.addr_canonicalize(&info.sender)?;
+    let owner_address_raw = deps.api.addr_canonicalize(owner)?;
+    let recipient_address_raw = deps.api.addr_canonicalize(recipient)?;
     let amount_raw = amount.u128();
 
     let mut allowance = read_allowance(deps.storage, &owner_address_raw, &spender_address_raw)?;
@@ -185,8 +185,8 @@ fn try_approve(
     spender: &Addr,
     amount: &Uint128,
 ) -> Result<Response, ContractError> {
-    let owner_address_raw = deps.api.canonical_address(&info.sender)?;
-    let spender_address_raw = deps.api.canonical_address(spender)?;
+    let owner_address_raw = deps.api.addr_canonicalize(&info.sender)?;
+    let spender_address_raw = deps.api.addr_canonicalize(spender)?;
     write_allowance(
         deps.storage,
         &owner_address_raw,
@@ -216,7 +216,7 @@ fn try_burn(
     info: MessageInfo,
     amount: &Uint128,
 ) -> Result<Response, ContractError> {
-    let owner_address_raw = &deps.api.canonical_address(&info.sender)?;
+    let owner_address_raw = &deps.api.addr_canonicalize(&info.sender)?;
     let amount_raw = amount.u128();
 
     let mut account_balance = read_balance(deps.storage, owner_address_raw)?;
@@ -359,7 +359,7 @@ mod tests {
     use super::*;
     use crate::msg::InitialBalance;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{from_slice, Api, Env, Addr, MessageInfo, Storage, Uint128};
+    use cosmwasm_std::{from_json, Api, Env, Addr, MessageInfo, Storage, Uint128};
     use cosmwasm_storage::ReadonlyPrefixedStorage;
 
     fn mock_env_height(signer: &Addr, height: u64, time: u64) -> (Env, MessageInfo) {
@@ -375,7 +375,7 @@ mod tests {
         let data = config_storage
             .get(KEY_CONSTANTS)
             .expect("no config data stored");
-        from_slice(&data).expect("invalid data")
+        from_json(&data).expect("invalid data")
     }
 
     fn get_total_supply(storage: &dyn Storage) -> u128 {
@@ -388,8 +388,8 @@ mod tests {
 
     fn get_balance(api: &dyn Api, storage: &dyn Storage, address: &Addr) -> u128 {
         let address_key = api
-            .canonical_address(address)
-            .expect("canonical_address failed");
+            .addr_canonicalize(address)
+            .expect("addr_canonicalize failed");
         let balances_storage = ReadonlyPrefixedStorage::new(storage, PREFIX_BALANCES);
         return read_u128(&balances_storage, address_key.as_slice()).unwrap();
     }
@@ -400,11 +400,11 @@ mod tests {
         spender: &Addr,
     ) -> u128 {
         let owner_raw_address = api
-            .canonical_address(owner)
-            .expect("canonical_address failed");
+            .addr_canonicalize(owner)
+            .expect("addr_canonicalize failed");
         let spender_raw_address = api
-            .canonical_address(spender)
-            .expect("canonical_address failed");
+            .addr_canonicalize(spender)
+            .expect("addr_canonicalize failed");
         let owner_storage = ReadonlyPrefixedStorage::multilevel(
             storage,
             &[PREFIX_ALLOWANCES, owner_raw_address.as_slice()],
@@ -417,9 +417,9 @@ mod tests {
 
         #[test]
         fn init_test() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let balances = format!("{{\"address\":\"addr0000\",\"amount\":\"11122233\"}}");
-            let init_balance: InitialBalance = from_slice(&(balances.as_bytes())).unwrap();
+            let init_balance: InitialBalance = from_json(&(balances.as_bytes())).unwrap();
             let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
@@ -428,17 +428,17 @@ mod tests {
             };
             println!("human address: {}", init_msg.initial_balances[0].address);
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             let raw_address = deps
                 .api
-                .canonical_address(&Addr("addr0000".to_string()))
+                .addr_canonicalize(&Addr("addr0000".to_string()))
                 .unwrap();
             println!("raw address: {}", raw_address);
         }
 
         #[test]
         fn works() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
@@ -450,7 +450,7 @@ mod tests {
                 .to_vec(),
             };
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             assert_eq!(
                 get_constants(&deps.storage),
@@ -469,7 +469,7 @@ mod tests {
 
         #[test]
         fn works_with_empty_balance() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
@@ -477,14 +477,14 @@ mod tests {
                 initial_balances: [].to_vec(),
             };
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             assert_eq!(get_total_supply(&deps.storage), 0);
         }
 
         #[test]
         fn works_with_multiple_balances() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
@@ -506,7 +506,7 @@ mod tests {
                 .to_vec(),
             };
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             assert_eq!(
                 get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
@@ -525,7 +525,7 @@ mod tests {
 
         #[test]
         fn works_with_balance_larger_than_53_bit() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             // This value cannot be represented precisely in JavaScript and jq. Both
             //   node -e "console.attr(9007199254740993)"
             //   echo '{ "value": 9007199254740993 }' | jq
@@ -541,7 +541,7 @@ mod tests {
                 .to_vec(),
             };
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             assert_eq!(
                 get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
@@ -553,7 +553,7 @@ mod tests {
         #[test]
         // Typical supply like 100 million tokens with 18 decimals exceeds the 64 bit range
         fn works_with_balance_larger_than_64_bit() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
@@ -565,7 +565,7 @@ mod tests {
                 .to_vec(),
             };
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             assert_eq!(
                 get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
@@ -576,7 +576,7 @@ mod tests {
 
         #[test]
         fn fails_for_large_decimals() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
@@ -584,7 +584,7 @@ mod tests {
                 initial_balances: [].to_vec(),
             };
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let result = init(deps.as_mut(), env, info, init_msg);
+            let result = instantiate(deps.as_mut(), env, info, init_msg);
             match result {
                 Ok(_) => panic!("expected error"),
                 Err(ContractError::DecimalsExceeded {}) => {}
@@ -594,7 +594,7 @@ mod tests {
 
         #[test]
         fn fails_for_name_too_short() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = InstantiateMsg {
                 name: "CC".to_string(),
                 symbol: "CASH".to_string(),
@@ -602,7 +602,7 @@ mod tests {
                 initial_balances: [].to_vec(),
             };
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let result = init(deps.as_mut(), env, info, init_msg);
+            let result = instantiate(deps.as_mut(), env, info, init_msg);
             match result {
                 Ok(_) => panic!("expected error"),
                 Err(ContractError::NameWrongFormat {}) => {}
@@ -612,7 +612,7 @@ mod tests {
 
         #[test]
         fn fails_for_name_too_long() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = InstantiateMsg {
                 name: "Cash coin. Cash coin. Cash coin. Cash coin.".to_string(),
                 symbol: "CASH".to_string(),
@@ -620,7 +620,7 @@ mod tests {
                 initial_balances: [].to_vec(),
             };
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let result = init(deps.as_mut(), env, info, init_msg);
+            let result = instantiate(deps.as_mut(), env, info, init_msg);
             match result {
                 Ok(_) => panic!("expected error"),
                 Err(ContractError::NameWrongFormat {}) => {}
@@ -630,7 +630,7 @@ mod tests {
 
         #[test]
         fn fails_for_symbol_too_short() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = InstantiateMsg {
                 name: "De De".to_string(),
                 symbol: "DD".to_string(),
@@ -638,7 +638,7 @@ mod tests {
                 initial_balances: [].to_vec(),
             };
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let result = init(deps.as_mut(), env, info, init_msg);
+            let result = instantiate(deps.as_mut(), env, info, init_msg);
             match result {
                 Ok(_) => panic!("expected error"),
                 Err(ContractError::TickerWrongSymbolFormat {}) => {}
@@ -648,7 +648,7 @@ mod tests {
 
         #[test]
         fn fails_for_symbol_too_long() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = InstantiateMsg {
                 name: "Super Coin".to_string(),
                 symbol: "SUPERCOIN".to_string(),
@@ -656,7 +656,7 @@ mod tests {
                 initial_balances: [].to_vec(),
             };
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let result = init(deps.as_mut(), env, info, init_msg);
+            let result = instantiate(deps.as_mut(), env, info, init_msg);
             match result {
                 Ok(_) => panic!("expected error"),
                 Err(ContractError::TickerWrongSymbolFormat {}) => {}
@@ -666,7 +666,7 @@ mod tests {
 
         #[test]
         fn fails_for_symbol_lowercase() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CaSH".to_string(),
@@ -674,7 +674,7 @@ mod tests {
                 initial_balances: [].to_vec(),
             };
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let result = init(deps.as_mut(), env, info, init_msg);
+            let result = instantiate(deps.as_mut(), env, info, init_msg);
             match result {
                 Ok(_) => panic!("expected error"),
                 Err(ContractError::TickerWrongSymbolFormat {}) => {}
@@ -712,10 +712,10 @@ mod tests {
 
         #[test]
         fn can_send_to_existing_recipient() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
@@ -737,7 +737,7 @@ mod tests {
                 amount: Uint128::from(1u128),
             };
             let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
-            let transfer_result = handle(deps.as_mut(), env, info, transfer_msg).unwrap();
+            let transfer_result = execute(deps.as_mut(), env, info, transfer_msg).unwrap();
             assert_eq!(transfer_result.messages.len(), 0);
             assert_eq!(
                 transfer_result.attributes,
@@ -765,10 +765,10 @@ mod tests {
 
         #[test]
         fn can_send_to_non_existent_recipient() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
@@ -790,7 +790,7 @@ mod tests {
                 amount: Uint128::from(1u128),
             };
             let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
-            let transfer_result = handle(deps.as_mut(), env, info, transfer_msg).unwrap();
+            let transfer_result = execute(deps.as_mut(), env, info, transfer_msg).unwrap();
             assert_eq!(transfer_result.messages.len(), 0);
             assert_eq!(
                 transfer_result.attributes,
@@ -822,10 +822,10 @@ mod tests {
 
         #[test]
         fn can_send_zero_amount() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
@@ -847,7 +847,7 @@ mod tests {
                 amount: Uint128::from(0u128),
             };
             let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
-            let transfer_result = handle(deps.as_mut(), env, info, transfer_msg).unwrap();
+            let transfer_result = execute(deps.as_mut(), env, info, transfer_msg).unwrap();
             assert_eq!(transfer_result.messages.len(), 0);
             assert_eq!(
                 transfer_result.attributes,
@@ -875,10 +875,10 @@ mod tests {
 
         #[test]
         fn can_send_to_sender() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             let sender = Addr("addr0000".to_string());
             // Initial state
@@ -889,7 +889,7 @@ mod tests {
                 amount: Uint128::from(3u128),
             };
             let (env, info) = mock_env_height(&sender, 450, 550);
-            let transfer_result = handle(deps.as_mut(), env, info, transfer_msg).unwrap();
+            let transfer_result = execute(deps.as_mut(), env, info, transfer_msg).unwrap();
             assert_eq!(transfer_result.messages.len(), 0);
             assert_eq!(
                 transfer_result.attributes,
@@ -905,10 +905,10 @@ mod tests {
 
         #[test]
         fn fails_on_insufficient_balance() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
@@ -930,7 +930,7 @@ mod tests {
                 amount: Uint128::from(12u128),
             };
             let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
-            let transfer_result = handle(deps.as_mut(), env, info, transfer_msg);
+            let transfer_result = execute(deps.as_mut(), env, info, transfer_msg);
             match transfer_result {
                 Ok(_) => panic!("expected error"),
                 Err(ContractError::InsufficientFunds {
@@ -988,10 +988,10 @@ mod tests {
 
         #[test]
         fn has_zero_allowance_by_default() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Existing owner
             assert_eq!(
@@ -1017,10 +1017,10 @@ mod tests {
 
         #[test]
         fn can_set_allowance() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             assert_eq!(
                 get_allowance(
@@ -1039,7 +1039,7 @@ mod tests {
                 amount: Uint128::from(334422u128),
             };
             let (env, info) = mock_env_height(&owner.clone(), 450, 550);
-            let approve_result1 = handle(deps.as_mut(), env, info, approve_msg1).unwrap();
+            let approve_result1 = execute(deps.as_mut(), env, info, approve_msg1).unwrap();
             assert_eq!(approve_result1.messages.len(), 0);
             assert_eq!(
                 approve_result1.attributes,
@@ -1059,7 +1059,7 @@ mod tests {
                 amount: Uint128::from(777888u128),
             };
             let (env, info) = mock_env_height(&owner.clone(), 450, 550);
-            let approve_result2 = handle(deps.as_mut(), env, info, approve_msg).unwrap();
+            let approve_result2 = execute(deps.as_mut(), env, info, approve_msg).unwrap();
             assert_eq!(approve_result2.messages.len(), 0);
             assert_eq!(
                 approve_result2.attributes,
@@ -1109,10 +1109,10 @@ mod tests {
 
         #[test]
         fn works() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             let owner = Addr("addr0000".to_string());
             let spender = make_spender();
@@ -1123,7 +1123,7 @@ mod tests {
                 amount: Uint128::from(4u128),
             };
             let (env, info) = mock_env_height(&owner.clone(), 450, 550);
-            let approve_result = handle(deps.as_mut(), env, info, approve_msg).unwrap();
+            let approve_result = execute(deps.as_mut(), env, info, approve_msg).unwrap();
             assert_eq!(approve_result.messages.len(), 0);
             assert_eq!(
                 approve_result.attributes,
@@ -1142,7 +1142,7 @@ mod tests {
                 amount: Uint128::from(3u128),
             };
             let (env, info) = mock_env_height(&spender.clone(), 450, 550);
-            let transfer_from_result = handle(deps.as_mut(), env, info, transfer_from_msg).unwrap();
+            let transfer_from_result = execute(deps.as_mut(), env, info, transfer_from_msg).unwrap();
             assert_eq!(transfer_from_result.messages.len(), 0);
             assert_eq!(
                 transfer_from_result.attributes,
@@ -1160,10 +1160,10 @@ mod tests {
 
         #[test]
         fn fails_when_allowance_too_low() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             let owner = Addr("addr0000".to_string());
             let spender = make_spender();
@@ -1174,7 +1174,7 @@ mod tests {
                 amount: Uint128::from(2u128),
             };
             let (env, info) = mock_env_height(&owner.clone(), 450, 550);
-            let approve_result = handle(deps.as_mut(), env, info, approve_msg).unwrap();
+            let approve_result = execute(deps.as_mut(), env, info, approve_msg).unwrap();
             assert_eq!(approve_result.messages.len(), 0);
             assert_eq!(
                 approve_result.attributes,
@@ -1193,7 +1193,7 @@ mod tests {
                 amount: Uint128::from(3u128),
             };
             let (env, info) = mock_env_height(&spender.clone(), 450, 550);
-            let transfer_result = handle(deps.as_mut(), env, info, fransfer_from_msg);
+            let transfer_result = execute(deps.as_mut(), env, info, fransfer_from_msg);
             match transfer_result {
                 Ok(_) => panic!("expected error"),
                 Err(ContractError::InsufficientAllowance {
@@ -1206,10 +1206,10 @@ mod tests {
 
         #[test]
         fn fails_when_allowance_is_set_but_balance_too_low() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             let owner = Addr("addr0000".to_string());
             let spender = make_spender();
@@ -1220,7 +1220,7 @@ mod tests {
                 amount: Uint128::from(20u128),
             };
             let (env, info) = mock_env_height(&owner.clone(), 450, 550);
-            let approve_result = handle(deps.as_mut(), env, info, approve_msg).unwrap();
+            let approve_result = execute(deps.as_mut(), env, info, approve_msg).unwrap();
             assert_eq!(approve_result.messages.len(), 0);
             assert_eq!(
                 approve_result.attributes,
@@ -1242,7 +1242,7 @@ mod tests {
                 amount: Uint128::from(15u128),
             };
             let (env, info) = mock_env_height(&spender.clone(), 450, 550);
-            let transfer_result = handle(deps.as_mut(), env, info, fransfer_from_msg);
+            let transfer_result = execute(deps.as_mut(), env, info, fransfer_from_msg);
             match transfer_result {
                 Ok(_) => panic!("expected error"),
                 Err(ContractError::InsufficientFunds {
@@ -1279,10 +1279,10 @@ mod tests {
 
         #[test]
         fn can_burn_from_existing_account() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
@@ -1299,7 +1299,7 @@ mod tests {
                 amount: Uint128::from(1u128),
             };
             let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
-            let burn_result = handle(deps.as_mut(), env, info, burn_msg).unwrap();
+            let burn_result = execute(deps.as_mut(), env, info, burn_msg).unwrap();
             assert_eq!(burn_result.messages.len(), 0);
             assert_eq!(
                 burn_result.attributes,
@@ -1323,10 +1323,10 @@ mod tests {
 
         #[test]
         fn can_burn_zero_amount() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
@@ -1343,7 +1343,7 @@ mod tests {
                 amount: Uint128::from(0u128),
             };
             let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
-            let burn_result = handle(deps.as_mut(), env, info, burn_msg).unwrap();
+            let burn_result = execute(deps.as_mut(), env, info, burn_msg).unwrap();
             assert_eq!(burn_result.messages.len(), 0);
             assert_eq!(
                 burn_result.attributes,
@@ -1367,10 +1367,10 @@ mod tests {
 
         #[test]
         fn fails_on_insufficient_balance() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
@@ -1387,7 +1387,7 @@ mod tests {
                 amount: Uint128::from(12u128),
             };
             let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
-            let burn_result = handle(deps.as_mut(), env, info, burn_msg);
+            let burn_result = execute(deps.as_mut(), env, info, burn_msg);
             match burn_result {
                 Ok(_) => panic!("expected error"),
                 Err(ContractError::InsufficientFunds {
@@ -1448,10 +1448,10 @@ mod tests {
 
         #[test]
         fn can_query_balance_of_existing_address() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&address(0), 450, 550);
-            let res = init(deps.as_mut(), env.clone(), info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env.clone(), info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             let query_msg = QueryMsg::Balance {
                 address: address(1),
@@ -1462,10 +1462,10 @@ mod tests {
 
         #[test]
         fn can_query_balance_of_nonexisting_address() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&address(0), 450, 550);
-            let res = init(deps.as_mut(), env.clone(), info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env.clone(), info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             let query_msg = QueryMsg::Balance {
                 address: address(4), // only indices 1, 2, 3 are initialized
@@ -1476,10 +1476,10 @@ mod tests {
 
         #[test]
         fn can_query_allowance_of_existing_addresses() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&address(0), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             let owner = address(2);
             let spender = address(1);
@@ -1488,7 +1488,7 @@ mod tests {
                 amount: Uint128::from(42u128),
             };
             let (env, info) = mock_env_height(&owner.clone(), 450, 550);
-            let action_result = handle(deps.as_mut(), env.clone(), info, approve_msg).unwrap();
+            let action_result = execute(deps.as_mut(), env.clone(), info, approve_msg).unwrap();
             assert_eq!(action_result.messages.len(), 0);
             assert_eq!(
                 action_result.attributes,
@@ -1508,10 +1508,10 @@ mod tests {
 
         #[test]
         fn can_query_allowance_of_nonexisting_owner() {
-            let mut deps = mock_dependencies(&[]);
+            let mut deps = mock_dependencies_with_balance(&[]);
             let init_msg = make_init_msg();
             let (env, info) = mock_env_height(&address(0), 450, 550);
-            let res = init(deps.as_mut(), env, info, init_msg).unwrap();
+            let res = instantiate(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             let owner = address(2);
             let spender = address(1);
@@ -1521,7 +1521,7 @@ mod tests {
                 amount: Uint128::from(42u128),
             };
             let (env, info) = mock_env_height(&owner.clone(), 450, 550);
-            let approve_result = handle(deps.as_mut(), env.clone(), info, approve_msg).unwrap();
+            let approve_result = execute(deps.as_mut(), env.clone(), info, approve_msg).unwrap();
             assert_eq!(approve_result.messages.len(), 0);
             assert_eq!(
                 approve_result.attributes,

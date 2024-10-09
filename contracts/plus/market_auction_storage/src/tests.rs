@@ -5,22 +5,24 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Api;
-use cosmwasm_std::{coin, coins, from_binary, Env, Addr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_binary, Addr, Env, Order, OwnedDeps, Uint128};
 use market_auction::QueryAuctionsResult;
-use market_auction::{Auction, AuctionExecuteMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions};
+use market_auction::{
+    Auction, AuctionExecuteMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions,
+};
 
 const CREATOR: &str = "owner";
 const DENOM: &str = "orai";
 
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
     let msg = InstantiateMsg {
         governance: Addr::from(CREATOR),
     };
     let info = mock_info(CREATOR, &[]);
     let contract_env = mock_env();
-    let res = init(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
     (deps, contract_env)
 }
@@ -33,11 +35,11 @@ fn sort_auction() {
     let info = mock_info(CREATOR, &vec![coin(50000000, DENOM)]);
     let contract_addr = deps
         .api
-        .canonical_address(&Addr::from("contract_addr"))
+        .addr_canonicalize(&Addr::unchecked("contract_addr"))
         .unwrap();
     let asker = deps
         .api
-        .canonical_address(&Addr::from("asker"))
+        .addr_canonicalize(&Addr::unchecked("asker"))
         .unwrap();
 
     for i in 1..50 {
@@ -58,7 +60,7 @@ fn sort_auction() {
             bidder: None,
         };
         let msg = ExecuteMsg::Auction(AuctionExecuteMsg::UpdateAuction { auction });
-        let _res = handle(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
+        let _res = execute(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
     }
 
     // Auction should be listed

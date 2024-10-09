@@ -8,7 +8,7 @@ use crate::{
     state::{CollectionPoolInfo, CollectionStakerInfo, ContractInfo},
 };
 use cosmwasm_std::{
-    coins, from_binary, from_slice,
+    coins, from_binary, from_json,
     testing::{mock_info, MockApi, MockStorage},
     to_json_binary, Binary, ContractResult, CosmosMsg, Response, Addr, MessageInfo,
     OwnedDeps, QuerierResult, StdResult, SystemError, SystemResult, Uint128, WasmQuery, Env,
@@ -49,7 +49,7 @@ impl DepsManager {
         //let info = mock_info(CREATOR, &[]);
 
         let mut ow1155 = mock_dependencies(Addr::from(OW_1155_ADDR), &[], Self::query_wasm);
-        let _ = ow1155::contract::init(
+        let _ = ow1155::contract::instantiate(
             ow1155.as_mut(),
             mock_env(OW_1155_ADDR),
             mock_info("OW_1155_OWNER", &[]),
@@ -60,7 +60,7 @@ impl DepsManager {
         .unwrap();
 
         let mut ow721 = mock_dependencies(Addr::from(OW_721_ADDR), &[], Self::query_wasm);
-        let _ = oraichain_nft::contract::init(
+        let _ = oraichain_nft::contract::instantiate(
             ow721.as_mut(),
             mock_env(OW_721_ADDR),
             mock_info("OW_721_OWNER", &[]),
@@ -85,7 +85,7 @@ impl DepsManager {
             admin: None
         };
 
-        let _ = init(
+        let _ = instantiate(
             deps.as_mut(),
             mock_env(CONTRACT_ADDR),
             mock_info(CREATOR, &[]),
@@ -106,18 +106,18 @@ impl DepsManager {
             }) = msg
             {
                 let result = match contract_addr.as_str() {
-                    OW_1155_ADDR => ow1155::contract::handle(
+                    OW_1155_ADDR => ow1155::contract::execute(
                         self.ow1155.as_mut(),
                         mock_env(OW_1155_ADDR),
                         mock_info(CONTRACT_ADDR, &[]),
-                        from_slice(msg).unwrap(),
+                        from_json(msg).unwrap(),
                     )
                     .ok(),
-                    OW_721_ADDR => oraichain_nft::contract::handle(
+                    OW_721_ADDR => oraichain_nft::contract::execute(
                         self.ow721.as_mut(),
                         mock_env(OW_721_ADDR),
                         mock_info(CONTRACT_ADDR, &[]),
-                        from_slice(msg).unwrap(),
+                        from_json(msg).unwrap(),
                     )
                     .ok(),
                     _ => continue,
@@ -131,13 +131,13 @@ impl DepsManager {
         res.push(ret)
     }
 
-    fn handle(
+    fn execute(
         &mut self,
         info: MessageInfo,
         env: Env,
         msg: ExecuteMsg,
     ) -> Result<Vec<Response>, ContractError> {
-        let first_res = handle(self.deps.as_mut(), env, info, msg)?;
+        let first_res = execute(self.deps.as_mut(), env, info, msg)?;
         let mut res: Vec<Response> = vec![];
         self.handle_wasm(&mut res, first_res);
         Ok(res)
@@ -170,13 +170,13 @@ impl DepsManager {
                         OW_1155_ADDR => ow1155::contract::query(
                             manager.ow1155.as_ref(),
                             mock_env(OW_1155_ADDR),
-                            from_slice(&msg).unwrap(),
+                            from_json(&msg).unwrap(),
                         )
                         .unwrap_or_default(),
                         OW_721_ADDR => oraichain_nft::contract::query(
                             manager.ow721.as_ref(),
                             mock_env(OW_721_ADDR),
-                            from_slice(&msg).unwrap(),
+                            from_json(&msg).unwrap(),
                         )
                         .unwrap_or_default(),
                         _ => Binary::default(),
@@ -203,7 +203,7 @@ fn create_collection_pool_info_helper(
         reward_per_block,
         expired_after: None
     };
-    let _ = manager.handle(
+    let _ = manager.execute(
         mock_info(CREATOR, &[]),
         mock_env(CONTRACT_ADDR),
         ExecuteMsg::CreateCollectionPool(msg),
@@ -211,7 +211,7 @@ fn create_collection_pool_info_helper(
 }
 
 // fn approve_all_for_contract(manager: &mut DepsManager, owner: String) {
-//     let _ = ow1155::contract::handle(
+//     let _ = ow1155::contract::execute(
 //         manager.ow1155.as_mut(),
 //         mock_env(OW_1155_ADDR),
 //         mock_info(owner.clone(), &[]),
@@ -222,7 +222,7 @@ fn create_collection_pool_info_helper(
 //     )
 //     .unwrap();
 
-//     let _ = oraichain_nft::contract::handle(
+//     let _ = oraichain_nft::contract::execute(
 //         manager.ow721.as_mut(),
 //         mock_env(OW_721_ADDR),
 //         mock_info(owner, &[]),
@@ -235,7 +235,7 @@ fn create_collection_pool_info_helper(
 // }
 
 fn create_mock_nft_for_user(manager: &mut DepsManager, owner: String) {
-    let _ = ow1155::contract::handle(
+    let _ = ow1155::contract::execute(
         manager.ow1155.as_mut(),
         mock_env(OW_1155_ADDR),
         mock_info(CONTRACT_ADDR, &[]),
@@ -256,7 +256,7 @@ fn create_mock_nft_for_user(manager: &mut DepsManager, owner: String) {
     )
     .unwrap();
 
-    let _ = oraichain_nft::contract::handle(
+    let _ = oraichain_nft::contract::execute(
         manager.ow721.as_mut(),
         mock_env(OW_721_ADDR),
         mock_info(CONTRACT_ADDR, &[]),
@@ -269,7 +269,7 @@ fn create_mock_nft_for_user(manager: &mut DepsManager, owner: String) {
         }),
     )
     .unwrap();
-    let _ = oraichain_nft::contract::handle(
+    let _ = oraichain_nft::contract::execute(
         manager.ow721.as_mut(),
         mock_env(OW_721_ADDR),
         mock_info(CONTRACT_ADDR, &[]),
@@ -292,27 +292,27 @@ fn update_info_test() {
         let manager = DepsManager::get_new();
 
         // Unauuthorized error
-        let res = manager.handle(
+        let res = manager.execute(
             mock_info("adadd", &[]),
             mock_env(CONTRACT_ADDR),
             ExecuteMsg::UpdateContractInfo(UpdateContractInfoMsg {
                 verifier_pubkey_base64: Some("new_verifier_pubkey".to_string()),
-                nft_1155_contract_addr_whitelist: Some(vec![Addr::from("new_1155")]),
-                nft_721_contract_addr_whitelist:Some(vec![Addr::from("new721")]),
-                admin: Some(Addr::from("new_admin"))
+                nft_1155_contract_addr_whitelist: Some(vec![Addr::unchecked("new_1155")]),
+                nft_721_contract_addr_whitelist:Some(vec![Addr::unchecked("new721")]),
+                admin: Some(Addr::unchecked("new_admin"))
             }),
         );
         assert!(matches!(res, Err(ContractError::Unauthorized { .. })));
 
         // update contract info successfully
-        let _ = manager.handle(
+        let _ = manager.execute(
             mock_info(CREATOR, &[]),
             mock_env(CONTRACT_ADDR),
             ExecuteMsg::UpdateContractInfo(UpdateContractInfoMsg {
                 verifier_pubkey_base64: Some("new_verifier_pubkey".to_string()),
-                nft_1155_contract_addr_whitelist: Some(vec![Addr::from("new_1155")]),
-                nft_721_contract_addr_whitelist:Some(vec![Addr::from("new721")]),
-                admin: Some(Addr::from("new_admin"))
+                nft_1155_contract_addr_whitelist: Some(vec![Addr::unchecked("new_1155")]),
+                nft_721_contract_addr_whitelist:Some(vec![Addr::unchecked("new721")]),
+                admin: Some(Addr::unchecked("new_admin"))
             }),
         );
         let res = manager.query(mock_env(CONTRACT_ADDR),QueryMsg::GetContractInfo {}).unwrap();
@@ -335,7 +335,7 @@ fn create_collection_pool_test() {
         };
 
         // Failed 'cause of reward_per_block <= 0
-        let res = manager.handle(
+        let res = manager.execute(
             mock_info.clone(),
             mock_env(CONTRACT_ADDR),
             ExecuteMsg::CreateCollectionPool(msg.clone()),
@@ -344,7 +344,7 @@ fn create_collection_pool_test() {
 
         // Creatation successfully
         msg.reward_per_block = Uint128::from(10u128);
-        let _ = manager.handle(mock_info, mock_env(CONTRACT_ADDR),ExecuteMsg::CreateCollectionPool(msg));
+        let _ = manager.execute(mock_info, mock_env(CONTRACT_ADDR),ExecuteMsg::CreateCollectionPool(msg));
 
         // Try to query collection pool info
 
@@ -380,7 +380,7 @@ fn update_collection_pool_info_test() {
         };
 
         // Fail 'cause of unauthorized
-        let res = manager.handle(
+        let res = manager.execute(
             mock_info("Adad", &[]),
             mock_env(CONTRACT_ADDR),
             ExecuteMsg::UpdateCollectionPool(msg.clone()),
@@ -388,7 +388,7 @@ fn update_collection_pool_info_test() {
         assert!(matches!(res, Err(ContractError::Unauthorized { .. })));
 
         // Update failed 'cause of invalid reward per block
-        let res = manager.handle(
+        let res = manager.execute(
             mock_info(CREATOR, &[]),
             mock_env(CONTRACT_ADDR),
             ExecuteMsg::UpdateCollectionPool(msg.clone()),
@@ -398,7 +398,7 @@ fn update_collection_pool_info_test() {
 
         // Update sucessfully
         msg.reward_per_block = Some(Uint128(20u128));
-        let _ = manager.handle(
+        let _ = manager.execute(
             mock_info(CREATOR, &[]),
             mock_env(CONTRACT_ADDR),
             ExecuteMsg::UpdateCollectionPool(msg.clone()),
@@ -430,7 +430,7 @@ fn update_collection_pool_info_test() {
 //         let res = manager.check_can_send(mock_info("staker", &[]), &collection_pool_info);
 //         println!("Unauthorized case: {:?}", res);
 
-//         let _ = ow1155::contract::handle(
+//         let _ = ow1155::contract::execute(
 //             manager.ow1155.as_mut(),
 //             mock_env(OW_1155_ADDR),
 //             mock_info("staker", &[]),
@@ -441,7 +441,7 @@ fn update_collection_pool_info_test() {
 //         )
 //         .unwrap();
 
-//         let _ = oraichain_nft::contract::handle(
+//         let _ = oraichain_nft::contract::execute(
 //             manager.ow721.as_mut(),
 //             mock_env(OW_721_ADDR),
 //             mock_info("staker", &[]),
@@ -468,7 +468,7 @@ fn stake_nft_test() {
         let mut contract_env = mock_env(CONTRACT_ADDR);
 
         // Staker_1 stake 4 nft editions at block 12345, Now: last_reward_block = 0, acc_per_share = 0, total_stake_nft_editions = 4
-        let _ = manager.handle(
+        let _ = manager.execute(
             mock_info(OW_1155_ADDR, &[]),
             contract_env.clone(),
             ExecuteMsg::Receive(Cw1155ReceiveMsg {
@@ -492,11 +492,11 @@ fn stake_nft_test() {
         // The total_staked_nft_edition = 4 +1 = 5
         contract_env.block.height = contract_env.block.height + 10;
 
-        let _res = manager.handle(
+        let _res = manager.execute(
           mock_info(OW_721_ADDR, &[]), 
           contract_env.clone(),
           ExecuteMsg::ReceiveNft(Cw721ReceiveMsg{
-            sender: Addr::from("staker_2"),
+            sender: Addr::unchecked("staker_2"),
             token_id: "staker_2_721_1".to_string(),
             msg: Some(to_json_binary(&DepositeMsg{
               collection_id: "1".to_string(),
@@ -551,7 +551,7 @@ fn stake_nft_test() {
           println!("new collecion pool info after staker2 staked {:?}", new_collection_pool_info);
 
                //Staker_1 continue to stake 5 nft edition but withdraw reward this time
-        let _res = manager.handle(
+        let _res = manager.execute(
           mock_info(OW_1155_ADDR, &[]),
           contract_env.clone(),
           ExecuteMsg::Receive(Cw1155ReceiveMsg {
@@ -615,7 +615,7 @@ fn stake_nft_test() {
     //         println!("stakers info {:?}", new_staker_info);
         
     //     //Staker_1 continue to stake 5 nft edition but withdraw reward this time
-    //     let _res = manager.handle(
+    //     let _res = manager.execute(
     //       mock_info(OW_1155_ADDR, &[]),
     //       contract_env.clone(),
     //       ExecuteMsg::Receive(Cw1155ReceiveMsg {
@@ -632,7 +632,7 @@ fn stake_nft_test() {
     //       }),
     //   );
 
-    //   let _ = manager.handle(
+    //   let _ = manager.execute(
     //     mock_info(OW_1155_ADDR, &[]),
     //     contract_env.clone(),
     //     ExecuteMsg::Receive(Cw1155ReceiveMsg {
@@ -685,7 +685,7 @@ fn claim_test(){
         let mut contract_env = mock_env(CONTRACT_ADDR);
 
         // Staker_1 stake 4 nft editions at block 12345, Now: last_reward_block = 0, acc_per_share = 0, total_stake_nft_editions = 4
-        let _ = manager.handle(
+        let _ = manager.execute(
             mock_info(OW_1155_ADDR, &[]),
             contract_env.clone(),
             ExecuteMsg::Receive(Cw1155ReceiveMsg {
@@ -709,11 +709,11 @@ fn claim_test(){
         // The total_staked_nft_edition = 4 +1 = 5
         contract_env.block.height = contract_env.block.height + 10;
 
-        let _res = manager.handle(
+        let _res = manager.execute(
           mock_info(OW_721_ADDR, &[]), 
           contract_env.clone(),
           ExecuteMsg::ReceiveNft(Cw721ReceiveMsg{
-            sender: Addr::from("staker_2"),
+            sender: Addr::unchecked("staker_2"),
             token_id: "staker_2_721_1".to_string(),
             msg: Some(to_json_binary(&DepositeMsg{
               collection_id: "1".to_string(),
@@ -725,7 +725,7 @@ fn claim_test(){
 
 
         //Staker 1 claim
-      let _res = manager.handle(
+      let _res = manager.execute(
            mock_info("staker_1", &[]), contract_env.clone(), ExecuteMsg::Claim {collection_id: "1".to_string()});
 
        // 20 blocks since first stake block
@@ -751,7 +751,7 @@ fn claim_test(){
       let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
       println!("stakers info {:?}", new_staker_info);
       
-      let res = manager.handle(mock_info(CREATOR, &[]), contract_env.clone(), ExecuteMsg::ResetEarnedRewards {collection_id: "1".to_string(), staker: Addr::from("staker_1")});
+      let res = manager.execute(mock_info(CREATOR, &[]), contract_env.clone(), ExecuteMsg::ResetEarnedRewards {collection_id: "1".to_string(), staker: Addr::unchecked("staker_1")});
       println!("res {:?}",res);
 
       let res = manager
@@ -780,7 +780,7 @@ fn withdraw_nfts_test(){
 
     // Staker_1 stake 4 nft editions at block 12345, Now: last_reward_block = 0, acc_per_share = 0, total_stake_nft_editions = 4
     
-    let _ = manager.handle(
+    let _ = manager.execute(
         mock_info(OW_1155_ADDR, &[]),
         contract_env.clone(),
         ExecuteMsg::Receive(Cw1155ReceiveMsg {
@@ -803,11 +803,11 @@ fn withdraw_nfts_test(){
     // The total_staked_nft_edition = 4 +1 = 5
     contract_env.block.height = contract_env.block.height + 10;
 
-    let _res = manager.handle(
+    let _res = manager.execute(
       mock_info(OW_721_ADDR, &[]), 
       contract_env.clone(),
       ExecuteMsg::ReceiveNft(Cw721ReceiveMsg{
-        sender: Addr::from("staker_2"),
+        sender: Addr::unchecked("staker_2"),
         token_id: "staker_2_721_1".to_string(),
         msg: Some(to_json_binary(&DepositeMsg{
           collection_id: "1".to_string(),
@@ -817,7 +817,7 @@ fn withdraw_nfts_test(){
       })
     );
 
-    let _ = manager.handle(
+    let _ = manager.execute(
       mock_info(OW_1155_ADDR, &[]),
       contract_env.clone(),
       ExecuteMsg::Receive(Cw1155ReceiveMsg {
@@ -856,12 +856,12 @@ fn withdraw_nfts_test(){
     contract_env.block.height = contract_env.block.height + 10;
 
     // Invalid withdraw
-    let res = manager.handle(
+    let res = manager.execute(
       mock_info("staker_1",&[]), contract_env.clone(), ExecuteMsg::Withdraw {collection_id: "1".to_string(), withdraw_rewards: true, withdraw_nft_ids: vec!["staker_1_1155_3".to_string()]});
     
     println!("res {:?}",res);
 
-    let res = manager.handle(
+    let res = manager.execute(
       mock_info("staker_1",&[]), contract_env.clone(), ExecuteMsg::Withdraw {collection_id: "1".to_string(), withdraw_rewards: true, withdraw_nft_ids: vec!["staker_1_1155_1".to_string()]});
     
     println!("res {:?}",res);

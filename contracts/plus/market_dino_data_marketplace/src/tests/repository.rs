@@ -27,7 +27,7 @@ fn test_constants() -> TestConstant {
             project_id: "mock_project_id".to_owned(),
             folder_path: "mock_folder".to_owned(),
         },
-        mock_owner: Addr::from("hauhau"),
+        mock_owner: Addr::unchecked("hauhau"),
     }
 }
 #[fixture]
@@ -35,7 +35,7 @@ fn mock_normal_dataset(test_constants: TestConstant) -> NormalDataset {
     let mock_token_id = "token_id".to_owned();
     NormalDataset {
         token_id: mock_token_id.clone(),
-        contract_addr: Addr::from("dummy"),
+        contract_addr: Addr::unchecked("dummy"),
         datasource: test_constants.mock_datasource.clone(),
         owner: test_constants.mock_owner.clone(),
     }
@@ -45,7 +45,7 @@ fn mock_normal_dataset(test_constants: TestConstant) -> NormalDataset {
 fn mock_testcase(test_constants: TestConstant) -> Testcase {
     let mock_token_id = "token_id".to_owned();
     Testcase {
-        contract_addr: Addr::from("dummy"),
+        contract_addr: Addr::unchecked("dummy"),
         datasource: test_constants.mock_datasource.clone(),
         owner: test_constants.mock_owner.clone(),
         token_id: mock_token_id.clone(),
@@ -114,7 +114,7 @@ fn test_update_normal_dataset(
     dataset_repository
         .add(deps.as_mut(), Dataset::Normal(mock_normal_dataset.clone()))
         .unwrap();
-    mock_normal_dataset.owner = Addr::from("abc");
+    mock_normal_dataset.owner = Addr::unchecked("abc");
     mock_normal_dataset.datasource = Datasource::Eueno {
         project_id: "updated_project_id".to_owned(),
         folder_path: "updated_folder_path".to_owned(),
@@ -143,7 +143,7 @@ fn test_update_testcase(
     dataset_repository
         .add(deps.as_mut(), Dataset::Testcase(mock_testcase.clone()))
         .unwrap();
-    mock_testcase.owner = Addr::from("abc");
+    mock_testcase.owner = Addr::unchecked("abc");
     mock_testcase.datasource = Datasource::Eueno {
         project_id: "updated_project_id".to_owned(),
         folder_path: "updated_folder_path".to_owned(),

@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::msg::{DataSourceQueryMsg, ExecuteMsg, InstantiateMsg, Output, QueryMsg};
 use cosmwasm_std::{
-    from_slice, to_json_binary, Api, Binary, Env, Extern, Response, Addr, Response,
+    from_json, to_json_binary, Api, Binary, Env, Extern, Response, Addr, Response,
     MessageInfo, Querier, StdResult, Storage,
 };
 
@@ -49,7 +49,7 @@ fn test_datasource<S: Storage, A: Api, Q: Querier>(
     let msg = DataSourceQueryMsg::Get { input };
     let response: String = deps.querier.query_wasm_smart(contract, &msg)?;
     let response_vec = response.as_bytes();
-    let datasource_output: Output = from_slice(&response_vec).unwrap();
+    let datasource_output: Output = from_json(&response_vec).unwrap();
 
     let output_lower = datasource_output.data.to_lowercase();
     let expected_output_lower = output.to_lowercase();

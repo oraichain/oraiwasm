@@ -157,11 +157,11 @@ mod tests {
         handle_provider, init_provider, msg::StateMsg, query_provider, state::State, InstantiateMsg,
     };
 
-    // use cosmwasm_std::from_slice;
+    // use cosmwasm_std::from_json;
 
     #[test]
     fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
         init_provider(
             deps.as_mut(),
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn update_state() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
         init_provider(
             deps.as_mut(),

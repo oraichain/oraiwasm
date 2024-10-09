@@ -15,14 +15,14 @@ const CREATOR: &str = "owner";
 const DENOM: &str = "orai";
 
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
     let msg = InstantiateMsg {
         governance: Addr::from(CREATOR),
     };
     let info = mock_info(CREATOR, &[]);
     let contract_env = mock_env();
-    let res = init(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
     (deps, contract_env)
 }
@@ -35,11 +35,11 @@ fn sort_auction() {
     let info = mock_info(CREATOR, &vec![coin(50000000, DENOM)]);
     let contract_addr = deps
         .api
-        .canonical_address(&Addr::from("contract_addr"))
+        .addr_canonicalize(&Addr::unchecked("contract_addr"))
         .unwrap();
     let asker = deps
         .api
-        .canonical_address(&Addr::from("asker"))
+        .addr_canonicalize(&Addr::unchecked("asker"))
         .unwrap();
 
     for i in 1..50 {
@@ -61,7 +61,7 @@ fn sort_auction() {
             amount: Uint128(10),
         };
         let msg = ExecuteMsg::Msg(AuctionExecuteMsg::UpdateAuction { auction });
-        let _res = handle(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
+        let _res = execute(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
     }
 
     let auction = Auction {
@@ -78,14 +78,14 @@ fn sort_auction() {
         token_id: "2".to_string(),
         asker: deps
             .api
-            .canonical_address(&Addr::from("another asker"))
+            .addr_canonicalize(&Addr::unchecked("another asker"))
             .unwrap(),
         orig_per_price: Uint128(1),
         bidder: None,
         amount: Uint128(10),
     };
     let msg = ExecuteMsg::Msg(AuctionExecuteMsg::UpdateAuction { auction });
-    let _res = handle(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
+    let _res = execute(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
 
     // Auction should be listed
     let res = query(
@@ -121,9 +121,9 @@ fn sort_auction() {
         deps.as_ref(),
         contract_env.clone(),
         QueryMsg::Msg(AuctionQueryMsg::GetUniqueAuction {
-            contract: Addr::from("contract_addr"),
+            contract: Addr::unchecked("contract_addr"),
             token_id: "2".to_string(),
-            asker: Addr::from("asker"),
+            asker: Addr::unchecked("asker"),
         }),
     )
     .unwrap();
@@ -136,7 +136,7 @@ fn sort_auction() {
         deps.as_ref(),
         contract_env.clone(),
         QueryMsg::Msg(AuctionQueryMsg::GetAuctionsByContractTokenId {
-            contract: Addr::from("contract_addr"),
+            contract: Addr::unchecked("contract_addr"),
             token_id: "2".into(),
             options: PagingOptions {
                 limit: Some(100),

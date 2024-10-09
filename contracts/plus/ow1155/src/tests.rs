@@ -1,5 +1,5 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{attr, from_binary, to_json_binary, Binary, Response, Addr, StdError};
+use cosmwasm_std::{attr, from_binary, to_json_binary, Addr, Binary, Response, StdError};
 
 use cw1155::{
     ApprovedForAllResponse, BalanceResponse, BatchBalanceResponse, Cw1155BatchReceiveMsg,
@@ -38,11 +38,11 @@ fn check_transfers() {
     let user1 = String::from("user1");
     let user2 = String::from("user2");
 
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     let msg = InstantiateMsg {
         minter: minter.clone(),
     };
-    let res = init(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     // invalid mint, user1 don't mint permission
@@ -53,7 +53,7 @@ fn check_transfers() {
         msg: None,
     };
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info(Addr(user1.clone()), &[]),
@@ -64,7 +64,7 @@ fn check_transfers() {
 
     // valid mint
     assert_eq!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info(Addr(minter.clone()), &[]),
@@ -107,7 +107,7 @@ fn check_transfers() {
 
     // not approved yet
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info(Addr(minter.clone()), &[]),
@@ -117,7 +117,7 @@ fn check_transfers() {
     ));
 
     // approve
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         mock_info(Addr(user1.clone()), &[]),
@@ -130,7 +130,7 @@ fn check_transfers() {
 
     // transfer
     assert_eq!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info(Addr(minter.clone()), &[]),
@@ -179,7 +179,7 @@ fn check_transfers() {
 
     // batch mint token2 and token3
     assert_eq!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info(Addr(minter.clone()), &[]),
@@ -217,7 +217,7 @@ fn check_transfers() {
         msg: None,
     };
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info(Addr(minter.clone()), &[]),
@@ -227,7 +227,7 @@ fn check_transfers() {
     ));
 
     // user2 approve
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         mock_info(Addr(user2.clone()), &[]),
@@ -240,7 +240,7 @@ fn check_transfers() {
 
     // valid batch transfer
     assert_eq!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info(Addr(minter.clone()), &[]),
@@ -285,7 +285,7 @@ fn check_transfers() {
     );
 
     // user1 revoke approval
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         mock_info(Addr(user1.clone()), &[]),
@@ -310,7 +310,7 @@ fn check_transfers() {
 
     // tranfer without approval
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info(Addr(minter.clone()), &[]),
@@ -327,7 +327,7 @@ fn check_transfers() {
 
     // burn token1
     assert_eq!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info(Addr(user1.clone()), &[]),
@@ -351,7 +351,7 @@ fn check_transfers() {
 
     // burn them all
     assert_eq!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info(Addr(user1.clone()), &[]),
@@ -386,14 +386,14 @@ fn check_send_contract() {
     let token2 = "token2".to_owned();
     let dummy_msg = Binary::default();
 
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     let msg = InstantiateMsg {
         minter: minter.clone(),
     };
-    let res = init(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         mock_info(Addr(minter.clone()), &[]),
@@ -408,7 +408,7 @@ fn check_send_contract() {
 
     // mint to contract
     assert_eq!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info(Addr(minter.clone()), &[]),
@@ -442,7 +442,7 @@ fn check_send_contract() {
 
     // BatchSendFrom
     assert_eq!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info(Addr(user1.clone()), &[]),
@@ -483,14 +483,14 @@ fn check_queries() {
     let users = (0..10).map(|i| format!("user{}", i)).collect::<Vec<_>>();
     let minter = String::from("minter");
 
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     let msg = InstantiateMsg {
         minter: minter.clone(),
     };
-    let res = init(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), mock_info("operator", &[]), msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         mock_info(Addr(minter), &[]),
@@ -561,7 +561,7 @@ fn check_queries() {
     );
 
     for user in users[1..].iter() {
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info(Addr(users[0].clone()), &[]),
@@ -595,7 +595,7 @@ fn check_queries() {
 
 #[test]
 fn approval_expires() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     let token1 = "token1".to_owned();
     let minter = String::from("minter");
     let user1 = String::from("user1");
@@ -610,10 +610,10 @@ fn approval_expires() {
     let msg = InstantiateMsg {
         minter: minter.clone(),
     };
-    let res = init(deps.as_mut(), env.clone(), mock_info("operator", &[]), msg).unwrap();
+    let res = instantiate(deps.as_mut(), env.clone(), mock_info("operator", &[]), msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    handle(
+    execute(
         deps.as_mut(),
         env.clone(),
         mock_info(Addr(minter), &[]),
@@ -628,7 +628,7 @@ fn approval_expires() {
 
     // invalid expires should be rejected
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             env.clone(),
             mock_info(Addr(user1.clone()), &[]),
@@ -640,7 +640,7 @@ fn approval_expires() {
         Err(_)
     ));
 
-    handle(
+    execute(
         deps.as_mut(),
         env.clone(),
         mock_info(Addr(user1.clone()), &[]),
@@ -674,7 +674,7 @@ fn approval_expires() {
 
 #[test]
 fn mint_overflow() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     let token1 = "token1".to_owned();
     let minter = String::from("minter");
     let user1 = String::from("user1");
@@ -683,10 +683,10 @@ fn mint_overflow() {
     let msg = InstantiateMsg {
         minter: minter.clone(),
     };
-    let res = init(deps.as_mut(), env.clone(), mock_info("operator", &[]), msg).unwrap();
+    let res = instantiate(deps.as_mut(), env.clone(), mock_info("operator", &[]), msg).unwrap();
     assert_eq!(0, res.messages.len());
 
-    handle(
+    execute(
         deps.as_mut(),
         env.clone(),
         mock_info(Addr(minter.clone()), &[]),
@@ -700,7 +700,7 @@ fn mint_overflow() {
     .unwrap();
 
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             env,
             mock_info(Addr(minter.clone()), &[]),
@@ -718,19 +718,19 @@ fn mint_overflow() {
 
 #[test]
 fn change_minter() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     let minter = String::from("minter");
 
     let env = mock_env();
     let msg = InstantiateMsg {
         minter: minter.clone(),
     };
-    let res = init(deps.as_mut(), env.clone(), mock_info("operator", &[]), msg).unwrap();
+    let res = instantiate(deps.as_mut(), env.clone(), mock_info("operator", &[]), msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     // unauthorized tx to change minter
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             env.clone(),
             mock_info(Addr(minter.clone()), &[]),
@@ -743,7 +743,7 @@ fn change_minter() {
     ));
 
     // valid handler to change minter
-    handle(
+    execute(
         deps.as_mut(),
         env.clone(),
         mock_info(Addr("operator".to_string()), &[]),
@@ -760,19 +760,19 @@ fn change_minter() {
 
 #[test]
 fn change_owner() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     let minter = String::from("minter");
 
     let env = mock_env();
     let msg = InstantiateMsg {
         minter: minter.clone(),
     };
-    let res = init(deps.as_mut(), env.clone(), mock_info("operator", &[]), msg).unwrap();
+    let res = instantiate(deps.as_mut(), env.clone(), mock_info("operator", &[]), msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     // unauthorized tx to change minter
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             env.clone(),
             mock_info(Addr(minter.clone()), &[]),
@@ -785,7 +785,7 @@ fn change_owner() {
     ));
 
     // valid handler to change minter
-    handle(
+    execute(
         deps.as_mut(),
         env.clone(),
         mock_info(Addr("operator".to_string()), &[]),

@@ -46,7 +46,7 @@ mod tests {
 
     #[test]
     fn assert_aggregate() {
-        let deps = mock_dependencies(&[]);
+        let deps = mock_dependencies_with_balance(&[]);
         let resp = format!(
         "[{{\"name\":\"ETH\",\"prices\":[\"{}\",\"{}\",\"{}\"]}},{{\"name\":\"BTC\",\"prices\":[\"{}\",\"{}\"]}},{{\"name\":\"LINK\",\"prices\":[\"{}\",\"{}\"]}}]",
         "0.00000000000018900", "0.00000001305", "0.00000000006", "2801.2341", "200.1", ".1", "44"

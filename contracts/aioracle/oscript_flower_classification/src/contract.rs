@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::msg::{Data, DataResult, ExecuteMsg, InstantiateMsg, QueryMsg};
 use cosmwasm_std::{
-    from_slice, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, Response,
+    from_json, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, Response,
     StdResult,
 };
 
@@ -37,7 +37,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
     let mut aggregation_result: Vec<Data> = Vec::new();
     for result in results {
-        let result_inputs: DataResult = from_slice(result.as_bytes())?;
+        let result_inputs: DataResult = from_json(result.as_bytes())?;
         if result_inputs.status == "success" {
             // collect the last data result only because it is the result from user input
             let result_input = result_inputs.clone();
@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     fn assert_aggregate() {
-        let deps = mock_dependencies(&[]);
+        let deps = mock_dependencies_with_balance(&[]);
         let env = mock_env();
         let expected = vec![
             Data {

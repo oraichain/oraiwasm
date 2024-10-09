@@ -4,10 +4,13 @@ use crate::{
     },
     state::ROUND_COUNT,
 };
-use vrfdkgp::{msg::{
-    DistributedShareData, ExecuteMsg, InstantiateMsg, Member, MemberMsg, QueryMsg, ShareSigMsg,
-    SharedDealerMsg, SharedRowMsg, SharedStatus,
-}, state::Config};
+use vrfdkgp::{
+    msg::{
+        DistributedShareData, ExecuteMsg, InstantiateMsg, Member, MemberMsg, QueryMsg, ShareSigMsg,
+        SharedDealerMsg, SharedRowMsg, SharedStatus,
+    },
+    state::Config,
+};
 
 use blsdkg::{
     ff::Field,
@@ -356,7 +359,7 @@ fn request_round() {
             msg.extend(current_round.round.to_be_bytes().to_vec());
             let msg_hash = hash_g2(msg);
             let mut sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
-            sig_bytes.copy_from_slice(&sk.sign_g2(msg_hash).to_bytes());
+            sig_bytes.copy_from_json(&sk.sign_g2(msg_hash).to_bytes());
             let sig = Binary::from(sig_bytes);
             let info = mock_info(&contributor.address.clone(), &vec![]);
 
@@ -474,7 +477,7 @@ fn test_reset() {
         msg.extend(current_round.round.to_be_bytes().to_vec());
         let msg_hash = hash_g2(msg);
         let mut sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
-        sig_bytes.copy_from_slice(&sk.sign_g2(msg_hash).to_bytes());
+        sig_bytes.copy_from_json(&sk.sign_g2(msg_hash).to_bytes());
         let sig = Binary::from(sig_bytes);
         let info = mock_info(&contributor.address.clone(), &vec![]);
 

@@ -29,7 +29,7 @@ impl Cw4GroupContract {
 
     fn encode_msg(&self, msg: ExecuteMsg) -> StdResult<CosmosMsg> {
         Ok(WasmMsg::Execute {
-            contract_addr: self.addr(),
+            contract_addr: self.addr().to_string(),
             msg: to_json_binary(&msg)?,
             funds: vec![],
         }

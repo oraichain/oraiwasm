@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, to_json_binary, Binary, Deps, DepsMut, Env, Response, Addr, Response,
-    MessageInfo, MigrateResponse, Order, StdResult, Uint128, WasmMsg,
+    attr, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, MigrateResponse, Order,
+    Response, Response, StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
 use cw_storage_plus::{Bound, U8Key};
@@ -74,7 +74,9 @@ pub fn execute(
             proof,
         } => execute_claim(deps, env, info, stage, amount, proof),
         ExecuteMsg::Burn { stage } => execute_burn(deps, env, info, stage),
-        ExecuteMsg::RemoveMerkleRoot { stage } => execute_remove_merkle_root(deps, env, info, stage),
+        ExecuteMsg::RemoveMerkleRoot { stage } => {
+            execute_remove_merkle_root(deps, env, info, stage)
+        }
         ExecuteMsg::Withdraw { stage } => execute_withdraw(deps, env, info, stage),
         ExecuteMsg::UpdateClaim { claim_keys } => execute_update_claim(deps, env, info, claim_keys),
     }
@@ -234,7 +236,7 @@ pub fn execute_claim(
     }
 
     // verify not claimed
-    let mut key = deps.api.canonical_address(&info.sender)?.to_vec();
+    let mut key = deps.api.addr_canonicalize(&info.sender)?.to_vec();
     key.push(stage);
     let claimed = CLAIM.may_load(deps.storage, &key)?;
     if claimed.is_some() {
@@ -413,7 +415,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             to_json_binary(&query_is_claimed(deps, stage, address)?)
         }
         QueryMsg::TotalClaimed { stage } => to_json_binary(&query_total_claimed(deps, stage)?),
-        QueryMsg::ClaimKeys { offset, limit } => to_json_binary(&query_claim_keys(deps, offset, limit)?),
+        QueryMsg::ClaimKeys { offset, limit } => {
+            to_json_binary(&query_claim_keys(deps, offset, limit)?)
+        }
         QueryMsg::ClaimKeyCount {} => to_json_binary(&query_claim_key_count(deps)?),
     }
 }
@@ -453,7 +457,7 @@ pub fn query_latest_stage(deps: Deps) -> StdResult<LatestStageResponse> {
 }
 
 pub fn query_is_claimed(deps: Deps, stage: u8, address: Addr) -> StdResult<IsClaimedResponse> {
-    let mut key = deps.api.canonical_address(&address)?.to_vec();
+    let mut key = deps.api.addr_canonicalize(&address)?.to_vec();
     key.push(stage);
     let is_claimed = CLAIM.may_load(deps.storage, &key)?.unwrap_or(false);
     let resp = IsClaimedResponse { is_claimed };

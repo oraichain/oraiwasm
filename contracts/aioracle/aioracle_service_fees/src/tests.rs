@@ -16,7 +16,7 @@ fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
     let msg = InstantiateMsg {};
     let info = mock_info(CREATOR, &[]);
     let contract_env = mock_env();
-    let res = init(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
     (deps, contract_env)
 }
@@ -29,7 +29,7 @@ fn sort_service_fees() {
         let update_fees_msg = ExecuteMsg::UpdateServiceFees {
             fees: coin(i as u128, "orai"),
         };
-        handle(
+        execute(
             deps.as_mut(),
             contract_env.clone(),
             mock_info(&format!("abcd{}", i), &vec![coin(50000000, DENOM)]),
@@ -77,7 +77,7 @@ fn remove_service_fees() {
         let update_fees_msg = ExecuteMsg::UpdateServiceFees {
             fees: coin(i as u128, "orai"),
         };
-        handle(
+        execute(
             deps.as_mut(),
             contract_env.clone(),
             mock_info(&format!("abcd{}", i), &vec![coin(50000000, DENOM)]),
@@ -86,10 +86,10 @@ fn remove_service_fees() {
         .unwrap();
     }
 
-    handle(
+    execute(
         deps.as_mut(),
         contract_env.clone(),
-        mock_info(Addr::from("abcd3"), &vec![coin(50000000, DENOM)]).clone(),
+        mock_info(Addr::unchecked("abcd3"), &vec![coin(50000000, DENOM)]).clone(),
         ExecuteMsg::RemoveServiceFees(),
     )
     .unwrap();

@@ -5,7 +5,7 @@ use crate::msg::*;
 use crate::state::ContractInfo;
 use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
-    coin, coins, from_binary, from_slice, to_json_binary, Addr, Binary, ContractResult, CosmosMsg,
+    coin, coins, from_binary, from_json, to_json_binary, Addr, Binary, ContractResult, CosmosMsg,
     Decimal, MessageInfo, OwnedDeps, QuerierResult, Response, StdError, StdResult, SystemError,
     SystemResult, Uint128, WasmMsg, WasmQuery,
 };
@@ -59,7 +59,7 @@ impl DepsManager {
     fn new() -> Self {
         let info = mock_info(CREATOR, &[]);
         let mut hub = mock_dependencies(Addr::from(HUB_ADDR), &[], Self::query_wasm);
-        let _res = market_hub::contract::init(
+        let _res = market_hub::contract::instantiate(
             hub.as_mut(),
             mock_env(HUB_ADDR),
             info.clone(),
@@ -76,7 +76,7 @@ impl DepsManager {
         .unwrap();
 
         let mut offering = mock_dependencies(Addr::from(OFFERING_ADDR), &[], Self::query_wasm);
-        let _res = market_datahub_storage::contract::init(
+        let _res = market_datahub_storage::contract::instantiate(
             offering.as_mut(),
             mock_env(OFFERING_ADDR),
             info.clone(),
@@ -87,7 +87,7 @@ impl DepsManager {
         .unwrap();
 
         let mut ow1155 = mock_dependencies(Addr::from(OW_1155_ADDR), &[], Self::query_wasm);
-        let _res = ow1155::contract::init(
+        let _res = ow1155::contract::instantiate(
             ow1155.as_mut(),
             mock_env(OW_1155_ADDR),
             info.clone(),
@@ -98,7 +98,7 @@ impl DepsManager {
         .unwrap();
 
         let mut ai_royalty = mock_dependencies(Addr::from(AI_ROYALTY_ADDR), &[], Self::query_wasm);
-        let _res = market_ai_royalty_storage::contract::init(
+        let _res = market_ai_royalty_storage::contract::instantiate(
             ai_royalty.as_mut(),
             mock_env(AI_ROYALTY_ADDR),
             info.clone(),
@@ -123,7 +123,7 @@ impl DepsManager {
             max_royalty: 20,
         };
 
-        let _res = init(deps.as_mut(), mock_env(MARKET_ADDR), info.clone(), msg).unwrap();
+        let _res = instantiate(deps.as_mut(), mock_env(MARKET_ADDR), info.clone(), msg).unwrap();
 
         // init storage
         Self {
@@ -143,32 +143,32 @@ impl DepsManager {
             }) = msg
             {
                 let result = match contract_addr.as_str() {
-                    HUB_ADDR => market_hub::contract::handle(
+                    HUB_ADDR => market_hub::contract::execute(
                         self.hub.as_mut(),
                         mock_env(MARKET_ADDR),
                         mock_info(MARKET_ADDR, &[]),
-                        from_slice(msg).unwrap(),
+                        from_json(msg).unwrap(),
                     )
                     .ok(),
-                    OFFERING_ADDR => market_datahub_storage::contract::handle(
+                    OFFERING_ADDR => market_datahub_storage::contract::execute(
                         self.offering.as_mut(),
                         mock_env(HUB_ADDR),
                         mock_info(HUB_ADDR, &[]),
-                        from_slice(msg).unwrap(),
+                        from_json(msg).unwrap(),
                     )
                     .ok(),
-                    AI_ROYALTY_ADDR => market_ai_royalty_storage::contract::handle(
+                    AI_ROYALTY_ADDR => market_ai_royalty_storage::contract::execute(
                         self.ai_royalty.as_mut(),
                         mock_env(HUB_ADDR),
                         mock_info(HUB_ADDR, &[]),
-                        from_slice(msg).unwrap(),
+                        from_json(msg).unwrap(),
                     )
                     .ok(),
-                    OW_1155_ADDR => ow1155::contract::handle(
+                    OW_1155_ADDR => ow1155::contract::execute(
                         self.ow1155.as_mut(),
                         mock_env(OW_1155_ADDR),
                         mock_info(MARKET_ADDR, &[]),
-                        from_slice(msg).unwrap(),
+                        from_json(msg).unwrap(),
                     )
                     .ok(),
                     _ => continue,
@@ -187,7 +187,7 @@ impl DepsManager {
         info: MessageInfo,
         msg: ExecuteMsg,
     ) -> Result<Vec<Response>, ContractError> {
-        let first_res = handle(self.deps.as_mut(), mock_env(MARKET_ADDR), info, msg)?;
+        let first_res = execute(self.deps.as_mut(), mock_env(MARKET_ADDR), info, msg)?;
         let mut res: Vec<Response> = vec![];
         self.handle_wasm(&mut res, first_res);
         Ok(res)
@@ -208,25 +208,25 @@ impl DepsManager {
                         HUB_ADDR => market_hub::contract::query(
                             manager.hub.as_ref(),
                             mock_env(HUB_ADDR),
-                            from_slice(&msg).unwrap(),
+                            from_json(&msg).unwrap(),
                         )
                         .unwrap_or_default(),
                         OFFERING_ADDR => market_datahub_storage::contract::query(
                             manager.offering.as_ref(),
                             mock_env(OFFERING_ADDR),
-                            from_slice(&msg).unwrap(),
+                            from_json(&msg).unwrap(),
                         )
                         .unwrap_or_default(),
                         AI_ROYALTY_ADDR => market_ai_royalty_storage::contract::query(
                             manager.ai_royalty.as_ref(),
                             mock_env(AI_ROYALTY_ADDR),
-                            from_slice(&msg).unwrap(),
+                            from_json(&msg).unwrap(),
                         )
                         .unwrap_or_default(),
                         OW_1155_ADDR => ow1155::contract::query(
                             manager.ow1155.as_ref(),
                             mock_env(OW_1155_ADDR),
-                            from_slice(&msg).unwrap(),
+                            from_json(&msg).unwrap(),
                         )
                         .unwrap_or_default(),
                         _ => Binary::default(),
@@ -265,13 +265,13 @@ fn update_info_test() {
         // random account cannot update info, only creator
         let info_unauthorized = mock_info("anyone", &vec![coin(5, DENOM)]);
 
-        let mut response = manager.handle(info_unauthorized.clone(), update_info_msg.clone());
+        let mut response = manager.execute(info_unauthorized.clone(), update_info_msg.clone());
         assert_eq!(response.is_err(), true);
         println!("{:?}", response.expect_err("msg"));
 
         // now we can update the info using creator
         let info = mock_info(CREATOR, &[]);
-        response = manager.handle(info, update_info_msg.clone());
+        response = manager.execute(info, update_info_msg.clone());
         assert_eq!(response.is_err(), false);
 
         let query_info = QueryMsg::GetContractInfo {};
@@ -289,8 +289,8 @@ fn test_royalties() {
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from("offering"),
-            creator: Addr::from("provider"),
+            contract_addr: Addr::unchecked("offering"),
+            creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -302,7 +302,7 @@ fn test_royalties() {
             royalty: None,
         });
 
-        manager.handle(provider_info.clone(), mint_msg).unwrap();
+        manager.execute(provider_info.clone(), mint_msg).unwrap();
 
         // beneficiary can release it
         let info_sell = mock_info(OW_1155_ADDR, &vec![coin(50, DENOM)]);
@@ -317,7 +317,7 @@ fn test_royalties() {
             })
             .unwrap(),
         });
-        manager.handle(info_sell.clone(), msg).unwrap();
+        manager.execute(info_sell.clone(), msg).unwrap();
 
         // latest offering seller as seller
         let offering_bin_first = manager
@@ -344,7 +344,7 @@ fn test_royalties() {
         let buy_msg = ExecuteMsg::BuyNft { offering_id: 1 };
         let info_buy = mock_info("seller", &coins(500, DENOM));
 
-        manager.handle(info_buy, buy_msg).unwrap();
+        manager.execute(info_buy, buy_msg).unwrap();
 
         let info_sell = mock_info(OW_1155_ADDR, &vec![coin(50, DENOM)]);
         let msg = ExecuteMsg::Receive(Cw1155ReceiveMsg {
@@ -358,7 +358,7 @@ fn test_royalties() {
             })
             .unwrap(),
         });
-        manager.handle(info_sell.clone(), msg).unwrap();
+        manager.execute(info_sell.clone(), msg).unwrap();
 
         // latest offering seller as seller
         let offering_bin = manager
@@ -374,7 +374,7 @@ fn test_royalties() {
         let buy_msg = ExecuteMsg::BuyNft { offering_id: 2 };
         let info_buy = mock_info("buyer1", &coins(500, DENOM));
 
-        let results = manager.handle(info_buy, buy_msg).unwrap();
+        let results = manager.execute(info_buy, buy_msg).unwrap();
 
         let mut total_payment = Uint128::from(0u128);
 
@@ -452,7 +452,7 @@ fn withdraw_offering() {
         let withdraw_no_offering = ExecuteMsg::WithdrawNft { offering_id: 1 };
 
         assert!(matches!(
-            manager.handle(withdraw_info.clone(), withdraw_no_offering.clone()),
+            manager.execute(withdraw_info.clone(), withdraw_no_offering.clone()),
             Err(ContractError::InvalidGetOffering {})
         ));
 
@@ -470,7 +470,7 @@ fn withdraw_offering() {
             })
             .unwrap(),
         });
-        let _res = manager.handle(info, msg).unwrap();
+        let _res = manager.execute(info, msg).unwrap();
 
         // Offering should be listed
         let res: Vec<Offering> = from_binary(
@@ -493,12 +493,12 @@ fn withdraw_offering() {
 
         // unhappy path unauthorized
         assert!(matches!(
-            manager.handle(withdraw_info_unauthorized, withdraw_msg.clone()),
+            manager.execute(withdraw_info_unauthorized, withdraw_msg.clone()),
             Err(ContractError::Unauthorized { .. })
         ));
 
         // happy path
-        let _res = manager.handle(withdraw_info, withdraw_msg).unwrap();
+        let _res = manager.execute(withdraw_info, withdraw_msg).unwrap();
 
         // Offering should be removed
         let res2: Vec<Offering> = from_binary(
@@ -533,11 +533,11 @@ fn test_sell_nft_unhappy() {
             })
             .unwrap(),
         });
-        let _res = manager.handle(info.clone(), msg.clone()).unwrap();
+        let _res = manager.execute(info.clone(), msg.clone()).unwrap();
 
         // already on sale case
         assert!(matches!(
-            manager.handle(info.clone(), msg),
+            manager.execute(info.clone(), msg),
             Err(ContractError::TokenOnSale {})
         ));
     }
@@ -552,7 +552,7 @@ fn test_buy_nft() {
 
         // offering not found
         assert!(matches!(
-            manager.handle(info_buy.clone(), buy_msg.clone()),
+            manager.execute(info_buy.clone(), buy_msg.clone()),
             Err(ContractError::InvalidGetOffering {})
         ));
 
@@ -560,7 +560,7 @@ fn test_buy_nft() {
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
             contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from("provider"),
+            creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -572,7 +572,7 @@ fn test_buy_nft() {
             royalty: None,
         });
 
-        manager.handle(provider_info.clone(), mint_msg).unwrap();
+        manager.execute(provider_info.clone(), mint_msg).unwrap();
 
         let sell_msg = ExecuteMsg::SellNft {
             token_id: String::from("SellableNFT"),
@@ -586,25 +586,25 @@ fn test_buy_nft() {
 
         // Sell successfully
         let _res = manager
-            .handle(provider_info.clone(), sell_msg.clone())
+            .execute(provider_info.clone(), sell_msg.clone())
             .unwrap();
 
         // wrong denom
         let info_buy_wrong_denom = mock_info("buyer", &coins(10, "cosmos"));
         assert!(matches!(
-            manager.handle(info_buy_wrong_denom, buy_msg.clone()),
+            manager.execute(info_buy_wrong_denom, buy_msg.clone()),
             Err(ContractError::InvalidSentFundAmount {})
         ));
 
         // insufficient funds
         assert!(matches!(
-            manager.handle(info_buy, buy_msg.clone()),
+            manager.execute(info_buy, buy_msg.clone()),
             Err(ContractError::InsufficientFunds {})
         ));
 
         // success buy
         let _res = manager
-            .handle(mock_info("buyer", &coins(90, DENOM)), buy_msg.clone())
+            .execute(mock_info("buyer", &coins(90, DENOM)), buy_msg.clone())
             .unwrap();
 
         let query_msg = DataHubQueryMsg::GetOffering { offering_id: 1 };
@@ -614,7 +614,7 @@ fn test_buy_nft() {
 
         // success buy again
         let _res = manager
-            .handle(mock_info("buyer", &coins(90, DENOM)), buy_msg.clone())
+            .execute(mock_info("buyer", &coins(90, DENOM)), buy_msg.clone())
             .unwrap();
 
         let query_msg = DataHubQueryMsg::GetOffering { offering_id: 1 };
@@ -645,14 +645,14 @@ fn test_sell() {
 
         // InsufficientBalance
         assert!(matches!(
-            manager.handle(provider_info.clone(), msg.clone()),
+            manager.execute(provider_info.clone(), msg.clone()),
             Err(ContractError::InsufficientBalance {})
         ));
 
         // mint before sell
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
             contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from("provider"),
+            creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -664,14 +664,14 @@ fn test_sell() {
             royalty: None,
         });
 
-        manager.handle(provider_info.clone(), mint_msg).unwrap();
+        manager.execute(provider_info.clone(), mint_msg).unwrap();
 
         // Sell successfully
-        let _res = manager.handle(provider_info.clone(), msg.clone()).unwrap();
+        let _res = manager.execute(provider_info.clone(), msg.clone()).unwrap();
 
         // already on sale case
         assert!(matches!(
-            manager.handle(provider_info.clone(), msg),
+            manager.execute(provider_info.clone(), msg),
             Err(ContractError::TokenOnSale {})
         ));
     }
@@ -685,7 +685,7 @@ fn test_request_annotations() {
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
             contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from("provider"),
+            creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("creator"),
@@ -697,7 +697,7 @@ fn test_request_annotations() {
             royalty: None,
         });
 
-        manager.handle(provider_info.clone(), mint_msg).unwrap();
+        manager.execute(provider_info.clone(), mint_msg).unwrap();
 
         let request_msg = ExecuteMsg::RequestAnnotation {
             token_id: String::from("SellableNFT"),
@@ -711,7 +711,7 @@ fn test_request_annotations() {
 
         // successfully request
         let info = mock_info("creator", &coins(900, DENOM));
-        let _res = manager.handle(info.clone(), request_msg.clone()).unwrap();
+        let _res = manager.execute(info.clone(), request_msg.clone()).unwrap();
 
         let mut annotation_msg =
             QueryMsg::DataHub(DataHubQueryMsg::GetAnnotation { annotation_id: 1 });
@@ -759,7 +759,7 @@ fn test_request_annotations_unhappy_path() {
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
             contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from("provider"),
+            creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("creator"),
@@ -771,7 +771,7 @@ fn test_request_annotations_unhappy_path() {
             royalty: None,
         });
 
-        manager.handle(provider_info.clone(), mint_msg).unwrap();
+        manager.execute(provider_info.clone(), mint_msg).unwrap();
 
         let request_msg = ExecuteMsg::RequestAnnotation {
             token_id: String::from("SellableNFT"),
@@ -785,7 +785,7 @@ fn test_request_annotations_unhappy_path() {
 
         // Insufficient sent_fund
         assert!(matches!(
-            manager.handle(mock_info("creator", &vec![coin(250, DENOM)]), request_msg),
+            manager.execute(mock_info("creator", &vec![coin(250, DENOM)]), request_msg),
             Err(ContractError::InsufficientFunds {})
         ));
 
@@ -801,7 +801,7 @@ fn test_request_annotations_unhappy_path() {
         };
 
         assert!(matches!(
-            manager.handle(
+            manager.execute(
                 mock_info("creator", &vec![coin(20, DENOM)]),
                 request_msg.clone()
             ),
@@ -828,7 +828,7 @@ fn test_payout_annotations() {
         let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
             contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from("provider"),
+            creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("requester"),
@@ -840,7 +840,7 @@ fn test_payout_annotations() {
             royalty: None,
         });
 
-        manager.handle(provider_info.clone(), mint_msg).unwrap();
+        manager.execute(provider_info.clone(), mint_msg).unwrap();
 
         let request_msg = ExecuteMsg::RequestAnnotation {
             token_id: String::from("SellableNFT"),
@@ -853,38 +853,38 @@ fn test_payout_annotations() {
         };
         // successfully request annotation
         let info = mock_info("requester", &coins(900, DENOM));
-        let _res = manager.handle(info.clone(), request_msg.clone()).unwrap();
+        let _res = manager.execute(info.clone(), request_msg.clone()).unwrap();
 
         let payout_msg = ExecuteMsg::Payout { annotation_id: 1 };
 
         // Unauthorized request
         assert!(matches!(
-            manager.handle(mock_info("aaa", &vec![]), payout_msg.clone()),
+            manager.execute(mock_info("aaa", &vec![]), payout_msg.clone()),
             Err(ContractError::Unauthorized { .. })
         ));
 
         // Add reviewer 1
         let msg = ExecuteMsg::AddAnnotationReviewer {
             annotation_id: 1,
-            reviewer_address: Addr::from("r1"),
+            reviewer_address: Addr::unchecked("r1"),
         };
-        let _res = manager.handle(info.clone(), msg).unwrap();
+        let _res = manager.execute(info.clone(), msg).unwrap();
 
         // Add reviewer 2
         let msg = ExecuteMsg::AddAnnotationReviewer {
             annotation_id: 1,
-            reviewer_address: Addr::from("r2"),
+            reviewer_address: Addr::unchecked("r2"),
         };
-        let _res = manager.handle(info.clone(), msg).unwrap();
+        let _res = manager.execute(info.clone(), msg).unwrap();
 
         // add annotation result for reviewer 1
         let annotator_results = vec![
             AnnotatorResult {
-                annotator_address: Addr::from("a1"),
+                annotator_address: Addr::unchecked("a1"),
                 result: vec![true, true, true],
             },
             AnnotatorResult {
-                annotator_address: Addr::from("a2"),
+                annotator_address: Addr::unchecked("a2"),
                 result: vec![true, false, true, true, false],
             },
         ];
@@ -893,29 +893,29 @@ fn test_payout_annotations() {
             annotation_id: 1,
             annotator_results: annotator_results.clone(),
         };
-        let _res = manager.handle(mock_info("r1", &vec![]), msg).unwrap();
+        let _res = manager.execute(mock_info("r1", &vec![]), msg).unwrap();
 
         let msg = ExecuteMsg::AddReviewedUpload {
             annotation_id: 1,
             reviewed_upload: annotator_results,
         };
-        let _res = manager.handle(mock_info("r1", &vec![]), msg).unwrap();
+        let _res = manager.execute(mock_info("r1", &vec![]), msg).unwrap();
 
         // Early payout error
         let payout_msg = ExecuteMsg::Payout { annotation_id: 1 };
         assert!(matches!(
-            manager.handle(mock_info("requester", &vec![]), payout_msg),
+            manager.execute(mock_info("requester", &vec![]), payout_msg),
             Err(ContractError::EarlyPayoutError {})
         ));
 
         // Add annotation result for reviewer 2
         let annotator_results = vec![
             AnnotatorResult {
-                annotator_address: Addr::from("a1"),
+                annotator_address: Addr::unchecked("a1"),
                 result: vec![true, true, true],
             },
             AnnotatorResult {
-                annotator_address: Addr::from("a2"),
+                annotator_address: Addr::unchecked("a2"),
                 result: vec![true, true, true, true, false],
             },
         ];
@@ -925,31 +925,31 @@ fn test_payout_annotations() {
             annotator_results: annotator_results.clone(),
         };
         let _res = manager
-            .handle(mock_info("r2", &vec![]), msg.clone())
+            .execute(mock_info("r2", &vec![]), msg.clone())
             .unwrap();
 
         let msg = ExecuteMsg::AddReviewedUpload {
             annotation_id: 1,
             reviewed_upload: annotator_results,
         };
-        let _res = manager.handle(mock_info("r2", &vec![]), msg).unwrap();
+        let _res = manager.execute(mock_info("r2", &vec![]), msg).unwrap();
 
         // Success
         let payout_msg = ExecuteMsg::Payout { annotation_id: 1 };
-        let _res = manager.handle(info.clone(), payout_msg).unwrap();
+        let _res = manager.execute(info.clone(), payout_msg).unwrap();
         //print!("payout result: {:?}", res);
 
         // Error: Can not payout again
         let payout_msg = ExecuteMsg::Payout { annotation_id: 1 };
         assert!(matches!(
-            manager.handle(info.clone(), payout_msg),
+            manager.execute(info.clone(), payout_msg),
             Err(ContractError::InvalidPayout {})
         ));
 
         let withdraw_msg = ExecuteMsg::WithdrawAnnotation { annotation_id: 1 };
 
         assert!(matches!(
-            manager.handle(info.clone(), withdraw_msg),
+            manager.execute(info.clone(), withdraw_msg),
             Err(ContractError::InvalidWithdraw {})
         ));
     }
@@ -962,7 +962,7 @@ fn test_withdraw_annotation() {
         let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
             contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from("provider"),
+            creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("requester"),
@@ -974,7 +974,7 @@ fn test_withdraw_annotation() {
             royalty: None,
         });
 
-        manager.handle(provider_info.clone(), mint_msg).unwrap();
+        manager.execute(provider_info.clone(), mint_msg).unwrap();
 
         let request_msg = ExecuteMsg::RequestAnnotation {
             token_id: String::from("SellableNFT"),
@@ -987,13 +987,13 @@ fn test_withdraw_annotation() {
         };
         // successfully request annotation
         let info = mock_info("requester", &coins(900, DENOM));
-        let _res = manager.handle(info.clone(), request_msg.clone()).unwrap();
+        let _res = manager.execute(info.clone(), request_msg.clone()).unwrap();
 
         // Unauthorize withdraw
         let withdraw_msg = ExecuteMsg::WithdrawAnnotation { annotation_id: 1 };
 
         assert!(matches!(
-            manager.handle(mock_info("aaa", &vec![]), withdraw_msg.clone()),
+            manager.execute(mock_info("aaa", &vec![]), withdraw_msg.clone()),
             Err(ContractError::Unauthorized { .. })
         ));
     }
@@ -1006,7 +1006,7 @@ fn test_add_annotation_reviewer() {
         let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
             contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from("provider"),
+            creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("requester"),
@@ -1018,7 +1018,7 @@ fn test_add_annotation_reviewer() {
             royalty: None,
         });
 
-        manager.handle(provider_info.clone(), mint_msg).unwrap();
+        manager.execute(provider_info.clone(), mint_msg).unwrap();
 
         let request_msg = ExecuteMsg::RequestAnnotation {
             token_id: String::from("SellableNFT"),
@@ -1031,20 +1031,20 @@ fn test_add_annotation_reviewer() {
         };
         // successfully request annotation
         let info = mock_info("requester", &coins(900, DENOM));
-        let _res = manager.handle(info.clone(), request_msg.clone()).unwrap();
+        let _res = manager.execute(info.clone(), request_msg.clone()).unwrap();
 
         // Add reviewer 1
         let msg = ExecuteMsg::AddAnnotationReviewer {
             annotation_id: 1,
-            reviewer_address: Addr::from("r1"),
+            reviewer_address: Addr::unchecked("r1"),
         };
 
-        let _res = manager.handle(info.clone(), msg).unwrap();
+        let _res = manager.execute(info.clone(), msg).unwrap();
 
         let query_reviewer_msg =
             QueryMsg::DataHub(DataHubQueryMsg::GetAnnotationReviewerByUniqueKey {
                 annotation_id: 1,
-                reviewer_address: Addr::from("r1"),
+                reviewer_address: Addr::unchecked("r1"),
             });
 
         let res = manager.query(query_reviewer_msg).unwrap();
@@ -1056,10 +1056,10 @@ fn test_add_annotation_reviewer() {
         // Add reviewer 2
         let msg = ExecuteMsg::AddAnnotationReviewer {
             annotation_id: 1,
-            reviewer_address: Addr::from("r2"),
+            reviewer_address: Addr::unchecked("r2"),
         };
 
-        let _res = manager.handle(info.clone(), msg).unwrap();
+        let _res = manager.execute(info.clone(), msg).unwrap();
 
         let msg = QueryMsg::DataHub(DataHubQueryMsg::GetAnnotationReviewerByAnnotationId {
             annotation_id: 1,
@@ -1072,11 +1072,11 @@ fn test_add_annotation_reviewer() {
 
         let annotator_results = vec![
             AnnotatorResult {
-                annotator_address: Addr::from("a1"),
+                annotator_address: Addr::unchecked("a1"),
                 result: vec![true, true, true],
             },
             AnnotatorResult {
-                annotator_address: Addr::from("a2"),
+                annotator_address: Addr::unchecked("a2"),
                 result: vec![true, false, true, true, false, true],
             },
         ];
@@ -1086,16 +1086,16 @@ fn test_add_annotation_reviewer() {
             annotator_results,
         };
 
-        let _res = manager.handle(mock_info("r1", &vec![]), msg.clone());
+        let _res = manager.execute(mock_info("r1", &vec![]), msg.clone());
 
         // add result for reviewer 2
         let annotator_results = vec![
             AnnotatorResult {
-                annotator_address: Addr::from("a2"),
+                annotator_address: Addr::unchecked("a2"),
                 result: vec![true, false, true, true, false, false],
             },
             AnnotatorResult {
-                annotator_address: Addr::from("a1"),
+                annotator_address: Addr::unchecked("a1"),
                 result: vec![true, true, true],
             },
         ];
@@ -1104,19 +1104,19 @@ fn test_add_annotation_reviewer() {
             annotator_results,
         };
 
-        let res = manager.handle(mock_info("r2", &vec![]), msg.clone());
+        let res = manager.execute(mock_info("r2", &vec![]), msg.clone());
         assert!(matches!(res, Err(ContractError::Std { .. })));
         println!("wrong annotator result position {:?}", res);
 
         // Error: A reviewer can commit result only one time
         assert!(matches!(
-            manager.handle(mock_info("r1", &vec![]), msg.clone()),
+            manager.execute(mock_info("r1", &vec![]), msg.clone()),
             Err(ContractError::AddResultError {})
         ));
 
         let withdraw_msg = ExecuteMsg::WithdrawAnnotation { annotation_id: 1 };
         // Error: try to withdraw a annotation that had reviewer committed results
-        let res = manager.handle(info.clone(), withdraw_msg);
+        let res = manager.execute(info.clone(), withdraw_msg);
         assert!(matches!(res, Err(ContractError::Std { .. })));
         println!("wresult: {:?}", res);
     }
@@ -1129,7 +1129,7 @@ fn test_reviewed_upload() {
         let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
             contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from("provider"),
+            creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("requester"),
@@ -1141,7 +1141,7 @@ fn test_reviewed_upload() {
             royalty: None,
         });
 
-        manager.handle(provider_info.clone(), mint_msg).unwrap();
+        manager.execute(provider_info.clone(), mint_msg).unwrap();
 
         let request_msg = ExecuteMsg::RequestAnnotation {
             token_id: String::from("SellableNFT"),
@@ -1154,23 +1154,23 @@ fn test_reviewed_upload() {
         };
         // successfully request annotation
         let info = mock_info("requester", &coins(900, DENOM));
-        let _res = manager.handle(info.clone(), request_msg.clone()).unwrap();
+        let _res = manager.execute(info.clone(), request_msg.clone()).unwrap();
 
         // Add reviewer 1
         let msg = ExecuteMsg::AddAnnotationReviewer {
             annotation_id: 1,
-            reviewer_address: Addr::from("r1"),
+            reviewer_address: Addr::unchecked("r1"),
         };
 
-        let _res = manager.handle(info.clone(), msg).unwrap();
+        let _res = manager.execute(info.clone(), msg).unwrap();
 
         let reviewed_upload = vec![
             AnnotatorResult {
-                annotator_address: Addr::from("a1"),
+                annotator_address: Addr::unchecked("a1"),
                 result: vec![true, true, true],
             },
             AnnotatorResult {
-                annotator_address: Addr::from("a2"),
+                annotator_address: Addr::unchecked("a2"),
                 result: vec![true, false, true, true, false, true],
             },
         ];
@@ -1181,14 +1181,14 @@ fn test_reviewed_upload() {
         };
 
         let _res = manager
-            .handle(mock_info("r1", &vec![]), msg.clone())
+            .execute(mock_info("r1", &vec![]), msg.clone())
             .unwrap();
 
         let res = manager
             .query(QueryMsg::DataHub(
                 DataHubQueryMsg::GetReviewedUploadByAnnotationIdAndReviewer {
                     annotation_id: 1,
-                    reviewer_address: Addr::from("r1"),
+                    reviewer_address: Addr::unchecked("r1"),
                 },
             ))
             .unwrap();
@@ -1206,7 +1206,7 @@ fn test_migrate() {
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
             contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from("provider"),
+            creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("creator"),
@@ -1218,7 +1218,7 @@ fn test_migrate() {
             royalty: None,
         });
 
-        manager.handle(provider_info.clone(), mint_msg).unwrap();
+        manager.execute(provider_info.clone(), mint_msg).unwrap();
 
         // beneficiary can release it
         let info_sell = mock_info(OW_1155_ADDR, &vec![coin(50, DENOM)]);
@@ -1233,18 +1233,18 @@ fn test_migrate() {
             })
             .unwrap(),
         });
-        manager.handle(info_sell.clone(), msg).unwrap();
+        manager.execute(info_sell.clone(), msg).unwrap();
 
         // try migrate
         let token_infos = vec![(String::from("SellableNFT"), Uint128::from(500u64))];
         // unauthorized case
         let migrate_msg = ExecuteMsg::MigrateVersion {
-            nft_contract_addr: Addr::from("offering"),
+            nft_contract_addr: Addr::unchecked("offering"),
             token_infos: token_infos.clone(),
-            new_marketplace: Addr::from("new_market_datahub"),
+            new_marketplace: Addr::unchecked("new_market_datahub"),
         };
         assert!(matches!(
-            manager.handle(
+            manager.execute(
                 mock_info("hacker", &vec![coin(50, DENOM)]),
                 migrate_msg.clone()
             ),
@@ -1252,7 +1252,7 @@ fn test_migrate() {
         ));
 
         let results = manager
-            .handle(mock_info(CREATOR, &vec![coin(50, DENOM)]), migrate_msg)
+            .execute(mock_info(CREATOR, &vec![coin(50, DENOM)]), migrate_msg)
             .unwrap();
 
         // shall pass
@@ -1266,7 +1266,7 @@ fn test_migrate() {
                     } = msg
                     {
                         println!("in wasm msg execute");
-                        assert_eq!(contract_addr, Addr::from("offering"));
+                        assert_eq!(contract_addr, Addr::unchecked("offering"));
                         let transfer_msg: Cw1155ExecuteMsg = from_binary(&msg).unwrap();
                         if let Cw1155ExecuteMsg::SendFrom {
                             from,
@@ -1297,7 +1297,7 @@ fn test_mint() {
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mut mint = MintMsg {
             contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from("creator"),
+            creator: Addr::unchecked("creator"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -1310,7 +1310,7 @@ fn test_mint() {
         };
         let mut mint_msg = ExecuteMsg::MintNft(mint.clone());
         manager
-            .handle(provider_info.clone(), mint_msg.clone())
+            .execute(provider_info.clone(), mint_msg.clone())
             .unwrap();
 
         let msg: String = String::from("You're not the creator of the nft, cannot mint");
@@ -1321,7 +1321,7 @@ fn test_mint() {
 
         // mint again with different creator and we shall get an error
         assert!(matches!(
-            manager.handle(
+            manager.execute(
                 mock_info("provider", &vec![coin(50, DENOM)]),
                 mint_msg.clone()
             ),
@@ -1332,7 +1332,7 @@ fn test_mint() {
         mint.mint.mint.to = String::from("creator");
         mint_msg = ExecuteMsg::MintNft(mint.clone());
         manager
-            .handle(provider_info.clone(), mint_msg.clone())
+            .execute(provider_info.clone(), mint_msg.clone())
             .unwrap();
 
         // query balance
@@ -1354,7 +1354,7 @@ fn test_mint() {
         // mint with co owners
         mint_msg = ExecuteMsg::MintNft(mint.clone());
         manager
-            .handle(provider_info.clone(), mint_msg.clone())
+            .execute(provider_info.clone(), mint_msg.clone())
             .unwrap();
 
         let balance2: BalanceResponse = from_binary(

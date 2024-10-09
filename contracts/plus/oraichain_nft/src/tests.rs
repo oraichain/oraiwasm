@@ -5,8 +5,8 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    attr, coins, from_binary, from_slice, to_json_binary, Api, CosmosMsg, Response, Addr,
-    OwnedDeps, WasmMsg,
+    attr, coins, from_binary, from_json, to_json_binary, Addr, Api, CosmosMsg, OwnedDeps, Response,
+    WasmMsg,
 };
 
 use cw721::{
@@ -21,7 +21,7 @@ const CONTRACT_VERSION: &str = "0.1.1";
 const SYMBOL: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-    let mut deps = mock_dependencies(&coins(100000, "orai"));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, "orai"));
     deps.api.canonical_length = 54;
     let msg = InstantiateMsg {
         name: Some(CONTRACT_NAME.to_string()),
@@ -30,7 +30,7 @@ fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
         version: Some(CONTRACT_VERSION.to_string()),
     };
     let info = mock_info(OWNER, &[]);
-    let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
     deps
 }
@@ -89,17 +89,17 @@ fn minting() {
     token_id, owner, name, description,image
         );
     println!("length count: {}", owner.len());
-    let mint_msg: MintMsg = from_slice(mint_str.as_bytes()).unwrap();
+    let mint_msg: MintMsg = from_json(mint_str.as_bytes()).unwrap();
     println!(
         "mint msg: {}",
-        deps.api.canonical_address(&mint_msg.owner).unwrap()
+        deps.api.addr_canonicalize(&mint_msg.owner).unwrap()
     );
 
     let mint_msg = ExecuteMsg::Mint(mint_msg);
 
     // random cannot mint
     let random = mock_info("random", &[]);
-    let err = handle(deps.as_mut(), mock_env(), random, mint_msg.clone()).unwrap_err();
+    let err = execute(deps.as_mut(), mock_env(), random, mint_msg.clone()).unwrap_err();
     match err {
         ContractError::Unauthorized {} => {}
         e => panic!("unexpected error: {}", e),
@@ -107,7 +107,7 @@ fn minting() {
 
     // minter can mint
     let allowed = mock_info(MINTER, &[]);
-    let _ = handle(deps.as_mut(), mock_env(), allowed, mint_msg.clone()).unwrap();
+    let _ = execute(deps.as_mut(), mock_env(), allowed, mint_msg.clone()).unwrap();
 
     // ensure num tokens increases
     let count: NumTokensResponse =
@@ -155,7 +155,7 @@ fn minting() {
     });
 
     let allowed = mock_info(MINTER, &[]);
-    let err = handle(deps.as_mut(), mock_env(), allowed, mint_msg2).unwrap_err();
+    let err = execute(deps.as_mut(), mock_env(), allowed, mint_msg2).unwrap_err();
     match err {
         ContractError::Claimed {} => {}
         e => panic!("unexpected error: {}", e),
@@ -196,7 +196,7 @@ fn transferring_nft() {
     });
 
     let minter = mock_info(MINTER, &[]);
-    handle(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
 
     // random cannot transfer
     let random = mock_info("random", &[]);
@@ -205,7 +205,7 @@ fn transferring_nft() {
         token_id: token_id.clone(),
     };
 
-    let err = handle(deps.as_mut(), mock_env(), random, transfer_msg.clone()).unwrap_err();
+    let err = execute(deps.as_mut(), mock_env(), random, transfer_msg.clone()).unwrap_err();
 
     match err {
         ContractError::Unauthorized {} => {}
@@ -219,7 +219,7 @@ fn transferring_nft() {
         token_id: token_id.clone(),
     };
 
-    let res = handle(deps.as_mut(), mock_env(), random, transfer_msg.clone()).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), random, transfer_msg.clone()).unwrap();
 
     assert_eq!(
         res,
@@ -254,7 +254,7 @@ fn test_owner_rights() {
     });
 
     let minter = mock_info(MINTER, &[]);
-    handle(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
 
     // owner of the smart contract can transfer
     let random = mock_info(OWNER, &[]);
@@ -263,7 +263,7 @@ fn test_owner_rights() {
         token_id: token_id.clone(),
     };
 
-    let _ = handle(
+    let _ = execute(
         deps.as_mut(),
         mock_env(),
         random.clone(),
@@ -273,11 +273,11 @@ fn test_owner_rights() {
 
     // owner can also approve the nft
     let approve_msg = ExecuteMsg::Approve {
-        spender: Addr::from("some random guy"),
+        spender: Addr::unchecked("some random guy"),
         token_id: "melt".to_string(),
         expires: None,
     };
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         random.clone(),
@@ -287,10 +287,10 @@ fn test_owner_rights() {
 
     // can also revoke the nft
     let revoke_msg = ExecuteMsg::Revoke {
-        spender: Addr::from("some random guy"),
+        spender: Addr::unchecked("some random guy"),
         token_id: "melt".to_string(),
     };
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         random.clone(),
@@ -305,7 +305,7 @@ fn test_owner_rights() {
 
     // random dude cannot burn
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info("random guy", &[]),
@@ -314,7 +314,7 @@ fn test_owner_rights() {
         Err(ContractError::Unauthorized {})
     ));
 
-    handle(deps.as_mut(), mock_env(), random.clone(), burn_msg.clone()).unwrap();
+    execute(deps.as_mut(), mock_env(), random.clone(), burn_msg.clone()).unwrap();
     // should be burnt
 
     let is_err = query(
@@ -347,10 +347,10 @@ fn sending_nft() {
     });
 
     let minter = mock_info(MINTER, &[]);
-    handle(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
 
     let msg = to_json_binary("You now have the melting power").unwrap();
-    let target = Addr::from("another_contract");
+    let target = Addr::unchecked("another_contract");
     let send_msg = ExecuteMsg::SendNft {
         contract: target.clone(),
         token_id: token_id.clone(),
@@ -358,7 +358,7 @@ fn sending_nft() {
     };
 
     let random = mock_info("random", &[]);
-    let err = handle(deps.as_mut(), mock_env(), random, send_msg.clone()).unwrap_err();
+    let err = execute(deps.as_mut(), mock_env(), random, send_msg.clone()).unwrap_err();
     match err {
         ContractError::Unauthorized {} => {}
         e => panic!("unexpected error: {}", e),
@@ -366,7 +366,7 @@ fn sending_nft() {
 
     // but owner can
     let random = mock_info("venus", &[]);
-    let res = handle(deps.as_mut(), mock_env(), random, send_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), random, send_msg).unwrap();
 
     let payload = Cw721ReceiveMsg {
         sender: "venus".into(),
@@ -415,7 +415,7 @@ fn approving_revoking() {
     });
 
     let minter = mock_info(MINTER, &[]);
-    handle(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
 
     // Give random transferring power
     let approve_msg = ExecuteMsg::Approve {
@@ -424,7 +424,7 @@ fn approving_revoking() {
         expires: None,
     };
     let owner = mock_info("demeter", &[]);
-    let res = handle(deps.as_mut(), mock_env(), owner, approve_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), owner, approve_msg).unwrap();
     assert_eq!(
         res,
         Response {
@@ -445,7 +445,7 @@ fn approving_revoking() {
         recipient: "person".into(),
         token_id: token_id.clone(),
     };
-    handle(deps.as_mut(), mock_env(), random, transfer_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), random, transfer_msg).unwrap();
 
     // Approvals are removed / cleared
     let query_msg = QueryMsg::OwnerOf {
@@ -469,13 +469,13 @@ fn approving_revoking() {
         expires: None,
     };
     let owner = mock_info("person", &[]);
-    handle(deps.as_mut(), mock_env(), owner.clone(), approve_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), owner.clone(), approve_msg).unwrap();
 
     let revoke_msg = ExecuteMsg::Revoke {
         spender: "random".into(),
         token_id: token_id.clone(),
     };
-    handle(deps.as_mut(), mock_env(), owner, revoke_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), owner, revoke_msg).unwrap();
 
     // Approvals are now removed / cleared
     let res: OwnerOfResponse =
@@ -510,7 +510,7 @@ fn approving_all_revoking_all() {
     });
 
     let minter = mock_info(MINTER, &[]);
-    handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg1).unwrap();
+    execute(deps.as_mut(), mock_env(), minter.clone(), mint_msg1).unwrap();
 
     let mint_msg2 = ExecuteMsg::Mint(MintMsg {
         token_id: token_id2.clone(),
@@ -520,7 +520,7 @@ fn approving_all_revoking_all() {
         image: "".to_string(),
     });
 
-    handle(deps.as_mut(), mock_env(), minter, mint_msg2).unwrap();
+    execute(deps.as_mut(), mock_env(), minter, mint_msg2).unwrap();
 
     // paginate the token_ids
     let tokens: TokensResponse = from_binary(
@@ -558,7 +558,7 @@ fn approving_all_revoking_all() {
         expires: None,
     };
     let owner = mock_info("demeter", &[]);
-    let res = handle(deps.as_mut(), mock_env(), owner, approve_all_msg).unwrap();
+    let res = execute(deps.as_mut(), mock_env(), owner, approve_all_msg).unwrap();
     assert_eq!(
         res,
         Response {
@@ -577,7 +577,7 @@ fn approving_all_revoking_all() {
             deps.as_ref(),
             mock_env(),
             QueryMsg::ApprovedForAll {
-                owner: Addr::from("demeter"),
+                owner: Addr::unchecked("demeter"),
                 include_expired: Some(false),
                 start_after: None,
                 limit: None,
@@ -590,7 +590,7 @@ fn approving_all_revoking_all() {
     let filter_result = result
         .operators
         .iter()
-        .find(|operator| operator.spender.eq(&Addr::from("random")));
+        .find(|operator| operator.spender.eq(&Addr::unchecked("random")));
 
     println!("is Aprrove all {:?}", filter_result);
     assert_eq!(filter_result.is_some(), true);
@@ -601,7 +601,7 @@ fn approving_all_revoking_all() {
         recipient: "person".into(),
         token_id: token_id1.clone(),
     };
-    handle(deps.as_mut(), mock_env(), random.clone(), transfer_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), random.clone(), transfer_msg).unwrap();
 
     // random can now send
     let inner_msg = WasmMsg::Execute {
@@ -616,7 +616,7 @@ fn approving_all_revoking_all() {
         token_id: token_id2.clone(),
         msg: Some(to_json_binary(&msg).unwrap()),
     };
-    handle(deps.as_mut(), mock_env(), random, send_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), random, send_msg).unwrap();
 
     // Approve_all, revoke_all, and check for empty, to test revoke_all
     let approve_all_msg = ExecuteMsg::ApproveAll {
@@ -625,7 +625,7 @@ fn approving_all_revoking_all() {
     };
     // person is now the owner of the tokens
     let owner = mock_info("person", &[]);
-    handle(deps.as_mut(), mock_env(), owner.clone(), approve_all_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), owner.clone(), approve_all_msg).unwrap();
 
     let res: ApprovedForAllResponse = from_binary(
         &query(
@@ -659,7 +659,7 @@ fn approving_all_revoking_all() {
         expires: Some(buddy_expires),
     };
 
-    handle(deps.as_mut(), mock_env(), owner.clone(), approve_all_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), owner.clone(), approve_all_msg).unwrap();
 
     // and paginate queries
     let res: ApprovedForAllResponse = from_binary(
@@ -721,7 +721,7 @@ fn approving_all_revoking_all() {
     let revoke_all_msg = ExecuteMsg::RevokeAll {
         operator: "operator".into(),
     };
-    handle(deps.as_mut(), mock_env(), owner, revoke_all_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), owner, revoke_all_msg).unwrap();
 
     // Approvals are removed / cleared without affecting others
     let res: ApprovedForAllResponse = from_binary(
@@ -777,9 +777,9 @@ fn query_tokens_by_owner() {
 
     // Mint a couple tokens (from the same owner)
     let token_id1 = "grow1".to_string();
-    let demeter = Addr::from("Demeter");
+    let demeter = Addr::unchecked("Demeter");
     let token_id2 = "grow2".to_string();
-    let ceres = Addr::from("Ceres");
+    let ceres = Addr::unchecked("Ceres");
     let token_id3 = "sing".to_string();
 
     let mint_msg = ExecuteMsg::Mint(MintMsg {
@@ -789,7 +789,7 @@ fn query_tokens_by_owner() {
         description: Some("Allows the owner the power to grow anything".to_string()),
         image: "".to_string(),
     });
-    handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
 
     let mint_msg = ExecuteMsg::Mint(MintMsg {
         token_id: token_id2.clone(),
@@ -798,7 +798,7 @@ fn query_tokens_by_owner() {
         description: Some("Allows the owner the power to grow anything even faster".to_string()),
         image: "".to_string(),
     });
-    handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
 
     let mint_msg = ExecuteMsg::Mint(MintMsg {
         token_id: token_id3.clone(),
@@ -807,7 +807,7 @@ fn query_tokens_by_owner() {
         description: Some("Calm even the most excited children".to_string()),
         image: "".to_string(),
     });
-    handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
 
     // get all tokens in order:
     let expected = vec![token_id1.clone(), token_id2.clone(), token_id3.clone()];
@@ -933,11 +933,11 @@ fn mint_nft_invalid_args() {
     token_id, owner, name, description,image
         );
     println!("length count: {}", owner.len());
-    let mint_msg: MintMsg = from_slice(mint_str.as_bytes()).unwrap();
+    let mint_msg: MintMsg = from_json(mint_str.as_bytes()).unwrap();
 
     let mint_msg = ExecuteMsg::Mint(mint_msg);
     let allowed = mock_info(MINTER, &[]);
-    let err = handle(deps.as_mut(), mock_env(), allowed.clone(), mint_msg).unwrap_err();
+    let err = execute(deps.as_mut(), mock_env(), allowed.clone(), mint_msg).unwrap_err();
 
     match err {
         ContractError::InvalidArgument { reason } => {
@@ -962,14 +962,14 @@ fn update_nft() {
     token_id, owner, name, description,image
         );
     println!("length count: {}", owner.len());
-    let mint_msg: MintMsg = from_slice(mint_str.as_bytes()).unwrap();
+    let mint_msg: MintMsg = from_json(mint_str.as_bytes()).unwrap();
 
     let mint_msg = ExecuteMsg::Mint(mint_msg);
     let allowed = mock_info(MINTER, &[]);
-    handle(deps.as_mut(), mock_env(), allowed.clone(), mint_msg).unwrap();
+    execute(deps.as_mut(), mock_env(), allowed.clone(), mint_msg).unwrap();
 
     // now update
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         mock_info(owner, &[]),

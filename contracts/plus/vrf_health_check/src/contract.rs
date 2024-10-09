@@ -111,7 +111,7 @@ pub fn reset_count(deps: DepsMut, info: MessageInfo) -> Result<Response, Contrac
         return Err(ContractError::Unauthorized {});
     }
 
-    let mut offset = Some(Addr::from(""));
+    let mut offset = Some(Addr::unchecked(""));
     while query_rounds(deps.as_ref(), None, offset.clone(), None)?.len() > 0 {
         let temp_round = query_rounds(deps.as_ref(), None, offset.clone(), None)?;
         for round in temp_round.clone() {

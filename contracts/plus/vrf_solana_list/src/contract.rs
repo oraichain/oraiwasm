@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, from_slice, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    attr, from_json, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
     Response, StdResult, Storage,
 };
 
@@ -107,7 +107,7 @@ fn query_member(deps: Deps, address: &str) -> Result<Member, ContractError> {
     let value = members_storage_read(deps.storage)
         .get(address.as_bytes())
         .ok_or(ContractError::NoMember {})?;
-    let member = from_slice(value.as_slice())?;
+    let member = from_json(value.as_slice())?;
     Ok(member)
 }
 
@@ -147,7 +147,7 @@ fn query_members(
     let members = members_storage_read(deps.storage)
         .range(min, max, order_enum)
         .take(limit)
-        .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
+        .map(|(_key, value)| from_json(value.as_slice()).unwrap())
         .collect();
     Ok(members)
 }
@@ -160,7 +160,7 @@ fn query_contract_info(deps: Deps) -> Result<Owner, ContractError> {
 pub fn get_all_members(deps: Deps) -> Result<Vec<Member>, ContractError> {
     let members: Vec<Member> = members_storage_read(deps.storage)
         .range(None, None, Order::Ascending)
-        .map(|(_key, value)| from_slice(value.as_slice()).unwrap())
+        .map(|(_key, value)| from_json(value.as_slice()).unwrap())
         .collect();
     return Ok(members);
 }

@@ -1,4 +1,4 @@
-use cosmwasm_std::from_slice;
+use cosmwasm_std::from_json;
 use cosmwasm_std::to_json_binary;
 use cosmwasm_std::Binary;
 use cosmwasm_std::{StdError, StdResult};
@@ -17,7 +17,7 @@ pub fn assert(assert_inputs: &[String]) -> StdResult<Binary> {
 
     // for assert_input_str in assert_inputs {
     //     let assert_input_result: Result<AssertInput, StdError> =
-    //         from_slice(assert_input_str.as_bytes());
+    //         from_json(assert_input_str.as_bytes());
     //     if assert_input_result.is_err() {
     //         continue;
     //     }

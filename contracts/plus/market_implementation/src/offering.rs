@@ -78,15 +78,15 @@ pub fn try_buy(
 
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
     let off: Offering = get_offering(deps.as_ref(), offering_id)?;
-    let seller_addr = deps.api.human_address(&off.seller)?;
-    let contract_addr = deps.api.human_address(&off.contract_addr)?;
+    let seller_addr = deps.api.addr_humanize(&off.seller)?;
+    let contract_addr = deps.api.addr_humanize(&off.contract_addr)?;
     let token_id = off.token_id;
 
     // collect payment type
     let asset_info: AssetInfo = query_offering_payment_asset_info(
         deps.as_ref(),
         governance.as_str(),
-        deps.api.human_address(&off.contract_addr)?,
+        deps.api.addr_humanize(&off.contract_addr)?,
         token_id.as_str(),
     )?;
 
@@ -123,7 +123,7 @@ pub fn try_buy(
             .query_wasm_smart(
                 get_storage_addr(deps.as_ref(), governance.clone(), OFFERING_STORAGE)?,
                 &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId {
-                    contract: deps.api.human_address(&off.contract_addr)?,
+                    contract: deps.api.addr_humanize(&off.contract_addr)?,
                     token_id: token_id.clone(),
                 }) as &ProxyQueryMsg,
             )
@@ -189,7 +189,7 @@ pub fn try_buy(
     // if everything is fine transfer NFT token to buyer
     cosmos_msgs.push(
         WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&off.contract_addr)?,
+            contract_addr: deps.api.addr_humanize(&off.contract_addr)?,
             msg: to_json_binary(&transfer_cw721_msg)?,
             funds: vec![],
         }
@@ -254,7 +254,7 @@ pub fn try_withdraw(
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
     let off: Offering = get_offering(deps.as_ref(), offering_id)?;
     if info.sender.ne(&Addr(creator.clone()))
-        && off.seller.ne(&deps.api.canonical_address(&info.sender)?)
+        && off.seller.ne(&deps.api.addr_canonicalize(&info.sender)?)
     {
         return Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
@@ -267,19 +267,19 @@ pub fn try_withdraw(
     // transfer token back to original owner if market owns the nft
     if verify_owner(
         deps.as_ref(),
-        &deps.api.human_address(&off.contract_addr)?,
+        &deps.api.addr_humanize(&off.contract_addr)?,
         &off.token_id,
         &env.contract.address,
     )
     .is_ok()
     {
         let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
-            recipient: deps.api.human_address(&off.seller)?,
+            recipient: deps.api.addr_humanize(&off.seller)?,
             token_id: off.token_id.clone(),
         };
 
         let exec_cw721_transfer = WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&off.contract_addr)?,
+            contract_addr: deps.api.addr_humanize(&off.contract_addr)?,
             msg: to_json_binary(&transfer_cw721_msg)?,
             funds: vec![],
         };
@@ -359,8 +359,8 @@ pub fn try_handle_sell_nft(
     let offering = Offering {
         id: None,
         token_id: token_id.clone(), // has to use initial token id with extra binary data here so we can retrieve the extra data later
-        contract_addr: deps.api.canonical_address(&contract_addr)?,
-        seller: deps.api.canonical_address(&info.sender)?,
+        contract_addr: deps.api.addr_canonicalize(&contract_addr)?,
+        seller: deps.api.addr_canonicalize(&info.sender)?,
         price: off_price,
     };
 

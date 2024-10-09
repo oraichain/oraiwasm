@@ -390,7 +390,7 @@ pub fn update_share_sig(
         .map_err(|_op| ContractError::InvalidPublicKeyShare {})?;
 
     let mut sig_bytes: [u8; SIG_SIZE] = [0; SIG_SIZE];
-    sig_bytes.copy_from_slice(share.sig.as_slice());
+    sig_bytes.copy_from_json(share.sig.as_slice());
     let sig =
         SignatureShare::from_bytes(sig_bytes).map_err(|_op| ContractError::InvalidSignature {})?;
 
@@ -424,7 +424,7 @@ pub fn update_share_sig(
             .iter()
             .map(|s| {
                 let mut sig_bytes: [u8; SIG_SIZE] = [0; SIG_SIZE];
-                sig_bytes.copy_from_slice(s.sig.as_slice());
+                sig_bytes.copy_from_json(s.sig.as_slice());
                 (
                     s.index as usize,
                     SignatureShare::from_bytes(sig_bytes).unwrap(),
@@ -434,7 +434,7 @@ pub fn update_share_sig(
         let combined_sig = mpkset.combine_signatures(&sig_shares).unwrap();
         let combined_pubkey = mpkset.public_key();
         let mut combined_sig_bytes: Vec<u8> = vec![0; SIG_SIZE];
-        combined_sig_bytes.copy_from_slice(&combined_sig.to_bytes());
+        combined_sig_bytes.copy_from_json(&combined_sig.to_bytes());
 
         share_data.combined_sig = Some(Binary::from(combined_sig_bytes.as_slice()));
         share_data.combined_pubkey = Some(Binary::from(combined_pubkey.to_bytes()));
@@ -689,9 +689,9 @@ fn verify_round(deps: Deps, round: u64) -> Result<bool, ContractError> {
     if let Some(combined_pubkey_bin) = share_data.combined_pubkey {
         if let Some(combined_sig_bin) = share_data.combined_sig {
             let mut sig_bytes: [u8; SIG_SIZE] = [0; SIG_SIZE];
-            sig_bytes.copy_from_slice(&combined_sig_bin.as_slice());
+            sig_bytes.copy_from_json(&combined_sig_bin.as_slice());
             let mut pub_bytes: [u8; PK_SIZE] = [0; PK_SIZE];
-            pub_bytes.copy_from_slice(&combined_pubkey_bin.as_slice());
+            pub_bytes.copy_from_json(&combined_pubkey_bin.as_slice());
             let combined_sig =
                 Signature::from_bytes(sig_bytes).map_err(|_| ContractError::InvalidSignature {})?;
             let combined_pubkey: PublicKey = PublicKey::from_bytes(pub_bytes)

@@ -32,7 +32,7 @@ pub fn instantiate(
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
     // we just convert to canonical to check if this is a valid format
-    if deps.api.canonical_address(&msg.group_addr).is_err() {
+    if deps.api.addr_canonicalize(&msg.group_addr).is_err() {
         return Err(ContractError::InvalidGroup {
             addr: msg.group_addr,
         });
@@ -425,7 +425,7 @@ fn map_proposal(
 }
 
 fn query_vote(deps: Deps, proposal_id: u64, voter: Addr) -> StdResult<VoteResponse> {
-    let voter_raw = deps.api.canonical_address(&voter)?;
+    let voter_raw = deps.api.addr_canonicalize(&voter)?;
     let prop = BALLOTS.may_load(deps.storage, (proposal_id.into(), &voter_raw))?;
     let vote = prop.map(|b| VoteInfo {
         voter,
@@ -453,7 +453,7 @@ fn list_votes(
         .map(|item| {
             let (key, ballot) = item?;
             Ok(VoteInfo {
-                voter: api.human_address(&CanonicalAddr::from(key))?,
+                voter: api.addr_humanize(&CanonicalAddr::from(key))?,
                 vote: ballot.vote,
                 weight: ballot.weight,
             })
@@ -465,7 +465,7 @@ fn list_votes(
 
 fn query_voter(deps: Deps, voter: Addr) -> StdResult<VoterResponse> {
     let cfg = CONFIG.load(deps.storage)?;
-    let voter_raw = deps.api.canonical_address(&voter)?;
+    let voter_raw = deps.api.addr_canonicalize(&voter)?;
     let weight = cfg.group_addr.is_member(&deps.querier, &voter_raw)?;
 
     Ok(VoterResponse { weight })

@@ -1,6 +1,9 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use cosmwasm_std::{
     attr, to_json_binary, Addr, Binary, CanonicalAddr, Deps, DepsMut, Env, MessageInfo, Order,
-    Response, Response, StdResult,
+    Response, StdResult, SubMsg,
 };
 use cw4::{
     Member, MemberChangedHookMsg, MemberDiff, MemberListResponse, MemberResponse,
@@ -39,7 +42,7 @@ pub fn create(
     let mut total = 0u64;
     for member in members.into_iter() {
         total += member.weight;
-        let raw = deps.api.canonical_address(&member.addr)?;
+        let raw = deps.api.addr_canonicalize(&member.addr)?;
         MEMBERS.save(deps.storage, &raw, &member.weight, height)?;
     }
     TOTAL.save(deps.storage, &total)?;
@@ -56,12 +59,12 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::UpdateAdmin { admin } => Ok(ADMIN.handle_update_admin(deps, info, admin)?),
+        ExecuteMsg::UpdateAdmin { admin } => Ok(ADMIN.execute_update_admin(deps, info, admin)?),
         ExecuteMsg::UpdateMembers { add, remove } => {
             handle_update_members(deps, env, info, add, remove)
         }
-        ExecuteMsg::AddHook { addr } => Ok(HOOKS.handle_add_hook(&ADMIN, deps, info, addr)?),
-        ExecuteMsg::RemoveHook { addr } => Ok(HOOKS.handle_remove_hook(&ADMIN, deps, info, addr)?),
+        ExecuteMsg::AddHook { addr } => Ok(HOOKS.execute_add_hook(&ADMIN, deps, info, addr)?),
+        ExecuteMsg::RemoveHook { addr } => Ok(HOOKS.execute_remove_hook(&ADMIN, deps, info, addr)?),
     }
 }
 
@@ -74,20 +77,20 @@ pub fn handle_update_members(
 ) -> Result<Response, ContractError> {
     let attributes = vec![
         attr("action", "update_members"),
-        attr("added", add.len()),
-        attr("removed", remove.len()),
+        attr("added", add.len().to_string()),
+        attr("removed", remove.len().to_string()),
         attr("sender", &info.sender),
     ];
 
     // make the local update
     let diff = update_members(deps.branch(), env.block.height, info.sender, add, remove)?;
     // call all registered hooks
-    let messages = HOOKS.prepare_hooks(deps.storage, |h| diff.clone().into_cosmos_msg(h))?;
-    Ok(Response {
-        messages,
-        attributes,
-        data: None,
-    })
+    let messages = HOOKS.prepare_hooks(deps.storage, |h| {
+        diff.clone().into_cosmos_msg(h).map(SubMsg::new)
+    })?;
+    Ok(Response::new()
+        .add_attributes(attributes)
+        .add_submessages(messages))
 }
 
 // the logic from handle_update_members extracted for easier import
@@ -105,7 +108,7 @@ pub fn update_members(
 
     // add all new members and update total
     for add in to_add.into_iter() {
-        let raw = deps.api.canonical_address(&add.addr)?;
+        let raw = deps.api.addr_canonicalize(add.addr.as_str())?;
         MEMBERS.update(deps.storage, &raw, height, |old| -> StdResult<_> {
             total -= old.unwrap_or_default();
             total += add.weight;
@@ -115,7 +118,7 @@ pub fn update_members(
     }
 
     for remove in to_remove.into_iter() {
-        let raw = deps.api.canonical_address(&remove)?;
+        let raw = deps.api.addr_canonicalize(remove.as_str())?;
         let old = MEMBERS.may_load(deps.storage, &raw)?;
         // Only process this if they were actually in the list before
         if let Some(weight) = old {
@@ -150,7 +153,7 @@ fn query_total_weight(deps: Deps) -> StdResult<TotalWeightResponse> {
 }
 
 fn query_member(deps: Deps, addr: Addr, height: Option<u64>) -> StdResult<MemberResponse> {
-    let raw = deps.api.canonical_address(&addr)?;
+    let raw = deps.api.addr_canonicalize(addr.as_str())?;
     let weight = match height {
         Some(h) => MEMBERS.may_load_at_height(deps.storage, &raw, h),
         None => MEMBERS.may_load(deps.storage, &raw),
@@ -169,7 +172,7 @@ fn list_members(
 ) -> StdResult<MemberListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let canon = maybe_canonical(deps.api, start_after)?;
-    let start = canon.map(Bound::exclusive);
+    let start = canon.map(|c| c.to_vec()).map(Bound::ExclusiveRaw);
 
     let api = &deps.api;
     let members: StdResult<Vec<_>> = MEMBERS
@@ -178,7 +181,7 @@ fn list_members(
         .map(|item| {
             let (key, weight) = item?;
             Ok(Member {
-                addr: api.human_address(&CanonicalAddr::from(key))?,
+                addr: api.addr_humanize(&CanonicalAddr::from(key))?.to_string(),
                 weight,
             })
         })
@@ -190,8 +193,8 @@ fn list_members(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{from_slice, Api, OwnedDeps, Querier, Storage};
+    use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
+    use cosmwasm_std::{from_json, Api, OwnedDeps, Querier, Storage};
     use cw4::{member_key, TOTAL_KEY};
     use cw_controllers::{AdminError, HookError};
 
@@ -200,32 +203,32 @@ mod tests {
     const USER2: &str = "else";
     const USER3: &str = "funny";
 
-    fn do_init(deps: DepsMut) {
+    fn do_instantiate(deps: DepsMut) {
         let msg = InstantiateMsg {
-            admin: Some(INIT_ADMIN.into()),
+            admin: Some(Addr::unchecked(INIT_ADMIN)),
             members: vec![
                 Member {
-                    addr: USER1.into(),
+                    addr: Addr::unchecked(USER1).to_string(),
                     weight: 11,
                 },
                 Member {
-                    addr: USER2.into(),
+                    addr: Addr::unchecked(USER2).to_string(),
                     weight: 6,
                 },
             ],
         };
         let info = mock_info("creator", &[]);
-        init(deps, mock_env(), info, msg).unwrap();
+        instantiate(deps, mock_env(), info, msg).unwrap();
     }
 
     #[test]
     fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
-        do_init(deps.as_mut());
+        let mut deps = mock_dependencies_with_balance(&[]);
+        do_instantiate(deps.as_mut());
 
         // it worked, let's query the state
         let res = ADMIN.query_admin(deps.as_ref()).unwrap();
-        assert_eq!(Some(Addr::from(INIT_ADMIN)), res.admin);
+        assert_eq!(Some(INIT_ADMIN.to_string()), res.admin);
 
         let res = query_total_weight(deps.as_ref()).unwrap();
         assert_eq!(17, res.weight);
@@ -233,16 +236,16 @@ mod tests {
 
     #[test]
     fn try_member_queries() {
-        let mut deps = mock_dependencies(&[]);
-        do_init(deps.as_mut());
+        let mut deps = mock_dependencies_with_balance(&[]);
+        do_instantiate(deps.as_mut());
 
-        let member1 = query_member(deps.as_ref(), USER1.into(), None).unwrap();
+        let member1 = query_member(deps.as_ref(), Addr::unchecked(USER1), None).unwrap();
         assert_eq!(member1.weight, Some(11));
 
-        let member2 = query_member(deps.as_ref(), USER2.into(), None).unwrap();
+        let member2 = query_member(deps.as_ref(), Addr::unchecked(USER2), None).unwrap();
         assert_eq!(member2.weight, Some(6));
 
-        let member3 = query_member(deps.as_ref(), USER3.into(), None).unwrap();
+        let member3 = query_member(deps.as_ref(), Addr::unchecked(USER3), None).unwrap();
         assert_eq!(member3.weight, None);
 
         let members = list_members(deps.as_ref(), None, None).unwrap();
@@ -257,13 +260,13 @@ mod tests {
         user3_weight: Option<u64>,
         height: Option<u64>,
     ) {
-        let member1 = query_member(deps.as_ref(), USER1.into(), height).unwrap();
+        let member1 = query_member(deps.as_ref(), Addr::unchecked(USER1), height).unwrap();
         assert_eq!(member1.weight, user1_weight);
 
-        let member2 = query_member(deps.as_ref(), USER2.into(), height).unwrap();
+        let member2 = query_member(deps.as_ref(), Addr::unchecked(USER2), height).unwrap();
         assert_eq!(member2.weight, user2_weight);
 
-        let member3 = query_member(deps.as_ref(), USER3.into(), height).unwrap();
+        let member3 = query_member(deps.as_ref(), Addr::unchecked(USER3), height).unwrap();
         assert_eq!(member3.weight, user3_weight);
 
         // this is only valid if we are not doing a historical query
@@ -284,22 +287,22 @@ mod tests {
 
     #[test]
     fn add_new_remove_old_member() {
-        let mut deps = mock_dependencies(&[]);
-        do_init(deps.as_mut());
+        let mut deps = mock_dependencies_with_balance(&[]);
+        do_instantiate(deps.as_mut());
 
         // add a new one and remove existing one
         let add = vec![Member {
-            addr: USER3.into(),
+            addr: USER3.to_string(),
             weight: 15,
         }];
-        let remove = vec![USER1.into()];
+        let remove = vec![Addr::unchecked(USER1)];
 
         // non-admin cannot update
         let height = mock_env().block.height;
         let err = update_members(
             deps.as_mut(),
             height + 5,
-            USER1.into(),
+            Addr::unchecked(USER1),
             add.clone(),
             remove.clone(),
         )
@@ -314,7 +317,14 @@ mod tests {
         assert_users(&deps, Some(11), Some(6), None, Some(height + 1));
 
         // admin updates properly
-        update_members(deps.as_mut(), height + 10, INIT_ADMIN.into(), add, remove).unwrap();
+        update_members(
+            deps.as_mut(),
+            height + 10,
+            Addr::unchecked(INIT_ADMIN),
+            add,
+            remove,
+        )
+        .unwrap();
 
         // updated properly
         assert_users(&deps, None, Some(6), Some(15), None);
@@ -326,58 +336,72 @@ mod tests {
     #[test]
     fn add_old_remove_new_member() {
         // add will over-write and remove have no effect
-        let mut deps = mock_dependencies(&[]);
-        do_init(deps.as_mut());
+        let mut deps = mock_dependencies_with_balance(&[]);
+        do_instantiate(deps.as_mut());
 
         // add a new one and remove existing one
         let add = vec![Member {
-            addr: USER1.into(),
+            addr: Addr::unchecked(USER1).to_string(),
             weight: 4,
         }];
-        let remove = vec![USER3.into()];
+        let remove = vec![Addr::unchecked(USER3)];
 
         // admin updates properly
         let height = mock_env().block.height;
-        update_members(deps.as_mut(), height, INIT_ADMIN.into(), add, remove).unwrap();
+        update_members(
+            deps.as_mut(),
+            height,
+            Addr::unchecked(INIT_ADMIN),
+            add,
+            remove,
+        )
+        .unwrap();
         assert_users(&deps, Some(4), Some(6), None, None);
     }
 
     #[test]
     fn add_and_remove_same_member() {
         // add will over-write and remove have no effect
-        let mut deps = mock_dependencies(&[]);
-        do_init(deps.as_mut());
+        let mut deps = mock_dependencies_with_balance(&[]);
+        do_instantiate(deps.as_mut());
 
         // USER1 is updated and remove in the same call, we should remove this an add member3
         let add = vec![
             Member {
-                addr: USER1.into(),
+                addr: Addr::unchecked(USER1).to_string(),
                 weight: 20,
             },
             Member {
-                addr: USER3.into(),
+                addr: Addr::unchecked(USER3).to_string(),
                 weight: 5,
             },
         ];
-        let remove = vec![USER1.into()];
+        let remove = vec![Addr::unchecked(USER1)];
 
         // admin updates properly
         let height = mock_env().block.height;
-        update_members(deps.as_mut(), height, INIT_ADMIN.into(), add, remove).unwrap();
+        update_members(
+            deps.as_mut(),
+            height,
+            Addr::unchecked(INIT_ADMIN),
+            add,
+            remove,
+        )
+        .unwrap();
         assert_users(&deps, None, Some(6), Some(5), None);
     }
 
     #[test]
     fn add_remove_hooks() {
         // add will over-write and remove have no effect
-        let mut deps = mock_dependencies(&[]);
-        do_init(deps.as_mut());
+        let mut deps = mock_dependencies_with_balance(&[]);
+        do_instantiate(deps.as_mut());
 
         let hooks = HOOKS.query_hooks(deps.as_ref()).unwrap();
         assert!(hooks.hooks.is_empty());
 
-        let contract1 = Addr::from("hook1");
-        let contract2 = Addr::from("hook2");
+        let contract1 = Addr::unchecked("hook1");
+        let contract2 = Addr::unchecked("hook2");
 
         let add_msg = ExecuteMsg::AddHook {
             addr: contract1.clone(),
@@ -385,7 +409,7 @@ mod tests {
 
         // non-admin cannot add hook
         let user_info = mock_info(USER1, &[]);
-        let err = handle(
+        let err = execute(
             deps.as_mut(),
             mock_env(),
             user_info.clone(),
@@ -396,7 +420,7 @@ mod tests {
 
         // admin can add it, and it appears in the query
         let admin_info = mock_info(INIT_ADMIN, &[]);
-        let _ = handle(
+        let _ = execute(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
@@ -410,7 +434,7 @@ mod tests {
         let remove_msg = ExecuteMsg::RemoveHook {
             addr: contract2.clone(),
         };
-        let err = handle(
+        let err = execute(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
@@ -423,12 +447,12 @@ mod tests {
         let add_msg2 = ExecuteMsg::AddHook {
             addr: contract2.clone(),
         };
-        let _ = handle(deps.as_mut(), mock_env(), admin_info.clone(), add_msg2).unwrap();
+        let _ = execute(deps.as_mut(), mock_env(), admin_info.clone(), add_msg2).unwrap();
         let hooks = HOOKS.query_hooks(deps.as_ref()).unwrap();
         assert_eq!(hooks.hooks, vec![contract1.clone(), contract2.clone()]);
 
         // cannot re-add an existing contract
-        let err = handle(
+        let err = execute(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
@@ -441,7 +465,7 @@ mod tests {
         let remove_msg = ExecuteMsg::RemoveHook {
             addr: contract1.clone(),
         };
-        let err = handle(
+        let err = execute(
             deps.as_mut(),
             mock_env(),
             user_info.clone(),
@@ -451,7 +475,7 @@ mod tests {
         assert_eq!(err, HookError::Admin(AdminError::NotAdmin {}).into());
 
         // remove the original
-        let _ = handle(
+        let _ = execute(
             deps.as_mut(),
             mock_env(),
             admin_info.clone(),
@@ -464,14 +488,14 @@ mod tests {
 
     #[test]
     fn hooks_fire() {
-        let mut deps = mock_dependencies(&[]);
-        do_init(deps.as_mut());
+        let mut deps = mock_dependencies_with_balance(&[]);
+        do_instantiate(deps.as_mut());
 
         let hooks = HOOKS.query_hooks(deps.as_ref()).unwrap();
         assert!(hooks.hooks.is_empty());
 
-        let contract1 = Addr::from("hook1");
-        let contract2 = Addr::from("hook2");
+        let contract1 = Addr::unchecked("hook1");
+        let contract2 = Addr::unchecked("hook2");
 
         // register 2 hooks
         let admin_info = mock_info(INIT_ADMIN, &[]);
@@ -482,27 +506,27 @@ mod tests {
             addr: contract2.clone(),
         };
         for msg in vec![add_msg, add_msg2] {
-            let _ = handle(deps.as_mut(), mock_env(), admin_info.clone(), msg).unwrap();
+            let _ = execute(deps.as_mut(), mock_env(), admin_info.clone(), msg).unwrap();
         }
 
         // make some changes - add 3, remove 2, and update 1
         // USER1 is updated and remove in the same call, we should remove this an add member3
         let add = vec![
             Member {
-                addr: USER1.into(),
+                addr: Addr::unchecked(USER1).to_string(),
                 weight: 20,
             },
             Member {
-                addr: USER3.into(),
+                addr: Addr::unchecked(USER3).to_string(),
                 weight: 5,
             },
         ];
-        let remove = vec![USER2.into()];
+        let remove = vec![Addr::unchecked(USER2)];
         let msg = ExecuteMsg::UpdateMembers { remove, add };
 
         // admin updates properly
         assert_users(&deps, Some(11), Some(6), None, None);
-        let res = handle(deps.as_mut(), mock_env(), admin_info.clone(), msg).unwrap();
+        let res = execute(deps.as_mut(), mock_env(), admin_info.clone(), msg).unwrap();
         assert_users(&deps, Some(20), None, Some(5), None);
 
         // ensure 2 messages for the 2 hooks
@@ -514,31 +538,31 @@ mod tests {
             MemberDiff::new(USER2, Some(6), None),
         ];
         let hook_msg = MemberChangedHookMsg { diffs };
-        let msg1 = hook_msg.clone().into_cosmos_msg(contract1).unwrap();
-        let msg2 = hook_msg.into_cosmos_msg(contract2).unwrap();
+        let msg1 = SubMsg::new(hook_msg.clone().into_cosmos_msg(contract1).unwrap());
+        let msg2 = SubMsg::new(hook_msg.into_cosmos_msg(contract2).unwrap());
         assert_eq!(res.messages, vec![msg1, msg2]);
     }
 
     #[test]
     fn raw_queries_work() {
         // add will over-write and remove have no effect
-        let mut deps = mock_dependencies(&[]);
-        do_init(deps.as_mut());
+        let mut deps = mock_dependencies_with_balance(&[]);
+        do_instantiate(deps.as_mut());
 
         // get total from raw key
         let total_raw = deps.storage.get(TOTAL_KEY.as_bytes()).unwrap();
-        let total: u64 = from_slice(&total_raw).unwrap();
+        let total: u64 = from_json(&total_raw).unwrap();
         assert_eq!(17, total);
 
         // get member votes from raw key
-        let member2_canon = deps.api.canonical_address(&USER2.into()).unwrap();
-        let member2_raw = deps.storage.get(&member_key(&member2_canon)).unwrap();
-        let member2: u64 = from_slice(&member2_raw).unwrap();
+
+        let member2_raw = deps.storage.get(&member_key(USER2)).unwrap();
+        let member2: u64 = from_json(&member2_raw).unwrap();
         assert_eq!(6, member2);
 
         // and handle misses
-        let member3_canon = deps.api.canonical_address(&USER3.into()).unwrap();
-        let member3_raw = deps.storage.get(&member_key(&member3_canon));
+
+        let member3_raw = deps.storage.get(&member_key(USER3));
         assert_eq!(None, member3_raw);
     }
 }

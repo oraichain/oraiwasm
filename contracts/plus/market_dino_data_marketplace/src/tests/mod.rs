@@ -15,13 +15,13 @@ pub struct MockConstants<'a> {
 pub fn mock_constants() -> MockConstants<'static> {
     MockConstants {
         denom: "orai",
-        // contract_addr: Addr::from("dummy_contract_addr"),
+        // contract_addr: Addr::unchecked("dummy_contract_addr"),
     }
 }
 
 #[fixture]
 pub fn deps(mock_constants: MockConstants) -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-    mock_dependencies(&coins(100000, mock_constants.denom))
+    mock_dependencies_with_balance(&coins(100000, mock_constants.denom))
 }
 
 mod model;

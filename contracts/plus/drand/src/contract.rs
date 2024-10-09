@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    coins, from_binary, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, Response,
-    Response, MessageInfo, Order, StdResult, Storage,
+    coins, from_binary, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Order, Response, Response, StdResult, Storage,
 };
 use drand_verify::{derive_randomness, g1_from_variable, verify};
 
@@ -211,7 +211,7 @@ fn clear_bounty(storage: &mut dyn Storage, round: u64) {
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
-    use cosmwasm_std::{from_binary, Coin, Addr, Uint128};
+    use cosmwasm_std::{from_binary, Addr, Coin, Uint128};
 
     const PUB_KEY: &str = "pzOZRhfkA57am7gdqjYr9eFT65WXt8hm2SETYIsGsDm7D/a6OV5Vdgvn0XL6ePeJ";
     const BOUNTY_DENOM: &str = "orai";
@@ -245,14 +245,14 @@ mod tests {
             signature: signature_genesis_mainnet(),
         };
 
-        let res = init(deps, mock_env(), info, msg).unwrap();
+        let res = instantiate(deps, mock_env(), info, msg).unwrap();
 
         return res;
     }
 
     #[test]
     fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         let res = initialization(deps.as_mut());
         assert_eq!(res.messages.len(), 0);
 
@@ -261,7 +261,7 @@ mod tests {
                 signature: Binary::from_base64(SIGNATURES[i]).unwrap(),
             };
             let info = mock_info("anyone", &[]);
-            let result = handle(deps.as_mut(), mock_env(), info, msg);
+            let result = execute(deps.as_mut(), mock_env(), info, msg);
 
             assert_eq!(result.is_ok(), true);
         }
@@ -269,7 +269,7 @@ mod tests {
 
     #[test]
     fn set_bounty_works() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
         let info = mock_info("creator", &[]);
         let msg = InstantiateMsg {
@@ -277,7 +277,7 @@ mod tests {
             bounty_denom: BOUNTY_DENOM.into(),
             signature: signature_genesis_mainnet(),
         };
-        init(deps.as_mut(), mock_env(), info, msg).unwrap();
+        instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // First bounty
         let msg = ExecuteMsg::SetBounty { round: 7000 };
@@ -288,7 +288,7 @@ mod tests {
                 amount: Uint128(5000),
             }],
         );
-        let response = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let response = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(response.data.unwrap(), Binary::from(5000u128.to_be_bytes()));
 
         // Increase bounty
@@ -301,13 +301,13 @@ mod tests {
                 amount: Uint128(24),
             }],
         );
-        let response = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let response = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(response.data.unwrap(), Binary::from(5024u128.to_be_bytes()));
     }
 
     #[test]
     fn add_verifies_and_stores_randomness() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
         let info = mock_info("creator", &[]);
         let msg = InstantiateMsg {
@@ -315,14 +315,14 @@ mod tests {
             bounty_denom: BOUNTY_DENOM.into(),
             signature: signature_genesis_mainnet(),
         };
-        init(deps.as_mut(), mock_env(), info, msg).unwrap();
+        instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         let info = mock_info("anyone", &[]);
 
         let msg = ExecuteMsg::Add {
             signature: Binary::from_base64(SIGNATURES[1]).unwrap(),
         };
-        let data = handle(deps.as_mut(), mock_env(), info, msg)
+        let data = execute(deps.as_mut(), mock_env(), info, msg)
             .unwrap()
             .data
             .unwrap();
@@ -335,7 +335,7 @@ mod tests {
 
     #[test]
     fn add_receives_bountry() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
         let info = mock_info("creator", &[]);
         let msg = InstantiateMsg {
@@ -343,7 +343,7 @@ mod tests {
             bounty_denom: BOUNTY_DENOM.into(),
             signature: signature_genesis_mainnet(),
         };
-        init(deps.as_mut(), mock_env(), info, msg).unwrap();
+        instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // Set bounty
         let msg = ExecuteMsg::SetBounty { round: 1 };
@@ -354,7 +354,7 @@ mod tests {
                 amount: Uint128(4500),
             }],
         );
-        let response = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let response = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(response.data.unwrap(), Binary::from(4500u128.to_be_bytes()));
 
         // Claim bounty
@@ -362,13 +362,13 @@ mod tests {
         let msg = ExecuteMsg::Add {
             signature: Binary::from_base64(SIGNATURES[1]).unwrap(),
         };
-        let response = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let response = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(response.messages.len(), 1);
         assert_eq!(
             response.messages[0],
             CosmosMsg::Bank(BankMsg::Send {
                 from_address: Addr::from(MOCK_CONTRACT_ADDR),
-                to_address: Addr::from("claimer"),
+                to_address: Addr::unchecked("claimer"),
                 amount: coins(4500, BOUNTY_DENOM),
             })
         );
@@ -378,13 +378,13 @@ mod tests {
         let msg = ExecuteMsg::Add {
             signature: Binary::from_base64(SIGNATURES[2]).unwrap(),
         };
-        let response = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let response = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(response.messages.len(), 0);
     }
 
     #[test]
     fn query_bounties_works() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
         let info = mock_info("creator", &[]);
         let msg = InstantiateMsg {
@@ -392,7 +392,7 @@ mod tests {
             bounty_denom: BOUNTY_DENOM.into(),
             signature: signature_genesis_mainnet(),
         };
-        init(deps.as_mut(), mock_env(), info, msg).unwrap();
+        instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // It starts with an empty list
 
@@ -410,7 +410,7 @@ mod tests {
                 amount: Uint128(4500),
             }],
         );
-        handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+        execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         let response: BountiesResponse =
             from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Bounties {}).unwrap()).unwrap();
@@ -434,7 +434,7 @@ mod tests {
                 amount: Uint128(321),
             }],
         );
-        handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+        execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         let response: BountiesResponse =
             from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Bounties {}).unwrap()).unwrap();
@@ -464,7 +464,7 @@ mod tests {
                 amount: Uint128(55),
             }],
         );
-        handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+        execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         let response: BountiesResponse =
             from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Bounties {}).unwrap()).unwrap();

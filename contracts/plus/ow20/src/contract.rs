@@ -41,7 +41,7 @@ pub fn instantiate(
 
     let mint = match msg.mint {
         Some(m) => Some(MinterData {
-            minter: deps.api.canonical_address(&m.minter)?,
+            minter: deps.api.addr_canonicalize(&m.minter)?,
             cap: m.cap,
         }),
         None => None,
@@ -63,7 +63,7 @@ pub fn create_accounts(deps: &mut DepsMut, accounts: &[Cw20CoinHuman]) -> StdRes
     let mut total_supply = Uint128::zero();
     let mut store = balances(deps.storage);
     for row in accounts {
-        let raw_address = deps.api.canonical_address(&row.address)?;
+        let raw_address = deps.api.addr_canonicalize(&row.address)?;
         store.save(raw_address.as_slice(), &row.amount)?;
         total_supply += row.amount;
     }
@@ -130,8 +130,8 @@ pub fn handle_transfer(
     //     return Err(ContractError::InvalidZeroAmount {});
     // }
 
-    let rcpt_raw = deps.api.canonical_address(&recipient)?;
-    let sender_raw = deps.api.canonical_address(&info.sender)?;
+    let rcpt_raw = deps.api.addr_canonicalize(&recipient)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
 
     let mut accounts = balances(deps.storage);
     accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
@@ -146,7 +146,7 @@ pub fn handle_transfer(
         messages: vec![],
         attributes: vec![
             attr("action", "transfer"),
-            attr("from", deps.api.human_address(&sender_raw)?),
+            attr("from", deps.api.addr_humanize(&sender_raw)?),
             attr("to", recipient),
             attr("amount", amount),
         ],
@@ -161,11 +161,11 @@ pub fn handle_multi_transfer(
     info: MessageInfo,
     transfer_infos: Vec<TransferInfo>,
 ) -> Result<Response, ContractError> {
-    let sender_raw = deps.api.canonical_address(&info.sender)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
     for transfer_info in transfer_infos.into_iter() {
         let recipient = transfer_info.recipient;
         let amount = transfer_info.amount;
-        let rcpt_raw = deps.api.canonical_address(&recipient)?;
+        let rcpt_raw = deps.api.addr_canonicalize(&recipient)?;
 
         let mut accounts = balances(deps.storage);
         accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
@@ -181,7 +181,7 @@ pub fn handle_multi_transfer(
         messages: vec![],
         attributes: vec![
             attr("action", "multi_transfer"),
-            attr("from", deps.api.human_address(&sender_raw)?),
+            attr("from", deps.api.addr_humanize(&sender_raw)?),
         ],
         data: None,
     };
@@ -198,7 +198,7 @@ pub fn handle_burn(
         return Err(ContractError::InvalidZeroAmount {});
     }
 
-    let sender_raw = deps.api.canonical_address(&info.sender)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
 
     // lower balance
     let mut accounts = balances(deps.storage);
@@ -215,7 +215,7 @@ pub fn handle_burn(
         messages: vec![],
         attributes: vec![
             attr("action", "burn"),
-            attr("from", deps.api.human_address(&sender_raw)?),
+            attr("from", deps.api.addr_humanize(&sender_raw)?),
             attr("amount", amount),
         ],
         data: None,
@@ -236,7 +236,7 @@ pub fn handle_mint(
 
     let mut config = token_info_read(deps.storage).load()?;
     if config.mint.is_none()
-        || config.mint.as_ref().unwrap().minter != deps.api.canonical_address(&info.sender)?
+        || config.mint.as_ref().unwrap().minter != deps.api.addr_canonicalize(&info.sender)?
     {
         return Err(ContractError::Unauthorized {});
     }
@@ -251,7 +251,7 @@ pub fn handle_mint(
     token_info(deps.storage).save(&config)?;
 
     // add amount to recipient balance
-    let rcpt_raw = deps.api.canonical_address(&recipient)?;
+    let rcpt_raw = deps.api.addr_canonicalize(&recipient)?;
     balances(deps.storage).update(
         rcpt_raw.as_slice(),
         |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
@@ -277,7 +277,7 @@ pub fn handle_change_minter(
 ) -> Result<Response, ContractError> {
     let mut config = token_info_read(deps.storage).load()?;
     if config.mint.is_none()
-        || config.mint.as_ref().unwrap().minter != deps.api.canonical_address(&info.sender)?
+        || config.mint.as_ref().unwrap().minter != deps.api.addr_canonicalize(&info.sender)?
     {
         return Err(ContractError::Unauthorized {});
     }
@@ -309,8 +309,8 @@ pub fn handle_send(
     //     return Err(ContractError::InvalidZeroAmount {});
     // }
 
-    let rcpt_raw = deps.api.canonical_address(&contract)?;
-    let sender_raw = deps.api.canonical_address(&info.sender)?;
+    let rcpt_raw = deps.api.addr_canonicalize(&contract)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
 
     // move the tokens to the contract
     let mut accounts = balances(deps.storage);
@@ -322,7 +322,7 @@ pub fn handle_send(
         |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
     )?;
 
-    let sender = deps.api.human_address(&sender_raw)?;
+    let sender = deps.api.addr_humanize(&sender_raw)?;
     let attrs = vec![
         attr("action", "send"),
         attr("from", &sender),
@@ -366,7 +366,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub fn query_balance(deps: Deps, address: Addr) -> StdResult<BalanceResponse> {
-    let addr_raw = deps.api.canonical_address(&address)?;
+    let addr_raw = deps.api.addr_canonicalize(&address)?;
     let balance = balances_read(deps.storage)
         .may_load(addr_raw.as_slice())?
         .unwrap_or_default();
@@ -388,7 +388,7 @@ pub fn query_minter(deps: Deps) -> StdResult<Option<MinterResponse>> {
     let meta = token_info_read(deps.storage).load()?;
     let minter = match meta.mint {
         Some(m) => Some(MinterResponse {
-            minter: deps.api.human_address(&m.minter)?,
+            minter: deps.api.addr_humanize(&m.minter)?,
             cap: m.cap,
         }),
         None => None,
@@ -426,7 +426,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateR
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, from_slice, Api, CosmosMsg, Order, StdError, WasmMsg};
+    use cosmwasm_std::{coins, from_binary, from_json, Api, CosmosMsg, Order, StdError, WasmMsg};
 
     use cw2::ContractVersion;
     use cw20::{AllowanceResponse, Expiration};
@@ -448,7 +448,7 @@ mod tests {
         minter: &Addr,
         cap: Option<Uint128>,
     ) -> TokenInfoResponse {
-        _do_init(
+        _do_instantiate(
             deps,
             addr,
             amount,
@@ -460,12 +460,12 @@ mod tests {
     }
 
     // this will set up the init for other tests
-    fn do_init(deps: DepsMut, addr: &Addr, amount: Uint128) -> TokenInfoResponse {
-        _do_init(deps, addr, amount, None)
+    fn do_instantiate(deps: DepsMut, addr: &Addr, amount: Uint128) -> TokenInfoResponse {
+        _do_instantiate(deps, addr, amount, None)
     }
 
     // this will set up the init for other tests
-    fn _do_init(
+    fn _do_instantiate(
         mut deps: DepsMut,
         addr: &Addr,
         amount: Uint128,
@@ -483,7 +483,7 @@ mod tests {
         };
         let info = mock_info(&Addr("creator".to_string()), &[]);
         let env = mock_env();
-        let res = init(deps.branch(), env, info, init_msg).unwrap();
+        let res = instantiate(deps.branch(), env, info, init_msg).unwrap();
         assert_eq!(0, res.messages.len());
 
         let meta = query_token_info(deps.as_ref()).unwrap();
@@ -503,7 +503,7 @@ mod tests {
 
     #[test]
     fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         let init_str = format!(
             "{{\"name\":\"Cash Token\",\"symbol\":\"CASH\",\"decimals\":9,\"initial_balances\":[{{\"address\":\"addr0000\",\"amount\":\"11223344\"}}],\"mint\":{{\"minter\":\"addr0000\",\"cap\":\"100000000\"}}
     }}"
@@ -512,7 +512,7 @@ mod tests {
         //         "{{\"name\":\"Cash Token\",\"symbol\":\"CASH\",\"decimals\":9,\"initial_balances\":[{{\"address\":\"addr0000\",\"amount\":\"11223344\"}}]
         // }}"
         //     );
-        let init_msg: InstantiateMsg = from_slice(init_str.as_bytes()).unwrap();
+        let init_msg: InstantiateMsg = from_json(init_str.as_bytes()).unwrap();
         let amount = Uint128::from(11223344u128);
         // let init_msg = InstantiateMsg {
         //     name: "Cash Token".to_string(),
@@ -526,7 +526,7 @@ mod tests {
         // };
         let info = mock_info(&Addr("creator".to_string()), &[]);
         let env = mock_env();
-        let res = init(deps.as_mut(), env.clone(), info.clone(), init_msg).unwrap();
+        let res = instantiate(deps.as_mut(), env.clone(), info.clone(), init_msg).unwrap();
         assert_eq!(0, res.messages.len());
 
         assert_eq!(
@@ -543,9 +543,9 @@ mod tests {
 
     #[test]
     fn init_mintable() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         let amount = Uint128(11223344);
-        let minter = Addr::from("asmodat");
+        let minter = Addr::unchecked("asmodat");
         let limit = Uint128(511223344);
         let init_msg = InstantiateMsg {
             name: "Cash Token".to_string(),
@@ -562,7 +562,7 @@ mod tests {
         };
         let info = mock_info(&Addr("creator".to_string()), &[]);
         let env = mock_env();
-        let res = init(deps.as_mut(), env.clone(), info.clone(), init_msg).unwrap();
+        let res = instantiate(deps.as_mut(), env.clone(), info.clone(), init_msg).unwrap();
         assert_eq!(0, res.messages.len());
 
         assert_eq!(
@@ -586,9 +586,9 @@ mod tests {
 
     #[test]
     fn init_mintable_over_cap() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         let amount = Uint128(11223344);
-        let minter = Addr::from("asmodat");
+        let minter = Addr::unchecked("asmodat");
         let limit = Uint128(11223300);
         let init_msg = InstantiateMsg {
             name: "Cash Token".to_string(),
@@ -605,7 +605,7 @@ mod tests {
         };
         let info = mock_info(&Addr("creator".to_string()), &[]);
         let env = mock_env();
-        let res = init(deps.as_mut(), env.clone(), info.clone(), init_msg);
+        let res = instantiate(deps.as_mut(), env.clone(), info.clone(), init_msg);
         match res.unwrap_err() {
             StdError::GenericErr { msg, .. } => assert_eq!(&msg, "Initial supply greater than cap"),
             e => panic!("Unexpected error: {}", e),
@@ -614,16 +614,16 @@ mod tests {
 
     #[test]
     fn can_mint_by_minter() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
-        let genesis = Addr::from("genesis");
+        let genesis = Addr::unchecked("genesis");
         let amount = Uint128(11223344);
-        let minter = Addr::from("asmodat");
+        let minter = Addr::unchecked("asmodat");
         let limit = Uint128(511223344);
         do_init_with_minter(deps.as_mut(), &genesis, amount, &minter, Some(limit));
 
         // minter can mint coins to some winner
-        let winner = Addr::from("lucky");
+        let winner = Addr::unchecked("lucky");
         let prize = Uint128(222_222_222);
         let msg = ExecuteMsg::Mint {
             recipient: winner.clone(),
@@ -632,7 +632,7 @@ mod tests {
 
         let info = mock_info(&minter, &[]);
         let env = mock_env();
-        let res = handle(deps.as_mut(), env, info, msg.clone()).unwrap();
+        let res = execute(deps.as_mut(), env, info, msg.clone()).unwrap();
         assert_eq!(0, res.messages.len());
         assert_eq!(get_balance(deps.as_ref(), &genesis), amount);
         assert_eq!(get_balance(deps.as_ref(), &winner), prize);
@@ -644,7 +644,7 @@ mod tests {
         };
         let info = mock_info(&minter, &[]);
         let env = mock_env();
-        let res = handle(deps.as_mut(), env, info, msg.clone());
+        let res = execute(deps.as_mut(), env, info, msg.clone());
         match res.unwrap_err() {
             ContractError::InvalidZeroAmount {} => {}
             e => panic!("Unexpected error: {}", e),
@@ -658,7 +658,7 @@ mod tests {
         };
         let info = mock_info(&minter, &[]);
         let env = mock_env();
-        let res = handle(deps.as_mut(), env, info, msg.clone());
+        let res = execute(deps.as_mut(), env, info, msg.clone());
         match res.unwrap_err() {
             ContractError::CannotExceedCap {} => {}
             e => panic!("Unexpected error: {}", e),
@@ -667,22 +667,22 @@ mod tests {
 
     #[test]
     fn others_cannot_mint() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         do_init_with_minter(
             deps.as_mut(),
-            &Addr::from("genesis"),
+            &Addr::unchecked("genesis"),
             Uint128(1234),
-            &Addr::from("minter"),
+            &Addr::unchecked("minter"),
             None,
         );
 
         let msg = ExecuteMsg::Mint {
-            recipient: Addr::from("lucky"),
+            recipient: Addr::unchecked("lucky"),
             amount: Uint128(222),
         };
-        let info = mock_info(&Addr::from("anyone else"), &[]);
+        let info = mock_info(&Addr::unchecked("anyone else"), &[]);
         let env = mock_env();
-        let res = handle(deps.as_mut(), env, info, msg.clone());
+        let res = execute(deps.as_mut(), env, info, msg.clone());
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
             e => panic!("expected unauthorized error, got {}", e),
@@ -691,16 +691,16 @@ mod tests {
 
     #[test]
     fn no_one_mints_if_minter_unset() {
-        let mut deps = mock_dependencies(&[]);
-        do_init(deps.as_mut(), &Addr::from("genesis"), Uint128(1234));
+        let mut deps = mock_dependencies_with_balance(&[]);
+        do_instantiate(deps.as_mut(), &Addr::unchecked("genesis"), Uint128(1234));
 
         let msg = ExecuteMsg::Mint {
-            recipient: Addr::from("lucky"),
+            recipient: Addr::unchecked("lucky"),
             amount: Uint128(222),
         };
-        let info = mock_info(&Addr::from("genesis"), &[]);
+        let info = mock_info(&Addr::unchecked("genesis"), &[]);
         let env = mock_env();
-        let res = handle(deps.as_mut(), env, info, msg.clone());
+        let res = execute(deps.as_mut(), env, info, msg.clone());
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
             e => panic!("expected unauthorized error, got {}", e),
@@ -709,11 +709,11 @@ mod tests {
 
     #[test]
     fn init_multiple_accounts() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         let amount1 = Uint128::from(11223344u128);
-        let addr1 = Addr::from("addr0001");
+        let addr1 = Addr::unchecked("addr0001");
         let amount2 = Uint128::from(7890987u128);
-        let addr2 = Addr::from("addr0002");
+        let addr2 = Addr::unchecked("addr0002");
         let init_msg = InstantiateMsg {
             name: "Bash Shell".to_string(),
             symbol: "BASH".to_string(),
@@ -732,7 +732,7 @@ mod tests {
         };
         let info = mock_info(&Addr("creator".to_string()), &[]);
         let env = mock_env();
-        let res = init(deps.as_mut(), env.clone(), info.clone(), init_msg).unwrap();
+        let res = instantiate(deps.as_mut(), env.clone(), info.clone(), init_msg).unwrap();
         assert_eq!(0, res.messages.len());
 
         assert_eq!(
@@ -750,11 +750,11 @@ mod tests {
 
     #[test]
     fn queries_work() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
-        let addr1 = Addr::from("addr0001");
+        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+        let addr1 = Addr::unchecked("addr0001");
         let amount1 = Uint128::from(12340000u128);
 
-        let expected = do_init(deps.as_mut(), &addr1, amount1);
+        let expected = do_instantiate(deps.as_mut(), &addr1, amount1);
 
         // check meta query
         let loaded = query_token_info(deps.as_ref()).unwrap();
@@ -779,7 +779,7 @@ mod tests {
             deps.as_ref(),
             env.clone(),
             QueryMsg::Balance {
-                address: Addr::from("addr0002"),
+                address: Addr::unchecked("addr0002"),
             },
         )
         .unwrap();
@@ -789,14 +789,14 @@ mod tests {
 
     #[test]
     fn transfer() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
-        let addr1 = Addr::from("addr0001");
-        let addr2 = Addr::from("addr0002");
+        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+        let addr1 = Addr::unchecked("addr0001");
+        let addr2 = Addr::unchecked("addr0002");
         let amount1 = Uint128::from(12340000u128);
         let transfer = Uint128::from(76543u128);
         let too_much = Uint128::from(12340321u128);
 
-        do_init(deps.as_mut(), &addr1, amount1);
+        do_instantiate(deps.as_mut(), &addr1, amount1);
 
         // cannot transfer nothing
         let info = mock_info(addr1.clone(), &[]);
@@ -805,7 +805,7 @@ mod tests {
             recipient: addr2.clone(),
             amount: Uint128::zero(),
         };
-        let res = handle(deps.as_mut(), env, info, msg);
+        let res = execute(deps.as_mut(), env, info, msg);
         match res.unwrap_err() {
             ContractError::InvalidZeroAmount {} => {}
             e => panic!("Unexpected error: {}", e),
@@ -818,7 +818,7 @@ mod tests {
             recipient: addr2.clone(),
             amount: too_much,
         };
-        let res = handle(deps.as_mut(), env, info, msg);
+        let res = execute(deps.as_mut(), env, info, msg);
         match res.unwrap_err() {
             ContractError::Std(StdError::Underflow { .. }) => {}
             e => panic!("Unexpected error: {}", e),
@@ -831,7 +831,7 @@ mod tests {
             recipient: addr1.clone(),
             amount: transfer,
         };
-        let res = handle(deps.as_mut(), env, info, msg);
+        let res = execute(deps.as_mut(), env, info, msg);
         match res.unwrap_err() {
             ContractError::Std(StdError::Underflow { .. }) => {}
             e => panic!("Unexpected error: {}", e),
@@ -844,7 +844,7 @@ mod tests {
             recipient: addr2.clone(),
             amount: transfer,
         };
-        let res = handle(deps.as_mut(), env, info, msg).unwrap();
+        let res = execute(deps.as_mut(), env, info, msg).unwrap();
         assert_eq!(res.messages.len(), 0);
 
         let remainder = (amount1 - transfer).unwrap();
@@ -858,15 +858,15 @@ mod tests {
 
     #[test]
     fn multi_transfer() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
-        let addr1 = Addr::from("addr0001");
-        let addr2 = Addr::from("addr0002");
-        let addr3 = Addr::from("addr0003");
+        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+        let addr1 = Addr::unchecked("addr0001");
+        let addr2 = Addr::unchecked("addr0002");
+        let addr3 = Addr::unchecked("addr0003");
         let amount1 = Uint128::from(12340000u128);
         let transfer1 = Uint128::from(76543u128);
         let transfer2 = Uint128::from(10000u128);
 
-        do_init(deps.as_mut(), &addr1, amount1);
+        do_instantiate(deps.as_mut(), &addr1, amount1);
 
         // cannot transfer nothing
         let info = mock_info(addr1.clone(), &[]);
@@ -884,7 +884,7 @@ mod tests {
             ]
             .to_vec(),
         };
-        let res = handle(deps.as_mut(), env, info, msg);
+        let res = execute(deps.as_mut(), env, info, msg);
 
         let mut remainder = (amount1 - transfer1).unwrap();
         remainder = (remainder - transfer2).unwrap();
@@ -899,13 +899,13 @@ mod tests {
 
     #[test]
     fn burn() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
-        let addr1 = Addr::from("addr0001");
+        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+        let addr1 = Addr::unchecked("addr0001");
         let amount1 = Uint128::from(12340000u128);
         let burn = Uint128::from(76543u128);
         let too_much = Uint128::from(12340321u128);
 
-        do_init(deps.as_mut(), &addr1, amount1);
+        do_instantiate(deps.as_mut(), &addr1, amount1);
 
         // cannot burn nothing
         let info = mock_info(addr1.clone(), &[]);
@@ -913,7 +913,7 @@ mod tests {
         let msg = ExecuteMsg::Burn {
             amount: Uint128::zero(),
         };
-        let res = handle(deps.as_mut(), env, info, msg);
+        let res = execute(deps.as_mut(), env, info, msg);
         match res.unwrap_err() {
             ContractError::InvalidZeroAmount {} => {}
             e => panic!("Unexpected error: {}", e),
@@ -927,7 +927,7 @@ mod tests {
         let info = mock_info(addr1.clone(), &[]);
         let env = mock_env();
         let msg = ExecuteMsg::Burn { amount: too_much };
-        let res = handle(deps.as_mut(), env, info, msg);
+        let res = execute(deps.as_mut(), env, info, msg);
         match res.unwrap_err() {
             ContractError::Std(StdError::Underflow { .. }) => {}
             e => panic!("Unexpected error: {}", e),
@@ -941,7 +941,7 @@ mod tests {
         let info = mock_info(addr1.clone(), &[]);
         let env = mock_env();
         let msg = ExecuteMsg::Burn { amount: burn };
-        let res = handle(deps.as_mut(), env, info, msg).unwrap();
+        let res = execute(deps.as_mut(), env, info, msg).unwrap();
         assert_eq!(res.messages.len(), 0);
 
         let remainder = (amount1 - burn).unwrap();
@@ -954,15 +954,15 @@ mod tests {
 
     #[test]
     fn send() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
-        let addr1 = Addr::from("addr0001");
-        let contract = Addr::from("addr0002");
+        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+        let addr1 = Addr::unchecked("addr0001");
+        let contract = Addr::unchecked("addr0002");
         let amount1 = Uint128::from(12340000u128);
         let transfer = Uint128::from(76543u128);
         let too_much = Uint128::from(12340321u128);
         let send_msg = Binary::from(r#"{"some":123}"#.as_bytes());
 
-        do_init(deps.as_mut(), &addr1, amount1);
+        do_instantiate(deps.as_mut(), &addr1, amount1);
 
         // cannot send nothing
         let info = mock_info(addr1.clone(), &[]);
@@ -972,7 +972,7 @@ mod tests {
             amount: Uint128::zero(),
             msg: Some(send_msg.clone()),
         };
-        let res = handle(deps.as_mut(), env, info, msg);
+        let res = execute(deps.as_mut(), env, info, msg);
         match res.unwrap_err() {
             ContractError::InvalidZeroAmount {} => {}
             e => panic!("Unexpected error: {}", e),
@@ -986,7 +986,7 @@ mod tests {
             amount: too_much,
             msg: Some(send_msg.clone()),
         };
-        let res = handle(deps.as_mut(), env, info, msg);
+        let res = execute(deps.as_mut(), env, info, msg);
         match res.unwrap_err() {
             ContractError::Std(StdError::Underflow { .. }) => {}
             e => panic!("Unexpected error: {}", e),
@@ -1000,7 +1000,7 @@ mod tests {
             amount: transfer,
             msg: Some(send_msg.clone()),
         };
-        let res = handle(deps.as_mut(), env, info, msg).unwrap();
+        let res = execute(deps.as_mut(), env, info, msg).unwrap();
         assert_eq!(res.messages.len(), 1);
 
         // ensure proper send message sent
@@ -1034,7 +1034,7 @@ mod tests {
 
     #[test]
     fn migrate_from_v01() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
         generate_v01_test_data(&mut deps.storage, &deps.api).unwrap();
         // make sure this really is 0.1.0
@@ -1047,7 +1047,7 @@ mod tests {
         );
 
         // run the migration
-        let info = mock_info(Addr::from("admin"), &[]);
+        let info = mock_info(Addr::unchecked("admin"), &[]);
         let env = mock_env();
         migrate(deps.as_mut(), env, info, MigrateMsg {}).unwrap();
 
@@ -1074,16 +1074,28 @@ mod tests {
         );
 
         // 2 users
-        let user1 = deps.api.canonical_address(&Addr::from("user1")).unwrap();
-        let user2 = deps.api.canonical_address(&Addr::from("user2")).unwrap();
+        let user1 = deps
+            .api
+            .addr_canonicalize(&Addr::unchecked("user1"))
+            .unwrap();
+        let user2 = deps
+            .api
+            .addr_canonicalize(&Addr::unchecked("user2"))
+            .unwrap();
 
         let bal = balances_read(&mut deps.storage);
         assert_eq!(2, bal.range(None, None, Order::Descending).count());
         assert_eq!(bal.load(user1.as_slice()).unwrap(), Uint128(123456));
         assert_eq!(bal.load(user2.as_slice()).unwrap(), Uint128(654321));
 
-        let spender1 = deps.api.canonical_address(&Addr::from("spender1")).unwrap();
-        let spender2 = deps.api.canonical_address(&Addr::from("spender2")).unwrap();
+        let spender1 = deps
+            .api
+            .addr_canonicalize(&Addr::unchecked("spender1"))
+            .unwrap();
+        let spender2 = deps
+            .api
+            .addr_canonicalize(&Addr::unchecked("spender2"))
+            .unwrap();
 
         let num_allows = allowances_read(&mut deps.storage, &user1)
             .range(None, None, Order::Ascending)
@@ -1122,9 +1134,9 @@ mod tests {
 
     #[test]
     fn change_minter_test() {
-        let mut deps = mock_dependencies(&coins(2, "token"));
-        let addr1 = Addr::from("addr0001");
-        let addr2 = Addr::from("addr0002");
+        let mut deps = mock_dependencies_with_balance(&coins(2, "token"));
+        let addr1 = Addr::unchecked("addr0001");
+        let addr2 = Addr::unchecked("addr0002");
         let amount1 = Uint128::from(12340000u128);
 
         do_init_with_minter(deps.as_mut(), &addr1, amount1, &addr1, None);
@@ -1136,13 +1148,13 @@ mod tests {
         // try update minter unauthorized
         let msg = ExecuteMsg::ChangeMinter {
             new_minter: MinterData {
-                minter: deps.api.canonical_address(&addr2).unwrap(),
+                minter: deps.api.addr_canonicalize(&addr2).unwrap(),
                 cap: None,
             },
         };
 
         // unauthorized minter change
-        let res = handle(deps.as_mut(), mock_env(), info, msg.clone());
+        let res = execute(deps.as_mut(), mock_env(), info, msg.clone());
         match res.unwrap_err() {
             ContractError::Unauthorized {} => {}
             e => panic!("Unexpected error: {}", e),
@@ -1150,7 +1162,7 @@ mod tests {
 
         // authorized change
         info = mock_info(addr1.clone(), &[]);
-        let res = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let res = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         assert_eq!(query_minter(deps.as_ref()).unwrap().unwrap().minter, addr2);
     }

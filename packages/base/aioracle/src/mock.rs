@@ -1,6 +1,6 @@
 use cosmwasm_std::testing::{BankQuerier, MockApi, MockStorage, StakingQuerier};
 use cosmwasm_std::{
-    from_slice, Addr, BlockInfo, Coin, ContractInfo, Empty, Env, OwnedDeps, Querier, QuerierResult,
+    from_json, Addr, BlockInfo, Coin, ContractInfo, Empty, Env, OwnedDeps, Querier, QuerierResult,
     QueryRequest, SystemError, SystemResult, WasmQuery,
 };
 
@@ -17,7 +17,7 @@ pub struct MockQuerier {
 
 impl Querier for MockQuerier {
     fn raw_query(&self, bin_request: &[u8]) -> QuerierResult {
-        let request = match from_slice(bin_request) {
+        let request = match from_json(bin_request) {
             Ok(v) => v,
             Err(e) => {
                 return SystemResult::Err(SystemError::InvalidRequest {

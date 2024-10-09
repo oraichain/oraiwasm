@@ -17,13 +17,13 @@ const CREATOR: &str = "marketplace";
 const DENOM: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
     let msg = InstantiateMsg {
-        governance: Addr::from("market_hub"),
+        governance: Addr::unchecked("market_hub"),
     };
     let info = mock_info(CREATOR, &[]);
-    let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
     deps
 }
@@ -50,7 +50,7 @@ fn sort_first_lv_royalty() {
 
     for i in 1u64..4u64 {
         let first_lv = FirstLvRoyalty {
-            contract_addr: Addr::from("xxx"),
+            contract_addr: Addr::unchecked("xxx"),
             token_id: i.to_string(),
             previous_owner: None,
             prev_royalty: None,
@@ -64,7 +64,7 @@ fn sort_first_lv_royalty() {
         let msg = ExecuteMsg::Msg(FirstLvRoyaltyExecuteMsg::UpdateFirstLvRoyalty {
             first_lv_royalty: off,
         });
-        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+        let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
     // FirstLvRoyalty should be listed
@@ -86,10 +86,10 @@ fn sort_first_lv_royalty() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Msg(FirstLvRoyaltyQueryMsg::GetFirstLvRoyaltiesByContract {
-            contract: Addr::from("xxx"),
+            contract: Addr::unchecked("xxx"),
             limit: None,
             offset: Some(OffsetMsg {
-                contract: Addr::from("xxx"),
+                contract: Addr::unchecked("xxx"),
                 token_id: String::from("1"),
             }),
             order: None,
@@ -120,14 +120,14 @@ fn sort_first_lv_royalty() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Msg(FirstLvRoyaltyQueryMsg::GetFirstLvRoyalty {
-            contract: Addr::from("xxx"),
+            contract: Addr::unchecked("xxx"),
             token_id: 2.to_string(),
         }),
     )
     .unwrap();
     let value: FirstLvRoyalty = from_binary(&res).unwrap();
     println!("first_lv royalty: {:?}", value);
-    assert_eq!(value.current_owner, Addr::from("seller2"));
+    assert_eq!(value.current_owner, Addr::unchecked("seller2"));
     assert_eq!(value.token_id, String::from("2"));
 }
 
@@ -137,7 +137,7 @@ fn update_info_test() {
 
     // update contract to set fees
     let update_info = UpdateContractMsg {
-        governance: Some(Addr::from("asvx")),
+        governance: Some(Addr::unchecked("asvx")),
         creator: None,
     };
     let update_info_msg = ExecuteMsg::UpdateInfo(update_info);
@@ -145,7 +145,7 @@ fn update_info_test() {
     // random account cannot update info, only creator
     let info_unauthorized = mock_info("anyone", &vec![coin(5, DENOM)]);
 
-    let mut response = handle(
+    let mut response = execute(
         deps.as_mut(),
         mock_env(),
         info_unauthorized.clone(),
@@ -156,11 +156,11 @@ fn update_info_test() {
 
     // now we can update the info using creator
     let info = mock_info(CREATOR, &[]);
-    response = handle(deps.as_mut(), mock_env(), info, update_info_msg.clone());
+    response = execute(deps.as_mut(), mock_env(), info, update_info_msg.clone());
     assert_eq!(response.is_err(), false);
 
     let query_info = QueryMsg::GetContractInfo {};
     let res_info: ContractInfo =
         from_binary(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
-    assert_eq!(res_info.governance.as_str(), Addr::from("asvx"));
+    assert_eq!(res_info.governance.as_str(), Addr::unchecked("asvx"));
 }

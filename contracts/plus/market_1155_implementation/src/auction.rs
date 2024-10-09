@@ -72,9 +72,9 @@ pub fn try_bid_nft(
     let asset_info = query_payment_auction_asset_info(
         deps.as_ref(),
         governance.addr().as_str(),
-        deps.api.human_address(&off.contract_addr)?,
+        deps.api.addr_humanize(&off.contract_addr)?,
         &token_id,
-        deps.api.human_address(&off.asker)?.as_str(),
+        deps.api.addr_humanize(&off.asker)?.as_str(),
     )?;
 
     println!("asset info: {:?}", asset_info);
@@ -114,7 +114,7 @@ pub fn try_bid_nft(
         }
 
         if let Some(bidder) = off.bidder {
-            let bidder_addr = deps.api.human_address(&bidder)?;
+            let bidder_addr = deps.api.addr_humanize(&bidder)?;
             // transfer money to previous bidder
             cosmos_msgs.push(parse_transfer_msg(
                 asset_info,
@@ -125,7 +125,7 @@ pub fn try_bid_nft(
         }
 
         // update new price and new bidder
-        off.bidder = deps.api.canonical_address(&sender).ok();
+        off.bidder = deps.api.addr_canonicalize(&sender).ok();
         off.per_price = per_price;
         // push save message to auction_storage
         cosmos_msgs.push(get_handle_msg(
@@ -185,8 +185,8 @@ pub fn try_claim_winner(
         }
     }
 
-    let asker_addr = deps.api.human_address(&off.asker)?;
-    let contract_addr = deps.api.human_address(&off.contract_addr)?;
+    let asker_addr = deps.api.addr_humanize(&off.asker)?;
+    let contract_addr = deps.api.addr_humanize(&off.contract_addr)?;
 
     // get royalties
     let mut rsp = Response::default();
@@ -197,17 +197,17 @@ pub fn try_claim_winner(
     let asset_info = query_payment_auction_asset_info(
         deps.as_ref(),
         governance.addr().as_str(),
-        deps.api.human_address(&off.contract_addr)?,
+        deps.api.addr_humanize(&off.contract_addr)?,
         &token_id,
-        deps.api.human_address(&off.asker)?.as_str(),
+        deps.api.addr_humanize(&off.asker)?.as_str(),
     )?;
 
     if let Some(bidder) = off.bidder {
-        let bidder_addr = deps.api.human_address(&bidder)?;
+        let bidder_addr = deps.api.addr_humanize(&bidder)?;
         // transfer token to bidder
         cosmos_msgs.push(
             WasmMsg::Execute {
-                contract_addr: deps.api.human_address(&off.contract_addr)?,
+                contract_addr: deps.api.addr_humanize(&off.contract_addr)?,
                 msg: to_json_binary(&Cw1155ExecuteMsg::SendFrom {
                     from: asker_addr.clone().to_string(),
                     to: bidder_addr.clone().to_string(),
@@ -300,7 +300,7 @@ pub fn handle_ask_auction(
     )?;
 
     // get Auctions count
-    let asker = deps.api.canonical_address(&Addr(final_asker))?;
+    let asker = deps.api.addr_canonicalize(&Addr(final_asker))?;
     let start_timestamp = msg.start_timestamp.unwrap_or(Uint128::from(env.block.time));
     let end_timestamp = msg
         .end_timestamp
@@ -334,7 +334,7 @@ pub fn handle_ask_auction(
     // save Auction, waiting for finished
     let off = Auction {
         id: None,
-        contract_addr: deps.api.canonical_address(&msg.contract_addr)?,
+        contract_addr: deps.api.addr_canonicalize(&msg.contract_addr)?,
         token_id: token_id.clone(),
         asker,
         per_price: msg.per_price,
@@ -409,18 +409,18 @@ pub fn try_cancel_bid(
         let asset_info = query_payment_auction_asset_info(
             deps.as_ref(),
             governance.addr().as_str(),
-            deps.api.human_address(&off.contract_addr)?,
+            deps.api.addr_humanize(&off.contract_addr)?,
             &token_id,
-            deps.api.human_address(&off.asker)?.as_str(),
+            deps.api.addr_humanize(&off.asker)?.as_str(),
         )?;
 
-        let bidder_addr = deps.api.human_address(bidder)?;
+        let bidder_addr = deps.api.addr_humanize(bidder)?;
         let mut cosmos_msgs = vec![];
         // only bidder can cancel bid
         if bidder_addr.eq(&info.sender) {
             let mut sent_amount = calculate_price(off.per_price, off.amount);
             if let Some(cancel_fee) = off.cancel_fee {
-                let asker_addr = deps.api.human_address(&off.asker)?;
+                let asker_addr = deps.api.addr_humanize(&off.asker)?;
                 let asker_amount = sent_amount.mul(Decimal::permille(cancel_fee));
                 sent_amount = sent_amount.sub(&asker_amount)?;
                 // only allow sending if asker amount is greater than 0
@@ -501,9 +501,9 @@ pub fn try_emergency_cancel_auction(
     let asset_info = query_payment_auction_asset_info(
         deps.as_ref(),
         governance.addr().as_str(),
-        deps.api.human_address(&off.contract_addr)?,
+        deps.api.addr_humanize(&off.contract_addr)?,
         &token_id,
-        deps.api.human_address(&off.asker)?.as_str(),
+        deps.api.addr_humanize(&off.asker)?.as_str(),
     )?;
 
     if info.sender.to_string().ne(&creator) {
@@ -517,7 +517,7 @@ pub fn try_emergency_cancel_auction(
 
     // refund the bidder
     if let Some(bidder) = off.bidder {
-        let bidder_addr = deps.api.human_address(&bidder)?;
+        let bidder_addr = deps.api.addr_humanize(&bidder)?;
         // transfer money to previous bidder
         cosmos_msgs.push(parse_transfer_msg(
             asset_info,

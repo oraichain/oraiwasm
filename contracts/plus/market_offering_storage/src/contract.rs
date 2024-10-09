@@ -369,7 +369,7 @@ pub fn query_offerings_by_seller(
     order: Option<u8>,
 ) -> StdResult<OfferingsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
-    let seller_raw = deps.api.canonical_address(&seller)?;
+    let seller_raw = deps.api.addr_canonicalize(&seller)?;
     let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .idx
         .seller
@@ -389,7 +389,7 @@ pub fn query_offerings_by_contract(
     order: Option<u8>,
 ) -> StdResult<OfferingsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
-    let contract_raw = deps.api.canonical_address(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(&contract)?;
     let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .idx
         .contract
@@ -407,8 +407,8 @@ pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<QueryOfferingsR
         id: offering_id,
         token_id: offering.token_id,
         price: offering.price,
-        contract_addr: deps.api.human_address(&offering.contract_addr)?,
-        seller: deps.api.human_address(&offering.seller)?,
+        contract_addr: deps.api.addr_humanize(&offering.contract_addr)?,
+        seller: deps.api.addr_humanize(&offering.seller)?,
     })
 }
 
@@ -422,7 +422,7 @@ pub fn query_offering_by_contract_tokenid(
     contract: Addr,
     token_id: String,
 ) -> StdResult<QueryOfferingsResult> {
-    let contract_raw = deps.api.canonical_address(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(&contract)?;
     let offering = offerings().idx.contract_token_id.item(
         deps.storage,
         get_contract_token_id(&contract_raw, &token_id),
@@ -433,8 +433,8 @@ pub fn query_offering_by_contract_tokenid(
             id: u64::from_be_bytes(offering_obj.0.try_into().unwrap()),
             token_id: offering_result.token_id,
             price: offering_result.price,
-            contract_addr: deps.api.human_address(&offering_result.contract_addr)?,
-            seller: deps.api.human_address(&offering_result.seller)?,
+            contract_addr: deps.api.addr_humanize(&offering_result.contract_addr)?,
+            seller: deps.api.addr_humanize(&offering_result.seller)?,
         };
         Ok(offering_resposne)
     } else {
@@ -540,8 +540,8 @@ fn parse_offering<'a>(
             id,
             token_id: offering.token_id,
             price: offering.price,
-            contract_addr: api.human_address(&offering.contract_addr)?,
-            seller: api.human_address(&offering.seller)?,
+            contract_addr: api.addr_humanize(&offering.contract_addr)?,
+            seller: api.addr_humanize(&offering.seller)?,
         })
     })
 }

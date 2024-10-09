@@ -20,13 +20,13 @@ const CREATOR: &str = "marketplace";
 const DENOM: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
     let msg = InstantiateMsg {
-        governance: Addr::from("market_hub"),
+        governance: Addr::unchecked("market_hub"),
     };
     let info = mock_info(CREATOR, &[]);
-    let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
     deps
 }
@@ -57,13 +57,13 @@ fn sort_offering() {
             contract_addr: deps
                 .as_ref()
                 .api
-                .canonical_address(&Addr::from("xxx"))
+                .addr_canonicalize(&Addr::unchecked("xxx"))
                 .unwrap(),
             token_id: i.to_string(),
             seller: deps
                 .as_ref()
                 .api
-                .canonical_address(&Addr::from("seller"))
+                .addr_canonicalize(&Addr::unchecked("seller"))
                 .unwrap(),
             price: Uint128::from(1u64),
         };
@@ -72,7 +72,7 @@ fn sort_offering() {
 
     for off in offerings {
         let msg = ExecuteMsg::Offering(OfferingExecuteMsg::UpdateOffering { offering: off });
-        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+        let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
     // Offering should be listed
@@ -119,7 +119,7 @@ fn sort_offering_royalty() {
 
     for i in 1u64..4u64 {
         let offering = OfferingRoyalty {
-            contract_addr: Addr::from("xxx"),
+            contract_addr: Addr::unchecked("xxx"),
             token_id: i.to_string(),
             previous_owner: None,
             prev_royalty: None,
@@ -131,7 +131,7 @@ fn sort_offering_royalty() {
 
     for off in offerings {
         let msg = ExecuteMsg::Offering(OfferingExecuteMsg::UpdateOfferingRoyalty { offering: off });
-        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+        let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
     // Offering should be listed
@@ -153,10 +153,10 @@ fn sort_offering_royalty() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Offering(OfferingQueryMsg::GetOfferingsRoyaltyByContract {
-            contract: Addr::from("xxx"),
+            contract: Addr::unchecked("xxx"),
             limit: None,
             offset: Some(OffsetMsg {
-                contract: Addr::from("xxx"),
+                contract: Addr::unchecked("xxx"),
                 token_id: String::from("2"),
             }),
             order: None,
@@ -172,7 +172,7 @@ fn sort_offering_royalty() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Offering(OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId {
-            contract: Addr::from("xxx"),
+            contract: Addr::unchecked("xxx"),
             token_id: 2.to_string(),
         }),
     )
@@ -208,13 +208,13 @@ fn withdraw_offering() {
             contract_addr: deps
                 .as_ref()
                 .api
-                .canonical_address(&Addr::from("xxx"))
+                .addr_canonicalize(&Addr::unchecked("xxx"))
                 .unwrap(),
             token_id: i.to_string(),
             seller: deps
                 .as_ref()
                 .api
-                .canonical_address(&Addr::from("seller"))
+                .addr_canonicalize(&Addr::unchecked("seller"))
                 .unwrap(),
             price: Uint128::from(1u64),
         };
@@ -223,11 +223,11 @@ fn withdraw_offering() {
 
     for off in offerings {
         let msg = ExecuteMsg::Offering(OfferingExecuteMsg::UpdateOffering { offering: off });
-        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+        let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
     let msg = ExecuteMsg::Offering(OfferingExecuteMsg::RemoveOffering { id: 1 });
-    let _ = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    let _ = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let res = query(
         deps.as_ref(),
@@ -251,7 +251,7 @@ fn update_info_test() {
 
     // update contract to set fees
     let update_info = UpdateContractMsg {
-        governance: Some(Addr::from("asvx")),
+        governance: Some(Addr::unchecked("asvx")),
         creator: None,
     };
     let update_info_msg = ExecuteMsg::UpdateInfo(update_info);
@@ -259,7 +259,7 @@ fn update_info_test() {
     // random account cannot update info, only creator
     let info_unauthorized = mock_info("anyone", &vec![coin(5, DENOM)]);
 
-    let mut response = handle(
+    let mut response = execute(
         deps.as_mut(),
         mock_env(),
         info_unauthorized.clone(),
@@ -270,11 +270,11 @@ fn update_info_test() {
 
     // now we can update the info using creator
     let info = mock_info(CREATOR, &[]);
-    response = handle(deps.as_mut(), mock_env(), info, update_info_msg.clone());
+    response = execute(deps.as_mut(), mock_env(), info, update_info_msg.clone());
     assert_eq!(response.is_err(), false);
 
     let query_info = QueryMsg::GetContractInfo {};
     let res_info: ContractInfo =
         from_binary(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
-    assert_eq!(res_info.governance.as_str(), Addr::from("asvx"));
+    assert_eq!(res_info.governance.as_str(), Addr::unchecked("asvx"));
 }

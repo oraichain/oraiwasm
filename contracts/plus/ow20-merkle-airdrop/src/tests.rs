@@ -13,7 +13,7 @@ use sha2::Digest;
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
-    attr, coins, from_binary, from_slice, to_json_binary, Binary, CosmosMsg, Addr, Order,
+    attr, coins, from_binary, from_json, to_json_binary, Binary, CosmosMsg, Addr, Order,
     StdResult, Uint128, WasmMsg,
 };
 use cw_storage_plus::{Bound, U8Key};
@@ -28,7 +28,7 @@ use cw20::Cw20ExecuteMsg;
 
 #[test]
 fn test_range() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     let data = true;
     CLAIM.save(&mut deps.storage, b"john", &data);
     CLAIM.save(&mut deps.storage, b"jim", &data);
@@ -56,7 +56,7 @@ fn test_range() {
 
 #[test]
 fn proper_instantiation() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
 
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -67,7 +67,7 @@ fn proper_instantiation() {
     let info = mock_info("addr0000", &[]);
 
     // we can just call .unwrap() to assert this was a success
-    let _res = init(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     // it worked, let's query the state
     let res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
@@ -82,7 +82,7 @@ fn proper_instantiation() {
 
 #[test]
 fn update_config() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
 
     let msg = InstantiateMsg {
         owner: None,
@@ -91,7 +91,7 @@ fn update_config() {
 
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // update owner
     let env = mock_env();
@@ -100,7 +100,7 @@ fn update_config() {
         new_owner: Some("owner0001".into()),
     };
 
-    let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     // it worked, let's query the state
@@ -113,13 +113,13 @@ fn update_config() {
     let info = mock_info("owner0000", &[]);
     let msg = ExecuteMsg::UpdateConfig { new_owner: None };
 
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
 }
 
 #[test]
 fn test_update_claim() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
 
     let msg = InstantiateMsg {
         owner: None,
@@ -128,7 +128,7 @@ fn test_update_claim() {
 
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // update claim
     let env = mock_env();
@@ -137,7 +137,7 @@ fn test_update_claim() {
         claim_keys: vec![vec![1], vec![2]],
     };
 
-    let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     // it worked, let's query the state
@@ -161,13 +161,13 @@ fn test_update_claim() {
     let msg = ExecuteMsg::UpdateClaim {
         claim_keys: vec![vec![1], vec![2]],
     };
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
 }
 
 #[test]
 fn register_merkle_root() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
 
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -176,7 +176,7 @@ fn register_merkle_root() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // register new merkle root
     let env = mock_env();
@@ -189,7 +189,7 @@ fn register_merkle_root() {
         metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
 
-    let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(
         res.attributes,
         vec![
@@ -241,9 +241,9 @@ struct Encoded {
 #[test]
 fn claim() {
     // Run test 1
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     deps.api.canonical_length = 54;
-    let test_data: Encoded = from_slice(TEST_DATA_1).unwrap();
+    let test_data: Encoded = from_json(TEST_DATA_1).unwrap();
 
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -252,7 +252,7 @@ fn claim() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
@@ -263,7 +263,7 @@ fn claim() {
         total_amount: None,
         metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
-    let _res = handle(deps.as_mut(), env, info, msg).unwrap();
+    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     let msg = ExecuteMsg::Claim {
         amount: test_data.amount,
@@ -274,7 +274,7 @@ fn claim() {
     let env = mock_env();
     let info = mock_info(test_data.account.clone(), &[]);
 
-    let res = handle(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
 
     let expected: CosmosMsg<_> = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: "token0000".into(),
@@ -331,11 +331,11 @@ fn claim() {
     );
 
     // check error on double claim
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(res, ContractError::Claimed {});
 
     // Second test
-    let test_data: Encoded = from_slice(TEST_DATA_2).unwrap();
+    let test_data: Encoded = from_json(TEST_DATA_2).unwrap();
 
     // register new drop
     let env = mock_env();
@@ -347,7 +347,7 @@ fn claim() {
         total_amount: None,
         metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
-    let _res = handle(deps.as_mut(), env, info, msg).unwrap();
+    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     // Claim next airdrop
     let msg = ExecuteMsg::Claim {
@@ -358,7 +358,7 @@ fn claim() {
 
     let env = mock_env();
     let info = mock_info(test_data.account.as_str(), &[]);
-    let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     let expected: CosmosMsg<_> = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: "token0000".into(),
         funds: vec![],
@@ -410,9 +410,9 @@ struct MultipleData {
 #[test]
 fn multiple_claim() {
     // Run test 1
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     deps.api.canonical_length = 54;
-    let test_data: MultipleData = from_slice(TEST_DATA_1_MULTI).unwrap();
+    let test_data: MultipleData = from_json(TEST_DATA_1_MULTI).unwrap();
 
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -421,7 +421,7 @@ fn multiple_claim() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
@@ -432,7 +432,7 @@ fn multiple_claim() {
         total_amount: None,
         metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
-    let _res = handle(deps.as_mut(), env, info, msg).unwrap();
+    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     // Loop accounts and claim
     for account in test_data.accounts.iter() {
@@ -444,7 +444,7 @@ fn multiple_claim() {
 
         let env = mock_env();
         let info = mock_info(account.account.as_str(), &[]);
-        let res = handle(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+        let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
         let expected: CosmosMsg<_> = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: "token0000".into(),
             funds: vec![],
@@ -482,9 +482,9 @@ fn multiple_claim() {
 #[test]
 fn test_query_claim_keys() {
     // Run test 1
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     deps.api.canonical_length = 54;
-    let test_data: MultipleData = from_slice(TEST_DATA_1_MULTI).unwrap();
+    let test_data: MultipleData = from_json(TEST_DATA_1_MULTI).unwrap();
 
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -493,7 +493,7 @@ fn test_query_claim_keys() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
@@ -504,7 +504,7 @@ fn test_query_claim_keys() {
         total_amount: None,
         metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
-    let _res = handle(deps.as_mut(), env, info, msg).unwrap();
+    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     // Loop accounts and claim
     for account in test_data.accounts.iter() {
@@ -516,7 +516,7 @@ fn test_query_claim_keys() {
 
         let env = mock_env();
         let info = mock_info(account.account.as_str(), &[]);
-        let res = handle(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+        let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
         let expected: CosmosMsg<_> = CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: "token0000".into(),
             funds: vec![],
@@ -598,7 +598,7 @@ fn test_query_claim_keys() {
 // Check expiration. Chain height in tests is 12345
 #[test]
 fn stage_expires() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
 
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -607,7 +607,7 @@ fn stage_expires() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // can register merkle root
     let env = mock_env();
@@ -620,7 +620,7 @@ fn stage_expires() {
         total_amount: None,
         metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
-    handle(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
     // can't claim expired
     let msg = ExecuteMsg::Claim {
@@ -629,7 +629,7 @@ fn stage_expires() {
         proof: vec![],
     };
 
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
 
     assert_eq!(
         res,
@@ -642,7 +642,7 @@ fn stage_expires() {
 
 #[test]
 fn cant_burn() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
 
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -651,7 +651,7 @@ fn cant_burn() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // can register merkle root
     let env = mock_env();
@@ -663,12 +663,12 @@ fn cant_burn() {
         total_amount: Some(Uint128::from(100000u128)),
         metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
-    handle(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
     // Can't burn not expired stage
     let msg = ExecuteMsg::Burn { stage: 1u8 };
 
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(
         res,
         ContractError::StageNotExpired {
@@ -680,9 +680,9 @@ fn cant_burn() {
 
 #[test]
 fn can_burn() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     deps.api.canonical_length = 54;
-    let test_data: Encoded = from_slice(TEST_DATA_1).unwrap();
+    let test_data: Encoded = from_json(TEST_DATA_1).unwrap();
 
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -691,7 +691,7 @@ fn can_burn() {
 
     let mut env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     let info = mock_info("owner0000", &[]);
     let msg = ExecuteMsg::RegisterMerkleRoot {
@@ -701,7 +701,7 @@ fn can_burn() {
         total_amount: Some(Uint128::from(10000u128)),
         metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
-    handle(deps.as_mut(), env.clone(), info, msg).unwrap();
+    execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     // Claim some tokens
     let msg = ExecuteMsg::Claim {
@@ -711,7 +711,7 @@ fn can_burn() {
     };
 
     let info = mock_info(test_data.account.as_str(), &[]);
-    let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     let expected: CosmosMsg<_> = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: "token0000".into(),
         funds: vec![],
@@ -740,7 +740,7 @@ fn can_burn() {
     let msg = ExecuteMsg::Burn { stage: 1u8 };
 
     let info = mock_info("owner0000", &[]);
-    let res = handle(deps.as_mut(), env, info, msg).unwrap();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     let expected: CosmosMsg<_> = CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: "token0000".into(),
@@ -765,7 +765,7 @@ fn can_burn() {
 
 #[test]
 fn cant_withdraw() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     deps.api.canonical_length = 54;
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -774,7 +774,7 @@ fn cant_withdraw() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // can register merkle root
     let env = mock_env();
@@ -786,12 +786,12 @@ fn cant_withdraw() {
         total_amount: Some(Uint128::from(100000u128)),
         metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
-    handle(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
     // Can't withdraw not expired stage
     let msg = ExecuteMsg::Withdraw { stage: 1u8 };
 
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(
         res,
         ContractError::StageNotExpired {
@@ -803,9 +803,9 @@ fn cant_withdraw() {
 
 #[test]
 fn can_withdraw() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     deps.api.canonical_length = 54;
-    let test_data: Encoded = from_slice(TEST_DATA_1).unwrap();
+    let test_data: Encoded = from_json(TEST_DATA_1).unwrap();
 
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -814,7 +814,7 @@ fn can_withdraw() {
 
     let mut env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     let info = mock_info("owner0000", &[]);
     let msg = ExecuteMsg::RegisterMerkleRoot {
@@ -824,7 +824,7 @@ fn can_withdraw() {
         total_amount: Some(Uint128::from(10000u128)),
         metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
-    handle(deps.as_mut(), env.clone(), info, msg).unwrap();
+    execute(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     // Claim some tokens
     let msg = ExecuteMsg::Claim {
@@ -834,7 +834,7 @@ fn can_withdraw() {
     };
 
     let info = mock_info(test_data.account.as_str(), &[]);
-    let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     let expected: CosmosMsg<_> = (CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: "token0000".into(),
         funds: vec![],
@@ -863,7 +863,7 @@ fn can_withdraw() {
     let msg = ExecuteMsg::Withdraw { stage: 1u8 };
 
     let info = mock_info("owner0000", &[]);
-    let res = handle(deps.as_mut(), env, info, msg).unwrap();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     let expected: CosmosMsg<_> = (CosmosMsg::Wasm(WasmMsg::Execute {
         contract_addr: "token0000".into(),
@@ -890,7 +890,7 @@ fn can_withdraw() {
 
 #[test]
 fn stage_starts() {
-    let mut deps = mock_dependencies(&[]);
+    let mut deps = mock_dependencies_with_balance(&[]);
     deps.api.canonical_length = 54;
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -899,7 +899,7 @@ fn stage_starts() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // can register merkle root
     let env = mock_env();
@@ -911,7 +911,7 @@ fn stage_starts() {
         total_amount: None,
         metadata: Binary::from_base64("dGVzdF9tZXRhZGF0YTsgICAgIA==").unwrap(),
     };
-    handle(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+    execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
     // can't claim before begin
     let msg = ExecuteMsg::Claim {
@@ -920,7 +920,7 @@ fn stage_starts() {
         proof: vec![],
     };
 
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(
         res,
         ContractError::StageNotBegun {

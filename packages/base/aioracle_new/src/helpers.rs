@@ -10,7 +10,7 @@ use crate::state::{
 use crate::{Rewards, TestCaseResultMsg};
 use bech32;
 use cosmwasm_std::{
-    attr, from_binary, from_slice, to_json_binary, to_vec, Addr, BankMsg, Binary, Coin, CosmosMsg,
+    attr, from_binary, from_json, to_json_binary, to_vec, Addr, BankMsg, Binary, Coin, CosmosMsg,
     Deps, DepsMut, Env, MessageInfo, Order, Response, Response, StdError, StdResult, Uint128,
 };
 use std::u64;
@@ -299,7 +299,7 @@ fn process_data_sources(
     // prepare cosmos messages to send rewards
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
     for dsource_result_str in dsource_results {
-        let dsource_result: DataSourceResultMsg = from_slice(dsource_result_str.as_bytes())?;
+        let dsource_result: DataSourceResultMsg = from_json(dsource_result_str.as_bytes())?;
         let (test_case_results, is_success) = process_test_cases(&dsource_result.test_case_results);
 
         if dsource_result.status && is_success {

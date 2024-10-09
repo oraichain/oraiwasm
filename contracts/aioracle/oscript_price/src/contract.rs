@@ -5,7 +5,7 @@ use std::ops::Add;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, Input, InstantiateMsg, Output, QueryMsg};
 use cosmwasm_std::{
-    from_slice, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, Response,
+    from_json, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, Response,
     StdError, StdResult,
 };
 
@@ -41,7 +41,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
     let mut aggregation_result: Vec<Output> = Vec::new();
     let result_str = aggregate_prices_str(results);
-    let price_data: Vec<Input> = from_slice(result_str.as_bytes()).unwrap();
+    let price_data: Vec<Input> = from_json(result_str.as_bytes()).unwrap();
     for res in price_data {
         // split to calculate largest precision of the price
         let mut largest_precision: usize = 0;
@@ -150,7 +150,7 @@ fn aggregate_prices_str(results: Vec<String>) -> String {
     let mut symbol_vec: Vec<String> = Vec::new();
     let mut inputs: Vec<Input> = Vec::new();
     for result in results {
-        let price_data_result: Result<Vec<Input>, StdError> = from_slice(result.as_bytes());
+        let price_data_result: Result<Vec<Input>, StdError> = from_json(result.as_bytes());
         if price_data_result.is_err() {
             continue;
         }
@@ -206,7 +206,7 @@ mod tests {
 
     #[test]
     fn assert_aggregate() {
-        let deps = mock_dependencies(&[]);
+        let deps = mock_dependencies_with_balance(&[]);
         let resp = format!(
         "[{{\"name\":\"ETH\",\"prices\":[\"{}\",\"{}\",\"{}\"]}},{{\"name\":\"BTC\",\"prices\":[\"{}\",\"{}\"]}},{{\"name\":\"LINK\",\"prices\":[\"{}\",\"{}\"]}}]",
         "0.00000000000018900", "0.00000001305", "0.00000000006", "2801.2341", "200.1", ".1", "44"

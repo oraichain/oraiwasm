@@ -1,4 +1,4 @@
-use cosmwasm_std::from_slice;
+use cosmwasm_std::from_json;
 use cosmwasm_std::to_json_binary;
 use cosmwasm_std::Binary;
 use cosmwasm_std::StdResult;
@@ -22,9 +22,9 @@ pub fn assert(assert_inputs: &[String]) -> StdResult<Binary> {
         let AssertInput {
             output: output_str,
             expected_output: expected_output_str,
-        } = from_slice(assert_input_str.as_bytes())?;
-        let output: Vec<Output> = from_slice(output_str.as_bytes())?;
-        let expected_output: Vec<Output> = from_slice(expected_output_str.as_bytes())?;
+        } = from_json(assert_input_str.as_bytes())?;
+        let output: Vec<Output> = from_json(output_str.as_bytes())?;
+        let expected_output: Vec<Output> = from_json(expected_output_str.as_bytes())?;
         // assume that the output runs all the test cases successfully, then the length should be equal
         if output.len().eq(&expected_output.len()) {
             for (i, res) in output.iter().enumerate() {
@@ -68,7 +68,7 @@ mod tests {
 
     #[test]
     fn test_assert_happy() {
-        let deps = mock_dependencies(&[]);
+        let deps = mock_dependencies_with_balance(&[]);
 
         let result = format!("{{\"output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"sunflower\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\",\"expected_output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"sunflower\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\"}}");
 
@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn test_assert_unhappy() {
-        let deps = mock_dependencies(&[]);
+        let deps = mock_dependencies_with_balance(&[]);
 
         // dsource does has a different label from the test case
         let result = format!("{{\"output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"foobar\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\",\"expected_output\":\"[{{\\\"data\\\":[{{\\\"label\\\":\\\"sunflower\\\",\\\"score\\\":96}}],\\\"status\\\":\\\"success\\\"}}]\"}}");

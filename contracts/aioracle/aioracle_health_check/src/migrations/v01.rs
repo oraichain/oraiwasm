@@ -65,14 +65,14 @@ mod test {
     use super::OldState;
 
     fn setup_old_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-        let mut deps = mock_dependencies(&coins(100000, "orai"));
+        let mut deps = mock_dependencies_with_balance(&coins(100000, "orai"));
         deps.api.canonical_length = 54;
 
         old_config(deps.as_mut().storage)
             .save(&OldState {
-                owner: Addr::from("foobar"),
+                owner: Addr::unchecked("foobar"),
                 ping_jump: 1,
-                aioracle_addr: Addr::from("abc"),
+                aioracle_addr: Addr::unchecked("abc"),
                 base_reward: Coin {
                     amount: Uint128::from(1u64),
                     denom: "foo".into(),
@@ -86,7 +86,7 @@ mod test {
     #[test]
     fn test_migrate() {
         let mut deps = setup_old_contract();
-        let info = mock_info(Addr::from("foobar"), &[]);
+        let info = mock_info(Addr::unchecked("foobar"), &[]);
         migrate(deps.as_mut(), mock_env(), info, MigrateMsg {}).unwrap();
 
         // query config

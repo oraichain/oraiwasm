@@ -25,7 +25,7 @@ impl Cw721Contract {
 
     /// Convert this address to a form fit for storage
     pub fn canonical<A: Api>(&self, api: &A) -> StdResult<Cw721CanonicalContract> {
-        let canon = api.canonical_address(&self.0)?;
+        let canon = api.addr_canonicalize(&self.0)?;
         Ok(Cw721CanonicalContract(canon))
     }
 
@@ -169,7 +169,7 @@ pub struct Cw721CanonicalContract(pub CanonicalAddr);
 impl Cw721CanonicalContract {
     /// Convert this address to a form fit for usage in messages and queries
     pub fn human<A: Api>(&self, api: &A) -> StdResult<Cw721Contract> {
-        let human = api.human_address(&self.0)?;
+        let human = api.addr_humanize(&self.0)?;
         Ok(Cw721Contract(human))
     }
 }

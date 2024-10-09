@@ -12,25 +12,25 @@ use cosmwasm_std::{coins, Uint128};
 
 #[test]
 fn proper_initialization() {
-    let mut deps = mock_dependencies(&coins(100000000, "orai"));
+    let mut deps = mock_dependencies_with_balance(&coins(100000000, "orai"));
     let info = mock_info("founder", &coins(100000, "orai"));
     let init_msg = InstantiateMsg {
         co_founders: vec![
             Founder {
-                address: Addr::from("founder"),
+                address: Addr::unchecked("founder"),
                 share_revenue: 10000000,
             },
             Founder {
-                address: Addr::from("co-founder"),
+                address: Addr::unchecked("co-founder"),
                 share_revenue: 10000000,
             },
         ],
         threshold: 1,
     };
-    init(deps.as_mut(), mock_env(), info.clone(), init_msg).unwrap();
+    instantiate(deps.as_mut(), mock_env(), info.clone(), init_msg).unwrap();
 
     // share revenue
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         info,
@@ -44,35 +44,35 @@ fn proper_initialization() {
 
 #[test]
 fn change_state_happy() {
-    let mut deps = mock_dependencies(&coins(100000000, "orai"));
+    let mut deps = mock_dependencies_with_balance(&coins(100000000, "orai"));
     let info = mock_info("founder", &coins(100000, "orai"));
     let init_msg = InstantiateMsg {
         co_founders: vec![
             Founder {
-                address: Addr::from("founder"),
+                address: Addr::unchecked("founder"),
                 share_revenue: 10000000,
             },
             Founder {
-                address: Addr::from("co-founder"),
+                address: Addr::unchecked("co-founder"),
                 share_revenue: 10000000,
             },
             Founder {
-                address: Addr::from("co-founder2"),
+                address: Addr::unchecked("co-founder2"),
                 share_revenue: 10000000,
             },
         ],
         threshold: 2,
     };
-    init(deps.as_mut(), mock_env(), info.clone(), init_msg).unwrap();
+    instantiate(deps.as_mut(), mock_env(), info.clone(), init_msg).unwrap();
 
     // share revenue
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         info.clone(),
         ExecuteMsg::ChangeState {
             co_founders: Some(vec![Founder {
-                address: Addr::from("founder"),
+                address: Addr::unchecked("founder"),
                 share_revenue: 10000000,
             }]),
             threshold: Some(1),
@@ -82,7 +82,7 @@ fn change_state_happy() {
     .unwrap();
 
     // need to vote two times to get it updated
-    handle(deps.as_mut(), mock_env(), info.clone(), ExecuteMsg::Vote {}).unwrap();
+    execute(deps.as_mut(), mock_env(), info.clone(), ExecuteMsg::Vote {}).unwrap();
 
     // query change state
     let change_state: Change = from_binary(
@@ -96,13 +96,13 @@ fn change_state_happy() {
     .unwrap();
     assert_eq!(
         change_state.co_founders.unwrap().last().unwrap().address,
-        Addr::from("founder")
+        Addr::unchecked("founder")
     );
     assert_eq!(change_state.status, ChangeStatus::Voting);
     assert_eq!(change_state.vote_count, 1);
 
     // 2nd vote from co-founder
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         mock_info("co-founder", &coins(100000, "orai")),
@@ -131,36 +131,36 @@ fn change_state_happy() {
 
 #[test]
 fn change_state_unhappy() {
-    let mut deps = mock_dependencies(&coins(100000000, "orai"));
+    let mut deps = mock_dependencies_with_balance(&coins(100000000, "orai"));
     let info = mock_info("founder", &coins(100000, "orai"));
     let init_msg = InstantiateMsg {
         co_founders: vec![
             Founder {
-                address: Addr::from("founder"),
+                address: Addr::unchecked("founder"),
                 share_revenue: 10000000,
             },
             Founder {
-                address: Addr::from("co-founder"),
+                address: Addr::unchecked("co-founder"),
                 share_revenue: 10000000,
             },
             Founder {
-                address: Addr::from("co-founder2"),
+                address: Addr::unchecked("co-founder2"),
                 share_revenue: 10000000,
             },
         ],
         threshold: 2,
     };
-    init(deps.as_mut(), mock_env(), info.clone(), init_msg).unwrap();
+    instantiate(deps.as_mut(), mock_env(), info.clone(), init_msg).unwrap();
 
     // authorization error
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info("hacker", &coins(100000, "orai")).clone(),
             ExecuteMsg::ChangeState {
                 co_founders: Some(vec![Founder {
-                    address: Addr::from("hacker"),
+                    address: Addr::unchecked("hacker"),
                     share_revenue: 10000000,
                 }]),
                 threshold: Some(1),
@@ -172,13 +172,13 @@ fn change_state_unhappy() {
 
     // invalid threshold cases
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             info.clone(),
             ExecuteMsg::ChangeState {
                 co_founders: Some(vec![Founder {
-                    address: Addr::from("founder"),
+                    address: Addr::unchecked("founder"),
                     share_revenue: 10000000,
                 }]),
                 threshold: None,
@@ -189,13 +189,13 @@ fn change_state_unhappy() {
     ));
 
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             info.clone(),
             ExecuteMsg::ChangeState {
                 co_founders: Some(vec![Founder {
-                    address: Addr::from("founder"),
+                    address: Addr::unchecked("founder"),
                     share_revenue: 10000000,
                 }]),
                 threshold: Some(2),
@@ -205,7 +205,7 @@ fn change_state_unhappy() {
         Err(crate::error::ContractError::InvalidThreshold {})
     ));
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             info.clone(),
@@ -219,13 +219,13 @@ fn change_state_unhappy() {
     ));
 
     // change state
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         info.clone(),
         ExecuteMsg::ChangeState {
             co_founders: Some(vec![Founder {
-                address: Addr::from("founder"),
+                address: Addr::unchecked("founder"),
                 share_revenue: 10000000,
             }]),
             threshold: Some(1),
@@ -236,13 +236,13 @@ fn change_state_unhappy() {
 
     // change state again will give error because not in idle state
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             info.clone(),
             ExecuteMsg::ChangeState {
                 co_founders: Some(vec![Founder {
-                    address: Addr::from("founder"),
+                    address: Addr::unchecked("founder"),
                     share_revenue: 10000000,
                 }]),
                 threshold: Some(1),
@@ -255,35 +255,35 @@ fn change_state_unhappy() {
 
 #[test]
 fn vote_unhappy() {
-    let mut deps = mock_dependencies(&coins(100000000, "orai"));
+    let mut deps = mock_dependencies_with_balance(&coins(100000000, "orai"));
     let info = mock_info("founder", &coins(100000, "orai"));
     let init_msg = InstantiateMsg {
         co_founders: vec![
             Founder {
-                address: Addr::from("founder"),
+                address: Addr::unchecked("founder"),
                 share_revenue: 10000000,
             },
             Founder {
-                address: Addr::from("co-founder"),
+                address: Addr::unchecked("co-founder"),
                 share_revenue: 10000000,
             },
             Founder {
-                address: Addr::from("co-founder2"),
+                address: Addr::unchecked("co-founder2"),
                 share_revenue: 10000000,
             },
         ],
         threshold: 2,
     };
-    init(deps.as_mut(), mock_env(), info.clone(), init_msg).unwrap();
+    instantiate(deps.as_mut(), mock_env(), info.clone(), init_msg).unwrap();
 
     // change state
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         info.clone(),
         ExecuteMsg::ChangeState {
             co_founders: Some(vec![Founder {
-                address: Addr::from("founder"),
+                address: Addr::unchecked("founder"),
                 share_revenue: 10000000,
             }]),
             threshold: Some(1),
@@ -294,7 +294,7 @@ fn vote_unhappy() {
 
     // unauthorized vote
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info("hacker", &coins(100000, "orai")),
@@ -306,7 +306,7 @@ fn vote_unhappy() {
     // reach end block still not decided => finished and change nothing
     let mut env = mock_env();
     env.block.height += 1000000000;
-    handle(deps.as_mut(), env, info.clone(), ExecuteMsg::Vote {}).unwrap();
+    execute(deps.as_mut(), env, info.clone(), ExecuteMsg::Vote {}).unwrap();
 
     // query change, should be finished
     let change_state: Change = from_binary(
@@ -327,7 +327,7 @@ fn vote_unhappy() {
 
     // not in vote state case
     assert!(matches!(
-        handle(deps.as_mut(), mock_env(), info.clone(), ExecuteMsg::Vote {}),
+        execute(deps.as_mut(), mock_env(), info.clone(), ExecuteMsg::Vote {}),
         Err(ContractError::OtherStatus {})
     ));
 }

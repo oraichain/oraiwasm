@@ -64,15 +64,15 @@ mod test {
     use super::{OldConfig, OLD_CONFIG_KEY};
 
     fn setup_old_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-        let mut deps = mock_dependencies(&coins(100000, "orai"));
+        let mut deps = mock_dependencies_with_balance(&coins(100000, "orai"));
         deps.api.canonical_length = 54;
 
         Item::<OldConfig>::new(OLD_CONFIG_KEY)
             .save(
                 &mut deps.storage,
                 &OldConfig {
-                    owner: Addr::from("foobar"),
-                    service_addr: Addr::from("foobar"),
+                    owner: Addr::unchecked("foobar"),
+                    service_addr: Addr::unchecked("foobar"),
                     contract_fee: Coin {
                         amount: Uint128::from(0u64),
                         denom: String::from("foobar"),
@@ -88,14 +88,14 @@ mod test {
     // #[test]
     // fn test_migrate() {
     //     let mut deps = setup_old_contract();
-    //     let info = mock_info(Addr::from("foobar"), &[]);
+    //     let info = mock_info(Addr::unchecked("foobar"), &[]);
     //     migrate(
     //         deps.as_mut(),
     //         mock_env(),
     //         info,
     //         MigrateMsg {
     //             trusting_period: Some(1000000000),
-    //             ping_addr: Addr::from("foobar"),
+    //             ping_addr: Addr::unchecked("foobar"),
     //         },
     //     )
     //     .unwrap();

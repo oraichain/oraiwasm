@@ -210,7 +210,7 @@ pub fn try_buy(
         Err(_) => return Err(ContractError::InvalidGetOffering {}),
     };
 
-    let seller_addr = deps.api.human_address(&off.seller)?;
+    let seller_addr = deps.api.addr_humanize(&off.seller)?;
 
     let mut cosmos_msgs = vec![];
     // check for enough coins, if has price then payout to all participants
@@ -255,7 +255,7 @@ pub fn try_buy(
                     cosmos_msgs.push(
                         BankMsg::Send {
                             from_address: env.contract.address.clone(),
-                            to_address: deps.api.human_address(&creator_addr)?,
+                            to_address: deps.api.addr_humanize(&creator_addr)?,
                             amount: coins(creator_amount.u128(), &contract_info.denom),
                         }
                         .into(),
@@ -271,7 +271,7 @@ pub fn try_buy(
                     cosmos_msgs.push(
                         BankMsg::Send {
                             from_address: env.contract.address.clone(),
-                            to_address: deps.api.human_address(&off.seller)?,
+                            to_address: deps.api.addr_humanize(&off.seller)?,
                             amount: coins(owner_amount.u128(), &contract_info.denom),
                         }
                         .into(),
@@ -305,7 +305,7 @@ pub fn try_buy(
     // if everything is fine transfer NFT token to buyer
     cosmos_msgs.push(
         WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&off.contract_addr)?,
+            contract_addr: deps.api.addr_humanize(&off.contract_addr)?,
             msg: to_json_binary(&transfer_cw721_msg)?,
             funds: vec![],
         }
@@ -337,7 +337,7 @@ pub fn try_receive_nft(
     }?;
 
     // check if same token Id form same original contract is already on sale
-    let contract_addr = deps.api.canonical_address(&info.sender)?;
+    let contract_addr = deps.api.addr_canonicalize(&info.sender)?;
     let offering = offerings().idx.contract_token_id.item(
         deps.storage,
         get_contract_token_id(contract_addr.to_vec(), &rcv_msg.token_id).into(),
@@ -349,7 +349,7 @@ pub fn try_receive_nft(
 
     // get OFFERING_COUNT
     let offering_id = increment_offerings(deps.storage)?;
-    let seller = deps.api.canonical_address(&rcv_msg.sender)?;
+    let seller = deps.api.addr_canonicalize(&rcv_msg.sender)?;
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let mut royalty = Some(sanitize_royalty(
         msg.royalty.unwrap_or(0),
@@ -362,7 +362,7 @@ pub fn try_receive_nft(
     if royalty_creator_result.is_err()
         || deps
             .api
-            .human_address(&royalty_creator_result.unwrap().0)?
+            .addr_humanize(&royalty_creator_result.unwrap().0)?
             .eq(&rcv_msg.sender)
     {
         royalty = None;
@@ -422,12 +422,12 @@ pub fn try_withdraw_all(deps: DepsMut, info: MessageInfo) -> Result<Response, Co
         // check if token_id is currently sold by the requesting address
         // transfer token back to original owner
         let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
-            recipient: deps.api.human_address(&off.seller)?,
+            recipient: deps.api.addr_humanize(&off.seller)?,
             token_id: off.token_id.clone(),
         };
 
         let exec_cw721_transfer = WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&off.contract_addr)?,
+            contract_addr: deps.api.addr_humanize(&off.contract_addr)?,
             msg: to_json_binary(&transfer_cw721_msg)?,
             funds: vec![],
         };
@@ -452,16 +452,16 @@ pub fn try_withdraw(
     // check if token_id is currently sold by the requesting address
     let storage_key = offering_id.to_be_bytes();
     let off = offerings().load(deps.storage, &storage_key)?;
-    if off.seller == deps.api.canonical_address(&info.sender)? {
+    if off.seller == deps.api.addr_canonicalize(&info.sender)? {
         // check if token_id is currently sold by the requesting address
         // transfer token back to original owner
         let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
-            recipient: deps.api.human_address(&off.seller)?,
+            recipient: deps.api.addr_humanize(&off.seller)?,
             token_id: off.token_id.clone(),
         };
 
         let exec_cw721_transfer = WasmMsg::Execute {
-            contract_addr: deps.api.human_address(&off.contract_addr)?,
+            contract_addr: deps.api.addr_humanize(&off.contract_addr)?,
             msg: to_json_binary(&transfer_cw721_msg)?,
             funds: vec![],
         };
@@ -547,7 +547,7 @@ pub fn query_offerings_by_seller(
     order: Option<u8>,
 ) -> StdResult<OfferingsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
-    let seller_raw = deps.api.canonical_address(&seller)?;
+    let seller_raw = deps.api.addr_canonicalize(&seller)?;
     let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .idx
         .seller
@@ -567,7 +567,7 @@ pub fn query_offerings_by_contract(
     order: Option<u8>,
 ) -> StdResult<OfferingsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
-    let contract_raw = deps.api.canonical_address(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(&contract)?;
     let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .idx
         .contract
@@ -587,7 +587,7 @@ pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<QueryOfferingsR
     if royalty_creator_result.is_ok() {
         let royalty_creator_result_unwrap = royalty_creator_result.unwrap();
         royalty_creator = Some(PayoutMsg {
-            creator: deps.api.human_address(&royalty_creator_result_unwrap.0)?,
+            creator: deps.api.addr_humanize(&royalty_creator_result_unwrap.0)?,
             royalty: royalty_creator_result_unwrap.1,
         })
     }
@@ -595,8 +595,8 @@ pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<QueryOfferingsR
         id: offering_id,
         token_id: offering.token_id,
         price: offering.price,
-        contract_addr: deps.api.human_address(&offering.contract_addr)?,
-        seller: deps.api.human_address(&offering.seller)?,
+        contract_addr: deps.api.addr_humanize(&offering.contract_addr)?,
+        seller: deps.api.addr_humanize(&offering.seller)?,
         royalty_creator,
         royalty_owner: offering.royalty,
     })
@@ -607,7 +607,7 @@ pub fn query_offering_by_contract_tokenid(
     contract: Addr,
     token_id: String,
 ) -> StdResult<QueryOfferingsResult> {
-    let contract_raw = deps.api.canonical_address(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(&contract)?;
     let offering = offerings().idx.contract_token_id.item(
         deps.storage,
         get_contract_token_id(contract_raw.to_vec(), &token_id).into(),
@@ -620,7 +620,7 @@ pub fn query_offering_by_contract_tokenid(
         if royalty_creator_result.is_ok() {
             let royalty_creator_result_unwrap = royalty_creator_result.unwrap();
             royalty_creator = Some(PayoutMsg {
-                creator: deps.api.human_address(&royalty_creator_result_unwrap.0)?,
+                creator: deps.api.addr_humanize(&royalty_creator_result_unwrap.0)?,
                 royalty: royalty_creator_result_unwrap.1,
             })
         }
@@ -629,8 +629,8 @@ pub fn query_offering_by_contract_tokenid(
             id: u64::from_be_bytes(offering_obj.0.try_into().unwrap()),
             token_id: offering_result.token_id,
             price: offering_result.price,
-            contract_addr: deps.api.human_address(&offering_result.contract_addr)?,
-            seller: deps.api.human_address(&offering_result.seller)?,
+            contract_addr: deps.api.addr_humanize(&offering_result.contract_addr)?,
+            seller: deps.api.addr_humanize(&offering_result.seller)?,
             royalty_creator: royalty_creator,
             royalty_owner: offering_result.royalty,
         };
@@ -645,10 +645,10 @@ pub fn query_payouts_by_contract_tokenid(
     contract: Addr,
     token_id: String,
 ) -> StdResult<PayoutMsg> {
-    let contract_raw = deps.api.canonical_address(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(&contract)?;
     let royalty = royalties_read(deps.storage, &contract_raw).load(token_id.as_bytes())?;
     Ok(PayoutMsg {
-        creator: deps.api.human_address(&royalty.0)?,
+        creator: deps.api.addr_humanize(&royalty.0)?,
         royalty: royalty.1,
     })
 }
@@ -673,7 +673,7 @@ fn parse_offering<'a>(
         if royalty_result.is_ok() {
             let royalty_result_unwrap = royalty_result.unwrap();
             royalty_creator = Some(PayoutMsg {
-                creator: api.human_address(&royalty_result_unwrap.0)?,
+                creator: api.addr_humanize(&royalty_result_unwrap.0)?,
                 royalty: royalty_result_unwrap.1,
             });
         }
@@ -681,8 +681,8 @@ fn parse_offering<'a>(
             id,
             token_id: offering.token_id,
             price: offering.price,
-            contract_addr: api.human_address(&offering.contract_addr)?,
-            seller: api.human_address(&offering.seller)?,
+            contract_addr: api.addr_humanize(&offering.contract_addr)?,
+            seller: api.addr_humanize(&offering.seller)?,
             royalty_creator,
             royalty_owner,
         })

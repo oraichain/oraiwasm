@@ -194,7 +194,7 @@ mod test {
     use super::{OldConfig, OLD_CONFIG_KEY};
 
     fn setup_old_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-        let mut deps = mock_dependencies(&coins(100000, "orai"));
+        let mut deps = mock_dependencies_with_balance(&coins(100000, "orai"));
         deps.api.canonical_length = 54;
 
         OLD_EXECUTORS_TRUSTING_POOL
@@ -215,15 +215,15 @@ mod test {
             .save(
                 &mut deps.storage,
                 &OldConfig {
-                    owner: Addr::from("foobar"),
-                    service_addr: Addr::from("foobar"),
+                    owner: Addr::unchecked("foobar"),
+                    service_addr: Addr::unchecked("foobar"),
                     contract_fee: Coin {
                         amount: Uint128::from(0u64),
                         denom: String::from("foobar"),
                     },
                     checkpoint_threshold: 100,
                     max_req_threshold: 100,
-                    ping_contract: Addr::from("foobar"),
+                    ping_contract: Addr::unchecked("foobar"),
                     trusting_period: 100,
                 },
             )
@@ -241,7 +241,7 @@ mod test {
                     rewards: vec![],
                     submit_merkle_height: 0u64,
                     request_height: 0u64,
-                    requester: Addr::from("hello"),
+                    requester: Addr::unchecked("hello"),
                 },
             )
             .unwrap();
@@ -252,7 +252,7 @@ mod test {
     // #[test]
     // fn test_migrate() {
     //     let mut deps = setup_old_contract();
-    //     let info = mock_info(Addr::from("foobar"), &[]);
+    //     let info = mock_info(Addr::unchecked("foobar"), &[]);
     //     migrate(
     //         deps.as_mut(),
     //         mock_env(),

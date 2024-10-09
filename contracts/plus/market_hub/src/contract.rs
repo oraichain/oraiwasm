@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, to_json_binary, Api, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env, Response,
-    Addr, Response, MessageInfo, StdError, StdResult, WasmMsg,
+    attr, to_json_binary, Addr, Api, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Response, Response, StdError, StdResult, WasmMsg,
 };
 
 use crate::error::ContractError;
@@ -9,12 +9,17 @@ use crate::state::{admin_list, admin_list_read, registry, registry_read};
 use market::{query_proxy, AdminList, Registry, StorageExecuteMsg, StorageQueryMsg};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn instantiate(deps: DepsMut, _env: Env, info: MessageInfo, msg: InstantiateMsg) -> StdResult<Response> {
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
     // list of whitelist
     let cfg = AdminList {
         admins: map_canonical(deps.api, &msg.admins)?,
         mutable: msg.mutable,
-        owner: deps.api.canonical_address(&info.sender)?,
+        owner: deps.api.addr_canonicalize(&info.sender)?,
     };
     admin_list(deps.storage).save(&cfg)?;
     // storage must appear before implementation, each time update storage, may need to update implementation if the storages is different,
@@ -30,12 +35,12 @@ pub fn instantiate(deps: DepsMut, _env: Env, info: MessageInfo, msg: Instantiate
 fn map_canonical(api: &dyn Api, admins: &[Addr]) -> StdResult<Vec<CanonicalAddr>> {
     admins
         .iter()
-        .map(|addr| api.canonical_address(addr))
+        .map(|addr| api.addr_canonicalize(addr))
         .collect()
 }
 
 fn map_human(api: &dyn Api, admins: &[CanonicalAddr]) -> StdResult<Vec<Addr>> {
-    admins.iter().map(|addr| api.human_address(addr)).collect()
+    admins.iter().map(|addr| api.addr_humanize(addr)).collect()
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -54,7 +59,9 @@ pub fn execute(
         ExecuteMsg::RemoveImplementation { implementation } => {
             handle_remove_implementation(deps, env, info, implementation)
         }
-        ExecuteMsg::UpdateStorages { storages } => handle_update_storages(deps, env, info, storages),
+        ExecuteMsg::UpdateStorages { storages } => {
+            handle_update_storages(deps, env, info, storages)
+        }
         ExecuteMsg::Freeze {} => handle_freeze(deps, env, info),
         ExecuteMsg::UpdateAdmins { admins } => handle_update_admins(deps, env, info, admins),
         ExecuteMsg::Storage(storage_msg) => match storage_msg {
@@ -155,7 +162,7 @@ pub fn handle_update_storage_data(
 ) -> Result<Response, ContractError> {
     let registry_obj = registry_read(deps.storage).load()?;
     let admin_list = admin_list_read(deps.storage).load()?;
-    let sender_canonical = deps.api.canonical_address(&info.sender)?;
+    let sender_canonical = deps.api.addr_canonicalize(&info.sender)?;
 
     let can_update = registry_obj
         .implementations
@@ -194,7 +201,7 @@ pub fn handle_freeze(
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
     let mut cfg = admin_list_read(deps.storage).load()?;
-    if !cfg.can_modify(&deps.api.canonical_address(&info.sender)?) {
+    if !cfg.can_modify(&deps.api.addr_canonicalize(&info.sender)?) {
         Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
         })
@@ -215,7 +222,7 @@ pub fn handle_update_admins(
     admins: Vec<Addr>,
 ) -> Result<Response, ContractError> {
     let mut cfg = admin_list_read(deps.storage).load()?;
-    if !cfg.can_modify(&deps.api.canonical_address(&info.sender)?) {
+    if !cfg.can_modify(&deps.api.addr_canonicalize(&info.sender)?) {
         Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
         })
@@ -231,7 +238,7 @@ pub fn handle_update_admins(
 
 fn can_execute(deps: Deps, sender: &Addr) -> StdResult<bool> {
     let cfg = admin_list_read(deps.storage).load()?;
-    let can = cfg.is_admin(&deps.api.canonical_address(sender)?);
+    let can = cfg.is_admin(&deps.api.addr_canonicalize(sender)?);
     Ok(can)
 }
 
@@ -254,7 +261,7 @@ pub fn query_admin_list(deps: Deps) -> StdResult<AdminListResponse> {
     Ok(AdminListResponse {
         admins: map_human(deps.api, &cfg.admins)?,
         mutable: cfg.mutable,
-        owner: deps.api.human_address(&cfg.owner)?,
+        owner: deps.api.addr_humanize(&cfg.owner)?,
     })
 }
 
@@ -293,13 +300,13 @@ mod tests {
 
     #[test]
     fn init_and_modify_config() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
-        let alice = Addr::from("alice");
-        let bob = Addr::from("bob");
-        let carl = Addr::from("carl");
-        let owner = Addr::from("tupt");
-        let anyone = Addr::from("anyone");
+        let alice = Addr::unchecked("alice");
+        let bob = Addr::unchecked("bob");
+        let carl = Addr::unchecked("carl");
+        let owner = Addr::unchecked("tupt");
+        let anyone = Addr::unchecked("anyone");
 
         // init the contract
         let init_msg = InstantiateMsg {
@@ -309,7 +316,7 @@ mod tests {
             mutable: true,
         };
         let info = mock_info(&owner, &[]);
-        init(deps.as_mut(), mock_env(), info, init_msg).unwrap();
+        instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
         // ensure expected config
         let expected = AdminListResponse {
@@ -324,7 +331,7 @@ mod tests {
             admins: vec![anyone.clone()],
         };
         let info = mock_info(&anyone, &[]);
-        let res = handle(deps.as_mut(), mock_env(), info, msg);
+        let res = execute(deps.as_mut(), mock_env(), info, msg);
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
             e => panic!("unexpected error: {}", e),
@@ -335,7 +342,7 @@ mod tests {
             admins: vec![alice.clone(), bob.clone()],
         };
         let info = mock_info(&alice, &[]);
-        handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+        execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // ensure expected config
         let expected = AdminListResponse {
@@ -347,7 +354,7 @@ mod tests {
 
         // carl cannot freeze it
         let info = mock_info(&carl, &[]);
-        let res = handle(deps.as_mut(), mock_env(), info, ExecuteMsg::Freeze {});
+        let res = execute(deps.as_mut(), mock_env(), info, ExecuteMsg::Freeze {});
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
             e => panic!("unexpected error: {}", e),
@@ -355,7 +362,7 @@ mod tests {
 
         // but bob can
         let info = mock_info(&bob, &[]);
-        handle(deps.as_mut(), mock_env(), info, ExecuteMsg::Freeze {}).unwrap();
+        execute(deps.as_mut(), mock_env(), info, ExecuteMsg::Freeze {}).unwrap();
         let expected = AdminListResponse {
             admins: vec![alice.clone(), bob.clone()],
             owner: owner.clone(),
@@ -368,7 +375,7 @@ mod tests {
             admins: vec![alice.clone()],
         };
         let info = mock_info(&alice, &[]);
-        let res = handle(deps.as_mut(), mock_env(), info, msg);
+        let res = execute(deps.as_mut(), mock_env(), info, msg);
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
             e => panic!("unexpected error: {}", e),
@@ -377,12 +384,12 @@ mod tests {
 
     #[test]
     fn execute_messages_has_proper_permissions() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
-        let alice = Addr::from("alice");
-        let bob = Addr::from("bob");
-        let carl = Addr::from("carl");
-        let owner = Addr::from("tupt");
+        let alice = Addr::unchecked("alice");
+        let bob = Addr::unchecked("bob");
+        let carl = Addr::unchecked("carl");
+        let owner = Addr::unchecked("tupt");
 
         // init the contract
         let init_msg = InstantiateMsg {
@@ -392,11 +399,11 @@ mod tests {
             mutable: false,
         };
         let info = mock_info(&owner, &[]);
-        init(deps.as_mut(), mock_env(), info, init_msg).unwrap();
+        instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
         // carl cannot freeze it
         let info = mock_info(&carl, &[]);
-        let res = handle(deps.as_mut(), mock_env(), info, ExecuteMsg::Freeze {});
+        let res = execute(deps.as_mut(), mock_env(), info, ExecuteMsg::Freeze {});
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
             e => panic!("unexpected error: {}", e),
@@ -404,12 +411,12 @@ mod tests {
 
         // make some nice message
         let handle_msg = ExecuteMsg::UpdateImplementation {
-            implementation: Addr::from("market"),
+            implementation: Addr::unchecked("market"),
         };
 
         // bob cannot execute them
         let info = mock_info(&bob, &[]);
-        let res = handle(deps.as_mut(), mock_env(), info, handle_msg.clone());
+        let res = execute(deps.as_mut(), mock_env(), info, handle_msg.clone());
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
             e => panic!("unexpected error: {}", e),
@@ -417,7 +424,7 @@ mod tests {
 
         // but carl can
         let info = mock_info(&carl, &[]);
-        let res = handle(deps.as_mut(), mock_env(), info, handle_msg.clone()).unwrap();
+        let res = execute(deps.as_mut(), mock_env(), info, handle_msg.clone()).unwrap();
         assert_eq!(
             res.attributes,
             vec![attr("action", "update_implementation")]
@@ -426,12 +433,12 @@ mod tests {
 
     #[test]
     fn can_execute_query_works() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
-        let alice = Addr::from("alice");
-        let bob = Addr::from("bob");
-        let owner = Addr::from("tupt");
-        let anyone = Addr::from("anyone");
+        let alice = Addr::unchecked("alice");
+        let bob = Addr::unchecked("bob");
+        let owner = Addr::unchecked("tupt");
+        let anyone = Addr::unchecked("anyone");
 
         // init the contract
         let init_msg = InstantiateMsg {
@@ -441,7 +448,7 @@ mod tests {
             mutable: false,
         };
         let info = mock_info(&owner, &[]);
-        init(deps.as_mut(), mock_env(), info, init_msg).unwrap();
+        instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
         // owner can send
         let res = query_can_execute(deps.as_ref(), alice.clone()).unwrap();

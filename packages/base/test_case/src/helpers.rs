@@ -4,7 +4,7 @@ use crate::msg::{
 };
 use crate::state::{FEES, OWNER, TEST_CASES};
 use cosmwasm_std::{
-    from_binary, from_slice, to_json_binary, Addr, Api, Binary, Deps, DepsMut, Env, MessageInfo,
+    from_binary, from_json, to_json_binary, Addr, Api, Binary, Deps, DepsMut, Env, MessageInfo,
     Order, Response, Response, StdResult, KV,
 };
 use cw_storage_plus::Bound;
@@ -156,7 +156,7 @@ fn parse_testcase(_api: &dyn Api, item: StdResult<KV<String>>) -> StdResult<Test
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array
         Ok(TestCaseMsg {
-            parameters: from_slice(&parameters)?,
+            parameters: from_json(&parameters)?,
             expected_output,
         })
     })
@@ -212,7 +212,7 @@ fn query_testcases(
 mod tests {
     use std::vec;
 
-    // use cosmwasm_std::from_slice;
+    // use cosmwasm_std::from_json;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
     use cosmwasm_std::{coin, coins, from_binary};
 
@@ -227,7 +227,7 @@ mod tests {
 
     #[test]
     fn query_list_test_cases() {
-        let mut deps = mock_dependencies(&coins(5, "orai"));
+        let mut deps = mock_dependencies_with_balance(&coins(5, "orai"));
         let mut test_cases = vec![];
 
         for i in 0..1000 {

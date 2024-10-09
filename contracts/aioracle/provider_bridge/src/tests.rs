@@ -191,9 +191,9 @@ fn exec_update_service_contract() {
             &ExecuteMsg::UpdateServiceContracts {
                 service: SERVICE_NAME.to_string(),
                 contracts: Contracts {
-                    dsources: vec![Addr::from("d1")],
-                    tcases: vec![Addr::from("t1")],
-                    oscript: Addr::from("o1"),
+                    dsources: vec![Addr::unchecked("d1")],
+                    tcases: vec![Addr::unchecked("t1")],
+                    oscript: Addr::unchecked("o1"),
                 },
             },
             &[],
@@ -212,9 +212,9 @@ fn exec_update_service_contract() {
      * testcase 3
      * exec handle service contract pass update
      */
-    let dsource_new = Addr::from("d2");
-    let tcases_new = Addr::from("t2");
-    let oscript_new = Addr::from("o2");
+    let dsource_new = Addr::unchecked("d2");
+    let tcases_new = Addr::unchecked("t2");
+    let oscript_new = Addr::unchecked("o2");
     app.execute_contract(
         PROVIDER_OWNER,
         &provider_contract,

@@ -20,13 +20,13 @@ const CREATOR: &str = "marketplace";
 const DENOM: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
     let msg = InstantiateMsg {
-        governance: Addr::from("market_hub"),
+        governance: Addr::unchecked("market_hub"),
     };
     let info = mock_info(CREATOR, &[]);
-    let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
     deps
 }
@@ -51,20 +51,20 @@ fn remove_offering_payment() {
     let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
 
     let msg = ExecuteMsg::Msg(PaymentExecuteMsg::UpdateOfferingPayment(Payment {
-        contract_addr: Addr::from("abc"),
+        contract_addr: Addr::unchecked("abc"),
         token_id: "foobar".into(),
         asset_info: AssetInfo::NativeToken {
             denom: "foobar".into(),
         },
         sender: None,
     }));
-    let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let res = query(
         deps.as_ref(),
         mock_env(),
         QueryMsg::Msg(PaymentQueryMsg::GetOfferingPayment {
-            contract_addr: Addr::from("abc"),
+            contract_addr: Addr::unchecked("abc"),
             token_id: "foobar".into(),
             sender: None,
         }),
@@ -74,17 +74,17 @@ fn remove_offering_payment() {
     println!("value: {:?}", value);
 
     let msg = ExecuteMsg::Msg(PaymentExecuteMsg::RemoveOfferingPayment {
-        contract_addr: Addr::from("abc"),
+        contract_addr: Addr::unchecked("abc"),
         token_id: "foobar".into(),
         sender: None,
     });
-    let _ = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    let _ = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let bin = query(
         deps.as_ref(),
         mock_env(),
         QueryMsg::Msg(PaymentQueryMsg::GetOfferingPayment {
-            contract_addr: Addr::from("abc"),
+            contract_addr: Addr::unchecked("abc"),
             token_id: "foobar".into(),
             sender: None,
         }),
@@ -104,20 +104,20 @@ fn check_query_offering_1155_payments() {
     for i in 1..10 {
         let sender_info = mock_info(format!("foobar{}", i), &vec![coin(50, DENOM)]);
         let msg = ExecuteMsg::Msg(PaymentExecuteMsg::UpdateOfferingPayment(Payment {
-            contract_addr: Addr::from("abc"),
+            contract_addr: Addr::unchecked("abc"),
             token_id: "foobar".into(),
             asset_info: AssetInfo::NativeToken {
                 denom: format!("denom_foobar{}", i),
             },
             sender: Some(sender_info.sender.clone()),
         }));
-        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
     }
 
     let payment_key: PaymentKey = PaymentKey {
-        contract_addr: Addr::from("abc"),
+        contract_addr: Addr::unchecked("abc"),
         token_id: "foobar".into(),
-        sender: Some(Addr::from("foobar2")),
+        sender: Some(Addr::unchecked("foobar2")),
     };
 
     let res = query(
@@ -144,14 +144,14 @@ fn check_query_offering_721_payments() {
     // if no sender & token id is the same => can only create one offering payment
     for i in 1..10 {
         let msg = ExecuteMsg::Msg(PaymentExecuteMsg::UpdateOfferingPayment(Payment {
-            contract_addr: Addr::from("abc"),
+            contract_addr: Addr::unchecked("abc"),
             token_id: "foobar".into(),
             asset_info: AssetInfo::NativeToken {
                 denom: format!("denom_foobar{}", i),
             },
             sender: None,
         }));
-        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
     }
 
     let res = query(
@@ -170,14 +170,14 @@ fn check_query_offering_721_payments() {
 
     for i in 1..10 {
         let msg = ExecuteMsg::Msg(PaymentExecuteMsg::UpdateOfferingPayment(Payment {
-            contract_addr: Addr::from("abc"),
+            contract_addr: Addr::unchecked("abc"),
             token_id: format!("foobar{}", i),
             asset_info: AssetInfo::NativeToken {
                 denom: format!("denom_foobar{}", i),
             },
             sender: None,
         }));
-        let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
     }
 
     let res = query(
@@ -202,20 +202,20 @@ fn remove_auction_payment() {
     let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
 
     let msg = ExecuteMsg::Msg(PaymentExecuteMsg::UpdateAuctionPayment(Payment {
-        contract_addr: Addr::from("abc"),
+        contract_addr: Addr::unchecked("abc"),
         token_id: "foobar".into(),
         asset_info: AssetInfo::NativeToken {
             denom: "foobar".into(),
         },
         sender: Some(info.sender.clone()),
     }));
-    let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let res = query(
         deps.as_ref(),
         mock_env(),
         QueryMsg::Msg(PaymentQueryMsg::GetAuctionPayment {
-            contract_addr: Addr::from("abc"),
+            contract_addr: Addr::unchecked("abc"),
             token_id: "foobar".into(),
             sender: None,
         }),
@@ -225,17 +225,17 @@ fn remove_auction_payment() {
     println!("value: {:?}", value);
 
     let msg = ExecuteMsg::Msg(PaymentExecuteMsg::RemoveAuctionPayment {
-        contract_addr: Addr::from("abc"),
+        contract_addr: Addr::unchecked("abc"),
         token_id: "foobar".into(),
         sender: None,
     });
-    let _ = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    let _ = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let bin = query(
         deps.as_ref(),
         mock_env(),
         QueryMsg::Msg(PaymentQueryMsg::GetAuctionPayment {
-            contract_addr: Addr::from("abc"),
+            contract_addr: Addr::unchecked("abc"),
             token_id: "foobar".into(),
             sender: None,
         }),
@@ -251,7 +251,7 @@ fn update_info_test() {
 
     // update contract to set fees
     let update_info = UpdateContractMsg {
-        governance: Some(Addr::from("asvx")),
+        governance: Some(Addr::unchecked("asvx")),
         creator: None,
         default_denom: None,
     };
@@ -260,7 +260,7 @@ fn update_info_test() {
     // random account cannot update info, only creator
     let info_unauthorized = mock_info("anyone", &vec![coin(5, DENOM)]);
 
-    let mut response = handle(
+    let mut response = execute(
         deps.as_mut(),
         mock_env(),
         info_unauthorized.clone(),
@@ -271,11 +271,11 @@ fn update_info_test() {
 
     // now we can update the info using creator
     let info = mock_info(CREATOR, &[]);
-    response = handle(deps.as_mut(), mock_env(), info, update_info_msg.clone());
+    response = execute(deps.as_mut(), mock_env(), info, update_info_msg.clone());
     assert_eq!(response.is_err(), false);
 
     let query_info = QueryMsg::GetContractInfo {};
     let res_info: ContractInfo =
         from_binary(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
-    assert_eq!(res_info.governance.as_str(), Addr::from("asvx"));
+    assert_eq!(res_info.governance.as_str(), Addr::unchecked("asvx"));
 }

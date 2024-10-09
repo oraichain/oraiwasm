@@ -5,10 +5,10 @@ use crate::state::{
     CONTRACT_INFO,
 };
 use cosmwasm_std::{
-    attr, to_json_binary, Binary, CanonicalAddr, Deps, DepsMut, Env, Response, Response,
-    MessageInfo, Order, StdError, StdResult,
+    attr, to_json_binary, Binary, CanonicalAddr, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    Response, StdError, StdResult,
 };
-use cosmwasm_std::{Api, Addr, KV};
+use cosmwasm_std::{Addr, Api, KV};
 use cw_storage_plus::Bound;
 use market_auction_extend::{
     Auction, AuctionExecuteMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions,
@@ -148,7 +148,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         // implement Query Auction from market base
         QueryMsg::Msg(auction_query) => match auction_query {
-            AuctionQueryMsg::GetAuctions { options } => to_json_binary(&query_auctions(deps, &options)?),
+            AuctionQueryMsg::GetAuctions { options } => {
+                to_json_binary(&query_auctions(deps, &options)?)
+            }
             AuctionQueryMsg::GetAuctionsByBidder { bidder, options } => {
                 to_json_binary(&query_auctions_by_bidder(deps, bidder, &options)?)
             }
@@ -219,7 +221,7 @@ pub fn query_auctions_by_asker(
     options: &PagingOptions,
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
-    let asker_raw = deps.api.canonical_address(&asker)?;
+    let asker_raw = deps.api.addr_canonicalize(&asker)?;
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .asker
@@ -239,7 +241,7 @@ pub fn query_auctions_by_bidder(
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
     let bidder_raw = match bidder {
-        Some(addr) => deps.api.canonical_address(&addr)?,
+        Some(addr) => deps.api.addr_canonicalize(&addr)?,
         None => CanonicalAddr::default(),
     };
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
@@ -259,7 +261,7 @@ pub fn query_auctions_by_contract(
     options: &PagingOptions,
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
-    let contract_raw = deps.api.canonical_address(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(&contract)?;
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .contract
@@ -288,7 +290,7 @@ pub fn query_auctions_by_contract_tokenid(
     options: &PagingOptions,
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
-    let contract_raw = deps.api.canonical_address(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(&contract)?;
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .contract_token_id
@@ -312,8 +314,8 @@ pub fn query_unique_auction(
     token_id: String,
     owner: Addr,
 ) -> StdResult<QueryAuctionsResult> {
-    let contract_raw = deps.api.canonical_address(&contract)?;
-    let owner_raw = deps.api.canonical_address(&owner)?;
+    let contract_raw = deps.api.addr_canonicalize(&contract)?;
+    let owner_raw = deps.api.addr_canonicalize(&owner)?;
     if let Some(kv_item) = auctions()
         .idx
         .unique_key
@@ -340,12 +342,12 @@ fn parse_auction(api: &dyn Api, item: StdResult<KV<Auction>>) -> StdResult<Query
         let id: u64 = u64::from_be_bytes(k.try_into().unwrap());
         Ok(QueryAuctionsResult {
             id,
-            contract_addr: api.human_address(&auction.contract_addr)?,
-            asker: api.human_address(&auction.asker)?,
+            contract_addr: api.addr_humanize(&auction.contract_addr)?,
+            asker: api.addr_humanize(&auction.asker)?,
             // bidder can be None
             bidder: auction
                 .bidder
-                .map(|can_addr| api.human_address(&can_addr).unwrap_or_default()),
+                .map(|can_addr| api.addr_humanize(&can_addr).unwrap_or_default()),
             token_id: auction.token_id,
             per_price: auction.per_price,
             orig_per_price: auction.orig_per_price,

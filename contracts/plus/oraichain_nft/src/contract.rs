@@ -37,8 +37,8 @@ pub fn instantiate(
         version: msg.version.unwrap_or(CONTRACT_VERSION.to_string()),
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    let minter = deps.api.canonical_address(&msg.minter)?;
-    let owner = deps.api.canonical_address(&msg_info.sender)?;
+    let minter = deps.api.addr_canonicalize(&msg.minter)?;
+    let owner = deps.api.addr_canonicalize(&msg_info.sender)?;
     MINTER.save(deps.storage, &minter)?;
     OWNER.save(deps.storage, &owner)?;
     Ok(Response::default())
@@ -107,7 +107,7 @@ pub fn handle_mint(
     msg: MintMsg,
 ) -> Result<Response, ContractError> {
     let minter = MINTER.load(deps.storage)?;
-    let sender_raw = deps.api.canonical_address(&info.sender)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
 
     if sender_raw != minter {
         return Err(ContractError::Unauthorized {});
@@ -122,7 +122,7 @@ pub fn handle_mint(
 
     // create the token
     let token = TokenInfo {
-        owner: deps.api.canonical_address(&msg.owner)?,
+        owner: deps.api.addr_canonicalize(&msg.owner)?,
         approvals: vec![],
         name,
         description,
@@ -203,7 +203,7 @@ pub fn handle_update_nft(
     description: Option<String>,
     image: Option<String>,
 ) -> Result<Response, ContractError> {
-    let sender_raw = deps.api.canonical_address(&info.sender)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
 
     // update name and description if existed
     tokens().update(deps.storage, &token_id, |old| match old {
@@ -271,7 +271,7 @@ pub fn _transfer_nft(
     // ensure we have permissions
     check_can_send(deps.as_ref(), env, info, &token)?;
     // set owner and remove existing approvals
-    token.owner = deps.api.canonical_address(recipient)?;
+    token.owner = deps.api.addr_canonicalize(recipient)?;
     token.approvals = vec![];
     tokens().save(deps.storage, &token_id, &token)?;
     Ok(token)
@@ -335,7 +335,7 @@ pub fn _update_approvals(
     check_can_approve(deps.as_ref(), env, info, &token)?;
 
     // update the approval list (remove any for the same spender before adding)
-    let spender_raw = deps.api.canonical_address(&spender)?;
+    let spender_raw = deps.api.addr_canonicalize(&spender)?;
     token.approvals = token
         .approvals
         .into_iter()
@@ -375,8 +375,8 @@ pub fn handle_approve_all(
     }
 
     // set the operator for us
-    let sender_raw = deps.api.canonical_address(&info.sender)?;
-    let operator_raw = deps.api.canonical_address(&operator)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
+    let operator_raw = deps.api.addr_canonicalize(&operator)?;
     OPERATORS.save(deps.storage, (&sender_raw, &operator_raw), &expires)?;
 
     Ok(Response {
@@ -396,8 +396,8 @@ pub fn handle_revoke_all(
     info: MessageInfo,
     operator: Addr,
 ) -> Result<Response, ContractError> {
-    let sender_raw = deps.api.canonical_address(&info.sender)?;
-    let operator_raw = deps.api.canonical_address(&operator)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
+    let operator_raw = deps.api.addr_canonicalize(&operator)?;
     OPERATORS.remove(deps.storage, (&sender_raw, &operator_raw));
 
     Ok(Response {
@@ -417,12 +417,12 @@ pub fn handle_change_minter(
     info: MessageInfo,
     minter: Addr,
 ) -> Result<Response, ContractError> {
-    let owner_raw = deps.api.canonical_address(&info.sender)?;
+    let owner_raw = deps.api.addr_canonicalize(&info.sender)?;
     let owner = OWNER.load(deps.storage)?;
     if !owner.eq(&owner_raw) {
         return Err(ContractError::Unauthorized {});
     }
-    let minter = deps.api.canonical_address(&minter)?;
+    let minter = deps.api.addr_canonicalize(&minter)?;
     MINTER.save(deps.storage, &minter)?;
     Ok(Response {
         messages: vec![],
@@ -443,7 +443,7 @@ fn check_can_approve(
     token: &TokenInfo,
 ) -> Result<(), ContractError> {
     // owner can approve
-    let sender_raw = deps.api.canonical_address(&info.sender)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
     let owner_raw = OWNER.load(deps.storage)?;
     if sender_raw.eq(&owner_raw) {
         return Ok(());
@@ -473,7 +473,7 @@ fn check_can_send(
     token: &TokenInfo,
 ) -> Result<(), ContractError> {
     // owner can send
-    let sender_raw = deps.api.canonical_address(&info.sender)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
     let owner_raw = OWNER.load(deps.storage)?;
     if sender_raw.eq(&owner_raw) {
         return Ok(());
@@ -558,7 +558,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 fn query_minter(deps: Deps) -> StdResult<MinterResponse> {
     let minter_raw = MINTER.load(deps.storage)?;
-    let minter = deps.api.human_address(&minter_raw)?;
+    let minter = deps.api.addr_humanize(&minter_raw)?;
     Ok(MinterResponse { minter })
 }
 
@@ -588,7 +588,7 @@ fn query_owner_of(
 ) -> StdResult<OwnerOfResponse> {
     let info = tokens().load(deps.storage, &token_id)?;
     Ok(OwnerOfResponse {
-        owner: deps.api.human_address(&info.owner)?,
+        owner: deps.api.addr_humanize(&info.owner)?,
         approvals: humanize_approvals(deps.api, &env.block, &info, include_expired)?,
     })
 }
@@ -604,11 +604,11 @@ fn query_all_approvals(
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     // transpose option result into option
     let start_canon = start_after
-        .map(|x| deps.api.canonical_address(&x))
+        .map(|x| deps.api.addr_canonicalize(&x))
         .transpose()?;
     let start = start_canon.map(Bound::exclusive);
 
-    let owner_raw = deps.api.canonical_address(&owner)?;
+    let owner_raw = deps.api.addr_canonicalize(&owner)?;
     let res: StdResult<Vec<_>> = OPERATORS
         .prefix(&owner_raw)
         .range(deps.storage, start, None, Order::Ascending)
@@ -621,7 +621,7 @@ fn query_all_approvals(
 
 fn parse_approval(api: &dyn Api, item: StdResult<KV<Expiration>>) -> StdResult<cw721::Approval> {
     item.and_then(|(k, expires)| {
-        let spender = api.human_address(&k.into())?;
+        let spender = api.addr_humanize(&k.into())?;
         Ok(cw721::Approval { spender, expires })
     })
 }
@@ -635,7 +635,7 @@ fn query_tokens(
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = start_after.map(Bound::exclusive);
 
-    let owner_raw = deps.api.canonical_address(&owner)?;
+    let owner_raw = deps.api.addr_canonicalize(&owner)?;
     let tokens: Result<Vec<String>, _> = tokens()
         .idx
         .owner
@@ -672,7 +672,7 @@ fn query_all_nft_info(
     let info = tokens().load(deps.storage, &token_id)?;
     Ok(AllNftInfoResponse {
         access: OwnerOfResponse {
-            owner: deps.api.human_address(&info.owner)?,
+            owner: deps.api.addr_humanize(&info.owner)?,
             approvals: humanize_approvals(deps.api, &env.block, &info, include_expired)?,
         },
         info: NftInfoResponse {
@@ -697,7 +697,7 @@ fn humanize_approvals(
 
 fn humanize_approval(api: &dyn Api, approval: &Approval) -> StdResult<cw721::Approval> {
     Ok(cw721::Approval {
-        spender: api.human_address(&approval.spender)?,
+        spender: api.addr_humanize(&approval.spender)?,
         expires: approval.expires,
     })
 }

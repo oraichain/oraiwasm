@@ -1,6 +1,6 @@
 use aioracle_base::{Executor, GetServiceFeesMsg, Reward, ServiceMsg};
 use cosmwasm_std::{
-    attr, from_slice, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
+    attr, from_json, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
     DepsMut, Env, MessageInfo, MigrateResponse, Order, Response, Response, StdError, StdResult,
     Uint128, KV,
 };
@@ -303,7 +303,7 @@ pub fn handle_request(
 
     if !bound_executor_fee.amount.is_zero() {
         rewards.push((
-            Addr::from("placeholder"),
+            Addr::unchecked("placeholder"),
             bound_executor_fee.denom,
             bound_executor_fee.amount,
         ));
@@ -378,7 +378,7 @@ pub fn handle_submit_evidence(
         return Err(ContractError::Unauthorized {});
     }
 
-    let report_struct: Report = from_slice(report.as_slice())
+    let report_struct: Report = from_json(report.as_slice())
         .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
 
     // check evidence, only allow evidence per executor

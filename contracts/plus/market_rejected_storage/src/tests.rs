@@ -8,21 +8,21 @@ use cosmwasm_std::testing::{
 use cosmwasm_std::{coins, from_binary, to_json_binary, Addr, OwnedDeps};
 
 use market_rejected::{
-    Expiration, IsRejectedForAllResponse, MarketRejectedExecuteMsg, MarketRejectedQueryMsg, NftInfo,
-    RejectedForAllResponse,
+    Expiration, IsRejectedForAllResponse, MarketRejectedExecuteMsg, MarketRejectedQueryMsg,
+    NftInfo, RejectedForAllResponse,
 };
 
 const CREATOR: &str = "marketplace";
 const DENOM: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
     let msg = InstantiateMsg {
-        governance: Addr::from("market_hub"),
+        governance: Addr::unchecked("market_hub"),
     };
     let info = mock_info(CREATOR, &[]);
-    let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
     deps
 }
@@ -33,26 +33,26 @@ fn update_info() {
     // update info unauthorized
     let info = mock_info("hacker", &[]);
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             info,
             ExecuteMsg::UpdateInfo(UpdateContractMsg {
-                governance: Some(Addr::from("some gov")),
-                creator: Some(Addr::from("not creator")),
+                governance: Some(Addr::unchecked("some gov")),
+                creator: Some(Addr::unchecked("not creator")),
             }),
         ),
         Err(ContractError::Unauthorized { .. })
     ));
 
     // shall pass
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         mock_info(CREATOR, &[]),
         ExecuteMsg::UpdateInfo(UpdateContractMsg {
-            governance: Some(Addr::from("some gov")),
-            creator: Some(Addr::from("not creator")),
+            governance: Some(Addr::unchecked("some gov")),
+            creator: Some(Addr::unchecked("not creator")),
         }),
     )
     .unwrap();
@@ -61,8 +61,8 @@ fn update_info() {
     let contract_info: ContractInfo =
         from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::GetContractInfo {}).unwrap())
             .unwrap();
-    assert_eq!(contract_info.governance, Addr::from("some gov"));
-    assert_eq!(contract_info.creator, Addr::from("not creator"));
+    assert_eq!(contract_info.governance, Addr::unchecked("some gov"));
+    assert_eq!(contract_info.creator, Addr::unchecked("not creator"));
 }
 
 #[test]
@@ -72,7 +72,7 @@ fn test_reject_all() {
     // unauthorized reject
     let info = mock_info(CREATOR, &[]);
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info("hacker", &[]),
@@ -89,7 +89,7 @@ fn test_reject_all() {
 
     // expire case
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info("market_hub", &[]),
@@ -105,7 +105,7 @@ fn test_reject_all() {
     ));
 
     // valid case
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         info,
@@ -177,7 +177,7 @@ fn test_query_rejects() {
 
     for nft_info in nft_infos {
         // valid case
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             info.clone(),
@@ -274,7 +274,7 @@ fn test_revoke_all() {
     let info = mock_info(CREATOR, &[]);
 
     // valid case
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         info.clone(),
@@ -290,7 +290,7 @@ fn test_revoke_all() {
 
     // release all unauthorized
     assert!(matches!(
-        handle(
+        execute(
             deps.as_mut(),
             mock_env(),
             mock_info("hacker", &[]),
@@ -305,7 +305,7 @@ fn test_revoke_all() {
     ));
 
     // valid case
-    handle(
+    execute(
         deps.as_mut(),
         mock_env(),
         info,

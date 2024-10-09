@@ -542,7 +542,7 @@ mod tests {
             fee: None,
         };
 
-        let res = init(deps, mock_env(), info, msg).unwrap();
+        let res = instantiate(deps, mock_env(), info, msg).unwrap();
 
         return res;
     }
@@ -558,7 +558,7 @@ mod tests {
             share: ShareMsg { sks, verifications },
         };
 
-        let res = handle(deps, mock_env(), info, msg).unwrap();
+        let res = execute(deps, mock_env(), info, msg).unwrap();
 
         return res;
     }
@@ -579,7 +579,7 @@ mod tests {
 
     #[test]
     fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         deps.api.canonical_length = 54;
         let res = initialization(deps.as_mut());
         assert_eq!(res.messages.len(), 0);
@@ -617,7 +617,7 @@ mod tests {
         let msg = ExecuteMsg::RequestRandom {
             input: Binary::from_base64("aGVsbG8=").unwrap(),
         };
-        handle(deps.as_mut(), mock_env(), info, msg).unwrap();
+        execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         let ret = query(deps.as_ref(), mock_env(), QueryMsg::LatestRound {}).unwrap();
         println!("Latest round{}", String::from_utf8(ret.to_vec()).unwrap())

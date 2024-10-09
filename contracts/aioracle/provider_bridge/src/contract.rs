@@ -194,7 +194,7 @@ fn get_service_fees(_deps: Deps, _service: String) -> StdResult<Vec<Reward>> {
     // let bound_executor_fee = MAX_EXECUTOR_FEE.load(deps.storage)?;
     // // add a reward for an executor with maximum rewards required
     // rewards.push((
-    //     Addr::from("placeholder"),
+    //     Addr::unchecked("placeholder"),
     //     bound_executor_fee.denom,
     //     bound_executor_fee.amount,
     // ));

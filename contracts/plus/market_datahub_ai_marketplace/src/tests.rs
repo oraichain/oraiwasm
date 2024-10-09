@@ -21,7 +21,7 @@ const MOCK_NUMBER_OF_REQUEST: Uint128 = Uint128(30);
 const MOCK_UNIT_PRICE: Uint128 = Uint128(1);
 
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
     let msg = InstantiateMsg {
         name: "ai_market".into(),
@@ -33,7 +33,7 @@ fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
 
     let info = mock_info(Addr::from(CREATOR_ADDR), &[]);
     let contract_env = mock_env();
-    let res = init(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
     (deps, contract_env)
 }
@@ -54,7 +54,7 @@ fn offering_factory(
         package_id: package_id.clone(),
     };
     // buy it first
-    let _res = handle(
+    let _res = execute(
         deps.as_mut().into(),
         contract_env.clone(),
         info_buy.clone(),
@@ -71,7 +71,7 @@ fn offering_factory(
         unit_price,
     };
 
-    let _res_creator_init = handle(
+    let _res_creator_init = execute(
         deps.as_mut().into(),
         contract_env.clone(),
         creator_buy.clone(),
@@ -92,7 +92,7 @@ fn offering_factory(
 }
 
 #[test]
-fn test_buy_and_init() {
+fn test_buy_and_instantiate() {
     let (mut deps, contract_env) = setup_contract();
 
     // let number_requests = Uint128(30);
@@ -105,7 +105,7 @@ fn test_buy_and_init() {
         package_id: String::from(MOCK_PACKAGE_ID),
     };
     // buy it first
-    let _res = handle(
+    let _res = execute(
         deps.as_mut(),
         contract_env.clone(),
         info_buy.clone(),
@@ -153,7 +153,7 @@ fn test_buy_and_init() {
     };
 
     // Test Init Unauthorized
-    let _res_non_creator_init = handle(
+    let _res_non_creator_init = execute(
         deps.as_mut(),
         contract_env.clone(),
         info_buy.clone(),
@@ -163,7 +163,7 @@ fn test_buy_and_init() {
 
     // Test init with creator - should be successful
     let creator_buy = mock_info(Addr::from(CREATOR_ADDR), &vec![]);
-    let _res_creator_init = handle(
+    let _res_creator_init = execute(
         deps.as_mut(),
         contract_env.clone(),
         creator_buy.clone(),
@@ -201,7 +201,7 @@ fn test_update_success_request() {
     };
 
     let creator_buy = mock_info(Addr::from(CREATOR_ADDR), &vec![]);
-    let _res_creator_update_success_request = handle(
+    let _res_creator_update_success_request = execute(
         deps.as_mut(),
         contract_env.clone(),
         creator_buy.clone(),
@@ -237,7 +237,7 @@ fn test_update_success_request() {
         success_requests: Uint128(31),
     };
 
-    let _res_creator_update_success_request = handle(
+    let _res_creator_update_success_request = execute(
         deps.as_mut(),
         contract_env.clone(),
         creator_buy.clone(),
@@ -270,7 +270,7 @@ fn test_claim() {
 
     let non_owner_buy = mock_info(Addr::from(CUSTOMER_ADDR), &vec![]);
 
-    let _res_non_owner_claim = handle(
+    let _res_non_owner_claim = execute(
         deps.as_mut(),
         contract_env.clone(),
         non_owner_buy.clone(),
@@ -290,7 +290,7 @@ fn test_claim() {
         success_requests: Uint128(11),
     };
 
-    let _res_creator_update_success_request = handle(
+    let _res_creator_update_success_request = execute(
         deps.as_mut(),
         contract_env.clone(),
         creator_buy.clone(),
@@ -303,7 +303,7 @@ fn test_claim() {
     let owner_address = Addr::from(SELLER_ADDR);
     let owner_buy = mock_info(owner_address, &vec![]);
 
-    let _res_owner_claim = handle(
+    let _res_owner_claim = execute(
         deps.as_mut(),
         contract_env.clone(),
         owner_buy.clone(),
@@ -338,7 +338,7 @@ fn test_query_offerings_by_selle() {
     offering_factory(
         &mut deps,
         contract_env.clone(),
-        Addr::from("strangeOwner"),
+        Addr::unchecked("strangeOwner"),
         Addr::from(CUSTOMER_ADDR),
         String::from(MOCK_PACKAGE_ID),
         MOCK_NUMBER_OF_REQUEST,
@@ -366,7 +366,7 @@ fn test_query_offerings_by_selle() {
 // fn test_update_claimable() {
 //     let (mut deps, contract_env) = setup_contract();
 
-//     let owner = Addr::from("owner");
+//     let owner = Addr::unchecked("owner");
 //     let package_id = String::from("1");
 //     let number_requests = Uint128(30);
 //     let per_price = Uint128(1);
@@ -378,7 +378,7 @@ fn test_query_offerings_by_selle() {
 //         number_requests,
 //         per_price,
 //     };
-//     let _buy = handle(
+//     let _buy = execute(
 //         deps.as_mut(),
 //         contract_env.clone(),
 //         info_buy.clone(),
@@ -419,7 +419,7 @@ fn test_query_offerings_by_selle() {
 //         package_id: package_id.clone(),
 //         success_requests: Uint128(10),
 //     };
-//     let _handle_update = handle(
+//     let _handle_update = execute(
 //         deps.as_mut(),
 //         contract_env.clone(),
 //         info_creator.clone(),
@@ -459,7 +459,7 @@ fn test_query_offerings_by_selle() {
 // fn test_claim() {
 //     let (mut deps, contract_env) = setup_contract();
 
-//     let owner = Addr::from("owner");
+//     let owner = Addr::unchecked("owner");
 //     let package_id = String::from("1");
 //     let number_requests = Uint128(30);
 //     let per_price = Uint128(1);
@@ -471,7 +471,7 @@ fn test_query_offerings_by_selle() {
 //         number_requests,
 //         per_price,
 //     };
-//     let _buy = handle(
+//     let _buy = execute(
 //         deps.as_mut(),
 //         contract_env.clone(),
 //         info_buy.clone(),
@@ -486,7 +486,7 @@ fn test_query_offerings_by_selle() {
 //         package_id: package_id.clone(),
 //         success_requests: Uint128(10),
 //     };
-//     let _handle_update = handle(
+//     let _handle_update = execute(
 //         deps.as_mut(),
 //         contract_env.clone(),
 //         info_creator.clone(),
@@ -499,7 +499,7 @@ fn test_query_offerings_by_selle() {
 //         customer: info_buy.sender.clone(),
 //         package_id: package_id.clone(),
 //     };
-//     let _claim = handle(
+//     let _claim = execute(
 //         deps.as_mut(),
 //         contract_env.clone(),
 //         info_claim.clone(),
@@ -539,7 +539,7 @@ fn test_query_offerings_by_selle() {
 //     let (mut deps, contract_env) = setup_contract();
 //     let info = mock_info(CREATOR, &vec![coin(30, DENOM)]);
 
-//     let owner = Addr::from("owner");
+//     let owner = Addr::unchecked("owner");
 //     let package_id1 = "1".to_string();
 //     let package_id2 = "2".to_string();
 //     let per_price = Uint128(1);
@@ -551,7 +551,7 @@ fn test_query_offerings_by_selle() {
 //         number_requests: Uint128(20),
 //         per_price,
 //     };
-//     let _buy = handle(
+//     let _buy = execute(
 //         deps.as_mut(),
 //         contract_env.clone(),
 //         info_buy.clone(),
@@ -565,7 +565,7 @@ fn test_query_offerings_by_selle() {
 //         number_requests: Uint128(40),
 //         per_price,
 //     };
-//     let _buy_2 = handle(
+//     let _buy_2 = execute(
 //         deps.as_mut(),
 //         contract_env.clone(),
 //         info_buy.clone(),

@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    to_json_binary, BankMsg, Binary, Context, Deps, DepsMut, Env, Response, Addr,
-    Response, MessageInfo, StdResult,
+    to_json_binary, Addr, BankMsg, Binary, Context, Deps, DepsMut, Env, MessageInfo, Response,
+    Response, StdResult,
 };
 
 use crate::error::ContractError;
@@ -117,11 +117,7 @@ pub fn handle_execute(
     Ok(res.into())
 }
 
-pub fn handle_burn(
-    deps: DepsMut,
-    env: Env,
-    info: MessageInfo,
-) -> Result<Response, ContractError> {
+pub fn handle_burn(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Response, ContractError> {
     // ensure is expired
     let state = config(deps.storage).load()?;
     if env.block.height < state.expires {
@@ -169,7 +165,7 @@ mod tests {
 
     #[test]
     fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
         let msg = InstantiateMsg {
             counter_offer: coins(40, "ETH"),
@@ -178,7 +174,7 @@ mod tests {
         let info = mock_info("creator", &coins(1, "BTC"));
 
         // we can just call .unwrap() to assert this was a success
-        let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(0, res.messages.len());
 
         // it worked, let's query the state
@@ -192,7 +188,7 @@ mod tests {
 
     #[test]
     fn transfer() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
         let msg = InstantiateMsg {
             counter_offer: coins(40, "ETH"),
@@ -201,12 +197,12 @@ mod tests {
         let info = mock_info("creator", &coins(1, "BTC"));
 
         // we can just call .unwrap() to assert this was a success
-        let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(0, res.messages.len());
 
         // random cannot transfer
         let info = mock_info("anyone", &[]);
-        let err = handle_transfer(deps.as_mut(), mock_env(), info, Addr::from("anyone"))
+        let err = handle_transfer(deps.as_mut(), mock_env(), info, Addr::unchecked("anyone"))
             .unwrap_err();
         match err {
             ContractError::Unauthorized {} => {}
@@ -216,7 +212,7 @@ mod tests {
         // owner can transfer
         let info = mock_info("creator", &[]);
         let res =
-            handle_transfer(deps.as_mut(), mock_env(), info, Addr::from("someone")).unwrap();
+            handle_transfer(deps.as_mut(), mock_env(), info, Addr::unchecked("someone")).unwrap();
         assert_eq!(res.attributes.len(), 2);
         assert_eq!(res.attributes[0], attr("action", "transfer"));
 
@@ -228,7 +224,7 @@ mod tests {
 
     #[test]
     fn execute() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
         let amount = coins(40, "ETH");
         let collateral = coins(1, "BTC");
@@ -240,11 +236,11 @@ mod tests {
         let info = mock_info("creator", &collateral);
 
         // we can just call .unwrap() to assert this was a success
-        let _ = init(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let _ = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // set new owner
         let info = mock_info("creator", &[]);
-        let _ = handle_transfer(deps.as_mut(), mock_env(), info, Addr::from("owner")).unwrap();
+        let _ = handle_transfer(deps.as_mut(), mock_env(), info, Addr::unchecked("owner")).unwrap();
 
         // random cannot execute
         let info = mock_info("creator", &amount);
@@ -306,7 +302,7 @@ mod tests {
 
     #[test]
     fn burn() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
 
         let counter_offer = coins(40, "ETH");
         let collateral = coins(1, "BTC");
@@ -318,11 +314,11 @@ mod tests {
         let info = mock_info("creator", &collateral);
 
         // we can just call .unwrap() to assert this was a success
-        let _ = init(deps.as_mut(), mock_env(), info, msg).unwrap();
+        let _ = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // set new owner
         let info = mock_info("creator", &[]);
-        let _ = handle_transfer(deps.as_mut(), mock_env(), info, Addr::from("owner")).unwrap();
+        let _ = handle_transfer(deps.as_mut(), mock_env(), info, Addr::unchecked("owner")).unwrap();
 
         // non-expired cannot execute
         let info = mock_info("anyone", &[]);

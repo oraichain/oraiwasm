@@ -3,21 +3,21 @@ use std::convert::TryInto;
 use crate::contract::{handle, init, query};
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse, MerkleRootResponse,
-    QueryMsg,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse,
+    MerkleRootResponse, QueryMsg,
 };
 
 use sha2::Digest;
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{attr, coins, from_binary, from_slice, Addr};
+use cosmwasm_std::{attr, coins, from_binary, from_json, Addr};
 use serde::Deserialize;
 
 const DENOM: &str = "ORAI";
 
 #[test]
 fn proper_instantiation() {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
 
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -27,7 +27,7 @@ fn proper_instantiation() {
     let info = mock_info("addr0000", &[]);
 
     // we can just call .unwrap() to assert this was a success
-    let _res = init(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
     // it worked, let's query the state
     let res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
@@ -41,13 +41,13 @@ fn proper_instantiation() {
 
 #[test]
 fn update_config() {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
 
     let msg = InstantiateMsg { owner: None };
 
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // update owner
     let env = mock_env();
@@ -56,7 +56,7 @@ fn update_config() {
         new_owner: Some("owner0001".into()),
     };
 
-    let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     // it worked, let's query the state
@@ -69,13 +69,13 @@ fn update_config() {
     let info = mock_info("owner0000", &[]);
     let msg = ExecuteMsg::UpdateConfig { new_owner: None };
 
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
 }
 
 #[test]
 fn register_merkle_root() {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
 
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -83,7 +83,7 @@ fn register_merkle_root() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // register new merkle root
     let env = mock_env();
@@ -92,7 +92,7 @@ fn register_merkle_root() {
         merkle_root: "634de21cde1044f41d90373733b0f0fb1c1c71f9652b905cdf159e73c4cf0d37".to_string(),
     };
 
-    let res = handle(deps.as_mut(), env.clone(), info, msg).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     assert_eq!(
         res.attributes,
         vec![
@@ -138,9 +138,9 @@ struct Encoded {
 #[test]
 fn claim() {
     // Run test 1
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
-    let test_data: Encoded = from_slice(TEST_DATA_1).unwrap();
+    let test_data: Encoded = from_json(TEST_DATA_1).unwrap();
 
     let user_input = format!(
         "{{\"address\":\"{}\",\"data\":{}}}",
@@ -175,14 +175,14 @@ fn claim() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
     let msg = ExecuteMsg::RegisterMerkleRoot {
         merkle_root: test_data.root,
     };
-    let _res = handle(deps.as_mut(), env, info, msg).unwrap();
+    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     let msg = ExecuteMsg::Claim {
         data: test_data.data.to_string(),
@@ -192,7 +192,7 @@ fn claim() {
 
     let env = mock_env();
     let info = mock_info(test_data.address.as_str(), &[]);
-    let res = handle(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
+    let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
 
     assert_eq!(
         res.attributes,
@@ -222,9 +222,9 @@ fn claim() {
 
     // Second test
 
-    let test_data: Encoded = from_slice(TEST_DATA_2).unwrap();
+    let test_data: Encoded = from_json(TEST_DATA_2).unwrap();
     // check claimed
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(res, ContractError::Claimed {});
 
     // register new drop
@@ -233,7 +233,7 @@ fn claim() {
     let msg = ExecuteMsg::RegisterMerkleRoot {
         merkle_root: test_data.root,
     };
-    let _res = handle(deps.as_mut(), env, info, msg).unwrap();
+    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     // Claim next airdrop
     let msg = ExecuteMsg::Claim {
@@ -244,7 +244,7 @@ fn claim() {
 
     let env = mock_env();
     let info = mock_info(test_data.address.as_str(), &[]);
-    let res = handle(deps.as_mut(), env, info, msg).unwrap();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     assert_eq!(
         res.attributes,
@@ -259,7 +259,7 @@ fn claim() {
 
 #[test]
 fn owner_freeze() {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
 
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
@@ -267,7 +267,7 @@ fn owner_freeze() {
 
     let env = mock_env();
     let info = mock_info("addr0000", &[]);
-    let _res = init(deps.as_mut(), env, info, msg).unwrap();
+    let _res = instantiate(deps.as_mut(), env, info, msg).unwrap();
 
     // can register merkle root
     let env = mock_env();
@@ -275,7 +275,7 @@ fn owner_freeze() {
     let msg = ExecuteMsg::RegisterMerkleRoot {
         merkle_root: "5d4f48f147cb6cb742b376dce5626b2a036f69faec10cd73631c791780e150fc".to_string(),
     };
-    let _res = handle(deps.as_mut(), env, info, msg).unwrap();
+    let _res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     // can update owner
     let env = mock_env();
@@ -284,7 +284,7 @@ fn owner_freeze() {
         new_owner: Some("owner0001".into()),
     };
 
-    let res = handle(deps.as_mut(), env, info, msg).unwrap();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     // freeze contract
@@ -292,7 +292,7 @@ fn owner_freeze() {
     let info = mock_info("owner0001", &[]);
     let msg = ExecuteMsg::UpdateConfig { new_owner: None };
 
-    let res = handle(deps.as_mut(), env, info, msg).unwrap();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap();
     assert_eq!(0, res.messages.len());
 
     // cannot register new drop
@@ -301,7 +301,7 @@ fn owner_freeze() {
     let msg = ExecuteMsg::RegisterMerkleRoot {
         merkle_root: "ebaa83c7eaf7467c378d2f37b5e46752d904d2d17acd380b24b02e3b398b3e5a".to_string(),
     };
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
 
     // cannot update config
@@ -310,6 +310,6 @@ fn owner_freeze() {
     let msg = ExecuteMsg::RegisterMerkleRoot {
         merkle_root: "ebaa83c7eaf7467c378d2f37b5e46752d904d2d17acd380b24b02e3b398b3e5a".to_string(),
     };
-    let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
+    let res = execute(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
 }

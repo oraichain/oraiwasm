@@ -7,7 +7,7 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    coin, coins, from_binary, from_slice, Addr, Binary, BlockInfo, Coin, ContractInfo, Env,
+    coin, coins, from_binary, from_json, Addr, Binary, BlockInfo, Coin, ContractInfo, Env,
     OwnedDeps, StdError, Uint128,
 };
 use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
@@ -76,7 +76,7 @@ fn setup_test_case(app: &mut App) -> (Addr, Addr) {
     // 2. Set up Multisig backed by this group
     let aioracle_addr = init_aioracle(
         app,
-        Addr::from("foobar").clone(),
+        Addr::unchecked("foobar").clone(),
         coin(1u128, "orai"),
         vec![
             Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
@@ -89,7 +89,7 @@ fn setup_test_case(app: &mut App) -> (Addr, Addr) {
 
     // init balance for client
     app.set_bank_balance(
-        Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+        Addr::unchecked("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
         coins(10000000000, "orai"),
     )
     .unwrap();
@@ -115,7 +115,7 @@ fn proper_instantiation() {
 
     // create a new request
     app.execute_contract(
-        &Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+        &Addr::unchecked("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
         &ping_contract,
         &ExecuteMsg::Ping {
             pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
@@ -147,7 +147,7 @@ fn test_ping() {
     // ping unauthorized
     assert_eq!(
         app.execute_contract(
-            &Addr::from("abcd"),
+            &Addr::unchecked("abcd"),
             &ping_contract,
             &ExecuteMsg::Ping {
                 pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
@@ -162,7 +162,7 @@ fn test_ping() {
     // unauthorized executor
     assert_eq!(
         app.execute_contract(
-            &Addr::from("orai1wm69x0u8s6r84dhsmwze4zvte92eyugj02xsv8"),
+            &Addr::unchecked("orai1wm69x0u8s6r84dhsmwze4zvte92eyugj02xsv8"),
             &ping_contract,
             &ExecuteMsg::Ping {
                 pubkey: Binary::from_base64("A+1VpZoZxpgZQwWFunkTTGIIfESR7YqPhbk48t/Xe0zr")
@@ -176,7 +176,7 @@ fn test_ping() {
 
     // ping successfully
     app.execute_contract(
-        &Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+        &Addr::unchecked("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
         &ping_contract,
         &ExecuteMsg::Ping {
             pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
@@ -188,7 +188,7 @@ fn test_ping() {
     // claim reward anauthorized
     assert_eq!(
         app.execute_contract(
-            &Addr::from("abcd"),
+            &Addr::unchecked("abcd"),
             &ping_contract,
             &ExecuteMsg::ClaimReward {
                 pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
@@ -204,7 +204,7 @@ fn test_ping() {
 
     let result = app
         .execute_contract(
-            &Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+            &Addr::unchecked("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
             &ping_contract,
             &ExecuteMsg::ClaimReward {
                 pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
@@ -246,7 +246,7 @@ fn test_read_ping() {
 
     // create a new request
     app.execute_contract(
-        &Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+        &Addr::unchecked("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
         &ping_contract,
         &ExecuteMsg::Ping {
             pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
@@ -259,7 +259,7 @@ fn test_read_ping() {
 
     // ping again to update the prev total ping & checkpoint height
     app.execute_contract(
-        &Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+        &Addr::unchecked("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
         &ping_contract,
         &ExecuteMsg::Ping {
             pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
@@ -307,7 +307,7 @@ fn test_claim() {
 
     // ping successfully
     app.execute_contract(
-        &Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+        &Addr::unchecked("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
         &ping_contract,
         &ExecuteMsg::Ping {
             pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
@@ -320,7 +320,7 @@ fn test_claim() {
 
     let result = app
         .execute_contract(
-            &Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+            &Addr::unchecked("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
             &ping_contract,
             &ExecuteMsg::ClaimReward {
                 pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
@@ -355,7 +355,7 @@ fn test_claim() {
 
     // ping successfully
     app.execute_contract(
-        &Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+        &Addr::unchecked("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
         &ping_contract,
         &ExecuteMsg::Ping {
             pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
@@ -366,7 +366,7 @@ fn test_claim() {
 
     let result = app
         .execute_contract(
-            &Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+            &Addr::unchecked("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
             &ping_contract,
             &ExecuteMsg::ClaimReward {
                 pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")

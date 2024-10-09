@@ -204,9 +204,9 @@ mod tests {
         let api = MockApi::default();
         let admins: Vec<_> = vec!["bob", "paul", "john"]
             .into_iter()
-            .map(|name| api.canonical_address(&Addr::from(name)).unwrap())
+            .map(|name| api.addr_canonicalize(&Addr::from(name)).unwrap())
             .collect();
-        let owner = api.canonical_address(&"tupt".into()).unwrap();
+        let owner = api.addr_canonicalize(&"tupt".into()).unwrap();
         let config = AdminList {
             admins: admins.clone(),
             mutable: false,
@@ -215,16 +215,16 @@ mod tests {
         assert!(config.is_admin(&owner));
         assert!(config.is_admin(&admins[0]));
         assert!(config.is_admin(&admins[2]));
-        let other = api.canonical_address(&Addr::from("other")).unwrap();
+        let other = api.addr_canonicalize(&Addr::unchecked("other")).unwrap();
         assert!(!config.is_admin(&other));
     }
 
     #[test]
     fn can_modify() {
         let api = MockApi::default();
-        let alice = api.canonical_address(&Addr::from("alice")).unwrap();
-        let bob = api.canonical_address(&Addr::from("bob")).unwrap();
-        let owner = api.canonical_address(&Addr::from("tupt")).unwrap();
+        let alice = api.addr_canonicalize(&Addr::unchecked("alice")).unwrap();
+        let bob = api.addr_canonicalize(&Addr::unchecked("bob")).unwrap();
+        let owner = api.addr_canonicalize(&Addr::unchecked("tupt")).unwrap();
 
         // admin can modify mutable contract
         let config = AdminList {
@@ -247,12 +247,12 @@ mod tests {
 
     #[test]
     fn add_storage() {
-        let royalties = Addr::from("royalties");
+        let royalties = Addr::unchecked("royalties");
 
-        let auctions = Addr::from("auctions");
-        let offerings = Addr::from("offerings");
+        let auctions = Addr::unchecked("auctions");
+        let offerings = Addr::unchecked("offerings");
 
-        let implementation = Addr::from("implementation");
+        let implementation = Addr::unchecked("implementation");
 
         // admin can modify mutable contract
         let mut registry = Registry {
@@ -269,10 +269,10 @@ mod tests {
 
     #[test]
     fn remove_storage() {
-        let royalties = Addr::from("royalties");
-        let auctions = Addr::from("auctions");
-        let offerings = Addr::from("offerings");
-        let implementation = Addr::from("implementation");
+        let royalties = Addr::unchecked("royalties");
+        let auctions = Addr::unchecked("auctions");
+        let offerings = Addr::unchecked("offerings");
+        let implementation = Addr::unchecked("implementation");
 
         // admin can modify mutable contract
         let mut registry = Registry {

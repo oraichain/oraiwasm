@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, to_json_binary, Binary, Deps, DepsMut, Env, Response, Addr, Response,
-    MessageInfo, StdResult,
+    attr, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Response,
+    StdResult,
 };
 
 use cw_storage_plus::U8Key;
@@ -9,13 +9,18 @@ use std::convert::TryInto;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse, MerkleRootResponse,
-    QueryMsg,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse,
+    MerkleRootResponse, QueryMsg,
 };
 use crate::state::{Config, CLAIM, CONFIG, LATEST_STAGE, MERKLE_ROOT};
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn instantiate(deps: DepsMut, _env: Env, info: MessageInfo, msg: InstantiateMsg) -> StdResult<Response> {
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
     let owner = msg.owner.unwrap_or(info.sender);
 
     let config = Config { owner: Some(owner) };
@@ -113,7 +118,7 @@ pub fn execute_claim(
     proof: Vec<String>,
 ) -> Result<Response, ContractError> {
     // verify not claimed
-    let mut key = deps.api.canonical_address(&info.sender)?.to_vec();
+    let mut key = deps.api.addr_canonicalize(&info.sender)?.to_vec();
     key.push(stage);
     let claimed = CLAIM.may_load(deps.storage, &key)?;
     if claimed.is_some() {
@@ -194,7 +199,7 @@ pub fn query_latest_stage(deps: Deps) -> StdResult<LatestStageResponse> {
 }
 
 pub fn query_is_claimed(deps: Deps, stage: u8, address: Addr) -> StdResult<IsClaimedResponse> {
-    let mut key = deps.api.canonical_address(&address)?.to_vec();
+    let mut key = deps.api.addr_canonicalize(&address)?.to_vec();
     key.push(stage);
     let is_claimed = CLAIM.may_load(deps.storage, &key)?.unwrap_or(false);
     let resp = IsClaimedResponse { is_claimed };

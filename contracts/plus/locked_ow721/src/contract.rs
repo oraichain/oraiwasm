@@ -10,8 +10,8 @@ use crate::{
     },
 };
 use cosmwasm_std::{
-    attr, from_binary, to_json_binary, to_vec, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
-    Response, Addr, Response, MessageInfo, Order, StdError, StdResult, WasmMsg, KV,
+    attr, from_binary, to_json_binary, to_vec, Addr, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Order, Response, Response, StdError, StdResult, WasmMsg, KV,
 };
 
 // ******************************** TODO: ADD change allowed pub key **************************
@@ -30,7 +30,12 @@ const DEFAULT_LIMIT: u8 = 100;
 
 // make use of the custom errors
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn instantiate(deps: DepsMut, _env: Env, info: MessageInfo, msg: InstantiateMsg) -> StdResult<Response> {
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
     let state = Owner {
         owner: info.sender.to_string(),
     };
@@ -575,13 +580,13 @@ mod tests {
         let info = mock_info("fake_sender_addr", &[]);
 
         // we can just call .unwrap() to assert this was a success
-        let res = init(deps, mock_env(), info, msg).unwrap();
+        let res = instantiate(deps, mock_env(), info, msg).unwrap();
         assert_eq!(0, res.messages.len());
     }
 
     #[test]
     fn proper_initialization() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
 
@@ -598,7 +603,7 @@ mod tests {
 
     #[test]
     fn change_owner() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
 
@@ -608,7 +613,7 @@ mod tests {
 
         // unauthorized check
         let info_unauthorized = mock_info("faker", &[]);
-        let res = handle(
+        let res = execute(
             deps.as_mut(),
             mock_env(),
             info_unauthorized.clone(),
@@ -618,7 +623,7 @@ mod tests {
 
         // authorized check
         let info = mock_info("fake_sender_addr", &[]);
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let owner = owner_read(&deps.storage).load().unwrap();
         println!("owner: {}", owner.owner);
         assert_eq!(owner.owner, String::from("hello there"));
@@ -626,7 +631,7 @@ mod tests {
 
     #[test]
     fn add_pubkey() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgs1QU=").unwrap();
@@ -636,7 +641,7 @@ mod tests {
 
         // unauthorized check
         let info_unauthorized = mock_info("faker", &[]);
-        let res = handle(
+        let res = execute(
             deps.as_mut(),
             mock_env(),
             info_unauthorized.clone(),
@@ -646,14 +651,14 @@ mod tests {
 
         // authorized check
         let info = mock_info("fake_sender_addr", &[]);
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let owner = ALLOWED.load(&deps.storage, pub_key.as_slice()).unwrap();
         assert_eq!(owner, true);
     }
 
     #[test]
     fn remove_pubkey() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
@@ -663,7 +668,7 @@ mod tests {
 
         // unauthorized check
         let info_unauthorized = mock_info("faker", &[]);
-        let res = handle(
+        let res = execute(
             deps.as_mut(),
             mock_env(),
             info_unauthorized.clone(),
@@ -673,14 +678,14 @@ mod tests {
 
         // authorized check
         let info = mock_info("fake_sender_addr", &[]);
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let owner = ALLOWED.load(&deps.storage, pub_key.as_slice());
         assert_eq!(owner.is_err(), true);
     }
 
     #[test]
     fn disable_pubkey() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
@@ -690,7 +695,7 @@ mod tests {
 
         // unauthorized check
         let info_unauthorized = mock_info("faker", &[]);
-        let res = handle(
+        let res = execute(
             deps.as_mut(),
             mock_env(),
             info_unauthorized.clone(),
@@ -700,14 +705,14 @@ mod tests {
 
         // authorized check
         let info = mock_info("fake_sender_addr", &[]);
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let owner = ALLOWED.load(&deps.storage, pub_key.as_slice()).unwrap();
         assert_eq!(owner, false);
     }
 
     #[test]
     fn enable_pubkey() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
@@ -717,7 +722,7 @@ mod tests {
 
         // unauthorized check
         let info_unauthorized = mock_info("faker", &[]);
-        let res = handle(
+        let res = execute(
             deps.as_mut(),
             mock_env(),
             info_unauthorized.clone(),
@@ -727,7 +732,7 @@ mod tests {
 
         // authorized check
         let info = mock_info("fake_sender_addr", &[]);
-        handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
+        execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
         let owner = ALLOWED.load(&deps.storage, pub_key.as_slice()).unwrap();
         assert_eq!(owner, true);
     }
@@ -753,7 +758,7 @@ mod tests {
 
     #[test]
     fn test_query_pubkeys() {
-        let mut deps = mock_dependencies(&[]);
+        let mut deps = mock_dependencies_with_balance(&[]);
         deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
 
