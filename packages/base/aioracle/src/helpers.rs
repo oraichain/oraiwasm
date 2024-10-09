@@ -1,12 +1,13 @@
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    to_json_binary, to_vec, Addr, Binary, CanonicalAddr, ContractResult, CosmosMsg, Empty,
+    to_json_binary, to_json_vec, Addr, Binary, CanonicalAddr, ContractResult, CosmosMsg, Empty,
     QuerierWrapper, QueryRequest, StdError, StdResult, SystemResult, WasmMsg, WasmQuery,
 };
 use provider::{state::State, QueryMsg as ProviderQueryMsg};
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::fmt;
-use test_case::msg::{Response, TestCaseResponse};
+use test_case::msg::{ContractResponse, TestCaseResponse};
 use test_case::QueryMsg as TestCaseQueryMsg;
 
 use crate::{
@@ -14,7 +15,7 @@ use crate::{
     StorageQueryMsg,
 };
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+#[cw_serde]
 pub struct AdminList {
     pub admins: Vec<CanonicalAddr>,
     pub owner: CanonicalAddr,
@@ -88,7 +89,7 @@ impl AiOracleHubContract {
 
     fn encode_msg(&self, msg: AiOracleHubExecuteMsg) -> StdResult<CosmosMsg> {
         Ok(WasmMsg::Execute {
-            contract_addr: self.addr(),
+            contract_addr: self.addr().to_string(),
             msg: to_json_binary(&msg)?,
             funds: vec![],
         }
@@ -103,7 +104,7 @@ impl AiOracleHubContract {
 
     fn encode_smart_query(&self, msg: AiOracleHubQueryMsg) -> StdResult<QueryRequest<Empty>> {
         Ok(WasmQuery::Smart {
-            contract_addr: self.addr(),
+            contract_addr: self.addr().to_string(),
             msg: to_json_binary(&msg)?,
         }
         .into())
@@ -130,12 +131,12 @@ impl AiOracleHubContract {
 
     fn get_raw_request(&self, addr: Addr, msg: Binary) -> StdResult<Vec<u8>> {
         let request: QueryRequest<Empty> = WasmQuery::Smart {
-            contract_addr: addr,
+            contract_addr: addr.to_string(),
             msg,
         }
         .into();
 
-        let raw = to_vec(&request).map_err(|serialize_err| {
+        let raw = to_json_vec(&request).map_err(|serialize_err| {
             StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
         });
         raw
@@ -211,7 +212,7 @@ impl AiOracleProviderContract {
 
     fn encode_smart_query(&self, msg: ProviderQueryMsg) -> StdResult<QueryRequest<Empty>> {
         Ok(WasmQuery::Smart {
-            contract_addr: self.addr(),
+            contract_addr: self.addr().to_string(),
             msg: to_json_binary(&msg)?,
         }
         .into())
@@ -239,7 +240,7 @@ impl AiOracleTestCaseContract {
 
     fn encode_smart_query(&self, msg: TestCaseQueryMsg) -> StdResult<QueryRequest<Empty>> {
         Ok(WasmQuery::Smart {
-            contract_addr: self.addr(),
+            contract_addr: self.addr().to_string(),
             msg: to_json_binary(&msg)?,
         }
         .into())
@@ -266,9 +267,9 @@ impl AiOracleTestCaseContract {
         &self,
         querier: &QuerierWrapper,
         assert_inputs: Vec<String>,
-    ) -> StdResult<Response> {
+    ) -> StdResult<ContractResponse> {
         let query = self.encode_smart_query(TestCaseQueryMsg::Assert { assert_inputs })?;
-        let res: Response = querier.query(&query)?;
+        let res: ContractResponse = querier.query(&query)?;
         Ok(res)
     }
 }
@@ -284,9 +285,9 @@ mod tests {
         let api = MockApi::default();
         let admins: Vec<_> = vec!["bob", "paul", "john"]
             .into_iter()
-            .map(|name| api.addr_canonicalize(Addr::from(name.as_str())).unwrap())
+            .map(|name| api.addr_canonicalize(name).unwrap())
             .collect();
-        let owner = api.addr_canonicalize(&"tupt".into()).unwrap();
+        let owner = api.addr_canonicalize("tupt").unwrap();
         let config = AdminList {
             admins: admins.clone(),
             mutable: false,
@@ -295,16 +296,16 @@ mod tests {
         assert!(config.is_admin(&owner));
         assert!(config.is_admin(&admins[0]));
         assert!(config.is_admin(&admins[2]));
-        let other = api.addr_canonicalize(&Addr::unchecked("other")).unwrap();
+        let other = api.addr_canonicalize("other").unwrap();
         assert!(!config.is_admin(&other));
     }
 
     #[test]
     fn can_modify() {
         let api = MockApi::default();
-        let alice = api.addr_canonicalize(&Addr::unchecked("alice")).unwrap();
-        let bob = api.addr_canonicalize(&Addr::unchecked("bob")).unwrap();
-        let owner = api.addr_canonicalize(&Addr::unchecked("tupt")).unwrap();
+        let alice = api.addr_canonicalize("alice").unwrap();
+        let bob = api.addr_canonicalize("bob").unwrap();
+        let owner = api.addr_canonicalize("tupt").unwrap();
 
         // admin can modify mutable contract
         let config = AdminList {

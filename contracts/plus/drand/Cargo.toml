@@ -24,14 +24,13 @@ backtraces = ["cosmwasm-std/backtraces", "cosmwasm-vm/backtraces"]
 cranelift = ["cosmwasm-vm/cranelift"]
 
 [dependencies]
+cosmwasm-schema = { workspace = true }
 drand-verify = { workspace = true }
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true, features = ["iterator"] }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-thiserror = "1.0"
+thiserror = { workspace = true }
+
 [dev-dependencies]
-cosmwasm-vm = { workspace = true, default-features = false, features = [
-  "iterator",
-] }
-cosmwasm-schema = { workspace = true }
+cosmwasm-vm = { workspace = true, features = ["iterator"] }

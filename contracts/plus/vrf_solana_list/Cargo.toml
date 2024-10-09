@@ -18,14 +18,14 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 cosmwasm-std = { workspace = true }
+cosmwasm-schema = { workspace = true }
 cosmwasm-storage = { workspace = true, features = ["iterator"] }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-thiserror = "1.0"
-cosmwasm-crypto = "0.14.0"
-sha3 = "0.9.1"
+thiserror = { workspace = true }
+cosmwasm-crypto = { workspace = true }
+sha3 = { workspace = true }
 
 
 [dev-dependencies]
-cosmwasm-vm = { workspace = true, default-features = false }
-cosmwasm-schema = { workspace = true }
+cosmwasm-vm = { workspace = true }

@@ -6,8 +6,6 @@ use cosmwasm_std::{
     QueryRequest, SystemError, SystemResult, Timestamp, WasmQuery,
 };
 
-const CANONICAL_LENGTH: usize = 32;
-
 type WasmHandler = fn(&WasmQuery) -> QuerierResult;
 
 pub struct MockQuerier {
@@ -43,8 +41,6 @@ impl MockQuerier {
             }
             QueryRequest::Staking(staking_query) => self.staking.query(staking_query),
             QueryRequest::Wasm(msg) => (self.wasm_handler)(msg),
-            QueryRequest::Stargate { path, data } => todo!(),
-            QueryRequest::Ibc(ibc_query) => todo!(),
             _ => todo!(),
         }
     }

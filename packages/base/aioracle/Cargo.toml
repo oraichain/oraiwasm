@@ -19,6 +19,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
 bech32 = { workspace = true }
+cosmwasm-schema = { workspace = true }
 cosmwasm-std = { workspace = true, features = ["staking"] }
 cw-storage-plus = { workspace = true, features = ["iterator"] }
 provider = { workspace = true }

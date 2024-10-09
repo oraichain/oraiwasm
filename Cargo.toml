@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["packages/*/*", "contracts/*/*"]
+members = ["packages/*/*", "contracts/ether/*"]
 
 [workspace.dependencies]
 cosmwasm-crypto = { version = "1.5.0" }
@@ -31,10 +31,9 @@ hex = "0.4.3"
 regex = "1.4.3"
 hex-literal = "0.3.1"
 base64 = "0.13.0"
-wasm-bindgen = "0.2.78"
-wasm-bindgen-test = "0.3.28"
 cw-multi-test = { version = "1.0" }
 
+sha3 = "0.10"
 bech32 = "0.8.1"
 ripemd = "0.1.1"
 

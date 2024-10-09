@@ -125,11 +125,9 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_info")],
-        data: to_json_binary(&new_contract_info).ok(),
-    })
+    Ok(Response::new().add_attributes()vec![attr("action", "update_info")]).set_data(
+        to_json_binary(&new_contract_info)?,
+    ))
 }
 
 pub fn try_update_offering(

@@ -1,5 +1,3 @@
-cargo-features = ["edition2021"]
-
 [package]
 name = "ow20-merkle-airdrop"
 version = "0.7.0"

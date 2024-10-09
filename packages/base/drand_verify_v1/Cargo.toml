@@ -21,7 +21,7 @@ groupy = "0.3.0"
 paired = "0.21"
 sha2 = { workspace = true }
 hex = { workspace = true, optional = true }
-wasm-bindgen = { workspace = true, optional = true }
+wasm-bindgen = { version = "0.2.78", optional = true }
 
 [dev-dependencies]
 hex = { workspace = true }

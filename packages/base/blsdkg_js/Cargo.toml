@@ -8,22 +8,18 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-wasm-bindgen = { workspace = true }
-wasm-bindgen-test = { workspace = true }
+wasm-bindgen = "0.2.78"
+wasm-bindgen-test = "0.3.28"
 serde = { workspace = true, features = ["derive"] }
 blsdkg = { workspace = true }
 rand = { workspace = true, features = ["wasm-bindgen"] }
 js-sys = "0.3.55"
 pairing = "0.16.0"
 
-[profile.release]
-codegen-units = 1 # better optimizations
-# Tell `rustc` to optimize for speed.
-opt-level = 3
 
 # # patch blst to be single_thread
 # [patch.crates-io]
 # blst = { git = "https://github.com/iancoleman/blst", branch = "single_thread" }
 
 [dev-dependencies]
-base64 = "0.13.0"
+base64 = { workspace = true }
