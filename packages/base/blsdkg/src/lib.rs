@@ -1335,7 +1335,7 @@ mod tests {
         let pk_hex = "85695fcbc06cc4c4c9451f4dce21cbf8de3e5a13bf48f44cdbb18e2038ba7b8bb1632d7911ef1e2e08749bddbf165352";
         let sk_vec = hex::decode(sk_hex).unwrap();
         let mut sk_bytes = [0u8; SK_SIZE];
-        sk_bytes[..SK_SIZE].clone_from_json(&sk_vec[..SK_SIZE]);
+        sk_bytes[..SK_SIZE].clone_from_slice(&sk_vec[..SK_SIZE]);
         let sk = SecretKey::from_bytes(sk_bytes).expect("invalid sk bytes");
         let pk = sk.public_key();
         let pk_bytes = pk.to_bytes();
@@ -1720,7 +1720,7 @@ mod tests {
             // get parent keypair
             let sk_vec = hex::decode(vector[0]).unwrap();
             let mut sk_bytes = [0u8; SK_SIZE];
-            sk_bytes[..SK_SIZE].clone_from_json(&sk_vec[..SK_SIZE]);
+            sk_bytes[..SK_SIZE].clone_from_slice(&sk_vec[..SK_SIZE]);
             let sk = SecretKey::from_bytes(sk_bytes).expect("invalid secret key bytes");
             let pk = sk.public_key();
             let pk_hex = &format!("{}", HexFmt(&pk.to_bytes()));
@@ -1771,7 +1771,7 @@ mod tests {
             // get secret key
             let sk_vec = hex::decode(vector[0]).unwrap();
             let mut sk_bytes = [0u8; SK_SIZE];
-            sk_bytes[..SK_SIZE].clone_from_json(&sk_vec[..SK_SIZE]);
+            sk_bytes[..SK_SIZE].clone_from_slice(&sk_vec[..SK_SIZE]);
             let sk = SecretKey::from_bytes(sk_bytes).expect("invalid secret key bytes");
             // get ciphertext
             let ct_vec = hex::decode(vector[2]).unwrap();
