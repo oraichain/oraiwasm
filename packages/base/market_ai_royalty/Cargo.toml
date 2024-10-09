@@ -1,0 +1,19 @@
+[package]
+name = "market_ai_royalty"
+version = "0.6.0"
+authors = ["ThanhTu <tu@orai.io>"]
+edition = "2018"
+description = "Implementation of an NFT marketplace proxy contract using a governance"
+repository = "https://github.com/oraichain/oraiwasm"
+homepage = "https://orai.io"
+
+[dependencies]
+cosmwasm-std = { workspace = true }
+schemars = { workspace = true }
+cw20 = { workspace = true }
+market = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+
+
+[dev-dependencies]
+cosmwasm-schema = { workspace = true }

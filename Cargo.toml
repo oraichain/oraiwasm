@@ -1,11 +1,87 @@
 [workspace]
-resolver = '2'
+resolver = "2"
 
-members = ["package/*/*"]
+members = ["packages/*/*", "contracts/*/*"]
+exclude = [
+    "contracts/aioracle/*",
+    "contracts/cv/*",
+    "contracts/ether/*",
+    "contracts/nlp/*",
+]
 
 [workspace.dependencies]
-cw-utils = "1.0.3"
+cosmwasm-std = { version = "1.5.0" }
+cosmwasm-schema = { version = "1.5.0" }
+cosmwasm-storage = { version = "1.5.0" }
+cosmwasm-vm = { version = "1.5.0" }
+thiserror = "1.0.26"
+
+cw2 = { version = "1.0.1" }
+cw3 = { version = "1.0.1" }
+cw4 = { version = "1.0.1" }
+cw20 = { version = "1.0.1" }
+cw4-group = { version = "1.0.1" }
+cw-controllers = { version = "1.0.1" }
+cw20-base = { version = "1.0.1" }
 cw-storage-plus = { version = "1.0.1" }
+cw-utils = "1.0.3"
+sha2 = { version = "0.9.5", default-features = false }
+serde = { version = "1.0.204" }
+schemars = { version = "0.8.21" }
+bincode = "1.2.1"
+blst = { version = "0.3.5" }
+tiny-keccak = { version = "2.0.1" }
+rand = "0.7.3"
+hex = "0.4.3"
+regex = "1.4.3"
+hex-literal = "0.3.1"
+base64 = "0.13.0"
+wasm-bindgen = "0.2.78"
+wasm-bindgen-test = "0.3.28"
+cw-multi-test = { version = "1.0" }
+
+bech32 = "0.8.1"
+ripemd = "0.1.1"
+
+cw721 = { path = "packages/base/cw721" }
+cw1155 = { path = "packages/base/cw1155" }
+blsdkg = { path = "packages/base/blsdkg" }
+vrfdkgp = { path = "packages/base/vrfdkgp" }
+aioracle_base = { path = "packages/base/aioracle_base" }
+provider = { path = "packages/base/provider" }
+test_case = { path = "packages/base/test_case" }
+drand-verify = { path = "packages/base/drand-verify" }
+market_1155 = { path = "packages/base/market_1155" }
+market = { path = "packages/base/market" }
+market_ai_royalty = { path = "packages/base/market_ai_royalty" }
+market_auction_extend = { path = "packages/base/market_auction_extend" }
+market_auction = { path = "packages/base/market_auction" }
+market_rejected = { path = "packages/base/market_rejected" }
+market_whitelist = { path = "packages/base/market_whitelist" }
+market_payment = { path = "packages/base/market_payment" }
+market_datahub = { path = "packages/base/market_datahub" }
+market_royalty = { path = "packages/base/market_royalty" }
+drand_verify_v1 = { path = "packages/base/drand_verify_v1" }
+market_first_lv_royalty = { path = "packages/base/market_first_lv_royalty" }
+
+provider_bridge = { path = "contracts/aioracle/provider_bridge" }
+aioracle_v2 = { path = "contracts/aioracle/aioracle_v2" }
+aioracle_service_fees = { path = "contracts/aioracle/aioracle_service_fees" }
+
+oraichain_nft = { path = "contracts/plus/oraichain_nft" }
+market_hub = { path = "contracts/plus/market_hub" }
+market_1155_storage = { path = "contracts/plus/market_1155_storage" }
+market_ai_royalty_storage = { path = "contracts/plus/market_ai_royalty_storage" }
+market_rejected_storage = { path = "contracts/plus/market_rejected_storage" }
+market_whitelist_storage = { path = "contracts/plus/market_whitelist_storage" }
+market_datahub_storage = { path = "contracts/plus/market_datahub_storage" }
+market_auction_storage = { path = "contracts/plus/market_auction_storage" }
+market_offering_storage = { path = "contracts/plus/market_offering_storage" }
+market_first_level_royalty_storage = { path = "contracts/plus/market_first_level_royalty_storage" }
+market_payment_storage = { path = "contracts/plus/market_payment_storage" }
+market_auction_extend_storage = { path = "contracts/plus/market_auction_extend_storage" }
+ow1155 = { path = "contracts/plus/ow1155" }
+ow20 = { path = "contracts/plus/ow20" }
 
 [profile.release]
 opt-level = 3
@@ -16,4 +92,4 @@ incremental = false
 rpath = false
 lto = true
 overflow-checks = true
-panic = 'abort'
+panic = "abort"

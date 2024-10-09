@@ -1,0 +1,29 @@
+[package]
+authors = ["Le Duc Pham <duc@orai.io>"]
+edition = "2018"
+name = "locked_ow721"
+version = "0.1.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all init/handle/query exports
+library = []
+
+
+[dependencies]
+
+cosmwasm-crypto = "0.14.0"
+cosmwasm-std = { workspace = true }
+cosmwasm-storage = { workspace = true, features = ["iterator"] }
+cw-storage-plus = { workspace = true, features = ["iterator"] }
+cw721 = "0.5.0"
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+sha2 = "0.9.5"
+thiserror = { workspace = true }
+
+[dev-dependencies]
+cosmwasm-schema = { workspace = true }

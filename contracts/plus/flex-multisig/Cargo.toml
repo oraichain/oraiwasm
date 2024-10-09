@@ -1,0 +1,33 @@
+[package]
+name = "cw3-flex-multisig"
+version = "0.5.0"
+authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
+edition = "2018"
+description = "Implementing cw3 with multiple voting patterns and dynamic groups"
+license = "Apache-2.0"
+repository = "https://github.com/CosmWasm/cosmwasm-plus"
+homepage = "https://cosmwasm.com"
+documentation = "https://docs.cosmwasm.com"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all init/handle/query exports
+library = []
+
+[dependencies]
+cw-utils = { workspace = true }
+cw3 = { workspace = true }
+cw4 = { workspace = true }
+cw-storage-plus = { workspace = true, features = ["iterator"] }
+cosmwasm-std = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+cosmwasm-schema = { workspace = true }
+cw4-group = { workspace = true }
+cw-multi-test = { workspace = true }

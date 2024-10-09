@@ -1,0 +1,31 @@
+[package]
+name = "market_dino_data_marketplace"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'abort'
+incremental = false
+overflow-checks = true
+
+[dependencies]
+cosmwasm-std = { workspace = true }
+cosmwasm-storage = { workspace = true }
+cw-storage-plus = { workspace = true, features = ["iterator"] }
+cw721 = { workspace = true }
+market = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+schemars = { workspace = true }
+rstest = "0.17.0"
+
+[dev-dependencies]
+rstest = "0.17.0"

@@ -1,0 +1,25 @@
+[package]
+authors = ["Le Duc Pham <duc@orai.io>"]
+edition = "2018"
+name = "oscript_price"
+version = "0.1.0"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all init/handle/query exports
+library = []
+
+
+[dependencies]
+
+cosmwasm-std = { workspace = true }
+cosmwasm-storage = { workspace = true, features = ["iterator"] }
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+cosmwasm-schema = { workspace = true }

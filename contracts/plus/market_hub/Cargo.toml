@@ -1,0 +1,28 @@
+[package]
+name = "market_hub"
+version = "0.6.0"
+authors = ["ThanhTu <tu@orai.io>"]
+edition = "2018"
+description = "Implementation of an NFT marketplace proxy contract using a governance"
+repository = "https://github.com/oraichain/oraiwasm"
+homepage = "https://orai.io"
+
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all init/handle/query exports
+library = []
+
+[dependencies]
+cosmwasm-std = { workspace = true }
+cosmwasm-storage = { workspace = true, features = ["iterator"] }
+market = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+cosmwasm-schema = { workspace = true }
