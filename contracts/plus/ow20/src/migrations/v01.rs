@@ -120,35 +120,35 @@ pub mod testing {
             name: "Sample Coin".to_string(),
             symbol: "SAMP".to_string(),
             decimals: 2,
-            total_supply: Uint128(777777),
+            total_supply: Uint128::from(777777u128),
             mint: None,
         })?;
 
         let user1 = api.addr_canonicalize(&Addr::unchecked("user1"))?;
         let user2 = api.addr_canonicalize(&Addr::unchecked("user2"))?;
-        crate::state::balances(storage).save(user1.as_slice(), &Uint128(123456))?;
-        crate::state::balances(storage).save(user2.as_slice(), &Uint128(654321))?;
+        crate::state::balances(storage).save(user1.as_slice(), &Uint128::from(123456u128)))?;
+        crate::state::balances(storage).save(user2.as_slice(), &Uint128::from(654321u128)))?;
 
         let spender1 = api.addr_canonicalize(&Addr::unchecked("spender1"))?;
         let spender2 = api.addr_canonicalize(&Addr::unchecked("spender2"))?;
         allowances(storage, &user1).save(
             spender1.as_slice(),
             &OldAllowanceResponse {
-                allowance: Uint128(5000),
+                allowance: Uint128::from(5000u128),
                 expires: OldExpiration::AtHeight { height: 5000 },
             },
         )?;
         allowances(storage, &user2).save(
             spender1.as_slice(),
             &OldAllowanceResponse {
-                allowance: Uint128(15000),
+                allowance: Uint128::from(15000u128),
                 expires: OldExpiration::AtTime { time: 1598647517 },
             },
         )?;
         allowances(storage, &user2).save(
             spender2.as_slice(),
             &OldAllowanceResponse {
-                allowance: Uint128(77777),
+                allowance: Uint128::from(77777u128),
                 expires: OldExpiration::Never {},
             },
         )?;

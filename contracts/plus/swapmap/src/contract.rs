@@ -40,7 +40,7 @@ pub fn execute(
         ExecuteMsg::Ping {} => {
             let response = Response {
                 messages: vec![],
-                attributes: vec![Attribute {
+                add_attributes(vec![Attribute {
                     key: "action".to_string(),
                     value: "ping".to_string(),
                 }],

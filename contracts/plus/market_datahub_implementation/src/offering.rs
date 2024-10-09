@@ -94,11 +94,9 @@ pub fn try_handle_mint(
     )?;
     cosmos_msgs.push(mint_msg);
 
-    let response = Response {
-        messages: cosmos_msgs,
-        attributes: vec![attr("action", "mint_nft"), attr("invoker", info.sender)],
-        data: None,
-    };
+    let response = Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![attr("action", "mint_nft"), attr("invoker", info.sender)],
+        );
 
     Ok(response)
 }
@@ -169,17 +167,15 @@ pub fn try_sell(
         DataHubExecuteMsg::UpdateOffering { offering },
     )?);
 
-    return Ok(Response {
-        messages: cosmos_msg,
-        attributes: vec![
+    return Ok(Response::new().add_messages( cosmos_msg,
+        add_attributes(vec![
             attr("action", "sell_nft"),
             attr("token_id", token_id),
             attr("amount", amount),
             attr("seller", info.sender),
             attr("per_price", royalty_msg.per_price),
         ],
-        data: None,
-    });
+        ));
 }
 
 pub fn try_buy(
@@ -305,9 +301,8 @@ pub fn try_buy(
         )?);
     }
 
-    Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![
+    Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![
             attr("action", "buy_nft"),
             attr("buyer", info.sender),
             attr("seller", seller_addr),
@@ -316,8 +311,7 @@ pub fn try_buy(
             attr("per_price", off.per_price),
             attr("amount", off.amount),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_withdraw(
@@ -362,7 +356,7 @@ pub fn try_withdraw(
 
         return Ok(Response {
             messages: cw721_transfer_cosmos_msg,
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "withdraw_nft"),
                 attr("seller", info.sender),
                 attr("offering_id", offering_id),
@@ -420,16 +414,14 @@ pub fn handle_sell_nft(
         },
     )?);
 
-    Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![
+    Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![
             attr("action", "sell_nft"),
             attr("original_contract", info.sender),
             attr("seller", rcv_msg.operator),
             attr("per price", offering.per_price.to_string()),
         ],
-        data: None,
-    })
+        ))
 }
 
 fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError> {

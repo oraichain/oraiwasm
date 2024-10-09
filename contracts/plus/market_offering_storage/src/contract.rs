@@ -157,14 +157,12 @@ pub fn try_update_offering(
 
     offerings().save(deps.storage, &offering.id.unwrap().to_be_bytes(), &offering)?;
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "update_offering"),
             attr("offering_id", offering.id.unwrap()),
         ],
-        data: None,
-    });
+        ));
 }
 
 pub fn try_remove_offering(
@@ -183,11 +181,9 @@ pub fn try_remove_offering(
     // remove offering
     offerings().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "remove_offering"), attr("offering_id", id)],
-        data: None,
-    });
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "remove_offering"), attr("offering_id", id)],
+        ));
 }
 
 pub fn try_update_offering_royalty(
@@ -214,9 +210,8 @@ pub fn try_update_offering_royalty(
         &offering,
     )?;
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_offering_royalty")],
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "update_offering_royalty")],
         data: to_json_binary(&offering).ok(),
     });
 }
@@ -243,7 +238,7 @@ pub fn try_update_offering_royalty(
 
 //     return Ok(Response {
 //         messages: vec![],
-//         attributes: vec![attr("action", "remove_offering_royalty")],
+//         add_attributes(vec![attr("action", "remove_offering_royalty")],
 //         data: None,
 //     });
 // }
@@ -270,9 +265,8 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_info")],
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "update_info")],
         data: to_json_binary(&new_contract_info).ok(),
     })
 }

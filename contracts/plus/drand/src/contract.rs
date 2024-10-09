@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    coins, from_json, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Order, Response, Response, StdResult, Storage,
+    coins, from_json, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Order, Response, Response, StdResult, Storage,
 };
 use drand_verify::{derive_randomness, g1_from_variable, verify};
 
@@ -285,7 +285,7 @@ mod tests {
             "anyone",
             &[Coin {
                 denom: BOUNTY_DENOM.into(),
-                amount: Uint128(5000),
+                amount: Uint128::from(5000u128),
             }],
         );
         let response = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -298,7 +298,7 @@ mod tests {
             "anyone",
             &[Coin {
                 denom: BOUNTY_DENOM.into(),
-                amount: Uint128(24),
+                amount: Uint128::from(24u128),
             }],
         );
         let response = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -351,7 +351,7 @@ mod tests {
             "anyone",
             &[Coin {
                 denom: BOUNTY_DENOM.into(),
-                amount: Uint128(4500),
+                amount: Uint128::from(4500u128),
             }],
         );
         let response = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -407,7 +407,7 @@ mod tests {
             "anyone",
             &[Coin {
                 denom: BOUNTY_DENOM.into(),
-                amount: Uint128(4500),
+                amount: Uint128::from(4500u128),
             }],
         );
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -431,7 +431,7 @@ mod tests {
             "anyone",
             &[Coin {
                 denom: BOUNTY_DENOM.into(),
-                amount: Uint128(321),
+                amount: Uint128::from(321u128),
             }],
         );
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -461,7 +461,7 @@ mod tests {
             "anyone",
             &[Coin {
                 denom: BOUNTY_DENOM.into(),
-                amount: Uint128(55),
+                amount: Uint128::from(55u128),
             }],
         );
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();

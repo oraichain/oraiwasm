@@ -175,11 +175,9 @@ pub fn handle_register(
         )?;
     }
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "register")],
-        data: None,
-    })
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "register")],
+        ))
 }
 
 pub fn handle_ticket(
@@ -255,15 +253,13 @@ pub fn handle_ticket(
         to_address: deps.api.addr_humanize(&sender).unwrap(),
         amount: vec![Coin {
             denom: state.denom_ticket.clone(),
-            amount: Uint128(1),
+            amount: Uint128::from(1u128),
         }],
     };
     // Send the claimed tickets
-    Ok(Response {
-        messages: vec![msg.into()],
-        attributes: vec![attr("action", "claim"), attr("to", &sender)],
-        data: None,
-    })
+    Ok(Response::new().add_messages( vec![msg.into()],
+        add_attributes(vec![attr("action", "claim"), attr("to", &sender)],
+        ))
 }
 
 pub fn handle_play(
@@ -277,7 +273,7 @@ pub fn handle_play(
     // Load the state
     let mut state = config(deps.storage).load()?;
     // reset holders reward
-    state.holders_rewards = Uint128(0);
+    state.holders_rewards = Uint128::from(0u128));
     // Load combinations
     let store = query_all_combination(deps.as_ref()).unwrap();
 
@@ -484,11 +480,9 @@ pub fn handle_play(
     // Save the new state
     config(deps.storage).save(&state)?;
 
-    Ok(Response {
-        messages: vec![msg.into()],
-        attributes: vec![attr("action", "reward"), attr("to", &info.sender)],
-        data: None,
-    })
+    Ok(Response::new().add_messages( vec![msg.into()],
+        add_attributes(vec![attr("action", "reward"), attr("to", &info.sender)],
+        ))
 }
 
 pub fn handle_ico(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
@@ -540,11 +534,9 @@ pub fn handle_ico(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Respons
     // Save the new state
     config(deps.storage).save(&state)?;
 
-    Ok(Response {
-        messages: vec![msg.into()],
-        attributes: vec![attr("action", "ico"), attr("to", &info.sender)],
-        data: None,
-    })
+    Ok(Response::new().add_messages( vec![msg.into()],
+        add_attributes(vec![attr("action", "ico"), attr("to", &info.sender)],
+        ))
 }
 
 pub fn handle_buy(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Response, ContractError> {
@@ -591,11 +583,9 @@ pub fn handle_buy(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Respons
         }],
     };
 
-    Ok(Response {
-        messages: vec![msg.into()],
-        attributes: vec![attr("action", "ticket"), attr("to", &info.sender)],
-        data: None,
-    })
+    Ok(Response::new().add_messages( vec![msg.into()],
+        add_attributes(vec![attr("action", "ticket"), attr("to", &info.sender)],
+        ))
 }
 
 pub fn handle_reward(
@@ -667,11 +657,9 @@ pub fn handle_reward(
         }],
     };
     // Send the claimed tickets
-    Ok(Response {
-        messages: vec![msg.into()],
-        attributes: vec![attr("action", "reward"), attr("to", &sender)],
-        data: None,
-    })
+    Ok(Response::new().add_messages( vec![msg.into()],
+        add_attributes(vec![attr("action", "reward"), attr("to", &sender)],
+        ))
 }
 
 fn remove_from_storage(
@@ -713,8 +701,8 @@ pub fn handle_jackpot(
         return Err(ContractError::NoWinners {});
     }
 
-    let mut jackpot_amount: Uint128 = Uint128(0);
-    let mut ticket_winning: Uint128 = Uint128(0);
+    let mut jackpot_amount: Uint128 = Uint128::from(0u128));
+    let mut ticket_winning: Uint128 = Uint128::from(0u128));
     for winner in store.winner.clone() {
         for winner_info in winner.winners.clone() {
             if winner_info.address == deps.api.addr_canonicalize(&info.sender).unwrap() {
@@ -801,7 +789,7 @@ pub fn handle_jackpot(
                     }
                     5 => {
                         // Prizes five rank
-                        ticket_winning += Uint128(1);
+                        ticket_winning += Uint128::from(1u128));
                         // Remove the address from the array and save
                         let new_addresses = remove_from_storage(&deps, &info, &winner);
                         winner_storage(deps.storage).save(
@@ -859,7 +847,7 @@ pub fn handle_jackpot(
     if amount_to_send.is_empty() {
         return Ok(Response {
             messages: vec![],
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "jackpot reward"),
                 attr("to", &info.sender),
                 attr("jackpot_prize", "no"),
@@ -878,15 +866,13 @@ pub fn handle_jackpot(
     };
 
     // Send the jackpot
-    Ok(Response {
-        messages: vec![msg.into()],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![msg.into()],
+        add_attributes(vec![
             attr("action", "jackpot reward"),
             attr("to", &info.sender),
             attr("jackpot_prize", "yes"),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn handle_proposal(
@@ -1081,16 +1067,14 @@ pub fn handle_proposal(
     // Save state
     config(deps.storage).save(&state)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "create a proposal"),
             attr("proposal_id", poll_id.to_string()),
             attr("proposal_creator", &info.sender.to_string()),
             attr("proposal_creation_result", "success"),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn handle_vote(
@@ -1133,15 +1117,13 @@ pub fn handle_vote(
         }
     }
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "vote"),
             attr("proposalId", poll_id.to_string()),
             attr("voting_result", "success"),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn handle_reject_proposal(
@@ -1175,14 +1157,12 @@ pub fn handle_reject_proposal(
         Ok(poll_data)
     })?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "creator reject the proposal"),
             attr("proposalId", poll_id.to_string()),
         ],
-        data: None,
-    })
+        ))
 }
 
 fn total_weight(deps: &DepsMut, state: &State, addresses: &Vec<CanonicalAddr>) -> Uint128 {
@@ -1251,7 +1231,7 @@ pub fn handle_present_proposal(
         })?;
         return Ok(Response {
             messages: vec![],
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "present the proposal"),
                 attr("proposal_id", poll_id.to_string()),
                 attr("proposal_result", "rejected"),
@@ -1301,15 +1281,13 @@ pub fn handle_present_proposal(
 
     config(deps.storage).save(&state)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "present the proposal"),
             attr("proposal_id", poll_id.to_string()),
             attr("proposal_result", "approved"),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
@@ -1627,7 +1605,7 @@ mod tests {
                 Addr::unchecked("delegator1"),
                 &[Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(1),
+                    amount: Uint128::from(1u128),
                 }],
             );
             let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
@@ -1640,7 +1618,7 @@ mod tests {
                 Addr::unchecked("delegator12"),
                 &[Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(1),
+                    amount: Uint128::from(1u128),
                 }],
             );
             let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
@@ -1664,7 +1642,7 @@ mod tests {
                 Addr::unchecked("delegator1"),
                 &[Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(0),
+                    amount: Uint128::from(0u128),
                 }],
             );
             let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -1688,7 +1666,7 @@ mod tests {
                 Addr::unchecked("delegator1"),
                 &[Coin {
                     denom: "uscrt".to_string(),
-                    amount: Uint128(2),
+                    amount: Uint128::from(2u128),
                 }],
             );
             let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -1715,11 +1693,11 @@ mod tests {
                 &[
                     Coin {
                         denom: "ujack".to_string(),
-                        amount: Uint128(3),
+                        amount: Uint128::from(3u128),
                     },
                     Coin {
                         denom: "uscrt".to_string(),
-                        amount: Uint128(2),
+                        amount: Uint128::from(2u128),
                     },
                 ],
             );
@@ -1746,7 +1724,7 @@ mod tests {
                 Addr::unchecked("delegator1"),
                 &[Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(2),
+                    amount: Uint128::from(2u128),
                 }],
             );
             let mut env = mock_env();
@@ -1774,7 +1752,7 @@ mod tests {
                 Addr::unchecked("delegator12"),
                 &[Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(3),
+                    amount: Uint128::from(3u128),
                 }],
             );
             let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -1816,11 +1794,11 @@ mod tests {
                         },
                         can_redelegate: Coin {
                             denom: "uscrt".to_string(),
-                            amount: Uint128(0),
+                            amount: Uint128::from(0u128),
                         },
                         accumulated_rewards: vec![Coin {
                             denom: "uscrt".to_string(),
-                            amount: Uint128(0),
+                            amount: Uint128::from(0u128),
                         }],
                     },
                     FullDelegation {
@@ -1832,11 +1810,11 @@ mod tests {
                         },
                         can_redelegate: Coin {
                             denom: "uscrt".to_string(),
-                            amount: Uint128(0),
+                            amount: Uint128::from(0u128),
                         },
                         accumulated_rewards: vec![Coin {
                             denom: "uscrt".to_string(),
-                            amount: Uint128(0),
+                            amount: Uint128::from(0u128),
                         }],
                     },
                     FullDelegation {
@@ -1848,11 +1826,11 @@ mod tests {
                         },
                         can_redelegate: Coin {
                             denom: "uscrt".to_string(),
-                            amount: Uint128(0),
+                            amount: Uint128::from(0u128),
                         },
                         accumulated_rewards: vec![Coin {
                             denom: "uscrt".to_string(),
-                            amount: Uint128(0),
+                            amount: Uint128::from(0u128),
                         }],
                     },
                 ],
@@ -1883,11 +1861,11 @@ mod tests {
                     },
                     can_redelegate: Coin {
                         denom: "uscrt".to_string(),
-                        amount: Uint128(0),
+                        amount: Uint128::from(0u128),
                     },
                     accumulated_rewards: vec![Coin {
                         denom: "uscrt".to_string(),
-                        amount: Uint128(0),
+                        amount: Uint128::from(0u128),
                     }],
                 }],
             );
@@ -1918,11 +1896,11 @@ mod tests {
                     },
                     can_redelegate: Coin {
                         denom: "ucoin".to_string(),
-                        amount: Uint128(0),
+                        amount: Uint128::from(0u128),
                     },
                     accumulated_rewards: vec![Coin {
                         denom: "ucoin".to_string(),
-                        amount: Uint128(0),
+                        amount: Uint128::from(0u128),
                     }],
                 }],
             );
@@ -1946,7 +1924,7 @@ mod tests {
                 Addr::unchecked("delegator1"),
                 &[Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(3),
+                    amount: Uint128::from(3u128),
                 }],
             );
             let res = handle_ticket(deps.as_mut(), mock_env(), info.clone());
@@ -2004,7 +1982,7 @@ mod tests {
                     amount: Uint128(100_000_000),
                 },
             ]);
-            init_balance_and_staking_default(&mut deps.querier, Uint128(0));
+            init_balance_and_staking_default(&mut deps.querier, Uint128::from(0u128)));
             default_instantiate(&mut deps);
             let info = mock_info(Addr::unchecked("delegator1"), &[]);
             let res = handle_ticket(deps.as_mut(), mock_env(), info.clone());
@@ -2083,7 +2061,7 @@ mod tests {
                     to_address: Addr::unchecked("delegator1"),
                     amount: vec![Coin {
                         denom: "ujack".to_string(),
-                        amount: Uint128(1)
+                        amount: Uint128::from(1u128))
                     }]
                 })
             );
@@ -2113,7 +2091,7 @@ mod tests {
         fn balance_contract_empty() {
             let mut deps = mock_dependencies_with_balance(&[Coin {
                 denom: "upot".to_string(),
-                amount: Uint128(0),
+                amount: Uint128::from(0u128),
             }]);
             default_instantiate(&mut deps);
             let info = mock_info(
@@ -2247,7 +2225,7 @@ mod tests {
         fn contract_balance_empty() {
             let mut deps = mock_dependencies_with_balance(&[Coin {
                 denom: "ujack".to_string(),
-                amount: Uint128(0),
+                amount: Uint128::from(0u128),
             }]);
             default_instantiate(&mut deps);
             let info = mock_info(
@@ -2356,7 +2334,7 @@ mod tests {
                     to_address: Addr::unchecked("delegator1"),
                     amount: vec![Coin {
                         denom: "ujack".to_string(),
-                        amount: Uint128(5)
+                        amount: Uint128::from(5u128))
                     }]
                 })
             );
@@ -2721,7 +2699,7 @@ mod tests {
                     to_address: Addr::unchecked("validator1"),
                     amount: vec![Coin {
                         denom: "uscrt".to_string(),
-                        amount: Uint128(2349)
+                        amount: Uint128::from(2349u128))
                     }]
                 })
             );
@@ -2761,7 +2739,7 @@ mod tests {
                 },
                 Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(20),
+                    amount: Uint128::from(20u128),
                 },
             ]);
             default_instantiate(&mut deps);
@@ -2770,7 +2748,7 @@ mod tests {
                 Addr::unchecked("address2"),
                 &[Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(20),
+                    amount: Uint128::from(20u128),
                 }],
             );
             let res = handle_jackpot(deps.as_mut(), mock_env(), info.clone());
@@ -2790,12 +2768,12 @@ mod tests {
                 },
                 Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(20),
+                    amount: Uint128::from(20u128),
                 },
             ]);
             default_instantiate(&mut deps);
             let mut state = config_read(deps.as_mut().storage).load().unwrap();
-            state.jackpot_reward = Uint128(0);
+            state.jackpot_reward = Uint128::from(0u128));
             config(deps.as_mut().storage).save(&state);
             let info = mock_info(Addr::unchecked("address2"), &[]);
             let res = handle_jackpot(deps.as_mut(), mock_env(), info.clone());
@@ -2813,7 +2791,7 @@ mod tests {
                 },
                 Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(20),
+                    amount: Uint128::from(20u128),
                 },
             ]);
             default_instantiate(&mut deps);
@@ -2833,7 +2811,7 @@ mod tests {
                 },
                 Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(20),
+                    amount: Uint128::from(20u128),
                 },
             ]);
             default_instantiate(&mut deps);
@@ -2903,7 +2881,7 @@ mod tests {
                 },
                 Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(0),
+                    amount: Uint128::from(0u128),
                 },
             ]);
             default_instantiate(&mut deps);
@@ -2952,7 +2930,7 @@ mod tests {
                     to_address: Addr::unchecked("address1"),
                     amount: vec![Coin {
                         denom: "uscrt".to_string(),
-                        amount: Uint128(6720000)
+                        amount: Uint128::from(6720000u128))
                     }]
                 })
             );
@@ -2962,11 +2940,11 @@ mod tests {
             let mut deps = mock_dependencies_with_balance(&[
                 Coin {
                     denom: "uscrt".to_string(),
-                    amount: Uint128(0),
+                    amount: Uint128::from(0u128),
                 },
                 Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(0),
+                    amount: Uint128::from(0u128),
                 },
             ]);
             default_instantiate(&mut deps);
@@ -3065,11 +3043,11 @@ mod tests {
             let mut deps = mock_dependencies_with_balance(&[
                 Coin {
                     denom: "uscrt".to_string(),
-                    amount: Uint128(0),
+                    amount: Uint128::from(0u128),
                 },
                 Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(10),
+                    amount: Uint128::from(10u128),
                 },
             ]);
             default_instantiate(&mut deps);
@@ -3118,7 +3096,7 @@ mod tests {
                     to_address: Addr::unchecked("address2"),
                     amount: vec![Coin {
                         denom: "ujack".to_string(),
-                        amount: Uint128(1)
+                        amount: Uint128::from(1u128))
                     }]
                 })
             );
@@ -3133,7 +3111,7 @@ mod tests {
                 },
                 Coin {
                     denom: "ujack".to_string(),
-                    amount: Uint128(10),
+                    amount: Uint128::from(10u128),
                 },
             ]);
             default_instantiate(&mut deps);
@@ -3185,11 +3163,11 @@ mod tests {
                     amount: vec![
                         Coin {
                             denom: "uscrt".to_string(),
-                            amount: Uint128(6720000)
+                            amount: Uint128::from(6720000u128))
                         },
                         Coin {
                             denom: "ujack".to_string(),
-                            amount: Uint128(1)
+                            amount: Uint128::from(1u128))
                         }
                     ]
                 })
@@ -3218,7 +3196,7 @@ mod tests {
         let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to a more expensive".to_string(),
             proposal: Proposal::HolderFeePercentage,
-            amount: Option::from(Uint128(15)),
+            amount: Option::from(Uint128::from(15u128))),
             prize_per_rank: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -3226,7 +3204,7 @@ mod tests {
             .load(&1_u64.to_be_bytes())
             .unwrap();
         assert_eq!(Proposal::HolderFeePercentage, storage.proposal);
-        assert_eq!(Uint128(15), storage.amount);
+        assert_eq!(Uint128::from(15u128), storage.amount);
 
         // Test success proposal MinAmountValidator
         let msg = ExecuteMsg::Proposal {
@@ -3240,7 +3218,7 @@ mod tests {
             .load(&2_u64.to_be_bytes())
             .unwrap();
         assert_eq!(Proposal::MinAmountValidator, storage.proposal);
-        assert_eq!(Uint128(15000), storage.amount);
+        assert_eq!(Uint128::from(15000u128), storage.amount);
 
         // Test success proposal prize_per_rank
         let msg = ExecuteMsg::Proposal {
@@ -3268,13 +3246,13 @@ mod tests {
             .load(&4_u64.to_be_bytes())
             .unwrap();
         assert_eq!(Proposal::MinAmountDelegator, storage.proposal);
-        assert_eq!(Uint128(10000), storage.amount);
+        assert_eq!(Uint128::from(10000u128), storage.amount);
 
         // Test success proposal JackpotRewardPercentage
         let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new jackpot percentage".to_string(),
             proposal: Proposal::JackpotRewardPercentage,
-            amount: Option::from(Uint128(10)),
+            amount: Option::from(Uint128::from(10u128))),
             prize_per_rank: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -3282,13 +3260,13 @@ mod tests {
             .load(&5_u64.to_be_bytes())
             .unwrap();
         assert_eq!(Proposal::JackpotRewardPercentage, storage.proposal);
-        assert_eq!(Uint128(10), storage.amount);
+        assert_eq!(Uint128::from(10u128), storage.amount);
 
         // Test success proposal DrandWorkerFeePercentage
         let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new worker percentage".to_string(),
             proposal: Proposal::DrandWorkerFeePercentage,
-            amount: Option::from(Uint128(10)),
+            amount: Option::from(Uint128::from(10u128))),
             prize_per_rank: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -3296,13 +3274,13 @@ mod tests {
             .load(&6_u64.to_be_bytes())
             .unwrap();
         assert_eq!(Proposal::DrandWorkerFeePercentage, storage.proposal);
-        assert_eq!(Uint128(10), storage.amount);
+        assert_eq!(Uint128::from(10u128), storage.amount);
 
         // Test success proposal LotteryEveryBlockTime
         let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new block time".to_string(),
             proposal: Proposal::LotteryEveryBlockTime,
-            amount: Option::from(Uint128(100000)),
+            amount: Option::from(Uint128::from(100000u128))),
             prize_per_rank: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -3310,13 +3288,13 @@ mod tests {
             .load(&7_u64.to_be_bytes())
             .unwrap();
         assert_eq!(Proposal::LotteryEveryBlockTime, storage.proposal);
-        assert_eq!(Uint128(100000), storage.amount);
+        assert_eq!(Uint128::from(100000u128), storage.amount);
 
         // Test success proposal ClaimEveryBlock
         let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new block time".to_string(),
             proposal: Proposal::ClaimEveryBlock,
-            amount: Option::from(Uint128(100000)),
+            amount: Option::from(Uint128::from(100000u128))),
             prize_per_rank: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -3324,7 +3302,7 @@ mod tests {
             .load(&8_u64.to_be_bytes())
             .unwrap();
         assert_eq!(Proposal::ClaimEveryBlock, storage.proposal);
-        assert_eq!(Uint128(100000), storage.amount);
+        assert_eq!(Uint128::from(100000u128), storage.amount);
 
         // Test saved correctly the state
         let res = config_read(deps.as_ref().storage).load().unwrap();
@@ -3334,7 +3312,7 @@ mod tests {
         let msg = ExecuteMsg::Proposal {
             description: "I".to_string(),
             proposal: Proposal::DrandWorkerFeePercentage,
-            amount: Option::from(Uint128(10)),
+            amount: Option::from(Uint128::from(10u128))),
             prize_per_rank: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -3349,7 +3327,7 @@ mod tests {
         let msg = ExecuteMsg::Proposal {
             description: "I erweoi oweijr w oweijr woerwe oirjewoi rewoirj ewoirjewr weiorjewoirjwerieworijewewriewo werioj ew".to_string(),
             proposal: Proposal::DrandWorkerFeePercentage,
-            amount: Option::from(Uint128(10)),
+            amount: Option::from(Uint128::from(10u128))),
             prize_per_rank: None
         };
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -3364,7 +3342,7 @@ mod tests {
         let msg = ExecuteMsg::Proposal {
             description: "Default".to_string(),
             proposal: Proposal::NotExist,
-            amount: Option::from(Uint128(10)),
+            amount: Option::from(Uint128::from(10u128))),
             prize_per_rank: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -3378,7 +3356,7 @@ mod tests {
             Addr::unchecked("address2"),
             &[Coin {
                 denom: "kii".to_string(),
-                amount: Uint128(500),
+                amount: Uint128::from(500u128),
             }],
         );
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -3412,7 +3390,7 @@ mod tests {
         let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new block time".to_string(),
             proposal: Proposal::LotteryEveryBlockTime,
-            amount: Option::from(Uint128(100000)),
+            amount: Option::from(Uint128::from(100000u128))),
             prize_per_rank: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -3483,7 +3461,7 @@ mod tests {
         let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new block time".to_string(),
             proposal: Proposal::LotteryEveryBlockTime,
-            amount: Option::from(Uint128(100000)),
+            amount: Option::from(Uint128::from(100000u128))),
             prize_per_rank: None,
         };
         let res = execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
@@ -3747,7 +3725,7 @@ mod tests {
                 Addr::unchecked("sender"),
                 &[Coin {
                     denom: "funds".to_string(),
-                    amount: Uint128(324),
+                    amount: Uint128::from(324u128),
                 }],
             );
             let mut env = mock_env();

@@ -142,16 +142,14 @@ pub fn handle_transfer(
         |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
     )?;
 
-    let res = Response {
-        messages: vec![],
-        attributes: vec![
+    let res = Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "transfer"),
             attr("from", deps.api.addr_humanize(&sender_raw)?),
             attr("to", recipient),
             attr("amount", amount),
         ],
-        data: None,
-    };
+        );
     Ok(res)
 }
 
@@ -177,14 +175,12 @@ pub fn handle_multi_transfer(
         )?;
     }
 
-    let res = Response {
-        messages: vec![],
-        attributes: vec![
+    let res = Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "multi_transfer"),
             attr("from", deps.api.addr_humanize(&sender_raw)?),
         ],
-        data: None,
-    };
+        );
     Ok(res)
 }
 
@@ -211,15 +207,13 @@ pub fn handle_burn(
         Ok(info)
     })?;
 
-    let res = Response {
-        messages: vec![],
-        attributes: vec![
+    let res = Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "burn"),
             attr("from", deps.api.addr_humanize(&sender_raw)?),
             attr("amount", amount),
         ],
-        data: None,
-    };
+        );
     Ok(res)
 }
 
@@ -257,15 +251,13 @@ pub fn handle_mint(
         |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
     )?;
 
-    let res = Response {
-        messages: vec![],
-        attributes: vec![
+    let res = Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "mint"),
             attr("to", recipient),
             attr("amount", amount),
         ],
-        data: None,
-    };
+        );
     Ok(res)
 }
 
@@ -286,14 +278,12 @@ pub fn handle_change_minter(
 
     token_info(deps.storage).save(&config)?;
 
-    let res = Response {
-        messages: vec![],
-        attributes: vec![
+    let res = Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "change_minter"),
             attr("new_minter", new_minter.minter),
         ],
-        data: None,
-    };
+        );
     Ok(res)
 }
 
@@ -338,11 +328,9 @@ pub fn handle_send(
     }
     .into_cosmos_msg(contract)?;
 
-    let res = Response {
-        messages: vec![msg],
+    let res = Response::new().add_messages( vec![msg],
         attributes: attrs,
-        data: None,
-    };
+        );
     Ok(res)
 }
 
@@ -538,15 +526,15 @@ mod tests {
                 total_supply: amount,
             }
         );
-        assert_eq!(get_balance(deps.as_ref(), "addr0000"), Uint128(11223344));
+        assert_eq!(get_balance(deps.as_ref(), "addr0000"), Uint128::from(11223344u128)));
     }
 
     #[test]
     fn init_mintable() {
         let mut deps = mock_dependencies_with_balance(&[]);
-        let amount = Uint128(11223344);
+        let amount = Uint128::from(11223344u128));
         let minter = Addr::unchecked("asmodat");
-        let limit = Uint128(511223344);
+        let limit = Uint128::from(511223344u128));
         let init_msg = InstantiateMsg {
             name: "Cash Token".to_string(),
             symbol: "CASH".to_string(),
@@ -574,7 +562,7 @@ mod tests {
                 total_supply: amount,
             }
         );
-        assert_eq!(get_balance(deps.as_ref(), "addr0000"), Uint128(11223344));
+        assert_eq!(get_balance(deps.as_ref(), "addr0000"), Uint128::from(11223344u128)));
         assert_eq!(
             query_minter(deps.as_ref()).unwrap(),
             Some(MinterResponse {
@@ -587,9 +575,9 @@ mod tests {
     #[test]
     fn init_mintable_over_cap() {
         let mut deps = mock_dependencies_with_balance(&[]);
-        let amount = Uint128(11223344);
+        let amount = Uint128::from(11223344u128));
         let minter = Addr::unchecked("asmodat");
-        let limit = Uint128(11223300);
+        let limit = Uint128::from(11223300u128));
         let init_msg = InstantiateMsg {
             name: "Cash Token".to_string(),
             symbol: "CASH".to_string(),
@@ -617,9 +605,9 @@ mod tests {
         let mut deps = mock_dependencies_with_balance(&[]);
 
         let genesis = Addr::unchecked("genesis");
-        let amount = Uint128(11223344);
+        let amount = Uint128::from(11223344u128));
         let minter = Addr::unchecked("asmodat");
-        let limit = Uint128(511223344);
+        let limit = Uint128::from(511223344u128));
         do_init_with_minter(deps.as_mut(), &genesis, amount, &minter, Some(limit));
 
         // minter can mint coins to some winner
@@ -671,14 +659,14 @@ mod tests {
         do_init_with_minter(
             deps.as_mut(),
             &Addr::unchecked("genesis"),
-            Uint128(1234),
+            Uint128::from(1234u128),
             &Addr::unchecked("minter"),
             None,
         );
 
         let msg = ExecuteMsg::Mint {
             recipient: Addr::unchecked("lucky"),
-            amount: Uint128(222),
+            amount: Uint128::from(222u128),
         };
         let info = mock_info(&Addr::unchecked("anyone else"), &[]);
         let env = mock_env();
@@ -692,11 +680,11 @@ mod tests {
     #[test]
     fn no_one_mints_if_minter_unset() {
         let mut deps = mock_dependencies_with_balance(&[]);
-        do_instantiate(deps.as_mut(), &Addr::unchecked("genesis"), Uint128(1234));
+        do_instantiate(deps.as_mut(), &Addr::unchecked("genesis"), Uint128::from(1234u128)));
 
         let msg = ExecuteMsg::Mint {
             recipient: Addr::unchecked("lucky"),
-            amount: Uint128(222),
+            amount: Uint128::from(222u128),
         };
         let info = mock_info(&Addr::unchecked("genesis"), &[]);
         let env = mock_env();
@@ -1068,7 +1056,7 @@ mod tests {
                 name: "Sample Coin".to_string(),
                 symbol: "SAMP".to_string(),
                 decimals: 2,
-                total_supply: Uint128(777777),
+                total_supply: Uint128::from(777777u128),
                 mint: None,
             }
         );
@@ -1085,8 +1073,8 @@ mod tests {
 
         let bal = balances_read(&mut deps.storage);
         assert_eq!(2, bal.range(None, None, Order::Descending).count());
-        assert_eq!(bal.load(user1.as_slice()).unwrap(), Uint128(123456));
-        assert_eq!(bal.load(user2.as_slice()).unwrap(), Uint128(654321));
+        assert_eq!(bal.load(user1.as_slice()).unwrap(), Uint128::from(123456u128)));
+        assert_eq!(bal.load(user2.as_slice()).unwrap(), Uint128::from(654321u128)));
 
         let spender1 = deps
             .api
@@ -1105,7 +1093,7 @@ mod tests {
             .load(spender1.as_slice())
             .unwrap();
         let expect = AllowanceResponse {
-            allowance: Uint128(5000),
+            allowance: Uint128::from(5000u128),
             expires: Expiration::AtHeight(5000),
         };
         assert_eq!(allow, expect);
@@ -1118,7 +1106,7 @@ mod tests {
             .load(spender1.as_slice())
             .unwrap();
         let expect = AllowanceResponse {
-            allowance: Uint128(15000),
+            allowance: Uint128::from(15000u128),
             expires: Expiration::AtTime(1598647517),
         };
         assert_eq!(allow, expect);
@@ -1126,7 +1114,7 @@ mod tests {
             .load(spender2.as_slice())
             .unwrap();
         let expect = AllowanceResponse {
-            allowance: Uint128(77777),
+            allowance: Uint128::from(77777u128),
             expires: Expiration::Never {},
         };
         assert_eq!(allow, expect);

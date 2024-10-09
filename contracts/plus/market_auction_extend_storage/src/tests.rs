@@ -58,7 +58,7 @@ fn sort_auction() {
             asker: asker.clone(),
             orig_per_price: Uint128(i),
             bidder: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
         };
         let msg = ExecuteMsg::Msg(AuctionExecuteMsg::UpdateAuction { auction });
         let _res = execute(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
@@ -66,11 +66,11 @@ fn sort_auction() {
 
     let auction = Auction {
         id: None,
-        per_price: Uint128(1),
+        per_price: Uint128::from(1u128),
         start: contract_env.block.height + 15,
         end: contract_env.block.height + 100,
         cancel_fee: Some(1),
-        buyout_per_price: Some(Uint128(1)),
+        buyout_per_price: Some(Uint128::from(1u128))),
         start_timestamp: Uint128::from(0u64),
         end_timestamp: Uint128::from(0u64),
         step_price: 1,
@@ -80,9 +80,9 @@ fn sort_auction() {
             .api
             .addr_canonicalize(&Addr::unchecked("another asker"))
             .unwrap(),
-        orig_per_price: Uint128(1),
+        orig_per_price: Uint128::from(1u128),
         bidder: None,
-        amount: Uint128(10),
+        amount: Uint128::from(10u128),
     };
     let msg = ExecuteMsg::Msg(AuctionExecuteMsg::UpdateAuction { auction });
     let _res = execute(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
@@ -92,7 +92,7 @@ fn sort_auction() {
         deps.as_ref(),
         contract_env.clone(),
         QueryMsg::Msg(AuctionQueryMsg::GetAuctionsByAsker {
-            asker: "asker".into(),
+            asker: Addr::unchecked("asker"),
             options: PagingOptions {
                 limit: Some(100),
                 offset: Some(40),

@@ -137,17 +137,15 @@ pub fn try_bid_nft(
         return Err(ContractError::InvalidZeroAmount {});
     }
 
-    Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![
+    Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![
             attr("action", "bid_nft"),
             attr("bidder", sender),
             attr("auction_id", auction_id),
             attr("token_id", token_id),
             attr("per_price", per_price),
         ],
-        data: None,
-    })
+        ))
 }
 
 /// anyone can claim
@@ -371,9 +369,8 @@ pub fn handle_ask_auction(
         }),
     )?);
 
-    Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![
+    Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![
             attr("action", "ask_nft"),
             attr("contract_addr", msg.contract_addr),
             attr("asker", info.sender),
@@ -382,8 +379,7 @@ pub fn handle_ask_auction(
             attr("token_id", token_id),
             attr("initial_token_id", msg.token_id),
         ],
-        data: None,
-    })
+        ))
 }
 
 // when bidder cancel the bid, he must pay for asker the cancel-fee
@@ -457,7 +453,7 @@ pub fn try_cancel_bid(
 
             return Ok(Response {
                 messages: cosmos_msgs,
-                attributes: vec![
+                add_attributes(vec![
                     attr("action", "cancel_bid"),
                     attr("bidder", info.sender),
                     attr("auction_id", auction_id),
@@ -535,17 +531,15 @@ pub fn try_emergency_cancel_auction(
         AuctionExecuteMsg::RemoveAuction { id: auction_id },
     )?);
 
-    return Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![
+    return Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![
             attr("action", "withdraw_nft"),
             attr("asker", info.sender),
             attr("auction_id", auction_id),
             attr("token_id", token_id),
             attr("price", price),
         ],
-        data: None,
-    });
+        ));
 }
 
 // pub fn get_auction_handle_msg(

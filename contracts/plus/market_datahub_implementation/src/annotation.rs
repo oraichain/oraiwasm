@@ -75,7 +75,7 @@ pub fn try_withdraw(
 
         return Ok(Response {
             messages: cosmos_msgs,
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "withdraw_annotation_request"),
                 attr("requester", info.sender),
                 attr("annotation_id", annotation_id),
@@ -164,9 +164,8 @@ pub fn try_execute_request_annotation(
         },
     )?);
 
-    Ok(Response {
-        messages: cosmos_msg,
-        attributes: vec![
+    Ok(Response::new().add_messages( cosmos_msg,
+        add_attributes(vec![
             attr("action", "request_annotation"),
             attr("requester", info.sender.clone()),
             attr("reward_per_sample", reward_per_sample.to_string()),
@@ -178,8 +177,7 @@ pub fn try_execute_request_annotation(
                 reward_per_upload_task.to_string(),
             ),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_payout(
@@ -360,11 +358,9 @@ pub fn try_payout(
         },
     )?);
 
-    Ok(Response {
-        messages: cosmos_msg,
+    Ok(Response::new().add_messages( cosmos_msg,
         attributes,
-        data: None,
-    })
+        ))
 }
 
 pub fn get_annotation(deps: Deps, annotation_id: u64) -> Result<Annotation, ContractError> {

@@ -312,17 +312,15 @@ pub fn aggregate_sig(
     beacons_handle_storage(deps.storage).remove(&round.to_be_bytes());
 
     // return response events
-    let response = Response {
-        messages: vec![],
-        attributes: vec![
+    let response = Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "aggregate_sig"),
             attr("share_data", to_json_binary(&share_data)?),
             attr("aggregate_sig", to_json_binary(&share_data.aggregate_sig)?),
             attr("round", round),
             attr("sender", info.sender),
         ],
-        data: None,
-    };
+        );
     Ok(response)
 }
 
@@ -386,9 +384,8 @@ pub fn request_random(
     beacons_handle_storage(deps.storage).set(&round.to_be_bytes(), &msg);
 
     // return the round
-    let response = Response {
-        messages: vec![],
-        attributes: vec![
+    let response = Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "request_random"),
             attr("input", input),
             attr("round", round),

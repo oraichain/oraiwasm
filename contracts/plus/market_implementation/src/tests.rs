@@ -544,7 +544,7 @@ fn sell_auction_happy_path() {
         let sell_msg = ExecuteMsg::AskNft {
             contract_addr: Addr::from(OW721),
             token_id: String::from(PROVIDER_NFT_NATIVE),
-            price: Uint128(0),
+            price: Uint128::from(0u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -618,7 +618,7 @@ fn sell_auction_cw20_happy_path() {
         let sell_msg = ExecuteMsg::AskNft {
             contract_addr: Addr::from(OW721),
             token_id: String::from(PROVIDER_NFT_CW20),
-            price: Uint128(0),
+            price: Uint128::from(0u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -697,7 +697,7 @@ fn test_royalty_auction_happy_path() {
         let sell_msg = ExecuteMsg::AskNft {
             contract_addr: Addr::from(OW721),
             token_id: String::from(PROVIDER_NFT_NATIVE),
-            price: Uint128(100),
+            price: Uint128::from(100u128),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 5),
             end: Some(contract_env.block.height + 100),
@@ -761,7 +761,7 @@ fn test_royalty_auction_happy_path() {
         let sell_msg = ExecuteMsg::AskNft {
             contract_addr: Addr::from(OW721),
             token_id: String::from(PROVIDER_NFT_NATIVE),
-            price: Uint128(10),
+            price: Uint128::from(10u128),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 5),
             end: Some(contract_env.block.height + 100),
@@ -785,7 +785,7 @@ fn test_royalty_auction_happy_path() {
                 bid_contract_env,
                 mock_info(
                     "bidder1",
-                    &coins(Uint128(10).add(Uint128::from(10u64)).u128(), DENOM),
+                    &coins(Uint128::from(10u128)).add(Uint128::from(10u64)).u128(), DENOM),
                 ),
                 bid_msg,
             )
@@ -841,7 +841,7 @@ fn test_royalty_auction_happy_path() {
                                 flag = 1;
                                 println!("in here ready to pay for prev owner");
                                 assert_eq!(
-                                    Uint128(19).mul(Decimal::from_ratio(
+                                    Uint128::from(19u128)).mul(Decimal::from_ratio(
                                         // initial buy amount is 20, but fee is 0.1% => decreased to 19
                                         result_royalty.prev_royalty.unwrap(),
                                         MAX_DECIMAL_POINT
@@ -899,7 +899,7 @@ fn test_royalty_auction_cw20_happy_path() {
         let sell_msg = ExecuteMsg::AskNft {
             contract_addr: Addr::from(OW721),
             token_id: String::from(PROVIDER_NFT_CW20),
-            price: Uint128(10),
+            price: Uint128::from(10u128),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 5),
             end: Some(contract_env.block.height + 100),
@@ -957,7 +957,7 @@ fn test_royalty_auction_cw20_happy_path() {
         let sell_msg = ExecuteMsg::AskNft {
             contract_addr: Addr::from(OW721),
             token_id: String::from(PROVIDER_NFT_CW20),
-            price: Uint128(10),
+            price: Uint128::from(10u128),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 5),
             end: Some(contract_env.block.height + 100),
@@ -1928,7 +1928,7 @@ fn test_royalties() {
         let msg = ExecuteMsg::SellNft {
             contract_addr: Addr::from(OW721),
             token_id: String::from(SELLABLE_NFT_NATIVE),
-            off_price: Uint128(50),
+            off_price: Uint128::from(50u128),
             royalty: Some(10 * DECIMAL),
         };
         manager.execute(info_sell.clone(), msg).unwrap();
@@ -1963,7 +1963,7 @@ fn test_royalties() {
         let msg = ExecuteMsg::SellNft {
             contract_addr: Addr::from(OW721),
             token_id: String::from(SELLABLE_NFT_NATIVE),
-            off_price: Uint128(50),
+            off_price: Uint128::from(50u128),
             royalty: Some(10 * DECIMAL),
         };
         manager.execute(mock_info("buyer", &vec![]), msg).unwrap();
@@ -1998,7 +1998,7 @@ fn test_royalties() {
         let msg = ExecuteMsg::SellNft {
             contract_addr: Addr::from(OW721),
             token_id: String::from(SELLABLE_NFT_NATIVE),
-            off_price: Uint128(50),
+            off_price: Uint128::from(50u128),
             royalty: Some(10 * DECIMAL),
         };
         manager.execute(mock_info("buyer1", &vec![]), msg).unwrap();
@@ -2170,7 +2170,7 @@ fn test_royalties_ow20() {
         let msg = ExecuteMsg::SellNft {
             contract_addr: Addr::from(OW721),
             token_id: String::from(SELLABLE_NFT_CW20),
-            off_price: Uint128(50),
+            off_price: Uint128::from(50u128),
             royalty: Some(10 * DECIMAL),
         };
         manager.execute(info_sell.clone(), msg).unwrap();
@@ -2210,7 +2210,7 @@ fn test_royalties_ow20() {
         let msg = ExecuteMsg::SellNft {
             contract_addr: Addr::from(OW721),
             token_id: String::from(SELLABLE_NFT_CW20),
-            off_price: Uint128(50),
+            off_price: Uint128::from(50u128),
             royalty: Some(10 * DECIMAL),
         };
         manager.execute(mock_info("buyer", &vec![]), msg).unwrap();
@@ -2250,7 +2250,7 @@ fn test_royalties_ow20() {
         let msg = ExecuteMsg::SellNft {
             contract_addr: Addr::from(OW721),
             token_id: String::from(SELLABLE_NFT_CW20),
-            off_price: Uint128(50),
+            off_price: Uint128::from(50u128),
             royalty: Some(10 * DECIMAL),
         };
         manager.execute(mock_info("buyer1", &vec![]), msg).unwrap();
@@ -2441,7 +2441,7 @@ fn test_buy_market_fee_calculate() {
         let msg = ExecuteMsg::SellNft {
             contract_addr: Addr::from(OW721),
             token_id: String::from(SELLABLE_NFT_NATIVE),
-            off_price: Uint128(100),
+            off_price: Uint128::from(100u128),
             royalty: Some(10 * DECIMAL),
         };
         manager.execute(info_sell.clone(), msg).unwrap();

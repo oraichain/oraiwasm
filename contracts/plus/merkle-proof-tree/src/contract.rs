@@ -70,10 +70,9 @@ pub fn execute_update_config(
     })?;
 
     Ok(Response {
-        attributes: vec![attr("action", "update_config")],
+        add_attributes(vec![attr("action", "update_config")],
         messages: vec![],
-        data: None,
-    })
+        ))
 }
 
 pub fn execute_register_merkle_root(
@@ -101,7 +100,7 @@ pub fn execute_register_merkle_root(
     Ok(Response {
         data: None,
         messages: vec![],
-        attributes: vec![
+        add_attributes(vec![
             attr("action", "register_merkle_root"),
             attr("stage", stage.to_string()),
             attr("merkle_root", merkle_root),
@@ -156,7 +155,7 @@ pub fn execute_claim(
     let res = Response {
         data: None,
         messages: vec![],
-        attributes: vec![
+        add_attributes(vec![
             attr("action", "claim"),
             attr("stage", stage.to_string()),
             attr("address", info.sender),

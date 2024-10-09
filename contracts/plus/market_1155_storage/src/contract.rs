@@ -151,14 +151,12 @@ pub fn try_update_offering(
 
     offerings().save(deps.storage, &offering.id.unwrap().to_be_bytes(), &offering)?;
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "update_offering"),
             attr("offering_id", offering.id.unwrap()),
         ],
-        data: None,
-    });
+        ));
 }
 
 pub fn try_withdraw_offering(
@@ -177,11 +175,9 @@ pub fn try_withdraw_offering(
     // remove offering
     offerings().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "remove_offering"), attr("offering_id", id)],
-        data: None,
-    });
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "remove_offering"), attr("offering_id", id)],
+        ));
 }
 
 // ============================== Query Handlers ==============================

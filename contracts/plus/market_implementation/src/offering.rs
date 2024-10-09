@@ -48,11 +48,9 @@ pub fn try_handle_mint(
 
     cosmos_msgs.push(mint_msg);
 
-    let response = Response {
-        messages: cosmos_msgs,
-        attributes: vec![attr("action", "mint_nft"), attr("caller", info.sender)],
-        data: None,
-    };
+    let response = Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![attr("action", "mint_nft"), attr("caller", info.sender)],
+        );
 
     Ok(response)
 }
@@ -215,7 +213,7 @@ pub fn try_buy(
 
     // let mut handle_response = Response {
     //     messages: cosmos_msgs,
-    //     attributes: vec![
+    //     add_attributes(vec![
     //         attr("action", "buy_nft"),
     //         attr("buyer", info.sender),
     //         attr("seller", seller_addr),
@@ -293,16 +291,14 @@ pub fn try_withdraw(
         OfferingExecuteMsg::RemoveOffering { id: offering_id },
     )?);
 
-    Ok(Response {
-        messages: cosmos_msg,
-        attributes: vec![
+    Ok(Response::new().add_messages( cosmos_msg,
+        add_attributes(vec![
             attr("action", "withdraw_nft"),
             attr("seller", info.sender),
             attr("offering_id", offering_id),
             attr("token_id", off.token_id),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_handle_sell_nft(
@@ -430,11 +426,9 @@ pub fn try_handle_sell_nft(
         attributes.push(attr("previous_owner", prev_owner));
     }
 
-    Ok(Response {
-        messages: cosmos_msgs,
+    Ok(Response::new().add_messages( cosmos_msgs,
         attributes,
-        data: None,
-    })
+        ))
 }
 
 pub fn query_offering(deps: Deps, msg: OfferingQueryMsg) -> StdResult<Binary> {
@@ -505,7 +499,7 @@ pub fn get_offering_handle_msg(
 //     }
 //     Ok(Response {
 //         messages: cosmos_msgs,
-//         attributes: vec![attr("action", "update_offering_royalties")],
+//         add_attributes(vec![attr("action", "update_offering_royalties")],
 //         data: None,
 //     })
 // }

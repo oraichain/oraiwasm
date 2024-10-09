@@ -106,10 +106,9 @@ pub fn execute_update_config(
     }
 
     Ok(Response {
-        attributes: vec![attr("action", "update_config")],
+        add_attributes(vec![attr("action", "update_config")],
         messages: vec![],
-        data: None,
-    })
+        ))
 }
 
 pub fn execute_update_claim(
@@ -130,10 +129,9 @@ pub fn execute_update_claim(
     }
 
     Ok(Response {
-        attributes: vec![attr("action", "update_claim")],
+        add_attributes(vec![attr("action", "update_claim")],
         messages: vec![],
-        data: None,
-    })
+        ))
 }
 
 pub fn execute_remove_merkle_root(
@@ -152,10 +150,9 @@ pub fn execute_remove_merkle_root(
     MERKLE_ROOT.save(deps.storage, U8Key::from(stage), &"".into())?;
 
     Ok(Response {
-        attributes: vec![attr("action", "remove_merkle_root"), attr("stage", stage)],
+        add_attributes(vec![attr("action", "remove_merkle_root"), attr("stage", stage)],
         messages: vec![],
-        data: None,
-    })
+        ))
 }
 
 pub fn execute_register_merkle_root(
@@ -204,7 +201,7 @@ pub fn execute_register_merkle_root(
     Ok(Response {
         data: None,
         messages: vec![],
-        attributes: vec![
+        add_attributes(vec![
             attr("action", "register_merkle_root"),
             attr("stage", stage.to_string()),
             attr("merkle_root", merkle_root),
@@ -290,7 +287,7 @@ pub fn execute_claim(
             funds: vec![],
         }
         .into()],
-        attributes: vec![
+        add_attributes(vec![
             attr("action", "claim"),
             attr("stage", stage.to_string()),
             attr("address", info.sender.to_string()),
@@ -331,8 +328,7 @@ pub fn execute_burn(
     // Get balance
     let balance_to_burn = (total_amount - claimed_amount)?;
 
-    let res = Response {
-        messages: vec![WasmMsg::Execute {
+    let res = Response::new().add_messages( vec![WasmMsg::Execute {
             contract_addr: cfg.cw20_token_address,
             funds: vec![],
             msg: to_json_binary(&Cw20ExecuteMsg::Burn {
@@ -340,14 +336,13 @@ pub fn execute_burn(
             })?,
         }
         .into()],
-        attributes: vec![
+        add_attributes(vec![
             attr("action", "burn"),
             attr("stage", stage.to_string()),
             attr("address", info.sender),
             attr("amount", balance_to_burn),
         ],
-        data: None,
-    };
+        );
     Ok(res)
 }
 
@@ -383,8 +378,7 @@ pub fn execute_withdraw(
     let balance_to_withdraw = (total_amount - claimed_amount)?;
 
     // Withdraw the tokens and response
-    let res = Response {
-        messages: vec![WasmMsg::Execute {
+    let res = Response::new().add_messages( vec![WasmMsg::Execute {
             contract_addr: cfg.cw20_token_address,
             funds: vec![],
             msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
@@ -393,15 +387,14 @@ pub fn execute_withdraw(
             })?,
         }
         .into()],
-        attributes: vec![
+        add_attributes(vec![
             attr("action", "withdraw"),
             attr("stage", stage.to_string()),
             attr("address", info.sender),
             attr("amount", balance_to_withdraw),
             attr("recipient", owner),
         ],
-        data: None,
-    };
+        );
 
     Ok(res)
 }

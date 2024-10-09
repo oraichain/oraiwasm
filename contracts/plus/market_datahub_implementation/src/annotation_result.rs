@@ -103,15 +103,13 @@ pub fn try_add_annotation_result(
         },
     )?);
 
-    Ok(Response {
-        messages: msg,
-        attributes: vec![
+    Ok(Response::new().add_messages( msg,
+        add_attributes(vec![
             attr("action", "reviewer_commit_result"),
             attr("annotation_id", annotation_id.to_string()),
             attr("reviewer_address", info.sender.to_string()),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_add_reviewed_upload(
@@ -197,15 +195,13 @@ pub fn try_add_reviewed_upload(
         },
     )?);
 
-    Ok(Response {
-        messages: msg,
-        attributes: vec![
+    Ok(Response::new().add_messages( msg,
+        add_attributes(vec![
             attr("action", "reviewer_commit_reviewed_upload"),
             attr("annotation_id", annotation_id.to_string()),
             attr("reviewer_address", info.sender.to_string()),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_add_annotation_reviewer(
@@ -248,15 +244,13 @@ pub fn try_add_annotation_reviewer(
         },
     )?);
 
-    Ok(Response {
-        messages: cosmos_msg,
-        attributes: vec![
+    Ok(Response::new().add_messages( cosmos_msg,
+        add_attributes(vec![
             attr("action", "add annotation reviewer"),
             attr("annotation_id", annotation_id.to_string()),
             attr("reviewer_address", reviewer_address.to_string()),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_remove_annotation_reviewer(
@@ -299,15 +293,13 @@ pub fn try_remove_annotation_reviewer(
         },
     )?);
 
-    Ok(Response {
-        messages: cosmos_msg,
-        attributes: vec![
+    Ok(Response::new().add_messages( cosmos_msg,
+        add_attributes(vec![
             attr("action", "remove reviewer from annotation"),
             attr("annotation", annotation_id.to_string()),
             attr("reviewer_address", reviewer_address.to_string()),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn get_annotation_results_by_annotation_id(

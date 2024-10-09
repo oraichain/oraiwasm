@@ -122,15 +122,13 @@ pub fn try_handle_mint(
     }
     .into();
 
-    let response = Response {
-        messages: vec![mint_msg],
-        attributes: vec![
+    let response = Response::new().add_messages( vec![mint_msg],
+        add_attributes(vec![
             attr("action", "mint_nft"),
             attr("invoker", info.sender),
             attr("mint_msg", msg),
         ],
-        data: None,
-    };
+        );
 
     Ok(response)
 }
@@ -149,16 +147,14 @@ pub fn try_withdraw_funds(
     }
     .into();
 
-    Ok(Response {
-        messages: vec![bank_msg],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![bank_msg],
+        add_attributes(vec![
             attr("action", "withdraw_funds"),
             attr("denom", fund.denom),
             attr("amount", fund.amount),
             attr("receiver", contract_info.creator),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_update_info(
@@ -187,9 +183,8 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "update_info"),
             attr("info_sender", info.sender),
         ],
@@ -312,17 +307,15 @@ pub fn try_buy(
         .into(),
     );
 
-    Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![
+    Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![
             attr("action", "buy_nft"),
             attr("buyer", info.sender),
             attr("seller", seller_addr),
             attr("token_id", off.token_id),
             attr("offering_id", offering_id),
         ],
-        data: None,
-    })
+        ))
 }
 
 /// when user sell NFT to
@@ -392,9 +385,8 @@ pub fn try_receive_nft(
 
     let price_string = format!("{}", msg.price);
 
-    Ok(Response {
-        messages: Vec::new(),
-        attributes: vec![
+    Ok(Response::new().add_messages( Vec::new(),
+        add_attributes(vec![
             attr("action", "sell_nft"),
             attr("original_contract", info.sender),
             attr("seller", rcv_msg.sender),
@@ -402,8 +394,7 @@ pub fn try_receive_nft(
             attr("token_id", off.token_id),
             attr("offering_id", offering_id),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_withdraw_all(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
@@ -437,11 +428,9 @@ pub fn try_withdraw_all(deps: DepsMut, info: MessageInfo) -> Result<Response, Co
         offerings().remove(storage, &storage_key)?;
     }
 
-    Ok(Response {
-        messages: msgs,
-        attributes: vec![attr("action", "withdraw_all_nfts")],
-        data: None,
-    })
+    Ok(Response::new().add_messages( msgs,
+        add_attributes(vec![attr("action", "withdraw_all_nfts")],
+        ))
 }
 
 pub fn try_withdraw(
@@ -473,7 +462,7 @@ pub fn try_withdraw(
 
         return Ok(Response {
             messages: cw721_transfer_cosmos_msg,
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "withdraw_nft"),
                 attr("seller", info.sender),
                 attr("offering_id", offering_id),

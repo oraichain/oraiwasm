@@ -131,7 +131,7 @@ pub fn try_update_preference(
     let pref_royalty = sanitize_royalty(pref, max_royalty, "ai_royalty_preference")?;
     PREFERENCES.save(deps.storage, info.sender.as_bytes(), &pref_royalty)?;
     return Ok(Response {
-        attributes: vec![
+        add_attributes(vec![
             attr("action", "update_preference"),
             attr("caller", info.sender),
             attr("preference", pref_royalty),
@@ -198,7 +198,7 @@ pub fn try_update_royalty(
     )?;
 
     return Ok(Response {
-        attributes: vec![
+        add_attributes(vec![
             attr("action", "update_ai_royalty"),
             attr("contract_addr", royalty.contract_addr),
             attr("token_id", royalty.token_id),
@@ -232,7 +232,7 @@ pub fn try_remove_royalty(
     )?;
 
     return Ok(Response {
-        attributes: vec![
+        add_attributes(vec![
             attr("action", "remove_ai_royalty"),
             attr("contract_addr", royalty.contract_addr),
             attr("token_id", royalty.token_id),
@@ -270,9 +270,8 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_info")],
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "update_info")],
         data: to_json_binary(&new_contract_info).ok(),
     })
 }

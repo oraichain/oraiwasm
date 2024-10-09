@@ -118,9 +118,8 @@ pub fn try_update_first_lv_royalty(
         &first_lv_royalty,
     )?;
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_offering_royalty")],
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "update_offering_royalty")],
         data: to_json_binary(&first_lv_royalty).ok(),
     });
 }
@@ -145,11 +144,9 @@ pub fn try_delete_first_lv_royalty(
         &get_key_royalty(contract_addr.as_bytes(), token_id.as_bytes()),
     )?;
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "remove_offering_royalty")],
-        data: None,
-    });
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "remove_offering_royalty")],
+        ));
 }
 
 pub fn try_update_info(
@@ -174,9 +171,8 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_info")],
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "update_info")],
         data: to_json_binary(&new_contract_info).ok(),
     })
 }

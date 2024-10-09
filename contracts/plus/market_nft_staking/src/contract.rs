@@ -204,7 +204,7 @@ pub fn handle_update_contract_info(
     Ok(Response {
         events: vec![],
         messages: vec![],
-        attributes: vec![attr("action", "update_info")],
+        add_attributes(vec![attr("action", "update_info")],
         data: to_json_binary(&new_contract_info).ok(),
     })
 }
@@ -253,7 +253,7 @@ pub fn handle_create_collection_pool_info(
         data: None,
         events: vec![],
         messages: vec![],
-        attributes: vec![
+        add_attributes(vec![
             attr("action", "create_collection_pool"),
             attr("collection_id", msg.collection_id),
             attr("reward_per_block", msg.reward_per_block),
@@ -293,7 +293,7 @@ pub fn handle_update_collection_pool_info(
         data: None,
         events: vec![],
         messages: vec![],
-        attributes: vec![
+        add_attributes(vec![
             attr("action", "update_collection_pool_info"),
             attr("collection_id", msg.collection_id),
             attr("reward_per_block", msg.reward_per_block.unwrap_or_default()),
@@ -884,7 +884,7 @@ pub fn handle_claim(
                 data: None,
                 events: vec![],
                 messages: vec![],
-                attributes: vec![
+                add_attributes(vec![
                     attr("action", "claim_reward"),
                     attr("collection_id", collection_id),
                     attr("staker", info.sender),
@@ -1010,7 +1010,7 @@ pub fn migrate(
     Ok(MigrateResponse {
         data: None,
         messages: vec![],
-        attributes: vec![attr("action", "migrate")],
+        add_attributes(vec![attr("action", "migrate")],
     })
 }
 

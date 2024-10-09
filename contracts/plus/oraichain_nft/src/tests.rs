@@ -225,7 +225,7 @@ fn transferring_nft() {
         res,
         Response {
             messages: vec![],
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "transfer_nft"),
                 attr("sender", "venus"),
                 attr("recipient", "random"),
@@ -386,7 +386,7 @@ fn sending_nft() {
         res,
         Response {
             messages: vec![expected],
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "send_nft"),
                 attr("sender", "venus"),
                 attr("recipient", "another_contract"),
@@ -429,7 +429,7 @@ fn approving_revoking() {
         res,
         Response {
             messages: vec![],
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "approve"),
                 attr("sender", "demeter"),
                 attr("spender", "random"),
@@ -563,7 +563,7 @@ fn approving_all_revoking_all() {
         res,
         Response {
             messages: vec![],
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "approve_all"),
                 attr("sender", "demeter"),
                 attr("operator", "random"),

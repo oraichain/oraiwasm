@@ -231,14 +231,12 @@ pub fn try_update_offering(
 
     offerings().save(deps.storage, &offering.id.unwrap().to_be_bytes(), &offering)?;
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "update_offering"),
             attr("offering_id", offering.id.unwrap()),
         ],
-        data: None,
-    });
+        ));
 }
 
 pub fn try_withdraw_offering(
@@ -257,11 +255,9 @@ pub fn try_withdraw_offering(
     // remove offering
     offerings().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "remove_offering"), attr("offering_id", id)],
-        data: None,
-    });
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "remove_offering"), attr("offering_id", id)],
+        ));
 }
 
 pub fn try_update_annotation(
@@ -289,14 +285,12 @@ pub fn try_update_annotation(
         &annotation,
     )?;
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "update_annotation"),
             attr("annotation_id", annotation.id.unwrap()),
         ],
-        data: None,
-    });
+        ));
 }
 
 pub fn try_withdraw_annotation(
@@ -314,14 +308,12 @@ pub fn try_withdraw_annotation(
     // remove offering
     annotations().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "remove_annotation"),
             attr("annotation_id", id),
         ],
-        data: None,
-    });
+        ));
 }
 
 pub fn try_update_annotation_results(
@@ -344,14 +336,12 @@ pub fn try_update_annotation_results(
 
     annotation_results().save(deps.storage, &data.id.unwrap().to_be_bytes(), &data)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "update_annotation_result"),
             attr("annotation_result_id", &data.id.unwrap().to_string()),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_add_annotation_reviewer(
@@ -391,7 +381,7 @@ pub fn try_add_annotation_reviewer(
         Ok(Response {
             messages: vec![],
             data: None,
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "add_annotation_reviewer"),
                 attr("annotation_id", annotation_id.to_string()),
                 attr("reviewer_address", reviewer_address.to_string()),
@@ -430,7 +420,7 @@ pub fn try_remove_annotation_reviewer(
 
         Ok(Response {
             messages: vec![],
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "remove_annotation_reviewer"),
                 attr("annotation_id", annotation_id.to_string()),
                 attr("reviewer_address", reviewer_address.to_string()),
@@ -466,11 +456,9 @@ pub fn try_remove_annotation_result_data(
         annotation_reviewers().remove(deps.storage, &item.id.unwrap().to_be_bytes().to_vec())?;
     }
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "remove annotation result")],
-        data: None,
-    })
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "remove annotation result")],
+        ))
 }
 
 pub fn try_add_reviewed_upload(
@@ -497,14 +485,12 @@ pub fn try_add_reviewed_upload(
         &reviewed_upload,
     )?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "add_reviewed_count"),
             attr("review_result_id", &reviewed_upload.id.unwrap().to_string()),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_update_info(
@@ -529,9 +515,8 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_info")],
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "update_info")],
         data: to_json_binary(&new_contract_info).ok(),
     })
 }

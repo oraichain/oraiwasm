@@ -87,14 +87,12 @@ pub fn change_owner(
     owner_read.owner = new_owner;
     owner(deps.storage).save(&owner_read)?;
 
-    Ok(Response {
-        messages: Vec::new(),
-        attributes: vec![
+    Ok(Response::new().add_messages( Vec::new(),
+        add_attributes(vec![
             attr("old_owner", old_owner),
             attr("new_owner", owner_read.owner),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_lock(
@@ -134,17 +132,15 @@ pub fn try_lock(
     let new_nonce: Nonce = Nonce(nonce_u64 + 1);
     nonce(deps.storage).save(&new_nonce)?;
 
-    Ok(Response {
-        messages: Vec::new(),
-        attributes: vec![
+    Ok(Response::new().add_messages( Vec::new(),
+        add_attributes(vec![
             attr("action", "lock"),
             attr("nft_addr", info.sender),
             attr("bsc_addr", &msg.bsc_addr),
             attr("orai_addr", &msg.orai_addr),
             attr("nonce", &nonce_u64),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_unlock(
@@ -236,9 +232,8 @@ pub fn try_unlock(
         &locked,
     )?;
 
-    return Ok(Response {
-        messages: cw721_transfer_cosmos_msg,
-        attributes: vec![
+    return Ok(Response::new().add_messages( cw721_transfer_cosmos_msg,
+        add_attributes(vec![
             attr("action", "unlock"),
             attr("invoker", info.sender),
             attr("locked_addr", env.contract.address),
@@ -246,8 +241,7 @@ pub fn try_unlock(
             attr("token_id", &unlock_msg.token_id),
             attr("unlocked_nft_addr", &unlock_msg.nft_addr),
         ],
-        data: None,
-    });
+        ));
 }
 
 pub fn try_emergency_unlock(
@@ -296,9 +290,8 @@ pub fn try_emergency_unlock(
     // // remove locked tokens
     // LOCKED.remove(deps.storage, &token_id);
 
-    return Ok(Response {
-        messages: cw721_transfer_cosmos_msg,
-        attributes: vec![
+    return Ok(Response::new().add_messages( cw721_transfer_cosmos_msg,
+        add_attributes(vec![
             attr("action", "emergency_unlock"),
             attr("invoker", info.sender),
             attr("locked_addr", env.contract.address),
@@ -306,8 +299,7 @@ pub fn try_emergency_unlock(
             attr("token_id", token_id),
             attr("unlocked_nft_addr", locked.nft_addr),
         ],
-        data: None,
-    });
+        ));
 }
 
 /// returns true iff the sender can execute approve or reject on the contract
@@ -360,11 +352,9 @@ pub fn add_pubkey(
         return Err(ContractError::Unauthorized {});
     }
     ALLOWED.save(deps.storage, &pub_key.as_slice(), &true)?;
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![],
+        ))
 }
 
 pub fn remove_pubkey(
@@ -377,11 +367,9 @@ pub fn remove_pubkey(
         return Err(check_result.err().unwrap());
     }
     ALLOWED.remove(deps.storage, &pub_key.as_slice());
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![],
+        ))
 }
 
 pub fn disable_pubkey(
@@ -394,11 +382,9 @@ pub fn disable_pubkey(
         return Err(check_result.err().unwrap());
     }
     ALLOWED.save(deps.storage, &pub_key.as_slice(), &false)?;
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![],
+        ))
 }
 
 pub fn enable_pubkey(
@@ -411,11 +397,9 @@ pub fn enable_pubkey(
         return Err(check_result.err().unwrap());
     }
     ALLOWED.save(deps.storage, &pub_key.as_slice(), &true)?;
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![],
-        data: None,
-    })
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![],
+        ))
 }
 
 fn check_pubkey(deps: &DepsMut, info: &MessageInfo, pub_key: &Binary) -> Result<(), ContractError> {

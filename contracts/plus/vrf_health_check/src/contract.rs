@@ -100,7 +100,7 @@ pub fn change_state(
     }
 
     Ok(Response {
-        attributes: vec![attr("action", "change_state"), attr("caller", info_sender)],
+        add_attributes(vec![attr("action", "change_state"), attr("caller", info_sender)],
         ..Response::default()
     })
 }
@@ -123,7 +123,7 @@ pub fn reset_count(deps: DepsMut, info: MessageInfo) -> Result<Response, Contrac
     }
 
     Ok(Response {
-        attributes: vec![attr("action", "reset_count"), attr("caller", info.sender)],
+        add_attributes(vec![attr("action", "reset_count"), attr("caller", info.sender)],
         ..Response::default()
     })
 }
@@ -159,7 +159,7 @@ pub fn add_ping(
     round_info.height = env.block.height;
     MAPPED_COUNT.save(deps.storage, info.sender.as_bytes(), &round_info)?;
     Ok(Response {
-        attributes: vec![attr("action", "add_ping"), attr("executor", info.sender)],
+        add_attributes(vec![attr("action", "add_ping"), attr("executor", info.sender)],
         ..Response::default()
     })
 }

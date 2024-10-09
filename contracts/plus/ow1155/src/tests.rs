@@ -72,7 +72,7 @@ fn check_transfers() {
         )
         .unwrap(),
         Response {
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "transfer"),
                 attr("token_id", &token1),
                 attr("amount", 1u64),
@@ -138,7 +138,7 @@ fn check_transfers() {
         )
         .unwrap(),
         Response {
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "transfer"),
                 attr("token_id", &token1),
                 attr("amount", 1u64),
@@ -191,7 +191,7 @@ fn check_transfers() {
         )
         .unwrap(),
         Response {
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "transfer"),
                 attr("token_id", &token2),
                 attr("amount", 1u64),
@@ -248,7 +248,7 @@ fn check_transfers() {
         )
         .unwrap(),
         Response {
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "transfer"),
                 attr("token_id", &token1),
                 attr("amount", 1u64),
@@ -339,7 +339,7 @@ fn check_transfers() {
         )
         .unwrap(),
         Response {
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "transfer"),
                 attr("token_id", &token1),
                 attr("amount", 1u64),
@@ -362,7 +362,7 @@ fn check_transfers() {
         )
         .unwrap(),
         Response {
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "transfer"),
                 attr("token_id", &token2),
                 attr("amount", 1u64),
@@ -430,7 +430,7 @@ fn check_send_contract() {
             }
             .into_cosmos_msg(receiver.clone())
             .unwrap(),],
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "transfer"),
                 attr("token_id", &token1),
                 attr("amount", 1u64),
@@ -463,7 +463,7 @@ fn check_send_contract() {
             }
             .into_cosmos_msg(receiver.clone())
             .unwrap()],
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "transfer"),
                 attr("token_id", &token2),
                 attr("amount", 1u64),

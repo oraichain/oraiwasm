@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, coins, from_json, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps,
-    DepsMut, Env, MessageInfo, Order, Response, Response, StdResult, Storage, Uint128,
+    attr, coins, from_json, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut,
+    Env, MessageInfo, Order, Response, Response, StdResult, Storage, Uint128,
 };
 use drand_verify_v1::{
     derive_randomness, g1_from_variable, g2_from_fixed, g2_from_variable, verify,
@@ -124,15 +124,13 @@ pub fn try_withdraw_fees(env: Env, fees: Uint128) -> Result<Response, HandleErro
         }],
     }
     .into();
-    let res = Response {
-        messages: vec![withdraw_msg],
-        attributes: vec![
+    let res = Response::new().add_messages( vec![withdraw_msg],
+        add_attributes(vec![
             attr("action", "withdraw_fees"),
             attr("to_address", env.contract.address),
             attr("amount", fees),
         ],
-        data: None,
-    };
+        );
 
     Ok(res)
 }
@@ -153,11 +151,9 @@ pub fn try_invoke(
             expected_denom: "orai".to_string(),
         });
     }
-    let res = Response {
-        messages: vec![],
-        attributes: vec![attr("action", "invoke_add"), attr("user_input", user_input)],
-        data: None,
-    };
+    let res = Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "invoke_add"), attr("user_input", user_input)],
+        );
 
     Ok(res)
 }
@@ -434,7 +430,7 @@ mod tests {
             "anyone",
             &[Coin {
                 denom: BOUNTY_DENOM.into(),
-                amount: Uint128(5000),
+                amount: Uint128::from(5000u128),
             }],
         );
         let response = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -447,7 +443,7 @@ mod tests {
             "anyone",
             &[Coin {
                 denom: BOUNTY_DENOM.into(),
-                amount: Uint128(24),
+                amount: Uint128::from(24u128),
             }],
         );
         let response = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -503,7 +499,7 @@ mod tests {
             "anyone",
             &[Coin {
                 denom: BOUNTY_DENOM.into(),
-                amount: Uint128(4500),
+                amount: Uint128::from(4500u128),
             }],
         );
         let response = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -562,7 +558,7 @@ mod tests {
             "anyone",
             &[Coin {
                 denom: BOUNTY_DENOM.into(),
-                amount: Uint128(4500),
+                amount: Uint128::from(4500u128),
             }],
         );
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -586,7 +582,7 @@ mod tests {
             "anyone",
             &[Coin {
                 denom: BOUNTY_DENOM.into(),
-                amount: Uint128(321),
+                amount: Uint128::from(321u128),
             }],
         );
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -616,7 +612,7 @@ mod tests {
             "anyone",
             &[Coin {
                 denom: BOUNTY_DENOM.into(),
-                amount: Uint128(55),
+                amount: Uint128::from(55u128),
             }],
         );
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();

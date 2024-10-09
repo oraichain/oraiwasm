@@ -592,7 +592,7 @@ fn sell_auction_happy_path() {
         let asker_info = mock_info("asker", &vec![coin(5, DENOM)]);
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(0),
+            per_price: Uint128::from(0u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -600,7 +600,7 @@ fn sell_auction_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
@@ -639,7 +639,7 @@ fn sell_auction_cw20_happy_path() {
         let asker_info = mock_info("asker", &vec![coin(5, DENOM)]);
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(0),
+            per_price: Uint128::from(0u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -647,7 +647,7 @@ fn sell_auction_cw20_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
@@ -687,7 +687,7 @@ fn sell_auction_unhappy_path() {
 
         // beneficiary can release it
         let msg = ExecuteMsg::AskAuctionNft(AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -695,7 +695,7 @@ fn sell_auction_unhappy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10000000000),
+            amount: Uint128::from(10000000000u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
@@ -709,7 +709,7 @@ fn sell_auction_unhappy_path() {
 
         // unauthorized case when non-approved
         let msg = ExecuteMsg::AskAuctionNft(AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -717,7 +717,7 @@ fn sell_auction_unhappy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10000000000),
+            amount: Uint128::from(10000000000u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: Some(Addr::unchecked("Somebody")),
@@ -729,7 +729,7 @@ fn sell_auction_unhappy_path() {
         ));
 
         let msg = ExecuteMsg::AskAuctionNft(AskNftMsg {
-            per_price: Uint128(50),
+            per_price: Uint128::from(50u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -737,7 +737,7 @@ fn sell_auction_unhappy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
@@ -755,9 +755,9 @@ fn sell_auction_unhappy_path() {
         // Cannot sell either by the same person
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(50),
+            per_price: Uint128::from(50u128),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
-            amount: Uint128(100),
+            amount: Uint128::from(100u128),
             seller: None,
         });
 
@@ -811,7 +811,7 @@ fn sell_auction_unhappy_path() {
             manager.execute(
                 provider_info.clone(),
                 ExecuteMsg::AskAuctionNft(AskNftMsg {
-                    per_price: Uint128(50),
+                    per_price: Uint128::from(50u128),
                     cancel_fee: Some(10),
                     start: None,
                     end: None,
@@ -819,7 +819,7 @@ fn sell_auction_unhappy_path() {
                     start_timestamp: None,
                     end_timestamp: None,
                     step_price: None,
-                    amount: Uint128(10),
+                    amount: Uint128::from(10u128),
                     contract_addr: Addr::unchecked("some cute address"),
                     token_id: String::from(BIDDABLE_NFT_NATIVE),
                     asker: None,
@@ -839,7 +839,7 @@ fn cancel_auction_happy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -847,7 +847,7 @@ fn cancel_auction_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
@@ -892,7 +892,7 @@ fn cancel_auction_cw20_happy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -900,7 +900,7 @@ fn cancel_auction_cw20_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
@@ -943,7 +943,7 @@ fn cancel_auction_unhappy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -951,7 +951,7 @@ fn cancel_auction_unhappy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
@@ -987,7 +987,7 @@ fn cancel_bid_happy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -995,7 +995,7 @@ fn cancel_bid_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
@@ -1025,7 +1025,7 @@ fn cancel_bid_cw20_happy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -1033,7 +1033,7 @@ fn cancel_bid_cw20_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
@@ -1063,7 +1063,7 @@ fn cancel_bid_unhappy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -1071,7 +1071,7 @@ fn cancel_bid_unhappy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
@@ -1111,15 +1111,15 @@ fn claim_winner_happy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128(1000)),
+            buyout_per_price: Some(Uint128::from(1000u128))),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
@@ -1188,7 +1188,7 @@ fn claim_winner_happy_path() {
         // println!("{:?}", attributes);
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -1196,7 +1196,7 @@ fn claim_winner_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
@@ -1234,15 +1234,15 @@ fn claim_winner_cw20_happy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128(1000)),
+            buyout_per_price: Some(Uint128::from(1000u128))),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
@@ -1281,7 +1281,7 @@ fn claim_winner_cw20_happy_path() {
         // println!("{:?}", attributes);
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -1289,7 +1289,7 @@ fn claim_winner_cw20_happy_path() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
@@ -1327,15 +1327,15 @@ fn claim_winner_with_market_fees() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(3000),
+            per_price: Uint128::from(3000u128),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128(5000)),
+            buyout_per_price: Some(Uint128::from(5000u128))),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
@@ -1406,15 +1406,15 @@ fn claim_winner_unhappy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128(50)),
+            buyout_per_price: Some(Uint128::from(50u128))),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
@@ -1486,15 +1486,15 @@ fn claim_winner_cw20_unhappy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128(50)),
+            buyout_per_price: Some(Uint128::from(50u128))),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
@@ -1564,15 +1564,15 @@ fn test_bid_nft_happy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128(1000)),
+            buyout_per_price: Some(Uint128::from(1000u128))),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
@@ -1613,15 +1613,15 @@ fn test_bid_nft_cw20_happy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128(1000)),
+            buyout_per_price: Some(Uint128::from(1000u128))),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
@@ -1659,15 +1659,15 @@ fn test_bid_nft_unhappy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let mut sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128(10)),
+            buyout_per_price: Some(Uint128::from(10u128))),
             start_timestamp: None,
             end_timestamp: None,
             step_price: Some(50000000),
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
@@ -1806,15 +1806,15 @@ fn test_bid_nft_cw20_unhappy_path() {
         let info = mock_info("asker", &coins(2, DENOM));
 
         let mut sell_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128(10)),
+            buyout_per_price: Some(Uint128::from(10u128))),
             start_timestamp: None,
             end_timestamp: None,
             step_price: Some(50000000),
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
@@ -1995,7 +1995,7 @@ fn test_royalties() {
         // beneficiary can release it
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(10),
+            per_price: Uint128::from(10u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(100u64),
             seller: None,
@@ -2023,7 +2023,7 @@ fn test_royalties() {
         let info_sell = mock_info("seller", &vec![coin(50, DENOM)]);
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(10),
+            per_price: Uint128::from(10u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(50u64),
             seller: None,
@@ -2156,7 +2156,7 @@ fn test_royalties_cw20() {
         // beneficiary can release it
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(10),
+            per_price: Uint128::from(10u128),
             token_id: String::from(SELLABLE_NFT_CW20),
             amount: Uint128::from(100u64),
             seller: None,
@@ -2181,7 +2181,7 @@ fn test_royalties_cw20() {
         let info_sell = mock_info("seller", &vec![coin(50, DENOM)]);
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(10),
+            per_price: Uint128::from(10u128),
             token_id: String::from(SELLABLE_NFT_CW20),
             amount: Uint128::from(50u64),
             seller: None,
@@ -2330,7 +2330,7 @@ fn test_buy_market_fee_calculate() {
         // Sell it to market
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(100),
+            per_price: Uint128::from(100u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(100u64),
             seller: None,
@@ -2369,7 +2369,7 @@ fn test_sell_nft_unhappy() {
         // beneficiary can release it
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(50),
+            per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(10000000000000u64),
             seller: None,
@@ -2384,7 +2384,7 @@ fn test_sell_nft_unhappy() {
         // unauthorized case when non-approved
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(50),
+            per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(10u64),
             seller: Some(Addr::unchecked("Somebody unauthorized")),
@@ -2397,7 +2397,7 @@ fn test_sell_nft_unhappy() {
 
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(50),
+            per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(10u64),
             seller: None,
@@ -2413,7 +2413,7 @@ fn test_sell_nft_unhappy() {
         ));
 
         let mut ask_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -2421,7 +2421,7 @@ fn test_sell_nft_unhappy() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10000000000),
+            amount: Uint128::from(10000000000u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             asker: None,
@@ -2472,9 +2472,9 @@ fn test_sell_nft_unhappy() {
                 provider_info.clone(),
                 ExecuteMsg::SellNft(SellNft {
                     contract_addr: Addr::unchecked("some cute address"),
-                    per_price: Uint128(50),
+                    per_price: Uint128::from(50u128),
                     token_id: String::from(SELLABLE_NFT_NATIVE),
-                    amount: Uint128(100),
+                    amount: Uint128::from(100u128),
                     seller: None,
                 })
             ),
@@ -2495,7 +2495,7 @@ fn test_sell_nft_unhappy_cw20() {
         // beneficiary can release it
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(50),
+            per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_CW20),
             amount: Uint128::from(10000000000000u64),
             seller: None,
@@ -2510,7 +2510,7 @@ fn test_sell_nft_unhappy_cw20() {
         // unauthorized case when non-approved
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(50),
+            per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_CW20),
             amount: Uint128::from(10u64),
             seller: Some(Addr::unchecked("Somebody unauthorized")),
@@ -2523,7 +2523,7 @@ fn test_sell_nft_unhappy_cw20() {
 
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(50),
+            per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_CW20),
             amount: Uint128::from(10u64),
             seller: None,
@@ -2539,7 +2539,7 @@ fn test_sell_nft_unhappy_cw20() {
         ));
 
         let mut ask_msg = AskNftMsg {
-            per_price: Uint128(5),
+            per_price: Uint128::from(5u128),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -2547,7 +2547,7 @@ fn test_sell_nft_unhappy_cw20() {
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
-            amount: Uint128(10000000000),
+            amount: Uint128::from(10000000000u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(SELLABLE_NFT_CW20),
             asker: None,
@@ -2598,9 +2598,9 @@ fn test_sell_nft_unhappy_cw20() {
                 provider_info.clone(),
                 ExecuteMsg::SellNft(SellNft {
                     contract_addr: Addr::unchecked("some cute address"),
-                    per_price: Uint128(50),
+                    per_price: Uint128::from(50u128),
                     token_id: String::from(SELLABLE_NFT_CW20),
-                    amount: Uint128(100),
+                    amount: Uint128::from(100u128),
                     seller: None,
                 })
             ),
@@ -2630,7 +2630,7 @@ fn withdraw_offering() {
 
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(50),
+            per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(10u64),
             seller: None,
@@ -2703,7 +2703,7 @@ fn test_buy_nft_unhappy() {
 
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(90),
+            per_price: Uint128::from(90u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(10u64),
             seller: None,
@@ -2748,7 +2748,7 @@ fn test_buy_nft_unhappy_cw20() {
 
         let msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(90),
+            per_price: Uint128::from(90u128),
             token_id: String::from(SELLABLE_NFT_CW20),
             amount: Uint128::from(10u64),
             seller: None,
@@ -3038,7 +3038,7 @@ fn transfer_nft_directly_happy_path() {
             .unwrap();
 
         let transfer_msg = TransferNftDirectlyMsg {
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(token_id),
             to: Addr::from(receiver),
@@ -3078,8 +3078,8 @@ fn transfer_nft_directly_happy_path() {
         )
         .unwrap();
 
-        assert_eq!(receiver_balance.balance, Uint128(10));
-        assert_eq!(sender_balance.balance, Uint128(40));
+        assert_eq!(receiver_balance.balance, Uint128::from(10u128)));
+        assert_eq!(sender_balance.balance, Uint128::from(40u128)));
     }
 }
 
@@ -3118,7 +3118,7 @@ fn transfer_nft_directly_unhappy_path() {
 
         let sell_msg = ExecuteMsg::SellNft(SellNft {
             contract_addr: Addr::from(OW_1155_ADDR),
-            per_price: Uint128(50),
+            per_price: Uint128::from(50u128),
             token_id: String::from(token_id),
             amount: Uint128::from(amount),
             seller: None,
@@ -3130,7 +3130,7 @@ fn transfer_nft_directly_unhappy_path() {
             .unwrap();
 
         let transfer = TransferNftDirectlyMsg {
-            amount: Uint128(10),
+            amount: Uint128::from(10u128),
             contract_addr: Addr::from(OW_1155_ADDR),
             token_id: String::from(token_id),
             to: Addr::from(receiver),
@@ -3170,8 +3170,8 @@ fn transfer_nft_directly_unhappy_path() {
         // )
         // .unwrap();
 
-        // assert_eq!(receiver_balance.balance, Uint128(0));
-        // assert_eq!(sender_balance.balance, Uint128(50));
+        // assert_eq!(receiver_balance.balance, Uint128::from(0u128)));
+        // assert_eq!(sender_balance.balance, Uint128::from(50u128)));
     }
 }
 
@@ -3205,9 +3205,9 @@ fn transfer_nft_directly_unhappy_path() {
 //         // Cannot sell either by the same person
 //         let msg = ExecuteMsg::SellNft(SellNft {
 //             contract_addr: Addr::from(OW_1155_ADDR),
-//             per_price: Uint128(5),
+//             per_price: Uint128::from(5u128),
 //             token_id: String::from(BIDDABLE_NFT_NATIVE),
-//             amount: Uint128(1),
+//             amount: Uint128::from(1u128),
 //             seller: None,
 //         });
 

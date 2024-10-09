@@ -4,14 +4,11 @@ use crate::contract::*;
 use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::*;
-use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
-};
+use cosmwasm_std::testing::mock_dependencies_with_balance;
+use cosmwasm_std::testing::{mock_env, mock_info, MockApi, MockQuerier, MockStorage};
 use cosmwasm_std::Decimal;
 use cosmwasm_std::Response;
-use cosmwasm_std::{
-    coin, coins, from_json, to_json_binary, Addr, Env, Order, OwnedDeps, Uint128,
-};
+use cosmwasm_std::{coin, coins, from_json, to_json_binary, Addr, Env, Order, OwnedDeps, Uint128};
 
 use std::ops::Add;
 
@@ -23,7 +20,6 @@ const DENOM: &str = "orai";
 
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
-    deps.api.canonical_length = 54;
     let msg = InstantiateMsg {
         name: String::from(CONTRACT_NAME),
         denom: DENOM.into(),
@@ -45,13 +41,13 @@ fn sort_auction() {
     // beneficiary can release it
     let info = mock_info("anyone", &vec![coin(50000000, DENOM)]);
 
-    for i in 1..50 {
+    for i in 1..50u128 {
         let sell_msg = AskNftMsg {
-            price: Uint128(i),
+            price: Uint128::from(i),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
             cancel_fee: Some(1),
-            buyout_price: Some(Uint128(i)),
+            buyout_price: Some(Uint128::from(i)),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
@@ -69,7 +65,7 @@ fn sort_auction() {
         deps.as_ref(),
         contract_env.clone(),
         QueryMsg::GetAuctionsByAsker {
-            asker: "asker".into(),
+            asker: Addr::unchecked("asker"),
             options: PagingOptions {
                 limit: Some(100),
                 offset: Some(40),
@@ -86,7 +82,7 @@ fn sort_auction() {
         deps.as_ref(),
         contract_env.clone(),
         QueryMsg::GetAuctionsByAsker {
-            asker: "tupt".into(),
+            asker: Addr::unchecked("tupt"),
             options: PagingOptions {
                 limit: Some(100),
                 offset: Some(40),
@@ -108,7 +104,7 @@ fn sell_auction_happy_path() {
     let info = mock_info("anyone", &vec![coin(5, DENOM)]);
 
     let sell_msg = AskNftMsg {
-        price: Uint128(0),
+        price: Uint128::from(0u128),
         cancel_fee: Some(10),
         start: None,
         end: None,
@@ -118,7 +114,7 @@ fn sell_auction_happy_path() {
         step_price: None,
     };
     let sell_msg_second = AskNftMsg {
-        price: Uint128(2),
+        price: Uint128::from(2u128),
         cancel_fee: Some(10),
         start: None,
         end: None,
@@ -254,7 +250,7 @@ fn update_info_test() {
 //     let info = mock_info("anyone", &coins(2, DENOM));
 
 //     let sell_msg = AskNftMsg {
-//         price: Uint128(50),
+//         price: Uint128::from(50u128),
 //         cancel_fee: Some(10),
 //         start: None,
 //         end: None,
@@ -323,7 +319,7 @@ fn update_info_test() {
 //     let info = mock_info("anyone", &coins(2, DENOM));
 
 //     let sell_msg = AskNftMsg {
-//         price: Uint128(50),
+//         price: Uint128::from(50u128),
 //         cancel_fee: Some(10),
 //         start: None,
 //         end: None,
@@ -362,7 +358,7 @@ fn cancel_auction_happy_path() {
     let info = mock_info("anyone", &coins(2, DENOM));
 
     let sell_msg = AskNftMsg {
-        price: Uint128(50),
+        price: Uint128::from(50u128),
         cancel_fee: Some(10),
         start: None,
         end: None,
@@ -429,7 +425,7 @@ fn cancel_auction_happy_path() {
         deps.as_ref(),
         contract_env.clone(),
         QueryMsg::GetAuctionsByBidder {
-            bidder: Some("bidder".into()),
+            bidder: Some(Addr::unchecked("bidder")),
             options: PagingOptions {
                 limit: None,
                 offset: None,
@@ -450,7 +446,7 @@ fn cancel_auction_unhappy_path() {
     let info = mock_info("anyone", &coins(2, DENOM));
 
     let sell_msg = AskNftMsg {
-        price: Uint128(50),
+        price: Uint128::from(50u128),
         cancel_fee: Some(10),
         start: None,
         end: None,
@@ -519,7 +515,7 @@ fn cancel_bid_happy_path() {
     let info = mock_info("anyone", &coins(2, DENOM));
 
     let sell_msg = AskNftMsg {
-        price: Uint128(50),
+        price: Uint128::from(50u128),
         cancel_fee: Some(10),
         start: None,
         end: None,
@@ -585,7 +581,7 @@ fn cancel_bid_happy_path() {
         deps.as_ref(),
         contract_env.clone(),
         QueryMsg::GetAuctionsByBidder {
-            bidder: Some("bidder".into()),
+            bidder: Some(Addr::unchecked("bidder")),
             options: PagingOptions {
                 limit: None,
                 offset: None,
@@ -606,7 +602,7 @@ fn cancel_bid_unhappy_path() {
     let info = mock_info("anyone", &coins(2, DENOM));
 
     let sell_msg = AskNftMsg {
-        price: Uint128(50),
+        price: Uint128::from(50u128),
         cancel_fee: Some(10),
         start: None,
         end: None,
@@ -662,7 +658,7 @@ fn cancel_bid_unhappy_path() {
     )
     .unwrap_err()
     {
-        ContractError::Unauthorized {} => {}
+        ContractError::InvalidBidder { bidder, sender } => {}
         e => panic!("unexpected error: {}", e),
     }
 }
@@ -685,11 +681,11 @@ fn claim_winner_happy_path() {
     .unwrap();
 
     let sell_msg = AskNftMsg {
-        price: Uint128(50),
+        price: Uint128::from(50u128),
         cancel_fee: Some(10),
         start: Some(contract_env.block.height + 15),
         end: Some(contract_env.block.height + 100),
-        buyout_price: Some(Uint128(1000)),
+        buyout_price: Some(Uint128::from(1000u128)),
         start_timestamp: None,
         end_timestamp: None,
         step_price: None,

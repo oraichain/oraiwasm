@@ -92,7 +92,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateR
     // // once we have "migrated", set the new version and return success
     // set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(MigrateResponse {
-        attributes: vec![
+        add_attributes(vec![
             attr("new_contract_name", CONTRACT_NAME),
             attr("new_contract_version", CONTRACT_VERSION),
         ],
@@ -135,15 +135,13 @@ pub fn handle_mint(
 
     increment_tokens(deps.storage)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "mint_nft"),
             attr("minter", info.sender),
             attr("token_id", msg.token_id),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn handle_burn(
@@ -159,15 +157,13 @@ pub fn handle_burn(
 
     decrement_tokens(deps.storage)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "burn_nft"),
             attr("minter", info.sender),
             attr("token_id", token_id),
         ],
-        data: None,
-    })
+        ))
 }
 
 /// this is trigger when there is buy_nft action
@@ -182,16 +178,14 @@ pub fn handle_transfer_nft(
 
     // need transfer_payout as well
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "transfer_nft"),
             attr("sender", info.sender),
             attr("recipient", recipient),
             attr("token_id", token_id),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn handle_update_nft(
@@ -248,16 +242,14 @@ pub fn handle_send_nft(
     };
 
     // Send message
-    Ok(Response {
-        messages: vec![send.into_cosmos_msg(contract.clone())?],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![send.into_cosmos_msg(contract.clone())?],
+        add_attributes(vec![
             attr("action", "send_nft"),
             attr("sender", info.sender),
             attr("recipient", contract),
             attr("token_id", token_id),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn _transfer_nft(
@@ -287,16 +279,14 @@ pub fn handle_approve(
 ) -> Result<Response, ContractError> {
     _update_approvals(deps, &env, &info, &spender, &token_id, true, expires)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "approve"),
             attr("sender", info.sender),
             attr("spender", spender),
             attr("token_id", token_id),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn handle_revoke(
@@ -308,16 +298,14 @@ pub fn handle_revoke(
 ) -> Result<Response, ContractError> {
     _update_approvals(deps, &env, &info, &spender, &token_id, false, None)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "revoke"),
             attr("sender", info.sender),
             attr("spender", spender),
             attr("token_id", token_id),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn _update_approvals(
@@ -379,15 +367,13 @@ pub fn handle_approve_all(
     let operator_raw = deps.api.addr_canonicalize(operator.as_str())?;
     OPERATORS.save(deps.storage, (&sender_raw, &operator_raw), &expires)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "approve_all"),
             attr("sender", info.sender),
             attr("operator", operator),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn handle_revoke_all(
@@ -400,15 +386,13 @@ pub fn handle_revoke_all(
     let operator_raw = deps.api.addr_canonicalize(operator.as_str())?;
     OPERATORS.remove(deps.storage, (&sender_raw, &operator_raw));
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "revoke_all"),
             attr("sender", info.sender),
             attr("operator", operator),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn handle_change_minter(
@@ -424,15 +408,13 @@ pub fn handle_change_minter(
     }
     let minter = deps.api.addr_canonicalize(minter.as_str())?;
     MINTER.save(deps.storage, &minter)?;
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "change_minter"),
             attr("minter", minter),
             attr("owner", info.sender),
         ],
-        data: None,
-    })
+        ))
 }
 
 /// returns true iff the sender can execute approve or reject on the contract

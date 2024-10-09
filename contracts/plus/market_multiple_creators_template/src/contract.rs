@@ -126,9 +126,8 @@ pub fn mint_1155(
     cosmos_msgs.push(mint_cosmos_msg);
     cosmos_msgs.push(approve_msg);
 
-    Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![attr("action", "mint_1155"), attr("caller", info.sender)],
+    Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![attr("action", "mint_1155"), attr("caller", info.sender)],
         ..Response::default()
     })
 }
@@ -171,9 +170,8 @@ pub fn mint_721(
     cosmos_msgs.push(mint_cosmos_msg);
     cosmos_msgs.push(approve_msg);
 
-    Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![attr("action", "mint_721"), attr("caller", info.sender)],
+    Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![attr("action", "mint_721"), attr("caller", info.sender)],
         ..Response::default()
     })
 }
@@ -201,9 +199,8 @@ pub fn approve_all(
 
     cosmos_msgs.push(approve_msg);
 
-    Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![attr("action", "approve all"), attr("caller", info.sender)],
+    Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![attr("action", "approve all"), attr("caller", info.sender)],
         ..Response::default()
     })
 }
@@ -234,9 +231,8 @@ pub fn revoke_all(
         cosmos_msgs.push(revoke_msg);
     }
 
-    Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![attr("action", "revoke all"), attr("caller", info.sender)],
+    Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![attr("action", "revoke all"), attr("caller", info.sender)],
         ..Response::default()
     })
 }
@@ -262,9 +258,8 @@ pub fn change_creator(
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
     cosmos_msgs.push(change_creator_cosmos_msg);
 
-    Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![
+    Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![
             attr("action", "change_creator"),
             attr("caller", info.sender),
         ],
@@ -330,7 +325,7 @@ pub fn change_state(
     SHARE_CHANGES.save(deps.storage, &new_num_change.to_be_bytes(), &share_change)?;
 
     Ok(Response {
-        attributes: vec![attr("action", "change_state"), attr("caller", info.sender)],
+        add_attributes(vec![attr("action", "change_state"), attr("caller", info.sender)],
         ..Response::default()
     })
 }
@@ -346,7 +341,7 @@ pub fn vote(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, Cont
     }
     let mut state = config_read(deps.storage).load()?;
     let handle_response: Response = Response {
-        attributes: vec![attr("action", "change_state"), attr("caller", info.sender)],
+        add_attributes(vec![attr("action", "change_state"), attr("caller", info.sender)],
         ..Response::default()
     };
 
@@ -417,9 +412,8 @@ pub fn share_revenue(
         }
     }
 
-    Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![
+    Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![
             attr("action", "share_revenue"),
             attr("caller", info.sender),
             attr("royalty", true),

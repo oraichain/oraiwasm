@@ -109,11 +109,9 @@ pub fn try_handle_mint(
     let mut cosmos_msgs = add_msg_royalty(info.sender.as_str(), &governance, msg)?;
     cosmos_msgs.push(mint_msg);
 
-    let response = Response {
-        messages: cosmos_msgs,
-        attributes: vec![attr("action", "mint_nft"), attr("minter", info.sender)],
-        data: None,
-    };
+    let response = Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![attr("action", "mint_nft"), attr("minter", info.sender)],
+        );
 
     Ok(response)
 }
@@ -333,7 +331,7 @@ pub fn try_withdraw(
 
         return Ok(Response {
             messages: cw1155_cosmos_msg,
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "withdraw_nft"),
                 attr("seller", info.sender),
                 attr("offering_id", offering_id),
@@ -369,17 +367,15 @@ pub fn try_burn(
 
     let cosmos_msg: Vec<CosmosMsg> = vec![exec_msg.into()];
 
-    return Ok(Response {
-        messages: cosmos_msg,
-        attributes: vec![
+    return Ok(Response::new().add_messages( cosmos_msg,
+        add_attributes(vec![
             attr("action", "burn_nft"),
             attr("burner", info.sender),
             attr("contract_addr", contract_addr),
             attr("token_id", token_id),
             attr("value", value),
         ],
-        data: None,
-    });
+        ));
 }
 
 pub fn try_change_creator(
@@ -415,17 +411,15 @@ pub fn try_change_creator(
         }),
     )?);
 
-    return Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![
+    return Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![
             attr("action", "change_creator_nft"),
             attr("from", info.sender),
             attr("contract_addr", contract_addr),
             attr("token_id", token_id),
             attr("to", to),
         ],
-        data: None,
-    });
+        ));
 }
 
 pub fn try_sell_nft(
@@ -482,9 +476,8 @@ pub fn try_sell_nft(
         }),
     )?);
 
-    Ok(Response {
-        messages: cosmos_msgs,
-        attributes: vec![
+    Ok(Response::new().add_messages( cosmos_msgs,
+        add_attributes(vec![
             attr("action", "sell_nft"),
             attr("seller", info.sender),
             attr("contract_addr", msg.contract_addr),
@@ -492,8 +485,7 @@ pub fn try_sell_nft(
             attr("token_id", token_id),
             attr("initial_token_id", msg.token_id),
         ],
-        data: None,
-    })
+        ))
 }
 
 fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError> {

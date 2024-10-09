@@ -137,14 +137,12 @@ pub fn try_update_offering_payment(
     )?;
     let asset_info_bin = to_json_binary(&payment.asset_info)?;
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "update_offering_payment"),
             attr("asset_info", asset_info_bin),
         ],
-        data: None,
-    });
+        ));
 }
 
 pub fn try_update_auction_payment(
@@ -173,14 +171,12 @@ pub fn try_update_auction_payment(
     )?;
     let asset_info_bin = to_json_binary(&payment.asset_info)?;
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "update_auction_payment"),
             attr("asset_info", asset_info_bin),
         ],
-        data: None,
-    });
+        ));
 }
 
 pub fn try_remove_offering_payment(
@@ -204,15 +200,13 @@ pub fn try_remove_offering_payment(
         &parse_payment_key(contract_addr.as_str(), token_id.as_str(), sender)?,
     );
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "remove_offering_payment"),
             attr("contract_addr", contract_addr),
             attr("token_id", token_id),
         ],
-        data: None,
-    });
+        ));
 }
 
 pub fn try_remove_auction_payment(
@@ -236,15 +230,13 @@ pub fn try_remove_auction_payment(
         &parse_payment_key(contract_addr.as_str(), token_id.as_str(), sender)?,
     );
 
-    return Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    return Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "remove_offering_payment"),
             attr("contract_addr", contract_addr),
             attr("token_id", token_id),
         ],
-        data: None,
-    });
+        ));
 }
 
 pub fn try_update_info(
@@ -272,9 +264,8 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_info")],
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "update_info")],
         data: to_json_binary(&new_contract_info).ok(),
     })
 }

@@ -119,15 +119,13 @@ fn change_minter(env: ExecuteEnv, minter: String) -> Result<Response, ContractEr
     }
     let minter = Addr(minter);
     MINTER.save(env.deps.storage, &minter)?;
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "change_minter"),
             attr("minter", minter),
             attr("owner", env.info.sender),
         ],
-        data: None,
-    })
+        ))
 }
 
 fn change_owner(env: ExecuteEnv, new_owner: String) -> Result<Response, ContractError> {
@@ -136,15 +134,13 @@ fn change_owner(env: ExecuteEnv, new_owner: String) -> Result<Response, Contract
         return Err(ContractError::Unauthorized {});
     }
     OWNER.save(env.deps.storage, &Addr::from(new_owner.clone()))?;
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "change_owner"),
             attr("owner", owner),
             attr("new_owner", new_owner),
         ],
-        data: None,
-    })
+        ))
 }
 
 /// When from is None: mint new coins

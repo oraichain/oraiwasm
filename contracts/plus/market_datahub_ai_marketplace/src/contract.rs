@@ -91,11 +91,11 @@ pub fn try_buy_package(
             seller: owner.clone(),
             total_amount_paid: sent_fund.amount,
             // not initialized yet fields, temporarily dont use Option for simplicity
-            number_requests: Uint128(0),
-            success_requests: Uint128(0),
-            unit_price: Uint128(0),
-            claimable_amount: Uint128(0),
-            claimed: Uint128(0),
+            number_requests: Uint128::from(0u128),
+            success_requests: Uint128::from(0u128),
+            unit_price: Uint128::from(0u128),
+            claimable_amount: Uint128::from(0u128),
+            claimed: Uint128::from(0u128),
             claimable: false,
             is_init: false,
         };
@@ -108,7 +108,7 @@ pub fn try_buy_package(
 
         Ok(Response {
             messages: vec![],
-            attributes: vec![
+            add_attributes(vec![
                 attr("action", "buy_ai_package"),
                 attr("owner", owner),
                 attr("customer", info.sender),
@@ -148,25 +148,23 @@ pub fn try_init_offering(
 
     package_offering.number_requests = number_requests;
     package_offering.unit_price = unit_price;
-    package_offering.success_requests = Uint128(0);
-    package_offering.claimable_amount = Uint128(0);
-    package_offering.claimed = Uint128(0);
+    package_offering.success_requests = Uint128::from(0u128));
+    package_offering.claimable_amount = Uint128::from(0u128));
+    package_offering.claimed = Uint128::from(0u128));
     package_offering.claimable = true;
     package_offering.is_init = true;
 
     package_offerings().save(deps.storage, &id.to_be_bytes(), &package_offering)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "create_package_offering_on_an_invoice"),
             attr("owner", package_offering.seller),
             attr("number_request", number_requests),
             attr("unit_price", unit_price),
             attr("offering_id", package_offering.id),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_update_success_request(
@@ -200,15 +198,13 @@ pub fn try_update_success_request(
 
     package_offerings().save(deps.storage, &id.to_be_bytes(), &package_offering)?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![
             attr("action", "update_success_request"),
             attr("id", id),
             attr("success_requests", success_requests),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_claim(
@@ -232,12 +228,12 @@ pub fn try_claim(
     if !package_offering.claimable {
         return Err(ContractError::PackageOfferingUnclaimable {});
     }
-    if package_offering.claimable_amount.eq(&Uint128(0)) {
+    if package_offering.claimable_amount.eq(&Uint128::from(0u128))) {
         return Err(ContractError::PackageOfferingZeroClaimable {});
     }
     // let amount = package_offering.unit_price.mul(Decimal::from_ratio(
     //     package_offering.success_requests,
-    //     Uint128(1),
+    //     Uint128::from(1u128),
     // ));
 
     let claimable_amount = package_offering.claimable_amount;
@@ -253,20 +249,18 @@ pub fn try_claim(
     .into();
 
     package_offering.claimed += claimable_amount;
-    package_offering.claimable_amount = Uint128(0);
+    package_offering.claimable_amount = Uint128::from(0u128));
 
     package_offerings().save(deps.storage, &id.to_be_bytes(), &package_offering)?;
 
-    Ok(Response {
-        messages: vec![bank_msg],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![bank_msg],
+        add_attributes(vec![
             attr("action", "claim_ai_package_offering"),
             attr("id", id),
             attr("claim_amount", claimable_amount),
             attr("claimer", info.sender),
         ],
-        data: None,
-    })
+        ))
 }
 
 /** QUERY HANDLER **/

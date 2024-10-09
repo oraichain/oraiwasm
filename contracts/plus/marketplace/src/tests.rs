@@ -124,7 +124,7 @@ fn test_royalties() {
         sender: Addr::unchecked("seller"),
         token_id: String::from("SellableNFT"),
         msg: to_json_binary(&SellNft {
-            price: Uint128(50),
+            price: Uint128::from(50u128),
             royalty: Some(10),
         })
         .ok(),
@@ -140,7 +140,7 @@ fn test_royalties() {
         sender: Addr::unchecked("buyer"),
         token_id: String::from("SellableNFT"),
         msg: to_json_binary(&SellNft {
-            price: Uint128(70),
+            price: Uint128::from(70u128),
             royalty: Some(10),
         })
         .ok(),
@@ -157,7 +157,7 @@ fn test_royalties() {
         sender: Addr::unchecked("buyer1"),
         token_id: String::from("SellableNFT"),
         msg: to_json_binary(&SellNft {
-            price: Uint128(90),
+            price: Uint128::from(90u128),
             royalty: Some(10),
         })
         .ok(),
@@ -257,11 +257,11 @@ fn sell_offering_happy_path() {
     let info = mock_info("anyone", &vec![coin(5, DENOM)]);
 
     let sell_msg = SellNft {
-        price: Uint128(0),
+        price: Uint128::from(0u128),
         royalty: Some(10),
     };
     let sell_msg_second = SellNft {
-        price: Uint128(2),
+        price: Uint128::from(2u128),
         royalty: Some(10),
     };
 
@@ -331,7 +331,7 @@ fn withdraw_offering_happy_path() {
     let info = mock_info("anyone", &coins(2, DENOM));
 
     let sell_msg = SellNft {
-        price: Uint128(50),
+        price: Uint128::from(50u128),
         royalty: Some(10),
     };
 

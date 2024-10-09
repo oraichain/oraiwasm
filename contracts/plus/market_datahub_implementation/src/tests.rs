@@ -312,7 +312,7 @@ fn test_royalties() {
             from: None,
             amount: Uint128::from(10u64),
             msg: to_json_binary(&SellRoyalty {
-                per_price: Uint128(50),
+                per_price: Uint128::from(50u128),
                 royalty: Some(10),
             })
             .unwrap(),
@@ -353,7 +353,7 @@ fn test_royalties() {
             from: None,
             amount: Uint128::from(10u64),
             msg: to_json_binary(&SellRoyalty {
-                per_price: Uint128(50),
+                per_price: Uint128::from(50u128),
                 royalty: None,
             })
             .unwrap(),
@@ -465,7 +465,7 @@ fn withdraw_offering() {
             from: None,
             amount: Uint128::from(10u64),
             msg: to_json_binary(&SellRoyalty {
-                per_price: Uint128(90),
+                per_price: Uint128::from(90u128),
                 royalty: Some(10),
             })
             .unwrap(),
@@ -528,7 +528,7 @@ fn test_sell_nft_unhappy() {
             from: None,
             amount: Uint128::from(10u64),
             msg: to_json_binary(&SellRoyalty {
-                per_price: Uint128(90),
+                per_price: Uint128::from(90u128),
                 royalty: Some(10),
             })
             .unwrap(),
@@ -579,7 +579,7 @@ fn test_buy_nft() {
             amount: Uint128::from(2u64),
             contract_addr: Addr::from(OW_1155_ADDR),
             royalty_msg: SellRoyalty {
-                per_price: Uint128(90),
+                per_price: Uint128::from(90u128),
                 royalty: Some(10),
             },
         };
@@ -638,7 +638,7 @@ fn test_sell() {
             amount: Uint128::from(10u64),
             contract_addr: Addr::from(OW_1155_ADDR),
             royalty_msg: SellRoyalty {
-                per_price: Uint128(90),
+                per_price: Uint128::from(90u128),
                 royalty: Some(10),
             },
         };
@@ -1228,7 +1228,7 @@ fn test_migrate() {
             from: None,
             amount: Uint128::from(10u64),
             msg: to_json_binary(&SellRoyalty {
-                per_price: Uint128(50),
+                per_price: Uint128::from(50u128),
                 royalty: Some(10),
             })
             .unwrap(),

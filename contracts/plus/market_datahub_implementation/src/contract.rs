@@ -179,16 +179,14 @@ pub fn try_withdraw_funds(
     }
     .into();
 
-    Ok(Response {
-        messages: vec![bank_msg],
-        attributes: vec![
+    Ok(Response::new().add_messages( vec![bank_msg],
+        add_attributes(vec![
             attr("action", "withdraw_funds"),
             attr("denom", fund.denom),
             attr("amount", fund.amount),
             attr("receiver", contract_info.creator),
         ],
-        data: None,
-    })
+        ))
 }
 
 pub fn try_update_info(
@@ -232,9 +230,8 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response {
-        messages: vec![],
-        attributes: vec![attr("action", "update_info")],
+    Ok(Response::new().add_messages( vec![],
+        add_attributes(vec![attr("action", "update_info")],
         data: to_json_binary(&new_contract_info).ok(),
     })
 }
@@ -273,9 +270,8 @@ pub fn try_migrate(
         .into();
         cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
     }
-    Ok(Response {
-        messages: cw721_transfer_cosmos_msg,
-        attributes: vec![
+    Ok(Response::new().add_messages( cw721_transfer_cosmos_msg,
+        add_attributes(vec![
             attr("action", "migrate_marketplace"),
             attr("nft_contract_addr", nft_contract_addr),
             attr("new_marketplace", new_marketplace),

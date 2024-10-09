@@ -68,7 +68,7 @@ fn sort_auction() {
         deps.as_ref(),
         contract_env.clone(),
         QueryMsg::Auction(AuctionQueryMsg::GetAuctionsByAsker {
-            asker: "asker".into(),
+            asker: Addr::unchecked("asker"),
             options: PagingOptions {
                 limit: Some(100),
                 offset: Some(40),
