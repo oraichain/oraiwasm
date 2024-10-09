@@ -3,10 +3,10 @@ use crate::error::ContractError;
 use crate::msg::ProxyQueryMsg;
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, from_binary, to_json_binary, Binary, CosmosMsg, DepsMut, Env, Response, MessageInfo,
+    attr, from_json, to_json_binary, Binary, CosmosMsg, DepsMut, Env, MessageInfo, Response,
     StdResult,
 };
-use cosmwasm_std::{Deps, Addr};
+use cosmwasm_std::{Addr, Deps};
 use market::query_proxy;
 use market_ai_royalty::{AiRoyaltyExecuteMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_first_lv_royalty::{FirstLvRoyalty, FirstLvRoyaltyQueryMsg};
@@ -66,7 +66,7 @@ pub fn get_royalties(
     contract_addr: &str,
     token_id: &str,
 ) -> Result<Vec<Royalty>, ContractError> {
-    let royalties: Vec<Royalty> = from_binary(&query_ai_royalty(
+    let royalties: Vec<Royalty> = from_json(&query_ai_royalty(
         deps,
         AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
             contract_addr: Addr::from(contract_addr),
@@ -112,7 +112,7 @@ pub fn try_update_royalty_creator(
     royalty_msg: RoyaltyMsg,
 ) -> Result<Response, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
-    let royalty: Royalty = from_binary(&query_ai_royalty(
+    let royalty: Royalty = from_json(&query_ai_royalty(
         deps.as_ref(),
         AiRoyaltyQueryMsg::GetRoyalty {
             contract_addr: royalty_msg.contract_addr.clone(),

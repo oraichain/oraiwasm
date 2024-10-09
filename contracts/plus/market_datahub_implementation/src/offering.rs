@@ -6,7 +6,7 @@ use crate::error::ContractError;
 use crate::msg::{ProxyQueryMsg, SellRoyalty};
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, coins, from_binary, to_json_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    attr, coins, from_json, to_json_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env,
     MessageInfo, Response, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{Addr, StdError};
@@ -433,7 +433,7 @@ pub fn handle_sell_nft(
 }
 
 fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError> {
-    let offering: Offering = from_binary(&query_datahub(
+    let offering: Offering = from_json(&query_datahub(
         deps,
         DataHubQueryMsg::GetOffering { offering_id },
     )?)
@@ -446,7 +446,7 @@ fn get_royalties(
     contract_addr: &str,
     token_id: &str,
 ) -> Result<Vec<Royalty>, ContractError> {
-    let royalties: Vec<Royalty> = from_binary(&query_ai_royalty(
+    let royalties: Vec<Royalty> = from_json(&query_ai_royalty(
         deps,
         AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
             contract_addr: Addr::from(contract_addr),

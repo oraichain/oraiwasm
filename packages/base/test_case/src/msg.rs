@@ -53,7 +53,7 @@ pub struct AssertOutput {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct Response {
+pub struct ContractResponse {
     pub contract: Addr,
     pub dsource_status: bool,
     pub tcase_status: bool,

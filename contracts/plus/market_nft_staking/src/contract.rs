@@ -6,7 +6,7 @@ use std::{
 };
 
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Empty,
+    attr, entry_point, from_json, to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Empty,
     Env, MessageInfo, MigrateResponse, Order, Response, Response, StdError, StdResult, Storage,
     Uint128, WasmMsg, KV,
 };
@@ -320,7 +320,7 @@ pub fn handle_receive_1155(
         });
     }
 
-    let deposit_msg = from_binary::<DepositeMsg>(&receive_msg.msg)?;
+    let deposit_msg = from_json::<DepositeMsg>(&receive_msg.msg)?;
 
     //println!("deposit_msg {:?}", deposit_msg);
     let stake_msg = StakeMsgDetail {
@@ -363,7 +363,7 @@ pub fn handle_receive_721(
         });
     }
 
-    let deposit_msg = from_binary::<DepositeMsg>(&receive_msg.msg.unwrap())?;
+    let deposit_msg = from_json::<DepositeMsg>(&receive_msg.msg.unwrap())?;
 
     let stake_msg = StakeMsgDetail {
         collection_id: deposit_msg.collection_id,

@@ -6,7 +6,7 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Decimal;
-use cosmwasm_std::{coin, coins, from_binary, Addr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_json, Addr, Order, OwnedDeps, Uint128};
 
 use market_1155::MarketExecuteMsg;
 use market_1155::MarketQueryMsg;
@@ -75,7 +75,7 @@ fn sort_offering() {
         }),
     )
     .unwrap();
-    let value: Vec<Offering> = from_binary(&res).unwrap();
+    let value: Vec<Offering> = from_json(&res).unwrap();
     println!("value query list offerings: {:?}", value);
 
     let res = query(
@@ -89,7 +89,7 @@ fn sort_offering() {
         }),
     )
     .unwrap();
-    let value: Vec<Offering> = from_binary(&res).unwrap();
+    let value: Vec<Offering> = from_json(&res).unwrap();
     println!("value query list offering by seller: {:?}", value);
 
     // query by contract
@@ -104,7 +104,7 @@ fn sort_offering() {
         }),
     )
     .unwrap();
-    let value: Vec<Offering> = from_binary(&res).unwrap();
+    let value: Vec<Offering> = from_json(&res).unwrap();
     println!("value query list offering by contract: {:?}", value);
 
     // query by contract token id
@@ -118,7 +118,7 @@ fn sort_offering() {
         }),
     )
     .unwrap();
-    let value: Offering = from_binary(&res).unwrap();
+    let value: Offering = from_json(&res).unwrap();
     println!("value query offering by contract token id: {:?}", value);
 
     // query by contract
@@ -128,7 +128,7 @@ fn sort_offering() {
         QueryMsg::Msg(MarketQueryMsg::GetOffering { offering_id: 1 }),
     )
     .unwrap();
-    let value: Offering = from_binary(&res).unwrap();
+    let value: Offering = from_json(&res).unwrap();
     println!("value query offering info: {:?}", value);
 
     let res_second = query_offering_ids(deps.as_ref()).unwrap();
@@ -174,7 +174,7 @@ fn withdraw_offering() {
         }),
     )
     .unwrap();
-    let value: Vec<Offering> = from_binary(&res).unwrap();
+    let value: Vec<Offering> = from_json(&res).unwrap();
     println!("value: {:?}", value);
     assert_eq!(value.len(), 1);
 }

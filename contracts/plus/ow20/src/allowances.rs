@@ -15,7 +15,7 @@ pub fn handle_increase_allowance(
     amount: Uint128,
     expires: Option<Expiration>,
 ) -> Result<Response, ContractError> {
-    let spender_raw = &deps.api.addr_canonicalize(&spender)?;
+    let spender_raw = &deps.api.addr_canonicalize(spender.as_str())?;
     let owner_raw = &deps.api.addr_canonicalize(&info.sender)?;
 
     if spender_raw == owner_raw {
@@ -55,7 +55,7 @@ pub fn handle_decrease_allowance(
     amount: Uint128,
     expires: Option<Expiration>,
 ) -> Result<Response, ContractError> {
-    let spender_raw = &deps.api.addr_canonicalize(&spender)?;
+    let spender_raw = &deps.api.addr_canonicalize(spender.as_str())?;
     let owner_raw = &deps.api.addr_canonicalize(&info.sender)?;
 
     if spender_raw == owner_raw {
@@ -121,8 +121,8 @@ pub fn handle_transfer_from(
     recipient: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let rcpt_raw = deps.api.addr_canonicalize(&recipient)?;
-    let owner_raw = deps.api.addr_canonicalize(&owner)?;
+    let rcpt_raw = deps.api.addr_canonicalize(recipient.as_str())?;
+    let owner_raw = deps.api.addr_canonicalize(owner.as_str())?;
     let spender_raw = deps.api.addr_canonicalize(&info.sender)?;
 
     // deduct allowance before doing anything else have enough allowance
@@ -159,7 +159,7 @@ pub fn handle_burn_from(
     owner: Addr,
     amount: Uint128,
 ) -> Result<Response, ContractError> {
-    let owner_raw = deps.api.addr_canonicalize(&owner)?;
+    let owner_raw = deps.api.addr_canonicalize(owner.as_str())?;
     let spender_raw = deps.api.addr_canonicalize(&info.sender)?;
 
     // deduct allowance before doing anything else have enough allowance
@@ -198,8 +198,8 @@ pub fn handle_send_from(
     amount: Uint128,
     msg: Option<Binary>,
 ) -> Result<Response, ContractError> {
-    let rcpt_raw = deps.api.addr_canonicalize(&contract)?;
-    let owner_raw = deps.api.addr_canonicalize(&owner)?;
+    let rcpt_raw = deps.api.addr_canonicalize(contract.as_str())?;
+    let owner_raw = deps.api.addr_canonicalize(owner.as_str())?;
     let spender_raw = deps.api.addr_canonicalize(&info.sender)?;
 
     // deduct allowance before doing anything else have enough allowance
@@ -241,8 +241,8 @@ pub fn handle_send_from(
 }
 
 pub fn query_allowance(deps: Deps, owner: Addr, spender: Addr) -> StdResult<AllowanceResponse> {
-    let owner_raw = deps.api.addr_canonicalize(&owner)?;
-    let spender_raw = deps.api.addr_canonicalize(&spender)?;
+    let owner_raw = deps.api.addr_canonicalize(owner.as_str())?;
+    let spender_raw = deps.api.addr_canonicalize(spender.as_str())?;
     let allowance = allowances_read(deps.storage, &owner_raw)
         .may_load(spender_raw.as_slice())?
         .unwrap_or_default();
@@ -276,7 +276,7 @@ mod tests {
             }],
             mint: None,
         };
-        let info = mock_info(&Addr("creator".to_string()), &[]);
+        let info = mock_info(&Addr::unchecked("creator".to_string()), &[]);
         let env = mock_env();
         instantiate(deps.branch(), env, info, init_msg).unwrap();
         query_token_info(deps.as_ref()).unwrap()

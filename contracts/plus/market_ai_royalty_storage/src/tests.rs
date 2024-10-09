@@ -4,7 +4,7 @@ use crate::msg::*;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
-use cosmwasm_std::{coin, coins, from_binary, Addr, OwnedDeps, StdError};
+use cosmwasm_std::{coin, coins, from_json, Addr, OwnedDeps, StdError};
 use market_ai_royalty::*;
 
 const CREATOR: &str = "marketplace";
@@ -94,7 +94,7 @@ fn update_ai_royalty() {
             }),
         )
         .unwrap();
-        let value: Royalty = from_binary(&res).unwrap();
+        let value: Royalty = from_json(&res).unwrap();
         println!("value: {:?}", value);
     }
 
@@ -140,7 +140,7 @@ fn update_ai_royalty() {
         }),
     )
     .unwrap();
-    let value: Vec<Royalty> = from_binary(&res).unwrap();
+    let value: Vec<Royalty> = from_json(&res).unwrap();
     println!("list royalties: {:?}", value);
 
     assert_eq!(value[0].royalty, 40);
@@ -182,7 +182,7 @@ fn query_royalties() {
         creator: Addr::unchecked("provider1"),
     });
     let result: Royalty =
-        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
     println!("result using normal get royalty: {:?}", result);
 
     query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
@@ -196,7 +196,7 @@ fn query_royalties() {
         order: Some(1),
     });
     let result: Vec<Royalty> =
-        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
     println!("result using token id: {:?}", result);
     assert_eq!(result.len(), 3);
 
@@ -208,7 +208,7 @@ fn query_royalties() {
         order: Some(1),
     });
     let result: Vec<Royalty> =
-        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
     println!("result using owner: {:?}", result);
     assert_eq!(result.len(), 1);
 
@@ -222,7 +222,7 @@ fn query_royalties() {
         order: Some(1),
     });
     let result: Vec<Royalty> =
-        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
     println!("result using map: {:?}", result);
     assert_eq!(result.len(), 1);
 
@@ -234,7 +234,7 @@ fn query_royalties() {
         order: Some(1),
     });
     let result: Vec<Royalty> =
-        from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
     println!("result using contract token id: {:?}", result);
     assert_eq!(result.len(), 1);
 }
@@ -310,7 +310,7 @@ fn query_preference() {
         creator: Addr::unchecked("provider1"),
     });
     let pref: u64 =
-        from_binary(&query(deps.as_ref(), mock_env(), query_preference_msg).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_preference_msg).unwrap()).unwrap();
     println!("pref: {}", pref);
     assert_eq!(pref, 1);
 }

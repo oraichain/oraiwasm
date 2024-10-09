@@ -10,7 +10,7 @@ use crate::state::{
 use crate::{Rewards, TestCaseResultMsg};
 use bech32;
 use cosmwasm_std::{
-    attr, from_binary, from_json, to_json_binary, to_vec, Addr, BankMsg, Binary, Coin, CosmosMsg,
+    attr, from_json, from_json, to_json_binary, to_vec, Addr, BankMsg, Binary, Coin, CosmosMsg,
     Deps, DepsMut, Env, MessageInfo, Order, Response, Response, StdError, StdResult, Uint128,
 };
 use std::u64;
@@ -203,8 +203,8 @@ fn try_create_airequest(
     // set request after verifying the fees
     let request_id = increment_requests(deps.storage)?;
 
-    let data_sources: Vec<Addr> = from_binary(&query_datasources(deps.as_ref())?)?;
-    let test_cases: Vec<Addr> = from_binary(&query_testcases(deps.as_ref())?)?;
+    let data_sources: Vec<Addr> = from_json(&query_datasources(deps.as_ref())?)?;
+    let test_cases: Vec<Addr> = from_json(&query_testcases(deps.as_ref())?)?;
 
     let ai_request = AIRequest {
         request_id,

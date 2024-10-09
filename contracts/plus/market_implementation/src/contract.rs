@@ -23,7 +23,7 @@ use cosmwasm_std::{
     attr, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo,
     MigrateResponse, Response, Response, StdError, StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{from_binary, Addr};
+use cosmwasm_std::{from_json, Addr};
 use cw20::Cw20ReceiveMsg;
 use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
 use market::{parse_token_id, AssetInfo, Funds, StorageExecuteMsg, StorageQueryMsg, TokenInfo};
@@ -204,7 +204,7 @@ pub fn try_receive_cw20(
     env: Env,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    match from_binary(&cw20_msg.msg.unwrap_or(Binary::default())) {
+    match from_json(&cw20_msg.msg.unwrap_or(Binary::default())) {
         Ok(Cw20HookMsg::BuyNft { offering_id }) => try_buy(
             deps,
             cw20_msg.sender,
@@ -312,13 +312,13 @@ pub fn try_update_info(
 //     rcv_msg: Cw721ReceiveMsg,
 // ) -> Result<Response, ContractError> {
 //     if let Some(msg) = rcv_msg.msg.clone() {
-//         if let Ok(ask_msg) = from_binary::<AskNftMsg>(&msg) {
+//         if let Ok(ask_msg) = from_json::<AskNftMsg>(&msg) {
 //             return handle_ask_auction(deps, info, env, ask_msg, rcv_msg);
 //         }
-//         if let Ok(sell_msg) = from_binary::<SellNft>(&msg) {
+//         if let Ok(sell_msg) = from_json::<SellNft>(&msg) {
 //             return handle_sell_nft(deps, info, sell_msg, rcv_msg);
 //         }
-//         if let Ok(gift_msg) = from_binary::<GiftNft>(&msg) {
+//         if let Ok(gift_msg) = from_json::<GiftNft>(&msg) {
 //             return handle_transfer_nft(info, gift_msg, rcv_msg);
 //         }
 //     }
@@ -623,7 +623,7 @@ pub fn get_asset_info(token_id: &str, default_denom: &str) -> StdResult<(AssetIn
             },
             id,
         ),
-        Some(data) => (parse_asset_info(from_binary(&data)?), id),
+        Some(data) => (parse_asset_info(from_json(&data)?), id),
     })
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "ow1155"
-version = "0.5.0"
+version = "1.0.1"
 authors = ["Huang Yi <huang@crypto.com>"]
 edition = "2018"
 description = "Basic implementation of a CosmWasm-1155 compliant token"

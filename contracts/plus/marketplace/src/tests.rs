@@ -10,7 +10,7 @@ use cosmwasm_std::testing::{
 use cosmwasm_std::BankMsg;
 use cosmwasm_std::CosmosMsg;
 use cosmwasm_std::Decimal;
-use cosmwasm_std::{coin, coins, from_binary, to_json_binary, Addr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_json, to_json_binary, Addr, Order, OwnedDeps, Uint128};
 
 use cw721::Cw721ReceiveMsg;
 
@@ -90,7 +90,7 @@ fn sort_offering() {
         },
     )
     .unwrap();
-    let value: OfferingsResponse = from_binary(&res).unwrap();
+    let value: OfferingsResponse = from_json(&res).unwrap();
     let ids: Vec<u64> = value.offerings.iter().map(|f| f.id).collect();
     println!("value: {:?}", ids);
 
@@ -105,7 +105,7 @@ fn sort_offering() {
         },
     )
     .unwrap();
-    let value: OfferingsResponse = from_binary(&res).unwrap();
+    let value: OfferingsResponse = from_json(&res).unwrap();
     let ids: Vec<u64> = value.offerings.iter().map(|f| f.id).collect();
     println!("value: {:?}", ids);
 
@@ -170,7 +170,7 @@ fn test_royalties() {
         QueryMsg::GetOffering { offering_id: 3 },
     )
     .unwrap();
-    let offering: QueryOfferingsResult = from_binary(&offering_bin).unwrap();
+    let offering: QueryOfferingsResult = from_json(&offering_bin).unwrap();
     println!("offering owner: {}", offering.seller);
     println!(
         "offering creator: {}",
@@ -319,7 +319,7 @@ fn update_info_test() {
 
     let query_info = QueryMsg::GetContractInfo {};
     let res_info: ContractInfo =
-        from_binary(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
     println!("{:?}", res_info);
 }
 
@@ -355,7 +355,7 @@ fn withdraw_offering_happy_path() {
         },
     )
     .unwrap();
-    let value: OfferingsResponse = from_binary(&res).unwrap();
+    let value: OfferingsResponse = from_json(&res).unwrap();
     assert_eq!(1, value.offerings.len());
 
     // withdraw offering
@@ -376,7 +376,7 @@ fn withdraw_offering_happy_path() {
         },
     )
     .unwrap();
-    let value2: OfferingsResponse = from_binary(&res2).unwrap();
+    let value2: OfferingsResponse = from_json(&res2).unwrap();
     assert_eq!(0, value2.offerings.len());
 }
 

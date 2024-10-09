@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, coins, from_binary, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    attr, coins, from_json, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
     Response, Response, MessageInfo, Order,
 };
 use cw_storage_plus::{Bound, Endian};
@@ -102,7 +102,7 @@ pub fn update_members(
     // ready to remove all old members before adding new
     let old_members: Vec<MemberMsg> = members_store
         .range(None, None, Order::Ascending)
-        .map(|(_key, value)| from_binary(&value.into()).unwrap())
+        .map(|(_key, value)| from_json(&value.into()).unwrap())
         .collect();
     for old_member in old_members {
         members_store.remove(old_member.address.as_bytes());
@@ -419,7 +419,7 @@ fn query_member(deps: Deps, address: &str) -> Result<MemberMsg, ContractError> {
     let value = beacons
         .get(&address.as_bytes())
         .ok_or(ContractError::NoBeacon {})?;
-    let member: MemberMsg = from_binary(&value.into())?;
+    let member: MemberMsg = from_json(&value.into())?;
     Ok(member)
 }
 
@@ -453,7 +453,7 @@ fn query_members(
     let members = members_storage_read(deps.storage)
         .range(min, max, order_enum)
         .take(limit)
-        .map(|(_key, value)| from_binary(&value.into()).unwrap())
+        .map(|(_key, value)| from_json(&value.into()).unwrap())
         .collect();
     Ok(members)
 }
@@ -468,7 +468,7 @@ fn query_get(deps: Deps, round: u64) -> Result<DistributedShareData, ContractErr
     let value = beacons
         .get(&round.to_be_bytes())
         .ok_or(ContractError::NoBeacon {})?;
-    let share_data: DistributedShareData = from_binary(&value.into())?;
+    let share_data: DistributedShareData = from_json(&value.into())?;
     Ok(share_data)
 }
 
@@ -476,7 +476,7 @@ fn query_latest(deps: Deps) -> Result<DistributedShareData, ContractError> {
     let store = beacons_storage_read(deps.storage);
     let mut iter = store.range(None, None, Order::Descending);
     let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
-    let share_data: DistributedShareData = from_binary(&value.into())?;
+    let share_data: DistributedShareData = from_json(&value.into())?;
     Ok(share_data)
 }
 
@@ -484,7 +484,7 @@ fn query_earliest(deps: Deps) -> Result<DistributedShareData, ContractError> {
     let store = beacons_handle_storage_read(deps.storage);
     let mut iter = store.range(None, None, Order::Ascending);
     let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
-    let share_data: DistributedShareData = from_binary(&value.into())?;
+    let share_data: DistributedShareData = from_json(&value.into())?;
     Ok(share_data)
 }
 

@@ -199,7 +199,7 @@ pub fn query_latest_stage(deps: Deps) -> StdResult<LatestStageResponse> {
 }
 
 pub fn query_is_claimed(deps: Deps, stage: u8, address: Addr) -> StdResult<IsClaimedResponse> {
-    let mut key = deps.api.addr_canonicalize(&address)?.to_vec();
+    let mut key = deps.api.addr_canonicalize(address.as_str())?.to_vec();
     key.push(stage);
     let is_claimed = CLAIM.may_load(deps.storage, &key)?.unwrap_or(false);
     let resp = IsClaimedResponse { is_claimed };

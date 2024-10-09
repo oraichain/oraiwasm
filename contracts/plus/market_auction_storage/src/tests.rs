@@ -5,7 +5,7 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Api;
-use cosmwasm_std::{coin, coins, from_binary, Addr, Env, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_json, Addr, Env, Order, OwnedDeps, Uint128};
 use market_auction::QueryAuctionsResult;
 use market_auction::{
     Auction, AuctionExecuteMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions,
@@ -77,7 +77,7 @@ fn sort_auction() {
         }),
     )
     .unwrap();
-    let value: AuctionsResponse = from_binary(&res).unwrap();
+    let value: AuctionsResponse = from_json(&res).unwrap();
     let ids: Vec<u64> = value.items.iter().map(|f| f.id).collect();
     println!("value: {:?}", ids);
 
@@ -88,6 +88,6 @@ fn sort_auction() {
         QueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id: 1 }),
     )
     .unwrap();
-    let value: QueryAuctionsResult = from_binary(&res).unwrap();
+    let value: QueryAuctionsResult = from_json(&res).unwrap();
     println!("value: {:?}", value);
 }

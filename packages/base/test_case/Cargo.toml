@@ -19,7 +19,7 @@ crate-type = ["cdylib", "rlib"]
 
 cosmwasm-std = { workspace = true, features = ["iterator"] }
 cosmwasm-storage = { workspace = true, features = ["iterator"] }
-cw-storage-plus = { version = "0.5.0", features = ["iterator"] }
+cw-storage-plus = { workspace = true, features = ["iterator"] }
 cosmwasm-schema = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

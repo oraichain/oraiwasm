@@ -13,7 +13,7 @@ use sha2::Digest;
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::{
-    attr, coins, from_binary, from_json, to_json_binary, Binary, CosmosMsg, Addr, Order,
+    attr, coins, from_json, from_json, to_json_binary, Binary, CosmosMsg, Addr, Order,
     StdResult, Uint128, WasmMsg,
 };
 use cw_storage_plus::{Bound, U8Key};
@@ -71,12 +71,12 @@ fn proper_instantiation() {
 
     // it worked, let's query the state
     let res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
-    let config: ConfigResponse = from_binary(&res).unwrap();
+    let config: ConfigResponse = from_json(&res).unwrap();
     assert_eq!("owner0000", config.owner.unwrap().as_str());
     assert_eq!("anchor0000", config.cw20_token_address.as_str());
 
     let res = query(deps.as_ref(), env, QueryMsg::LatestStage {}).unwrap();
-    let latest_stage: LatestStageResponse = from_binary(&res).unwrap();
+    let latest_stage: LatestStageResponse = from_json(&res).unwrap();
     assert_eq!(0u8, latest_stage.latest_stage);
 }
 
@@ -105,7 +105,7 @@ fn update_config() {
 
     // it worked, let's query the state
     let res = query(deps.as_ref(), env, QueryMsg::Config {}).unwrap();
-    let config: ConfigResponse = from_binary(&res).unwrap();
+    let config: ConfigResponse = from_json(&res).unwrap();
     assert_eq!("owner0001", config.owner.unwrap().as_str());
 
     // Unauthorized err
@@ -141,7 +141,7 @@ fn test_update_claim() {
     assert_eq!(0, res.messages.len());
 
     // it worked, let's query the state
-    let t1 = from_binary::<ClaimKeysResponse>(
+    let t1 = from_json::<ClaimKeysResponse>(
         &query(
             deps.as_ref(),
             env.clone(),
@@ -205,7 +205,7 @@ fn register_merkle_root() {
     );
 
     let res = query(deps.as_ref(), env.clone(), QueryMsg::LatestStage {}).unwrap();
-    let latest_stage: LatestStageResponse = from_binary(&res).unwrap();
+    let latest_stage: LatestStageResponse = from_json(&res).unwrap();
     assert_eq!(1u8, latest_stage.latest_stage);
 
     let res = query(
@@ -216,7 +216,7 @@ fn register_merkle_root() {
         },
     )
     .unwrap();
-    let merkle_root: MerkleRootResponse = from_binary(&res).unwrap();
+    let merkle_root: MerkleRootResponse = from_json(&res).unwrap();
     assert_eq!(
         "634de21cde1044f41d90373733b0f0fb1c1c71f9652b905cdf159e73c4cf0d37".to_string(),
         merkle_root.merkle_root
@@ -300,7 +300,7 @@ fn claim() {
 
     // Check total claimed on stage 1
     assert_eq!(
-        from_binary::<TotalClaimedResponse>(
+        from_json::<TotalClaimedResponse>(
             &query(
                 deps.as_ref(),
                 env.clone(),
@@ -315,7 +315,7 @@ fn claim() {
 
     // Check address is claimed
     assert!(
-        from_binary::<IsClaimedResponse>(
+        from_json::<IsClaimedResponse>(
             &query(
                 deps.as_ref(),
                 env.clone(),
@@ -382,7 +382,7 @@ fn claim() {
 
     // Check total claimed on stage 2
     assert_eq!(
-        from_binary::<TotalClaimedResponse>(
+        from_json::<TotalClaimedResponse>(
             &query(deps.as_ref(), env, QueryMsg::TotalClaimed { stage: 2 }).unwrap()
         )
         .unwrap()
@@ -470,7 +470,7 @@ fn multiple_claim() {
     // Check total claimed on stage 1
     let env = mock_env();
     assert_eq!(
-        from_binary::<TotalClaimedResponse>(
+        from_json::<TotalClaimedResponse>(
             &query(deps.as_ref(), env, QueryMsg::TotalClaimed { stage: 1 }).unwrap()
         )
         .unwrap()
@@ -542,7 +542,7 @@ fn test_query_claim_keys() {
     // Check total claimed on stage 1
     let env = mock_env();
     assert_eq!(
-        from_binary::<TotalClaimedResponse>(
+        from_json::<TotalClaimedResponse>(
             &query(
                 deps.as_ref(),
                 env.clone(),
@@ -555,13 +555,13 @@ fn test_query_claim_keys() {
         test_data.total_claimed_amount
     );
 
-    let count = from_binary::<ClaimKeyCountResponse>(
+    let count = from_json::<ClaimKeyCountResponse>(
         &query(deps.as_ref(), env.clone(), QueryMsg::ClaimKeyCount {}).unwrap(),
     )
     .unwrap();
     println!("count {:?}", count.claim_key_count);
 
-    let t1 = from_binary::<ClaimKeysResponse>(
+    let t1 = from_json::<ClaimKeysResponse>(
         &query(
             deps.as_ref(),
             env.clone(),
@@ -573,7 +573,7 @@ fn test_query_claim_keys() {
         .unwrap(),
     )
     .unwrap();
-    let t2 = from_binary::<ClaimKeysResponse>(
+    let t2 = from_json::<ClaimKeysResponse>(
         &query(
             deps.as_ref(),
             env.clone(),

@@ -6,7 +6,7 @@ use cosmwasm_std::testing::mock_dependencies_with_balance;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
-use cosmwasm_std::{coin, coins, from_binary, Addr, Env, OwnedDeps};
+use cosmwasm_std::{coin, coins, from_json, Addr, Env, OwnedDeps};
 
 const CREATOR: &str = "owner";
 const DENOM: &str = "orai";
@@ -38,7 +38,7 @@ fn sort_service_fees() {
         .unwrap();
     }
 
-    let service_queries: Vec<ServiceFeesResponse> = from_binary(
+    let service_queries: Vec<ServiceFeesResponse> = from_json(
         &query(
             deps.as_ref(),
             contract_env.clone(),
@@ -55,7 +55,7 @@ fn sort_service_fees() {
     assert_eq!(service_queries[0].address, "abcd2");
 
     // query single service fees
-    let service_query: ServiceFeesResponse = from_binary(
+    let service_query: ServiceFeesResponse = from_json(
         &query(
             deps.as_ref(),
             contract_env.clone(),

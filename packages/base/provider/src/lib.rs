@@ -6,7 +6,7 @@ pub mod state;
 pub use crate::error::ContractError;
 pub use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 pub use cosmwasm_std::{
-    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Response, StdResult,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 
 pub use crate::helpers::{handle_provider, init_provider, query_provider};
@@ -15,8 +15,8 @@ pub use crate::helpers::{handle_provider, init_provider, query_provider};
 #[macro_export]
 macro_rules! create_contract {
     () => {
-        #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn instantiate(
+        #[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
+        pub fn instantiate(
             deps: cosmwasm_std::DepsMut,
             env: cosmwasm_std::Env,
             info: cosmwasm_std::MessageInfo,
@@ -25,7 +25,7 @@ pub fn instantiate(
             $crate::init_provider(deps, env, info, msg)
         }
 
-        #[cfg_attr(not(feature = "library"), entry_point)]
+        #[cfg_attr(not(feature = "library"), cosmwasm_std::entry_point)]
         pub fn execute(
             deps: cosmwasm_std::DepsMut,
             env: cosmwasm_std::Env,

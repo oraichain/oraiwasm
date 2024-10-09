@@ -14,7 +14,7 @@ pub fn query_all_allowances(
     start_after: Option<Addr>,
     limit: Option<u32>,
 ) -> StdResult<AllAllowancesResponse> {
-    let owner_raw = deps.api.addr_canonicalize(&owner)?;
+    let owner_raw = deps.api.addr_canonicalize(owner.as_str())?;
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = calc_range_start_human(deps.api, start_after)?;
     let api = &deps.api;
@@ -79,7 +79,7 @@ mod tests {
             }],
             mint: None,
         };
-        let info = mock_info(&Addr("creator".to_string()), &[]);
+        let info = mock_info(&Addr::unchecked("creator".to_string()), &[]);
         let env = mock_env();
         instantiate(deps.branch(), env, info, init_msg).unwrap();
         query_token_info(deps.as_ref()).unwrap()

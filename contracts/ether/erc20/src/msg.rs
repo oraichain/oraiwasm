@@ -1,3 +1,4 @@
+use cosmwasm_schema::{cw_serde, QueryResponses};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -38,16 +39,13 @@ pub enum ExecuteMsg {
     },
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
-    Balance {
-        address: Addr,
-    },
-    Allowance {
-        owner: Addr,
-        spender: Addr,
-    },
+    #[returns(BalanceResponse)]
+    Balance { address: Addr },
+    #[returns(AllowanceResponse)]
+    Allowance { owner: Addr, spender: Addr },
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema)]

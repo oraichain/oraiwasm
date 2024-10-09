@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, from_binary, to_json_binary, Addr, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
+    attr, from_json, to_json_binary, Addr, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, MigrateResponse, Order, Response, Response, StdError, StdResult, Uint128, KV,
 };
 use cw_storage_plus::Bound;
@@ -266,7 +266,7 @@ pub fn execute_send_from(
         }
         .into_cosmos_msg(to)?];
 
-        let request_annotation_result: StdResult<RequestAnnotate> = from_binary(&msg);
+        let request_annotation_result: StdResult<RequestAnnotate> = from_json(&msg);
         // if the msg is request annotation then we check balance. If does not match info sent funds amount => error
         if let Some(request_annotation_msg) = request_annotation_result.ok() {
             for fund in info.sent_funds.clone() {

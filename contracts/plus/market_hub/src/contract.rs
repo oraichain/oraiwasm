@@ -35,7 +35,7 @@ pub fn instantiate(
 fn map_canonical(api: &dyn Api, admins: &[Addr]) -> StdResult<Vec<CanonicalAddr>> {
     admins
         .iter()
-        .map(|addr| api.addr_canonicalize(addr))
+        .map(|addr| api.addr_canonicalize(addr.as_str()))
         .collect()
 }
 
@@ -238,7 +238,7 @@ pub fn handle_update_admins(
 
 fn can_execute(deps: Deps, sender: &Addr) -> StdResult<bool> {
     let cfg = admin_list_read(deps.storage).load()?;
-    let can = cfg.is_admin(&deps.api.addr_canonicalize(sender)?);
+    let can = cfg.is_admin(&deps.api.addr_canonicalize(sender.as_str())?);
     Ok(can)
 }
 

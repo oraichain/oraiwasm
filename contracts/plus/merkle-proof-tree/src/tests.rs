@@ -10,7 +10,7 @@ use crate::msg::{
 use sha2::Digest;
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{attr, coins, from_binary, from_json, Addr};
+use cosmwasm_std::{attr, coins, from_json, from_json, Addr};
 use serde::Deserialize;
 
 const DENOM: &str = "ORAI";
@@ -31,11 +31,11 @@ fn proper_instantiation() {
 
     // it worked, let's query the state
     let res = query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
-    let config: ConfigResponse = from_binary(&res).unwrap();
+    let config: ConfigResponse = from_json(&res).unwrap();
     assert_eq!("owner0000", config.owner.unwrap().as_str());
 
     let res = query(deps.as_ref(), env, QueryMsg::LatestStage {}).unwrap();
-    let latest_stage: LatestStageResponse = from_binary(&res).unwrap();
+    let latest_stage: LatestStageResponse = from_json(&res).unwrap();
     assert_eq!(0u8, latest_stage.latest_stage);
 }
 
@@ -61,7 +61,7 @@ fn update_config() {
 
     // it worked, let's query the state
     let res = query(deps.as_ref(), env, QueryMsg::Config {}).unwrap();
-    let config: ConfigResponse = from_binary(&res).unwrap();
+    let config: ConfigResponse = from_json(&res).unwrap();
     assert_eq!("owner0001", config.owner.unwrap().as_str());
 
     // Unauthorized err
@@ -106,7 +106,7 @@ fn register_merkle_root() {
     );
 
     let res = query(deps.as_ref(), env.clone(), QueryMsg::LatestStage {}).unwrap();
-    let latest_stage: LatestStageResponse = from_binary(&res).unwrap();
+    let latest_stage: LatestStageResponse = from_json(&res).unwrap();
     assert_eq!(1u8, latest_stage.latest_stage);
 
     let res = query(
@@ -117,7 +117,7 @@ fn register_merkle_root() {
         },
     )
     .unwrap();
-    let merkle_root: MerkleRootResponse = from_binary(&res).unwrap();
+    let merkle_root: MerkleRootResponse = from_json(&res).unwrap();
     assert_eq!(
         "634de21cde1044f41d90373733b0f0fb1c1c71f9652b905cdf159e73c4cf0d37".to_string(),
         merkle_root.merkle_root
@@ -205,7 +205,7 @@ fn claim() {
     );
 
     assert!(
-        from_binary::<IsClaimedResponse>(
+        from_json::<IsClaimedResponse>(
             &query(
                 deps.as_ref(),
                 env.clone(),

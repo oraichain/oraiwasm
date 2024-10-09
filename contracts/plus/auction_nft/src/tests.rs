@@ -10,7 +10,7 @@ use cosmwasm_std::testing::{
 use cosmwasm_std::Decimal;
 use cosmwasm_std::Response;
 use cosmwasm_std::{
-    coin, coins, from_binary, to_json_binary, Addr, Env, Order, OwnedDeps, Uint128,
+    coin, coins, from_json, to_json_binary, Addr, Env, Order, OwnedDeps, Uint128,
 };
 
 use std::ops::Add;
@@ -78,7 +78,7 @@ fn sort_auction() {
         },
     )
     .unwrap();
-    let value: AuctionsResponse = from_binary(&res).unwrap();
+    let value: AuctionsResponse = from_json(&res).unwrap();
     let ids: Vec<u64> = value.items.iter().map(|f| f.id).collect();
     println!("value: {:?}", ids);
 
@@ -95,7 +95,7 @@ fn sort_auction() {
         },
     )
     .unwrap();
-    let value: AuctionsResponse = from_binary(&res).unwrap();
+    let value: AuctionsResponse = from_json(&res).unwrap();
     let ids: Vec<u64> = value.items.iter().map(|f| f.id).collect();
     println!("value: {:?}", ids);
 }
@@ -168,7 +168,7 @@ fn sell_auction_happy_path() {
     )
     .unwrap();
 
-    let result: AuctionsResponse = from_binary(
+    let result: AuctionsResponse = from_json(
         &query(
             deps.as_ref(),
             contract_env.clone(),
@@ -184,7 +184,7 @@ fn sell_auction_happy_path() {
     )
     .unwrap();
     println!("query auction result {:?}", result);
-    let result_second: AuctionsResponse = from_binary(
+    let result_second: AuctionsResponse = from_json(
         &query(
             deps.as_ref(),
             contract_env,
@@ -242,7 +242,7 @@ fn update_info_test() {
 
     let query_info = QueryMsg::GetContractInfo {};
     let res_info: ContractInfo =
-        from_binary(&query(deps.as_ref(), contract_env.clone(), query_info).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), contract_env.clone(), query_info).unwrap()).unwrap();
     println!("{:?}", res_info);
 }
 
@@ -282,7 +282,7 @@ fn update_info_test() {
 //         },
 //     )
 //     .unwrap();
-//     let value: AuctionsResponse = from_binary(&res).unwrap();
+//     let value: AuctionsResponse = from_json(&res).unwrap();
 //     assert_eq!(1, value.items.len());
 
 //     // withdraw auction
@@ -311,7 +311,7 @@ fn update_info_test() {
 //         },
 //     )
 //     .unwrap();
-//     let value2: AuctionsResponse = from_binary(&res2).unwrap();
+//     let value2: AuctionsResponse = from_json(&res2).unwrap();
 //     assert_eq!(0, value2.items.len());
 // }
 
@@ -381,7 +381,7 @@ fn cancel_auction_happy_path() {
     });
     let _res = execute(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
 
-    let contract_info: ContractInfo = from_binary(
+    let contract_info: ContractInfo = from_json(
         &query(
             deps.as_ref(),
             contract_env.clone(),
@@ -438,7 +438,7 @@ fn cancel_auction_happy_path() {
         },
     )
     .unwrap();
-    let value: AuctionsResponse = from_binary(&res).unwrap();
+    let value: AuctionsResponse = from_json(&res).unwrap();
     assert_eq!(0, value.items.len());
 }
 
@@ -469,7 +469,7 @@ fn cancel_auction_unhappy_path() {
     });
     let _res = execute(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
 
-    let contract_info: ContractInfo = from_binary(
+    let contract_info: ContractInfo = from_json(
         &query(
             deps.as_ref(),
             contract_env.clone(),
@@ -538,7 +538,7 @@ fn cancel_bid_happy_path() {
     });
     let _res = execute(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
 
-    let contract_info: ContractInfo = from_binary(
+    let contract_info: ContractInfo = from_json(
         &query(
             deps.as_ref(),
             contract_env.clone(),
@@ -594,7 +594,7 @@ fn cancel_bid_happy_path() {
         },
     )
     .unwrap();
-    let value: AuctionsResponse = from_binary(&res).unwrap();
+    let value: AuctionsResponse = from_json(&res).unwrap();
     assert_eq!(0, value.items.len());
 }
 
@@ -625,7 +625,7 @@ fn cancel_bid_unhappy_path() {
     });
     let _res = execute(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
 
-    let contract_info: ContractInfo = from_binary(
+    let contract_info: ContractInfo = from_json(
         &query(
             deps.as_ref(),
             contract_env.clone(),
@@ -674,7 +674,7 @@ fn claim_winner_happy_path() {
     // beneficiary can release it
     let info = mock_info("anyone", &coins(2, DENOM));
 
-    let contract_info: ContractInfo = from_binary(
+    let contract_info: ContractInfo = from_json(
         &query(
             deps.as_ref(),
             contract_env.clone(),

@@ -13,7 +13,7 @@ use cosmwasm_std::testing::{
     MockStorage,
 };
 use cosmwasm_std::{
-    coin, coins, from_binary, from_json, Addr, Binary, BlockInfo, Coin, ContractInfo, Env,
+    coin, coins, from_json, from_json, Addr, Binary, BlockInfo, Coin, ContractInfo, Env,
     OwnedDeps, StdError, Uint128,
 };
 use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
@@ -931,7 +931,7 @@ fn query_executors() {
     let _res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     // query executors
-    let executors: Vec<Executor> = from_binary(
+    let executors: Vec<Executor> = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -954,7 +954,7 @@ fn query_executors() {
     assert_eq!(executors_base64.len(), 4);
 
     // query executors
-    let executors: Vec<Executor> = from_binary(
+    let executors: Vec<Executor> = from_json(
         &query(
             deps.as_ref(),
             mock_env(),

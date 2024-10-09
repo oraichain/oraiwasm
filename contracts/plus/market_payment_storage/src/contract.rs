@@ -5,7 +5,7 @@ use crate::state::{
 };
 
 use cosmwasm_std::{
-    attr, from_binary, from_json, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
+    attr, from_json, from_json, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
     MigrateResponse, Order, Response, Response, StdError, StdResult, KV,
 };
 use cw_storage_plus::Bound;
@@ -336,7 +336,7 @@ fn _get_range_params(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let payment: PaymentMsg = from_binary(&offset)?;
+        let payment: PaymentMsg = from_json(&offset)?;
         let offset_value = Some(Bound::Exclusive(parse_payment_key(
             payment.contract_addr.as_str(),
             payment.token_id.as_str(),

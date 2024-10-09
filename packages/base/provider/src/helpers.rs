@@ -4,8 +4,8 @@ use crate::msg::{
 };
 use crate::state::{config, config_read, State, OWNER};
 use cosmwasm_std::{
-    attr, to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response,
-    Response, StdResult, WasmMsg,
+    to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response,
+    StdResult, WasmMsg,
 };
 
 pub fn init_provider(
@@ -55,7 +55,7 @@ fn try_set_owner(
     if !info.sender.eq(&old_owner) {
         return Err(ContractError::Unauthorized {});
     }
-    OWNER.save(deps.storage, &Addr::from(owner))?;
+    OWNER.save(deps.storage, &deps.api.addr_validate(&owner)?)?;
     Ok(Response::default())
 }
 
@@ -70,16 +70,12 @@ fn try_withdraw_fees(
         return Err(ContractError::Unauthorized {});
     }
     let cosmos_msg = BankMsg::Send {
-        from_address: env.contract.address,
-        to_address: owner,
+        to_address: owner.to_string(),
         amount: vec![fees],
-    }
-    .into();
-    Ok(Response {
-        messages: vec![cosmos_msg],
-        attributes: vec![attr("action", "withdraw_fees")],
-        ..Response::default()
-    })
+    };
+    Ok(Response::new()
+        .add_message(cosmos_msg)
+        .add_attribute("action", "withdraw_fees"))
 }
 
 fn try_set_fees(
@@ -93,17 +89,14 @@ fn try_set_fees(
         return Err(ContractError::Unauthorized {});
     }
     let execute_msg = WasmMsg::Execute {
-        contract_addr,
+        contract_addr: contract_addr.to_string(),
         msg: to_json_binary(&UpdateServiceFeesMsg {
             update_service_fees: UpdateServiceFees { fees },
         })
         .unwrap(),
         funds: vec![],
     };
-    Ok(Response {
-        messages: vec![execute_msg.into()],
-        ..Response::default()
-    })
+    Ok(Response::new().add_message(execute_msg))
 }
 
 fn try_set_state(
@@ -149,8 +142,8 @@ fn query_state(deps: Deps) -> StdResult<State> {
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::{
-        coins, from_binary,
-        testing::{mock_dependencies, mock_env, mock_info},
+        coins, from_json,
+        testing::{mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info},
     };
 
     use crate::{
@@ -174,7 +167,7 @@ mod tests {
             }),
         )
         .unwrap();
-        let state: State = from_binary(
+        let state: State = from_json(
             &query_provider(deps.as_ref(), mock_env(), crate::QueryMsg::GetState {}).unwrap(),
         )
         .unwrap();
@@ -225,7 +218,7 @@ mod tests {
         )
         .unwrap();
 
-        let state: State = from_binary(
+        let state: State = from_json(
             &query_provider(deps.as_ref(), mock_env(), crate::QueryMsg::GetState {}).unwrap(),
         )
         .unwrap();

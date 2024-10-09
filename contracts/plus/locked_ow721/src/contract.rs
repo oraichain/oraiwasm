@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use cosmwasm_std::{
-    attr, from_binary, to_json_binary, to_vec, Addr, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
+    attr, from_json, to_json_binary, to_vec, Addr, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Order, Response, Response, StdError, StdResult, WasmMsg, KV,
 };
 
@@ -103,7 +103,7 @@ pub fn try_lock(
     rcv_msg: Cw721ReceiveMsg,
 ) -> Result<Response, ContractError> {
     let msg: LockNft = match rcv_msg.msg {
-        Some(bin) => Ok(from_binary(&bin)?),
+        Some(bin) => Ok(from_json(&bin)?),
         None => Err(ContractError::NoData {}),
     }?;
     // check authorization
@@ -773,7 +773,7 @@ mod tests {
             },
         )
         .unwrap();
-        let value: PubKeyResponse = from_binary(&res).unwrap();
+        let value: PubKeyResponse = from_json(&res).unwrap();
         for pub_key in value.pub_keys.clone() {
             let pub_val = pub_key.pub_key;
             println!("result: {}", pub_val.to_base64());

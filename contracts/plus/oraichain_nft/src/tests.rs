@@ -5,7 +5,7 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    attr, coins, from_binary, from_json, to_json_binary, Addr, Api, CosmosMsg, OwnedDeps, Response,
+    attr, coins, from_json, from_json, to_json_binary, Addr, Api, CosmosMsg, OwnedDeps, Response,
     WasmMsg,
 };
 
@@ -41,10 +41,10 @@ fn proper_initialization() {
 
     // it worked, let's query the state
     let res: MinterResponse =
-        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Minter {}).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), QueryMsg::Minter {}).unwrap()).unwrap();
     assert_eq!(MINTER, res.minter.as_str());
     let info: ContractInfoResponse =
-        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::ContractInfo {}).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), QueryMsg::ContractInfo {}).unwrap()).unwrap();
     assert_eq!(
         info,
         ContractInfoResponse {
@@ -55,11 +55,11 @@ fn proper_initialization() {
     );
 
     let count: NumTokensResponse =
-        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::NumTokens {}).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), QueryMsg::NumTokens {}).unwrap()).unwrap();
     assert_eq!(0, count.count);
 
     // list the token_ids
-    let tokens: TokensResponse = from_binary(
+    let tokens: TokensResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -111,7 +111,7 @@ fn minting() {
 
     // ensure num tokens increases
     let count: NumTokensResponse =
-        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::NumTokens {}).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), QueryMsg::NumTokens {}).unwrap()).unwrap();
     assert_eq!(1, count.count);
 
     // unknown nft returns error
@@ -125,7 +125,7 @@ fn minting() {
     .unwrap_err();
 
     // this nft info is correct
-    let info: NftInfoResponse = from_binary(
+    let info: NftInfoResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -162,7 +162,7 @@ fn minting() {
     }
 
     // list the token_ids
-    let tokens: TokensResponse = from_binary(
+    let tokens: TokensResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -453,7 +453,7 @@ fn approving_revoking() {
         include_expired: None,
     };
     let res: OwnerOfResponse =
-        from_binary(&query(deps.as_ref(), mock_env(), query_msg.clone()).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_msg.clone()).unwrap()).unwrap();
     assert_eq!(
         res,
         OwnerOfResponse {
@@ -479,7 +479,7 @@ fn approving_revoking() {
 
     // Approvals are now removed / cleared
     let res: OwnerOfResponse =
-        from_binary(&query(deps.as_ref(), mock_env(), query_msg).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_msg).unwrap()).unwrap();
     assert_eq!(
         res,
         OwnerOfResponse {
@@ -523,7 +523,7 @@ fn approving_all_revoking_all() {
     execute(deps.as_mut(), mock_env(), minter, mint_msg2).unwrap();
 
     // paginate the token_ids
-    let tokens: TokensResponse = from_binary(
+    let tokens: TokensResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -537,7 +537,7 @@ fn approving_all_revoking_all() {
     .unwrap();
     assert_eq!(1, tokens.tokens.len());
     assert_eq!(vec![token_id1.clone()], tokens.tokens);
-    let tokens: TokensResponse = from_binary(
+    let tokens: TokensResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -572,7 +572,7 @@ fn approving_all_revoking_all() {
         }
     );
 
-    let result: ApprovedForAllResponse = from_binary(
+    let result: ApprovedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -627,7 +627,7 @@ fn approving_all_revoking_all() {
     let owner = mock_info("person", &[]);
     execute(deps.as_mut(), mock_env(), owner.clone(), approve_all_msg).unwrap();
 
-    let res: ApprovedForAllResponse = from_binary(
+    let res: ApprovedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -662,7 +662,7 @@ fn approving_all_revoking_all() {
     execute(deps.as_mut(), mock_env(), owner.clone(), approve_all_msg).unwrap();
 
     // and paginate queries
-    let res: ApprovedForAllResponse = from_binary(
+    let res: ApprovedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -687,7 +687,7 @@ fn approving_all_revoking_all() {
         }
     );
 
-    let res: ApprovedForAllResponse = from_binary(
+    let res: ApprovedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -724,7 +724,7 @@ fn approving_all_revoking_all() {
     execute(deps.as_mut(), mock_env(), owner, revoke_all_msg).unwrap();
 
     // Approvals are removed / cleared without affecting others
-    let res: ApprovedForAllResponse = from_binary(
+    let res: ApprovedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -753,7 +753,7 @@ fn approving_all_revoking_all() {
     let mut late_env = mock_env();
     late_env.block.height = 1234568; //expired
 
-    let res: ApprovedForAllResponse = from_binary(
+    let res: ApprovedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             late_env,
@@ -811,7 +811,7 @@ fn query_tokens_by_owner() {
 
     // get all tokens in order:
     let expected = vec![token_id1.clone(), token_id2.clone(), token_id3.clone()];
-    let tokens: TokensResponse = from_binary(
+    let tokens: TokensResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -825,7 +825,7 @@ fn query_tokens_by_owner() {
     .unwrap();
     assert_eq!(&expected, &tokens.tokens);
     // paginate
-    let tokens: TokensResponse = from_binary(
+    let tokens: TokensResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -838,7 +838,7 @@ fn query_tokens_by_owner() {
     )
     .unwrap();
     assert_eq!(&expected[..2], &tokens.tokens[..]);
-    let tokens: TokensResponse = from_binary(
+    let tokens: TokensResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -856,7 +856,7 @@ fn query_tokens_by_owner() {
     let by_ceres = vec![token_id2.clone()];
     let by_demeter = vec![token_id1.clone(), token_id3.clone()];
     // all tokens by owner
-    let tokens: TokensResponse = from_binary(
+    let tokens: TokensResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -872,7 +872,7 @@ fn query_tokens_by_owner() {
 
     assert_eq!(&by_demeter, &tokens.tokens);
 
-    let tokens: TokensResponse = from_binary(
+    let tokens: TokensResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -888,7 +888,7 @@ fn query_tokens_by_owner() {
     assert_eq!(&by_ceres, &tokens.tokens);
 
     // paginate for demeter
-    let tokens: TokensResponse = from_binary(
+    let tokens: TokensResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -903,7 +903,7 @@ fn query_tokens_by_owner() {
     .unwrap();
 
     assert_eq!(&by_demeter[..1], &tokens.tokens[..]);
-    let tokens: TokensResponse = from_binary(
+    let tokens: TokensResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -983,7 +983,7 @@ fn update_nft() {
     .unwrap();
 
     // this nft info is correct
-    let info: NftInfoResponse = from_binary(
+    let info: NftInfoResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),

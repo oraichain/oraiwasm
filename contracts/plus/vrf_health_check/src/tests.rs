@@ -5,7 +5,7 @@ use crate::state::{Member, State};
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
-use cosmwasm_std::{coins, from_binary, Binary, BlockInfo, OwnedDeps};
+use cosmwasm_std::{coins, from_json, Binary, BlockInfo, OwnedDeps};
 use cosmwasm_std::{Addr, Env};
 
 const OWNER: &str = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3d";
@@ -61,7 +61,7 @@ fn proper_initialization() {
         order: None,
     };
     let query_result: Vec<QueryRoundResponse> =
-        from_binary(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
     for result in query_result.clone() {
         println!("result: {:?}", result);
     }
@@ -97,7 +97,7 @@ fn proper_initialization() {
     println!("Query ping 2nd time");
     println!();
     let query_result: Vec<QueryRoundResponse> =
-        from_binary(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
     for result in query_result {
         println!("result: {:?}", result);
     }
@@ -116,7 +116,7 @@ fn proper_initialization() {
     println!("Query ping 3rd time");
     println!();
     let query_result: Vec<QueryRoundResponse> =
-        from_binary(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
     assert_eq!(query_result.len(), 0);
 }
 
@@ -138,7 +138,7 @@ fn update_ping_too_soon() {
         order: None,
     };
     let query_result: Vec<QueryRoundResponse> =
-        from_binary(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
     for result in query_result {
         println!("result: {:?}", result);
     }
@@ -175,7 +175,7 @@ fn update_ping_too_soon() {
     println!("Query ping 2nd time");
     println!();
     let query_result: Vec<QueryRoundResponse> =
-        from_binary(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_ping).unwrap()).unwrap();
     for result in query_result {
         println!("result: {:?}", result);
     }
@@ -187,13 +187,13 @@ fn change_owner() {
 
     // unauthorized change owner
     let msg = ExecuteMsg::ChangeState {
-        owner: Some(Addr("new owner".to_string())),
+        owner: Some(Addr::unchecked("new owner".to_string())),
         round_jump: None,
         members: None,
         prev_checkpoint: None,
         cur_checkpoint: None,
     };
-    let info = mock_info(Addr("someone".to_string()), &[]);
+    let info = mock_info(Addr::unchecked("someone".to_string()), &[]);
     assert!(matches!(
         execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()),
         Err(ContractError::Unauthorized {})
@@ -205,6 +205,6 @@ fn change_owner() {
 
     // query new state
     let state_query: State =
-        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::GetState {}).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), QueryMsg::GetState {}).unwrap()).unwrap();
     println!("state: {:?}", state_query);
 }

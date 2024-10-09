@@ -121,7 +121,7 @@ pub fn try_bid_nft(
         }
 
         // update new price and new bidder
-        off.bidder = deps.api.addr_canonicalize(&sender).ok();
+        off.bidder = deps.api.addr_canonicalize(sender.as_str()).ok();
         off.price = amount;
         // push save message to auction_storage
         cosmos_msgs.push(get_auction_handle_msg(
@@ -408,7 +408,7 @@ pub fn try_handle_ask_aution(
     // save Auction, waiting for finished
     let off = Auction {
         id: None,
-        contract_addr: deps.api.addr_canonicalize(&contract_addr)?,
+        contract_addr: deps.api.addr_canonicalize(contract_addr.as_str())?,
         token_id: token_id.clone(), // has to use initial token id with extra binary data here so we can retrieve the extra data later
         asker,
         price,

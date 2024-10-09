@@ -3,13 +3,13 @@ use crate::error::ContractError;
 use crate::msg::*;
 use crate::query::*;
 use crate::state::PackageOffering;
-use cosmwasm_std::from_binary;
+use cosmwasm_std::from_json;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Decimal;
 use cosmwasm_std::Uint128;
-use cosmwasm_std::{coin, coins, Env, Addr, OwnedDeps};
+use cosmwasm_std::{coin, coins, Addr, Env, OwnedDeps};
 
 const CREATOR_ADDR: &str = "oraiTuancaurao";
 const GOVERNANCE: &str = "ai_market_governance";
@@ -78,7 +78,7 @@ fn offering_factory(
         msg_init.clone(),
     );
 
-    let package_offering: PackageOffering = from_binary(
+    let package_offering: PackageOffering = from_json(
         &query(
             deps.as_ref(),
             contract_env.clone(),
@@ -117,7 +117,7 @@ fn test_buy_and_instantiate() {
 
     assert_ne!(offering_id_maybe, None);
     let offering_id = offering_id_maybe.unwrap().value.parse::<u64>().unwrap();
-    let package_offering: PackageOffering = from_binary(
+    let package_offering: PackageOffering = from_json(
         &query(
             deps.as_ref(),
             contract_env.clone(),
@@ -217,7 +217,7 @@ fn test_update_success_request() {
         Some(Uint128(10).to_string())
     );
 
-    let package_offering: PackageOffering = from_binary(
+    let package_offering: PackageOffering = from_json(
         &query(
             deps.as_ref(),
             contract_env.clone(),
@@ -345,7 +345,7 @@ fn test_query_offerings_by_selle() {
         MOCK_UNIT_PRICE,
     );
 
-    let list_result: Vec<PackageOffering> = from_binary(
+    let list_result: Vec<PackageOffering> = from_json(
         &query(
             deps.as_ref(),
             contract_env.clone(),
@@ -385,7 +385,7 @@ fn test_query_offerings_by_selle() {
 //         msg_buy.clone(),
 //     )
 //     .unwrap();
-//     let claim_info: ClaimeInfo = from_binary(
+//     let claim_info: ClaimeInfo = from_json(
 //         &query(
 //             deps.as_ref(),
 //             contract_env.clone(),
@@ -426,7 +426,7 @@ fn test_query_offerings_by_selle() {
 //         msg_update_claimable.clone(),
 //     )
 //     .unwrap();
-//     let claim_info: ClaimeInfo = from_binary(
+//     let claim_info: ClaimeInfo = from_json(
 //         &query(
 //             deps.as_ref(),
 //             contract_env.clone(),
@@ -506,7 +506,7 @@ fn test_query_offerings_by_selle() {
 //         msg_claim.clone(),
 //     )
 //     .unwrap();
-//     let claim_info: ClaimeInfo = from_binary(
+//     let claim_info: ClaimeInfo = from_json(
 //         &query(
 //             deps.as_ref(),
 //             contract_env.clone(),
@@ -573,7 +573,7 @@ fn test_query_offerings_by_selle() {
 //     )
 //     .unwrap();
 
-//     let claim_info: Vec<ClaimInfoResponse> = from_binary(
+//     let claim_info: Vec<ClaimInfoResponse> = from_json(
 //         &query(
 //             deps.as_ref(),
 //             contract_env.clone(),
@@ -596,7 +596,7 @@ fn test_query_offerings_by_selle() {
 //                     claimable_amount: Uint128(0),
 //                     claimed: Uint128(0),
 //                     claimable: false,
-//                     customer: Addr("customer".to_string()),
+//                     customer: Addr::unchecked("customer".to_string()),
 //                     package_id: "1".to_string()
 //                 }
 //             },
@@ -608,7 +608,7 @@ fn test_query_offerings_by_selle() {
 //                     claimable_amount: Uint128(0),
 //                     claimed: Uint128(0),
 //                     claimable: false,
-//                     customer: Addr("customer".to_string()),
+//                     customer: Addr::unchecked("customer".to_string()),
 //                     package_id: "2".to_string()
 //                 }
 //             }

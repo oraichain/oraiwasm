@@ -5,7 +5,7 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Api;
-use cosmwasm_std::{coin, coins, from_binary, Env, Addr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_json, Env, Addr, Order, OwnedDeps, Uint128};
 use market_auction_extend::QueryAuctionsResult;
 use market_auction_extend::{
     Auction, AuctionExecuteMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions,
@@ -101,7 +101,7 @@ fn sort_auction() {
         }),
     )
     .unwrap();
-    let value: AuctionsResponse = from_binary(&res).unwrap();
+    let value: AuctionsResponse = from_json(&res).unwrap();
     let ids: Vec<u64> = value.items.iter().map(|f| f.id).collect();
     println!("value: {:?}", ids);
     assert_eq!(ids.len(), 9);
@@ -113,7 +113,7 @@ fn sort_auction() {
         QueryMsg::Msg(AuctionQueryMsg::GetAuction { auction_id: 1 }),
     )
     .unwrap();
-    let value: QueryAuctionsResult = from_binary(&res).unwrap();
+    let value: QueryAuctionsResult = from_json(&res).unwrap();
     println!("value: {:?}", value);
 
     // get unique auction
@@ -127,7 +127,7 @@ fn sort_auction() {
         }),
     )
     .unwrap();
-    let value: QueryAuctionsResult = from_binary(&res).unwrap();
+    let value: QueryAuctionsResult = from_json(&res).unwrap();
     println!("value: {:?}", value);
     assert_eq!(value.token_id, "2".to_string());
 
@@ -146,7 +146,7 @@ fn sort_auction() {
         }),
     )
     .unwrap();
-    let value: AuctionsResponse = from_binary(&res).unwrap();
+    let value: AuctionsResponse = from_json(&res).unwrap();
     println!("value: {:?}", value);
     assert_eq!(value.items.len(), 2);
 }

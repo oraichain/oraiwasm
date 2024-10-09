@@ -130,7 +130,7 @@ pub fn handle_transfer(
     //     return Err(ContractError::InvalidZeroAmount {});
     // }
 
-    let rcpt_raw = deps.api.addr_canonicalize(&recipient)?;
+    let rcpt_raw = deps.api.addr_canonicalize(recipient.as_str())?;
     let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
 
     let mut accounts = balances(deps.storage);
@@ -165,7 +165,7 @@ pub fn handle_multi_transfer(
     for transfer_info in transfer_infos.into_iter() {
         let recipient = transfer_info.recipient;
         let amount = transfer_info.amount;
-        let rcpt_raw = deps.api.addr_canonicalize(&recipient)?;
+        let rcpt_raw = deps.api.addr_canonicalize(recipient.as_str())?;
 
         let mut accounts = balances(deps.storage);
         accounts.update(sender_raw.as_slice(), |balance: Option<Uint128>| {
@@ -251,7 +251,7 @@ pub fn handle_mint(
     token_info(deps.storage).save(&config)?;
 
     // add amount to recipient balance
-    let rcpt_raw = deps.api.addr_canonicalize(&recipient)?;
+    let rcpt_raw = deps.api.addr_canonicalize(recipient.as_str())?;
     balances(deps.storage).update(
         rcpt_raw.as_slice(),
         |balance: Option<Uint128>| -> StdResult<_> { Ok(balance.unwrap_or_default() + amount) },
@@ -309,7 +309,7 @@ pub fn handle_send(
     //     return Err(ContractError::InvalidZeroAmount {});
     // }
 
-    let rcpt_raw = deps.api.addr_canonicalize(&contract)?;
+    let rcpt_raw = deps.api.addr_canonicalize(contract.as_str())?;
     let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
 
     // move the tokens to the contract
@@ -366,7 +366,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 pub fn query_balance(deps: Deps, address: Addr) -> StdResult<BalanceResponse> {
-    let addr_raw = deps.api.addr_canonicalize(&address)?;
+    let addr_raw = deps.api.addr_canonicalize(address.as_str())?;
     let balance = balances_read(deps.storage)
         .may_load(addr_raw.as_slice())?
         .unwrap_or_default();
@@ -426,7 +426,7 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateR
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coins, from_binary, from_json, Api, CosmosMsg, Order, StdError, WasmMsg};
+    use cosmwasm_std::{coins, from_json, from_json, Api, CosmosMsg, Order, StdError, WasmMsg};
 
     use cw2::ContractVersion;
     use cw20::{AllowanceResponse, Expiration};
@@ -481,7 +481,7 @@ mod tests {
             }],
             mint: mint.clone(),
         };
-        let info = mock_info(&Addr("creator".to_string()), &[]);
+        let info = mock_info(&Addr::unchecked("creator".to_string()), &[]);
         let env = mock_env();
         let res = instantiate(deps.branch(), env, info, init_msg).unwrap();
         assert_eq!(0, res.messages.len());
@@ -519,12 +519,12 @@ mod tests {
         //     symbol: "CASH".to_string(),
         //     decimals: 9,
         //     initial_balances: vec![Cw20CoinHuman {
-        //         address: Addr("addr0000".to_string()),
+        //         address: Addr::unchecked("addr0000".to_string()),
         //         amount,
         //     }],
         //     mint: None,
         // };
-        let info = mock_info(&Addr("creator".to_string()), &[]);
+        let info = mock_info(&Addr::unchecked("creator".to_string()), &[]);
         let env = mock_env();
         let res = instantiate(deps.as_mut(), env.clone(), info.clone(), init_msg).unwrap();
         assert_eq!(0, res.messages.len());
@@ -552,7 +552,7 @@ mod tests {
             symbol: "CASH".to_string(),
             decimals: 9,
             initial_balances: vec![Cw20CoinHuman {
-                address: Addr("addr0000".to_string()),
+                address: Addr::unchecked("addr0000".to_string()),
                 amount,
             }],
             mint: Some(MinterResponse {
@@ -560,7 +560,7 @@ mod tests {
                 cap: Some(limit),
             }),
         };
-        let info = mock_info(&Addr("creator".to_string()), &[]);
+        let info = mock_info(&Addr::unchecked("creator".to_string()), &[]);
         let env = mock_env();
         let res = instantiate(deps.as_mut(), env.clone(), info.clone(), init_msg).unwrap();
         assert_eq!(0, res.messages.len());
@@ -595,7 +595,7 @@ mod tests {
             symbol: "CASH".to_string(),
             decimals: 9,
             initial_balances: vec![Cw20CoinHuman {
-                address: Addr("addr0000".to_string()),
+                address: Addr::unchecked("addr0000".to_string()),
                 amount,
             }],
             mint: Some(MinterResponse {
@@ -603,7 +603,7 @@ mod tests {
                 cap: Some(limit),
             }),
         };
-        let info = mock_info(&Addr("creator".to_string()), &[]);
+        let info = mock_info(&Addr::unchecked("creator".to_string()), &[]);
         let env = mock_env();
         let res = instantiate(deps.as_mut(), env.clone(), info.clone(), init_msg);
         match res.unwrap_err() {
@@ -730,7 +730,7 @@ mod tests {
             ],
             mint: None,
         };
-        let info = mock_info(&Addr("creator".to_string()), &[]);
+        let info = mock_info(&Addr::unchecked("creator".to_string()), &[]);
         let env = mock_env();
         let res = instantiate(deps.as_mut(), env.clone(), info.clone(), init_msg).unwrap();
         assert_eq!(0, res.messages.len());
@@ -771,7 +771,7 @@ mod tests {
             },
         )
         .unwrap();
-        let loaded: BalanceResponse = from_binary(&data).unwrap();
+        let loaded: BalanceResponse = from_json(&data).unwrap();
         assert_eq!(loaded.balance, amount1);
 
         // check balance query (empty)
@@ -783,7 +783,7 @@ mod tests {
             },
         )
         .unwrap();
-        let loaded: BalanceResponse = from_binary(&data).unwrap();
+        let loaded: BalanceResponse = from_json(&data).unwrap();
         assert_eq!(loaded.balance, Uint128::zero());
     }
 
@@ -1148,7 +1148,7 @@ mod tests {
         // try update minter unauthorized
         let msg = ExecuteMsg::ChangeMinter {
             new_minter: MinterData {
-                minter: deps.api.addr_canonicalize(&addr2).unwrap(),
+                minter: deps.api.addr_canonicalize(addr2.as_str()).unwrap(),
                 cap: None,
             },
         };

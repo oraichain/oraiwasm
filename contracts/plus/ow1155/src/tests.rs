@@ -1,5 +1,5 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{attr, from_binary, to_json_binary, Addr, Binary, Response, StdError};
+use cosmwasm_std::{attr, from_json, to_json_binary, Addr, Binary, Response, StdError};
 
 use cw1155::{
     ApprovedForAllResponse, BalanceResponse, BatchBalanceResponse, Cw1155BatchReceiveMsg,
@@ -746,7 +746,7 @@ fn change_minter() {
     execute(
         deps.as_mut(),
         env.clone(),
-        mock_info(Addr("operator".to_string()), &[]),
+        mock_info(Addr::unchecked("operator".to_string()), &[]),
         Cw1155ExecuteMsg::ChangeMinter {
             minter: "hello there".to_string(),
         },
@@ -754,8 +754,8 @@ fn change_minter() {
     .unwrap();
 
     let query_msg = query(deps.as_ref(), mock_env(), Cw1155QueryMsg::Minter {}).unwrap();
-    let minter_result: Addr = from_binary(&query_msg).unwrap();
-    assert_eq!(minter_result, Addr("hello there".to_string()));
+    let minter_result: Addr = from_json(&query_msg).unwrap();
+    assert_eq!(minter_result, Addr::unchecked("hello there".to_string()));
 }
 
 #[test]
@@ -788,7 +788,7 @@ fn change_owner() {
     execute(
         deps.as_mut(),
         env.clone(),
-        mock_info(Addr("operator".to_string()), &[]),
+        mock_info(Addr::unchecked("operator".to_string()), &[]),
         Cw1155ExecuteMsg::ChangeOwner {
             owner: "hello there".to_string(),
         },
@@ -796,6 +796,6 @@ fn change_owner() {
     .unwrap();
 
     let query_msg = query(deps.as_ref(), mock_env(), Cw1155QueryMsg::Owner {}).unwrap();
-    let owner_result: Addr = from_binary(&query_msg).unwrap();
-    assert_eq!(owner_result, Addr("hello there".to_string()));
+    let owner_result: Addr = from_json(&query_msg).unwrap();
+    assert_eq!(owner_result, Addr::unchecked("hello there".to_string()));
 }

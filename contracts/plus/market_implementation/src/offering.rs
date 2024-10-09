@@ -7,7 +7,7 @@ use crate::error::ContractError;
 use crate::msg::{ProxyExecuteMsg, ProxyQueryMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
-    attr, from_binary, to_json_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    attr, from_json, to_json_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
     Response, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{Addr, Coin};
@@ -359,7 +359,7 @@ pub fn try_handle_sell_nft(
     let offering = Offering {
         id: None,
         token_id: token_id.clone(), // has to use initial token id with extra binary data here so we can retrieve the extra data later
-        contract_addr: deps.api.addr_canonicalize(&contract_addr)?,
+        contract_addr: deps.api.addr_canonicalize(contract_addr.as_str())?,
         seller: deps.api.addr_canonicalize(&info.sender)?,
         price: off_price,
     };
@@ -447,7 +447,7 @@ pub fn query_offering(deps: Deps, msg: OfferingQueryMsg) -> StdResult<Binary> {
 }
 
 fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError> {
-    let offering: Offering = from_binary(&query_offering(
+    let offering: Offering = from_json(&query_offering(
         deps,
         OfferingQueryMsg::GetOfferingState { offering_id },
     )?)

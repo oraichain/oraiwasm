@@ -60,7 +60,7 @@ pub fn assert(assert_inputs: &[String]) -> StdResult<Binary> {
 #[cfg(test)]
 mod tests {
     use cosmwasm_std::{
-        from_binary,
+        from_json,
         testing::{mock_dependencies, mock_env, mock_info},
     };
 
@@ -75,7 +75,7 @@ mod tests {
         let mut results: Vec<String> = Vec::new();
         results.push(result);
         let query_result = assert(&results).unwrap();
-        let assert_output: AssertOutput = from_binary(&query_result).unwrap();
+        let assert_output: AssertOutput = from_json(&query_result).unwrap();
         assert_eq!(assert_output.dsource_status, true);
         assert_eq!(assert_output.tcase_status, true);
     }
@@ -90,7 +90,7 @@ mod tests {
         let mut results: Vec<String> = Vec::new();
         results.push(result);
         let query_result = assert(&results).unwrap();
-        let assert_output: AssertOutput = from_binary(&query_result).unwrap();
+        let assert_output: AssertOutput = from_json(&query_result).unwrap();
         assert_eq!(assert_output.dsource_status, false);
         assert_eq!(assert_output.tcase_status, true);
 
@@ -101,7 +101,7 @@ mod tests {
         let mut results: Vec<String> = Vec::new();
         results.push(result);
         let query_result = assert(&results).unwrap();
-        let assert_output: AssertOutput = from_binary(&query_result).unwrap();
+        let assert_output: AssertOutput = from_json(&query_result).unwrap();
         assert_eq!(assert_output.dsource_status, false);
         assert_eq!(assert_output.tcase_status, true);
 
@@ -111,7 +111,7 @@ mod tests {
         let mut results: Vec<String> = Vec::new();
         results.push(result);
         let query_result = assert(&results).unwrap();
-        let assert_output: AssertOutput = from_binary(&query_result).unwrap();
+        let assert_output: AssertOutput = from_json(&query_result).unwrap();
         assert_eq!(assert_output.dsource_status, true);
         assert_eq!(assert_output.tcase_status, false);
     }

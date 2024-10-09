@@ -8,7 +8,7 @@ use market_rejected::{
 
 use cosmwasm_std::KV;
 use cosmwasm_std::{
-    attr, from_binary, to_json_binary, Binary, Deps, DepsMut, Env, Response, Response,
+    attr, from_json, to_json_binary, Binary, Deps, DepsMut, Env, Response, Response,
     MessageInfo, Order, StdResult,
 };
 use cw_storage_plus::Bound;
@@ -114,7 +114,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 limit,
             } => {
                 let start_addr = start_after.map(|bin| {
-                    from_binary(&bin).unwrap_or(NftInfo {
+                    from_json(&bin).unwrap_or(NftInfo {
                         contract_addr: "".to_string(),
                         token_id: "".to_string(),
                     })

@@ -59,7 +59,7 @@ mod test {
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::Addr;
-    use cosmwasm_std::{coins, from_binary, Coin, OwnedDeps, Uint128};
+    use cosmwasm_std::{coins, from_json, Coin, OwnedDeps, Uint128};
 
     use super::old_config;
     use super::OldState;
@@ -91,7 +91,7 @@ mod test {
 
         // query config
         let state: State =
-            from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::GetState {}).unwrap()).unwrap();
+            from_json(&query(deps.as_ref(), mock_env(), QueryMsg::GetState {}).unwrap()).unwrap();
         println!("state: {:?}", state);
         assert_eq!(state.max_reward_claim, Uint128::from(0u64));
     }

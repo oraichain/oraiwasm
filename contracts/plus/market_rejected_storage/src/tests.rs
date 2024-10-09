@@ -5,7 +5,7 @@ use crate::state::ContractInfo;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
-use cosmwasm_std::{coins, from_binary, to_json_binary, Addr, OwnedDeps};
+use cosmwasm_std::{coins, from_json, to_json_binary, Addr, OwnedDeps};
 
 use market_rejected::{
     Expiration, IsRejectedForAllResponse, MarketRejectedExecuteMsg, MarketRejectedQueryMsg,
@@ -59,7 +59,7 @@ fn update_info() {
 
     // query new contract info
     let contract_info: ContractInfo =
-        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::GetContractInfo {}).unwrap())
+        from_json(&query(deps.as_ref(), mock_env(), QueryMsg::GetContractInfo {}).unwrap())
             .unwrap();
     assert_eq!(contract_info.governance, Addr::unchecked("some gov"));
     assert_eq!(contract_info.creator, Addr::unchecked("not creator"));
@@ -120,7 +120,7 @@ fn test_reject_all() {
     .unwrap();
 
     // query reject all
-    let reject: IsRejectedForAllResponse = from_binary(
+    let reject: IsRejectedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -190,7 +190,7 @@ fn test_query_rejects() {
     }
 
     // query reject all
-    let reject: IsRejectedForAllResponse = from_binary(
+    let reject: IsRejectedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -207,7 +207,7 @@ fn test_query_rejects() {
     assert_eq!(reject.rejected, true);
 
     // query list rejects
-    let rejects: RejectedForAllResponse = from_binary(
+    let rejects: RejectedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -223,7 +223,7 @@ fn test_query_rejects() {
     assert_eq!(rejects.operators.len(), 1);
 
     // query list rejects
-    let rejects: RejectedForAllResponse = from_binary(
+    let rejects: RejectedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -239,7 +239,7 @@ fn test_query_rejects() {
     assert_eq!(rejects.operators.len(), 1);
 
     // query again with more limits
-    let rejects_again: RejectedForAllResponse = from_binary(
+    let rejects_again: RejectedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -319,7 +319,7 @@ fn test_revoke_all() {
     .unwrap();
 
     // query list
-    let reject: IsRejectedForAllResponse = from_binary(
+    let reject: IsRejectedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),

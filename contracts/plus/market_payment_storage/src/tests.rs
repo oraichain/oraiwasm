@@ -9,7 +9,7 @@ use cosmwasm_std::testing::{
 };
 use cosmwasm_std::to_json_binary;
 use cosmwasm_std::Decimal;
-use cosmwasm_std::{coin, coins, from_binary, Addr, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_json, Addr, OwnedDeps, Uint128};
 use market_payment::AssetInfo;
 use market_payment::Payment;
 use market_payment::PaymentExecuteMsg;
@@ -70,7 +70,7 @@ fn remove_offering_payment() {
         }),
     )
     .unwrap();
-    let value: AssetInfo = from_binary(&res).unwrap();
+    let value: AssetInfo = from_json(&res).unwrap();
     println!("value: {:?}", value);
 
     let msg = ExecuteMsg::Msg(PaymentExecuteMsg::RemoveOfferingPayment {
@@ -90,7 +90,7 @@ fn remove_offering_payment() {
         }),
     )
     .unwrap();
-    let asset_info: AssetInfo = from_binary(&bin).unwrap();
+    let asset_info: AssetInfo = from_json(&bin).unwrap();
     println!("new asset info: {:?}", asset_info)
 }
 
@@ -130,7 +130,7 @@ fn check_query_offering_1155_payments() {
         }),
     )
     .unwrap();
-    let value: Vec<PaymentResponse> = from_binary(&res).unwrap();
+    let value: Vec<PaymentResponse> = from_json(&res).unwrap();
     println!("value: {:?}", value);
 }
 
@@ -164,7 +164,7 @@ fn check_query_offering_721_payments() {
         }),
     )
     .unwrap();
-    let value: Vec<PaymentResponse> = from_binary(&res).unwrap();
+    let value: Vec<PaymentResponse> = from_json(&res).unwrap();
     println!("value: {:?}", value);
     assert_eq!(value.len(), 1 as usize);
 
@@ -190,7 +190,7 @@ fn check_query_offering_721_payments() {
         }),
     )
     .unwrap();
-    let value: Vec<PaymentResponse> = from_binary(&res).unwrap();
+    let value: Vec<PaymentResponse> = from_json(&res).unwrap();
     println!("value: {:?}", value);
 }
 
@@ -221,7 +221,7 @@ fn remove_auction_payment() {
         }),
     )
     .unwrap();
-    let value: AssetInfo = from_binary(&res).unwrap();
+    let value: AssetInfo = from_json(&res).unwrap();
     println!("value: {:?}", value);
 
     let msg = ExecuteMsg::Msg(PaymentExecuteMsg::RemoveAuctionPayment {
@@ -241,7 +241,7 @@ fn remove_auction_payment() {
         }),
     )
     .unwrap();
-    let asset_info: AssetInfo = from_binary(&bin).unwrap();
+    let asset_info: AssetInfo = from_json(&bin).unwrap();
     println!("new asset info: {:?}", asset_info)
 }
 
@@ -276,6 +276,6 @@ fn update_info_test() {
 
     let query_info = QueryMsg::GetContractInfo {};
     let res_info: ContractInfo =
-        from_binary(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
     assert_eq!(res_info.governance.as_str(), Addr::unchecked("asvx"));
 }

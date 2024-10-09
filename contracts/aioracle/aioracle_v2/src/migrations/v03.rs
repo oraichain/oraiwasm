@@ -123,7 +123,7 @@ mod test {
     };
     use cosmwasm_std::Addr;
     use cosmwasm_std::Binary;
-    use cosmwasm_std::{coins, from_binary, Coin, OwnedDeps, Uint128};
+    use cosmwasm_std::{coins, from_json, Coin, OwnedDeps, Uint128};
     use cw_storage_plus::Item;
 
     use super::old_executors_map;
@@ -199,7 +199,7 @@ mod test {
 
     //     // query executors
 
-    //     let executors: Vec<Executor> = from_binary(
+    //     let executors: Vec<Executor> = from_json(
     //         &query(
     //             deps.as_ref(),
     //             mock_env(),

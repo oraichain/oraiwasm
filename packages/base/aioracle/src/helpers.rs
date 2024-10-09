@@ -284,7 +284,7 @@ mod tests {
         let api = MockApi::default();
         let admins: Vec<_> = vec!["bob", "paul", "john"]
             .into_iter()
-            .map(|name| api.addr_canonicalize(&Addr::from(name)).unwrap())
+            .map(|name| api.addr_canonicalize(Addr::from(name.as_str())).unwrap())
             .collect();
         let owner = api.addr_canonicalize(&"tupt".into()).unwrap();
         let config = AdminList {

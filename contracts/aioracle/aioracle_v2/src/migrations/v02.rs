@@ -185,7 +185,7 @@ mod test {
     };
     use cosmwasm_std::Addr;
     use cosmwasm_std::Binary;
-    use cosmwasm_std::{coins, from_binary, Coin, OwnedDeps, Uint128};
+    use cosmwasm_std::{coins, from_json, Coin, OwnedDeps, Uint128};
     use cw_storage_plus::Item;
 
     use super::old_requests;
@@ -265,7 +265,7 @@ mod test {
     //     .unwrap();
 
     //     // // query trusting pool
-    //     // let pool: TrustingPoolResponse = from_binary(
+    //     // let pool: TrustingPoolResponse = from_json(
     //     //     &query(
     //     //         deps.as_ref(),
     //     //         mock_env(),
@@ -281,13 +281,13 @@ mod test {
 
     //     // // query config
     //     // let config: Config =
-    //     //     from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+    //     //     from_json(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
     //     // println!("config: {:?}", config);
     //     // assert_eq!(config.slashing_amount, 50);
 
     //     // query requests
     //     let request: Request =
-    //         from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Request { stage: 1 }).unwrap())
+    //         from_json(&query(deps.as_ref(), mock_env(), QueryMsg::Request { stage: 1 }).unwrap())
     //             .unwrap();
     //     println!("request: {:?}", request);
     // }

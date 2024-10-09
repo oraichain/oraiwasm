@@ -5,7 +5,7 @@ use crate::state::Change;
 use crate::state::ChangeStatus;
 use crate::state::Founder;
 use crate::state::State;
-use cosmwasm_std::from_binary;
+use cosmwasm_std::from_json;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
 use cosmwasm_std::Addr;
 use cosmwasm_std::{coins, Uint128};
@@ -85,7 +85,7 @@ fn change_state_happy() {
     execute(deps.as_mut(), mock_env(), info.clone(), ExecuteMsg::Vote {}).unwrap();
 
     // query change state
-    let change_state: Change = from_binary(
+    let change_state: Change = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -112,7 +112,7 @@ fn change_state_happy() {
 
     // query again and check state, should change to finished
     // query change state
-    let change_state: Change = from_binary(
+    let change_state: Change = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -125,7 +125,7 @@ fn change_state_happy() {
 
     // query state, should have new state
     let state: State =
-        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::GetState {}).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), QueryMsg::GetState {}).unwrap()).unwrap();
     assert_eq!(state.co_founders.len(), 1);
 }
 
@@ -309,7 +309,7 @@ fn vote_unhappy() {
     execute(deps.as_mut(), env, info.clone(), ExecuteMsg::Vote {}).unwrap();
 
     // query change, should be finished
-    let change_state: Change = from_binary(
+    let change_state: Change = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -322,7 +322,7 @@ fn vote_unhappy() {
 
     // query state. Should be the same
     let state: State =
-        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::GetState {}).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), QueryMsg::GetState {}).unwrap()).unwrap();
     assert_eq!(state.co_founders.len(), 3);
 
     // not in vote state case

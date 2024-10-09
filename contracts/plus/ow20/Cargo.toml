@@ -23,8 +23,8 @@ library = []
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true, features = ["iterator"] }
 cw-utils = { workspace = true }
-cw2 = "0.5.0"
-cw20 = "0.5.0"
+cw2 = { workspace = true }
+cw20 = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }

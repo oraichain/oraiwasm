@@ -125,7 +125,7 @@ pub fn try_bid_nft(
         }
 
         // update new price and new bidder
-        off.bidder = deps.api.addr_canonicalize(&sender).ok();
+        off.bidder = deps.api.addr_canonicalize(sender.as_str()).ok();
         off.per_price = per_price;
         // push save message to auction_storage
         cosmos_msgs.push(get_handle_msg(
@@ -300,7 +300,7 @@ pub fn handle_ask_auction(
     )?;
 
     // get Auctions count
-    let asker = deps.api.addr_canonicalize(&Addr(final_asker))?;
+    let asker = deps.api.addr_canonicalize(Addr(final_asker.as_str()))?;
     let start_timestamp = msg.start_timestamp.unwrap_or(Uint128::from(env.block.time));
     let end_timestamp = msg
         .end_timestamp

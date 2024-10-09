@@ -6,7 +6,7 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Decimal;
-use cosmwasm_std::{coin, coins, from_binary, Addr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_json, Addr, Order, OwnedDeps, Uint128};
 
 use market_datahub::Annotation;
 use market_datahub::AnnotationResult;
@@ -79,7 +79,7 @@ fn sort_offering() {
         }),
     )
     .unwrap();
-    let value: Vec<Offering> = from_binary(&res).unwrap();
+    let value: Vec<Offering> = from_json(&res).unwrap();
     println!("value query list offerings: {:?}", value);
 
     let res = query(
@@ -93,7 +93,7 @@ fn sort_offering() {
         }),
     )
     .unwrap();
-    let value: Vec<Offering> = from_binary(&res).unwrap();
+    let value: Vec<Offering> = from_json(&res).unwrap();
     println!("value query list offering by seller: {:?}", value);
 
     // query by contract
@@ -108,7 +108,7 @@ fn sort_offering() {
         }),
     )
     .unwrap();
-    let value: Vec<Offering> = from_binary(&res).unwrap();
+    let value: Vec<Offering> = from_json(&res).unwrap();
     println!("value query list offering by contract: {:?}", value);
 
     // query by contract token id
@@ -124,7 +124,7 @@ fn sort_offering() {
         }),
     )
     .unwrap();
-    let value: Vec<Offering> = from_binary(&res).unwrap();
+    let value: Vec<Offering> = from_json(&res).unwrap();
     assert_eq!(value.len(), 1);
 
     // query by contract token id
@@ -138,7 +138,7 @@ fn sort_offering() {
         }),
     )
     .unwrap();
-    let value: Offering = from_binary(&res).unwrap();
+    let value: Offering = from_json(&res).unwrap();
     println!("value query offering by contract token id: {:?}", value);
 
     // query by contract
@@ -148,7 +148,7 @@ fn sort_offering() {
         QueryMsg::Msg(DataHubQueryMsg::GetOffering { offering_id: 1 }),
     )
     .unwrap();
-    let value: Offering = from_binary(&res).unwrap();
+    let value: Offering = from_json(&res).unwrap();
     println!("value query offering info: {:?}", value);
 
     let res_second = query_offering_ids(deps.as_ref()).unwrap();
@@ -194,7 +194,7 @@ fn withdraw_offering() {
         }),
     )
     .unwrap();
-    let value: Vec<Offering> = from_binary(&res).unwrap();
+    let value: Vec<Offering> = from_json(&res).unwrap();
     println!("value: {:?}", value);
     assert_eq!(value.len(), 1);
 }
@@ -240,7 +240,7 @@ fn sort_annotations() {
         }),
     )
     .unwrap();
-    let value: Vec<Annotation> = from_binary(&res).unwrap();
+    let value: Vec<Annotation> = from_json(&res).unwrap();
     assert_eq!(value.len(), 2);
     println!("value query list annotationss: {:?}\n", value);
 
@@ -256,7 +256,7 @@ fn sort_annotations() {
         }),
     )
     .unwrap();
-    let value: Vec<Annotation> = from_binary(&res).unwrap();
+    let value: Vec<Annotation> = from_json(&res).unwrap();
     assert_eq!(value.len(), 2);
     println!("value query list annotations by contract: {:?}\n", value);
 
@@ -273,7 +273,7 @@ fn sort_annotations() {
         }),
     )
     .unwrap();
-    let value: Vec<Annotation> = from_binary(&res).unwrap();
+    let value: Vec<Annotation> = from_json(&res).unwrap();
     assert_eq!(value.len(), 1);
     println!(
         "value query annotations by contract token id: {:?}\n",
@@ -292,7 +292,7 @@ fn sort_annotations() {
         }),
     )
     .unwrap();
-    let value: Vec<Annotation> = from_binary(&res).unwrap();
+    let value: Vec<Annotation> = from_json(&res).unwrap();
     assert_eq!(value.len(), 1);
     println!("value query annotations by requester: {:?}\n", value);
 
@@ -303,7 +303,7 @@ fn sort_annotations() {
         QueryMsg::Msg(DataHubQueryMsg::GetAnnotation { annotation_id: 1 }),
     )
     .unwrap();
-    let value: Annotation = from_binary(&res).unwrap();
+    let value: Annotation = from_json(&res).unwrap();
     println!("value query annotations info: {:?}\n", value);
 
     let res_second = query_annotation_ids(deps.as_ref()).unwrap();
@@ -354,7 +354,7 @@ fn withdraw_annotations() {
         }),
     )
     .unwrap();
-    let value: Vec<Annotation> = from_binary(&res).unwrap();
+    let value: Vec<Annotation> = from_json(&res).unwrap();
     println!("value: {:?}", value);
     assert_eq!(value.len(), 1);
 }
@@ -404,7 +404,7 @@ fn sort_annotation_reviewer() {
     )
     .unwrap();
 
-    let value = from_binary::<Vec<AnnotationReviewer>>(&res).unwrap();
+    let value = from_json::<Vec<AnnotationReviewer>>(&res).unwrap();
     assert_eq!(value.len(), 2);
     println!("value query list reviewer by annotation {:?}", value);
 
@@ -439,7 +439,7 @@ fn sort_annotation_reviewer() {
     )
     .unwrap();
 
-    let results = from_binary::<Vec<AnnotationResult>>(&res).unwrap();
+    let results = from_json::<Vec<AnnotationResult>>(&res).unwrap();
     println!("review results {:?}", results);
 
     // empty reviewers
@@ -450,7 +450,7 @@ fn sort_annotation_reviewer() {
     )
     .unwrap();
 
-    let results = from_binary::<Vec<AnnotationResult>>(&res).unwrap();
+    let results = from_json::<Vec<AnnotationResult>>(&res).unwrap();
     println!("No review results {:?}", results);
 
     let res = query(
@@ -463,7 +463,7 @@ fn sort_annotation_reviewer() {
     )
     .unwrap();
 
-    let result = from_binary::<AnnotationReviewer>(&res).unwrap();
+    let result = from_json::<AnnotationReviewer>(&res).unwrap();
 
     println!("Annotation reviewer by unique key {:?}", result);
 
@@ -477,7 +477,7 @@ fn sort_annotation_reviewer() {
     )
     .unwrap();
 
-    let result = from_binary::<Option<AnnotationReviewer>>(&res).unwrap();
+    let result = from_json::<Option<AnnotationReviewer>>(&res).unwrap();
 
     println!("Failed Annotation reviewer by unique key {:?}", result);
 }
@@ -547,7 +547,7 @@ fn sort_reviewed_upload() {
     )
     .unwrap();
 
-    let result = from_binary::<Vec<AnnotationResult>>(&res);
+    let result = from_json::<Vec<AnnotationResult>>(&res);
     println!("reviewed results: {:?}", result);
 
     // Query by annotation id and reviewer
@@ -564,7 +564,7 @@ fn sort_reviewed_upload() {
     )
     .unwrap();
 
-    let result = from_binary::<Option<AnnotationResult>>(&res).unwrap();
+    let result = from_json::<Option<AnnotationResult>>(&res).unwrap();
 
     println!("Reviewed result by annotation id and reviewer {:?}", result);
 }

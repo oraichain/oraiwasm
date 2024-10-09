@@ -2376,26 +2376,26 @@ mod tests {
             let combination5 = "954f92";
             let addresses1 = vec![
                 deps.api
-                    .addr_canonicalize(&Addr("address1".to_string()))
+                    .addr_canonicalize(&Addr::unchecked("address1".to_string()))
                     .unwrap(),
                 deps.api
-                    .addr_canonicalize(&Addr("address2".to_string()))
+                    .addr_canonicalize(&Addr::unchecked("address2".to_string()))
                     .unwrap(),
             ];
             let addresses2 = vec![
                 deps.api
-                    .addr_canonicalize(&Addr("address2".to_string()))
+                    .addr_canonicalize(&Addr::unchecked("address2".to_string()))
                     .unwrap(),
                 deps.api
-                    .addr_canonicalize(&Addr("address3".to_string()))
+                    .addr_canonicalize(&Addr::unchecked("address3".to_string()))
                     .unwrap(),
                 deps.api
-                    .addr_canonicalize(&Addr("address3".to_string()))
+                    .addr_canonicalize(&Addr::unchecked("address3".to_string()))
                     .unwrap(),
             ];
             let addresses3 = vec![deps
                 .api
-                .addr_canonicalize(&Addr("address2".to_string()))
+                .addr_canonicalize(&Addr::unchecked("address2".to_string()))
                 .unwrap()];
             combination_storage(&mut deps.storage).save(
                 &combination.as_bytes(),
@@ -2854,7 +2854,7 @@ mod tests {
                         claimed: false,
                         address: deps
                             .api
-                            .addr_canonicalize(&Addr("address1".to_string()))
+                            .addr_canonicalize(&Addr::unchecked("address1".to_string()))
                             .unwrap(),
                     }],
                 },
@@ -2867,14 +2867,14 @@ mod tests {
                             claimed: false,
                             address: deps
                                 .api
-                                .addr_canonicalize(&Addr("address2".to_string()))
+                                .addr_canonicalize(&Addr::unchecked("address2".to_string()))
                                 .unwrap(),
                         },
                         WinnerInfoState {
                             claimed: false,
                             address: deps
                                 .api
-                                .addr_canonicalize(&Addr("address1".to_string()))
+                                .addr_canonicalize(&Addr::unchecked("address1".to_string()))
                                 .unwrap(),
                         },
                     ],
@@ -2916,7 +2916,7 @@ mod tests {
                         claimed: false,
                         address: deps
                             .api
-                            .addr_canonicalize(&Addr("address1".to_string()))
+                            .addr_canonicalize(&Addr::unchecked("address1".to_string()))
                             .unwrap(),
                     }],
                 },
@@ -2929,14 +2929,14 @@ mod tests {
                             claimed: false,
                             address: deps
                                 .api
-                                .addr_canonicalize(&Addr("address2".to_string()))
+                                .addr_canonicalize(&Addr::unchecked("address2".to_string()))
                                 .unwrap(),
                         },
                         WinnerInfoState {
                             claimed: false,
                             address: deps
                                 .api
-                                .addr_canonicalize(&Addr("address1".to_string()))
+                                .addr_canonicalize(&Addr::unchecked("address1".to_string()))
                                 .unwrap(),
                         },
                     ],
@@ -2979,7 +2979,7 @@ mod tests {
                         claimed: false,
                         address: deps
                             .api
-                            .addr_canonicalize(&Addr("address1".to_string()))
+                            .addr_canonicalize(&Addr::unchecked("address1".to_string()))
                             .unwrap(),
                     }],
                 },
@@ -2992,14 +2992,14 @@ mod tests {
                             claimed: false,
                             address: deps
                                 .api
-                                .addr_canonicalize(&Addr("address2".to_string()))
+                                .addr_canonicalize(&Addr::unchecked("address2".to_string()))
                                 .unwrap(),
                         },
                         WinnerInfoState {
                             claimed: false,
                             address: deps
                                 .api
-                                .addr_canonicalize(&Addr("address1".to_string()))
+                                .addr_canonicalize(&Addr::unchecked("address1".to_string()))
                                 .unwrap(),
                         },
                     ],
@@ -3027,7 +3027,7 @@ mod tests {
                         claimed: false,
                         address: deps
                             .api
-                            .addr_canonicalize(&Addr("address1".to_string()))
+                            .addr_canonicalize(&Addr::unchecked("address1".to_string()))
                             .unwrap(),
                     }],
                 },
@@ -3040,14 +3040,14 @@ mod tests {
                             claimed: false,
                             address: deps
                                 .api
-                                .addr_canonicalize(&Addr("address2".to_string()))
+                                .addr_canonicalize(&Addr::unchecked("address2".to_string()))
                                 .unwrap(),
                         },
                         WinnerInfoState {
                             claimed: false,
                             address: deps
                                 .api
-                                .addr_canonicalize(&Addr("address1".to_string()))
+                                .addr_canonicalize(&Addr::unchecked("address1".to_string()))
                                 .unwrap(),
                         },
                     ],
@@ -3082,7 +3082,7 @@ mod tests {
                         claimed: false,
                         address: deps
                             .api
-                            .addr_canonicalize(&Addr("address1".to_string()))
+                            .addr_canonicalize(&Addr::unchecked("address1".to_string()))
                             .unwrap(),
                     }],
                 },
@@ -3095,14 +3095,14 @@ mod tests {
                             claimed: false,
                             address: deps
                                 .api
-                                .addr_canonicalize(&Addr("address2".to_string()))
+                                .addr_canonicalize(&Addr::unchecked("address2".to_string()))
                                 .unwrap(),
                         },
                         WinnerInfoState {
                             claimed: false,
                             address: deps
                                 .api
-                                .addr_canonicalize(&Addr("address1".to_string()))
+                                .addr_canonicalize(&Addr::unchecked("address1".to_string()))
                                 .unwrap(),
                         },
                     ],
@@ -3147,7 +3147,7 @@ mod tests {
                         claimed: false,
                         address: deps
                             .api
-                            .addr_canonicalize(&Addr("address1".to_string()))
+                            .addr_canonicalize(&Addr::unchecked("address1".to_string()))
                             .unwrap(),
                     }],
                 },
@@ -3160,14 +3160,14 @@ mod tests {
                             claimed: false,
                             address: deps
                                 .api
-                                .addr_canonicalize(&Addr("address2".to_string()))
+                                .addr_canonicalize(&Addr::unchecked("address2".to_string()))
                                 .unwrap(),
                         },
                         WinnerInfoState {
                             claimed: false,
                             address: deps
                                 .api
-                                .addr_canonicalize(&Addr("address1".to_string()))
+                                .addr_canonicalize(&Addr::unchecked("address1".to_string()))
                                 .unwrap(),
                         },
                     ],

@@ -8,7 +8,7 @@ use crate::state::{
     Offering, CONTRACT_INFO,
 };
 use cosmwasm_std::{
-    attr, coins, from_binary, to_json_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
+    attr, coins, from_json, to_json_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
     DepsMut, Env, Response, Response, MessageInfo, Order, StdError, StdResult, Storage,
     Uint128, WasmMsg,
 };
@@ -332,7 +332,7 @@ pub fn try_receive_nft(
     rcv_msg: Cw721ReceiveMsg,
 ) -> Result<Response, ContractError> {
     let msg: SellNft = match rcv_msg.msg {
-        Some(bin) => Ok(from_binary(&bin)?),
+        Some(bin) => Ok(from_json(&bin)?),
         None => Err(ContractError::NoData {}),
     }?;
 
@@ -547,7 +547,7 @@ pub fn query_offerings_by_seller(
     order: Option<u8>,
 ) -> StdResult<OfferingsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
-    let seller_raw = deps.api.addr_canonicalize(&seller)?;
+    let seller_raw = deps.api.addr_canonicalize(seller.as_str())?;
     let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .idx
         .seller
@@ -567,7 +567,7 @@ pub fn query_offerings_by_contract(
     order: Option<u8>,
 ) -> StdResult<OfferingsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
-    let contract_raw = deps.api.addr_canonicalize(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
     let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .idx
         .contract
@@ -607,7 +607,7 @@ pub fn query_offering_by_contract_tokenid(
     contract: Addr,
     token_id: String,
 ) -> StdResult<QueryOfferingsResult> {
-    let contract_raw = deps.api.addr_canonicalize(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
     let offering = offerings().idx.contract_token_id.item(
         deps.storage,
         get_contract_token_id(contract_raw.to_vec(), &token_id).into(),
@@ -645,7 +645,7 @@ pub fn query_payouts_by_contract_tokenid(
     contract: Addr,
     token_id: String,
 ) -> StdResult<PayoutMsg> {
-    let contract_raw = deps.api.addr_canonicalize(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
     let royalty = royalties_read(deps.storage, &contract_raw).load(token_id.as_bytes())?;
     Ok(PayoutMsg {
         creator: deps.api.addr_humanize(&royalty.0)?,

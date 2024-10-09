@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    from_binary, to_json_binary, to_vec, Addr, Binary, CanonicalAddr, ContractResult, CosmosMsg,
+    from_json, to_json_binary, to_vec, Addr, Binary, CanonicalAddr, ContractResult, CosmosMsg,
     Deps, Empty, QuerierWrapper, QueryRequest, StdError, StdResult, SystemResult, WasmMsg,
     WasmQuery,
 };
@@ -100,7 +100,7 @@ pub fn query_proxy_generic<T: DeserializeOwned>(
             "Querier contract error: {}",
             contract_err
         ))),
-        SystemResult::Ok(ContractResult::Ok(value)) => from_binary(&value),
+        SystemResult::Ok(ContractResult::Ok(value)) => from_json(&value),
     }
 }
 
@@ -129,7 +129,7 @@ pub fn parse_token_id(token_id: &str) -> TokenInfo {
             data: None,
         };
     }
-    let token_id_info_result: StdResult<TokenIdInfo> = from_binary(&token_id_bin.unwrap());
+    let token_id_info_result: StdResult<TokenIdInfo> = from_json(&token_id_bin.unwrap());
 
     // if error then it means the structure is wrong, or the nft has a suprisingly id that is valid in base64 => by default, we will use the token id directly
     if token_id_info_result.is_err() {
@@ -204,7 +204,7 @@ mod tests {
         let api = MockApi::default();
         let admins: Vec<_> = vec!["bob", "paul", "john"]
             .into_iter()
-            .map(|name| api.addr_canonicalize(&Addr::from(name)).unwrap())
+            .map(|name| api.addr_canonicalize(Addr::from(name.as_str())).unwrap())
             .collect();
         let owner = api.addr_canonicalize(&"tupt".into()).unwrap();
         let config = AdminList {

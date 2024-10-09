@@ -211,7 +211,7 @@ pub fn query_auctions_by_asker(
     options: &PagingOptions,
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
-    let asker_raw = deps.api.addr_canonicalize(&asker)?;
+    let asker_raw = deps.api.addr_canonicalize(asker.as_str())?;
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .asker
@@ -231,7 +231,7 @@ pub fn query_auctions_by_bidder(
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
     let bidder_raw = match bidder {
-        Some(addr) => deps.api.addr_canonicalize(&addr)?,
+        Some(addr) => deps.api.addr_canonicalize(addr.as_str())?,
         None => CanonicalAddr::default(),
     };
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
@@ -251,7 +251,7 @@ pub fn query_auctions_by_contract(
     options: &PagingOptions,
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
-    let contract_raw = deps.api.addr_canonicalize(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .contract
@@ -278,7 +278,7 @@ pub fn query_auction_by_contract_tokenid(
     contract: Addr,
     token_id: String,
 ) -> StdResult<QueryAuctionsResult> {
-    let contract_raw = deps.api.addr_canonicalize(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
     if let Some(kv_item) = auctions()
         .idx
         .contract_token_id

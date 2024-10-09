@@ -7,7 +7,7 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Decimal;
-use cosmwasm_std::{coin, coins, from_binary, Addr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_json, Addr, Order, OwnedDeps, Uint128};
 
 use market_royalty::Offering;
 use market_royalty::OfferingExecuteMsg;
@@ -87,7 +87,7 @@ fn sort_offering() {
         }),
     )
     .unwrap();
-    let value: OfferingsResponse = from_binary(&res).unwrap();
+    let value: OfferingsResponse = from_json(&res).unwrap();
     println!("value: {:?}", value);
 
     let res = query(
@@ -101,7 +101,7 @@ fn sort_offering() {
         }),
     )
     .unwrap();
-    let value: OfferingsResponse = from_binary(&res).unwrap();
+    let value: OfferingsResponse = from_json(&res).unwrap();
     let ids: Vec<u64> = value.offerings.iter().map(|f| f.id).collect();
     println!("value: {:?}", ids);
 
@@ -146,7 +146,7 @@ fn sort_offering_royalty() {
         }),
     )
     .unwrap();
-    let value: Vec<OfferingRoyalty> = from_binary(&res).unwrap();
+    let value: Vec<OfferingRoyalty> = from_json(&res).unwrap();
     println!("value: {:?}", value);
 
     let res = query(
@@ -163,7 +163,7 @@ fn sort_offering_royalty() {
         }),
     )
     .unwrap();
-    let value: Vec<OfferingRoyalty> = from_binary(&res).unwrap();
+    let value: Vec<OfferingRoyalty> = from_json(&res).unwrap();
     println!("offering royalties by contract: {:?}\n", value);
 
     assert_eq!(value.len(), 2);
@@ -177,7 +177,7 @@ fn sort_offering_royalty() {
         }),
     )
     .unwrap();
-    let value: OfferingRoyalty = from_binary(&res).unwrap();
+    let value: OfferingRoyalty = from_json(&res).unwrap();
     println!("offering royaltie by contract token id: {:?}", value);
 
     let res = query(
@@ -190,7 +190,7 @@ fn sort_offering_royalty() {
         }),
     )
     .unwrap();
-    let value: Vec<OfferingRoyalty> = from_binary(&res).unwrap();
+    let value: Vec<OfferingRoyalty> = from_json(&res).unwrap();
     println!("offering royalties: {:?}", value);
 }
 
@@ -240,7 +240,7 @@ fn withdraw_offering() {
         }),
     )
     .unwrap();
-    let value: OfferingsResponse = from_binary(&res).unwrap();
+    let value: OfferingsResponse = from_json(&res).unwrap();
     println!("value: {:?}", value);
     assert_eq!(value.offerings.len(), 1);
 }
@@ -275,6 +275,6 @@ fn update_info_test() {
 
     let query_info = QueryMsg::GetContractInfo {};
     let res_info: ContractInfo =
-        from_binary(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
     assert_eq!(res_info.governance.as_str(), Addr::unchecked("asvx"));
 }

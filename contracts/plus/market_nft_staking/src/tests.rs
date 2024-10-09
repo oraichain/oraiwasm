@@ -8,7 +8,7 @@ use crate::{
     state::{CollectionPoolInfo, CollectionStakerInfo, ContractInfo},
 };
 use cosmwasm_std::{
-    coins, from_binary, from_json,
+    coins, from_json, from_json,
     testing::{mock_info, MockApi, MockStorage},
     to_json_binary, Binary, ContractResult, CosmosMsg, Response, Addr, MessageInfo,
     OwnedDeps, QuerierResult, StdResult, SystemError, SystemResult, Uint128, WasmQuery, Env,
@@ -316,7 +316,7 @@ fn update_info_test() {
             }),
         );
         let res = manager.query(mock_env(CONTRACT_ADDR),QueryMsg::GetContractInfo {}).unwrap();
-        let contract_info = from_binary::<ContractInfo>(&res).unwrap();
+        let contract_info = from_json::<ContractInfo>(&res).unwrap();
         println!("new contract info {:?}", contract_info);
     }
 }
@@ -353,7 +353,7 @@ fn create_collection_pool_test() {
                 collection_id: "1".to_string(),
             })
             .unwrap();
-        let collection_pool_info = from_binary::<CollectionPoolInfo>(&res);
+        let collection_pool_info = from_json::<CollectionPoolInfo>(&res);
         println!("collection pool info {:?}", collection_pool_info);
     }
 }
@@ -370,7 +370,7 @@ fn update_collection_pool_info_test() {
                 collection_id: "1".to_string(),
             })
             .unwrap();
-        let collection_pool_info = from_binary::<CollectionPoolInfo>(&res);
+        let collection_pool_info = from_json::<CollectionPoolInfo>(&res);
         println!("collection pool info {:?}", collection_pool_info);
 
         // try to update
@@ -410,7 +410,7 @@ fn update_collection_pool_info_test() {
                 collection_id: "1".to_string(),
             })
             .unwrap();
-        let collection_pool_info = from_binary::<CollectionPoolInfo>(&res);
+        let collection_pool_info = from_json::<CollectionPoolInfo>(&res);
         println!("New collection pool info {:?}", collection_pool_info);
     }
 }
@@ -425,7 +425,7 @@ fn update_collection_pool_info_test() {
 //                 collection_id: "1".to_string(),
 //             })
 //             .unwrap();
-//         let collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+//         let collection_pool_info = from_json::<CollectionPoolInfo>(&res).unwrap();
 //         // Error because of not approved contract yet
 //         let res = manager.check_can_send(mock_info("staker", &[]), &collection_pool_info);
 //         println!("Unauthorized case: {:?}", res);
@@ -515,7 +515,7 @@ fn stake_nft_test() {
           })
           .unwrap();
 
-          let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+          let new_staker_info = from_json::<Vec<CollectionStakerInfo>>(&res).unwrap();
           println!("stakers info {:?}", new_staker_info);
 
               let res = manager
@@ -523,7 +523,7 @@ fn stake_nft_test() {
                 collection_id: "1".to_string(),
             })
             .unwrap();
-            let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+            let new_collection_pool_info = from_json::<CollectionPoolInfo>(&res).unwrap();
             println!("new collecion pool info after staker2 staked {:?}", new_collection_pool_info);
 
 
@@ -539,7 +539,7 @@ fn stake_nft_test() {
         })
         .unwrap();
 
-        let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+        let new_staker_info = from_json::<Vec<CollectionStakerInfo>>(&res).unwrap();
         println!("stakers info {:?}", new_staker_info);
 
             let res = manager
@@ -547,7 +547,7 @@ fn stake_nft_test() {
               collection_id: "1".to_string(),
           })
           .unwrap();
-          let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+          let new_collection_pool_info = from_json::<CollectionPoolInfo>(&res).unwrap();
           println!("new collecion pool info after staker2 staked {:?}", new_collection_pool_info);
 
                //Staker_1 continue to stake 5 nft edition but withdraw reward this time
@@ -580,7 +580,7 @@ fn stake_nft_test() {
         })
         .unwrap();
 
-        let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+        let new_staker_info = from_json::<Vec<CollectionStakerInfo>>(&res).unwrap();
         println!("stakers info {:?}", new_staker_info);
 
             let res = manager
@@ -588,7 +588,7 @@ fn stake_nft_test() {
               collection_id: "1".to_string(),
           })
           .unwrap();
-          let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+          let new_collection_pool_info = from_json::<CollectionPoolInfo>(&res).unwrap();
           println!("new collecion pool info after staker2 staked {:?}", new_collection_pool_info);
 
     //     //20 blocks since first stake block
@@ -599,7 +599,7 @@ fn stake_nft_test() {
     //         collection_id: "1".to_string(),
     //     })
     //     .unwrap();
-    //     let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+    //     let new_collection_pool_info = from_json::<CollectionPoolInfo>(&res).unwrap();
     //     println!("new collecion pool info after staker2 staked {:?}", new_collection_pool_info);
 
     //     let res = manager
@@ -611,7 +611,7 @@ fn stake_nft_test() {
     //             })
     //             .unwrap();
 
-    //         let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+    //         let new_staker_info = from_json::<Vec<CollectionStakerInfo>>(&res).unwrap();
     //         println!("stakers info {:?}", new_staker_info);
         
     //     //Staker_1 continue to stake 5 nft edition but withdraw reward this time
@@ -657,7 +657,7 @@ fn stake_nft_test() {
     //       collection_id: "1".to_string(),
     //   })
     //   .unwrap();
-    //   let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+    //   let new_collection_pool_info = from_json::<CollectionPoolInfo>(&res).unwrap();
     //   println!("new collecion pool info after staked {:?}", new_collection_pool_info);
 
     //   let res = manager
@@ -669,7 +669,7 @@ fn stake_nft_test() {
     //           })
     //           .unwrap();
 
-    //       let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+    //       let new_staker_info = from_json::<Vec<CollectionStakerInfo>>(&res).unwrap();
     //       println!("stakers info {:?}", new_staker_info);
     }
 }
@@ -736,7 +736,7 @@ fn claim_test(){
           collection_id: "1".to_string(),
       })
       .unwrap();
-      let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+      let new_collection_pool_info = from_json::<CollectionPoolInfo>(&res).unwrap();
       println!("new collecion pool info after staked {:?}", new_collection_pool_info);
 
       let res = manager
@@ -748,7 +748,7 @@ fn claim_test(){
               })
               .unwrap();
 
-      let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+      let new_staker_info = from_json::<Vec<CollectionStakerInfo>>(&res).unwrap();
       println!("stakers info {:?}", new_staker_info);
       
       let res = manager.execute(mock_info(CREATOR, &[]), contract_env.clone(), ExecuteMsg::ResetEarnedRewards {collection_id: "1".to_string(), staker: Addr::unchecked("staker_1")});
@@ -763,7 +763,7 @@ fn claim_test(){
       })
       .unwrap();
 
-      let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+      let new_staker_info = from_json::<Vec<CollectionStakerInfo>>(&res).unwrap();
       println!("stakers info {:?}", new_staker_info);
   }
 }
@@ -836,7 +836,7 @@ fn withdraw_nfts_test(){
 
     // After 2nd wave of stake
     let res = manager.query(contract_env.clone(), QueryMsg::GetCollectionPoolInfos{limit:None,offset:None,order:None}).unwrap();
-    let data = from_binary::<Vec<CollectionPoolInfo>>(&res).unwrap();
+    let data = from_json::<Vec<CollectionPoolInfo>>(&res).unwrap();
 
     println!("collection infos {:?}",data);
 
@@ -849,7 +849,7 @@ fn withdraw_nfts_test(){
     })
     .unwrap();
 
-    let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+    let new_staker_info = from_json::<Vec<CollectionStakerInfo>>(&res).unwrap();
     println!("stakers info {:?}", new_staker_info);
 
 
@@ -867,7 +867,7 @@ fn withdraw_nfts_test(){
     println!("res {:?}",res);
 
     let res = manager.query(contract_env.clone(), QueryMsg::GetCollectionPoolInfos{limit:None,offset:None,order:None}).unwrap();
-    let data = from_binary::<Vec<CollectionPoolInfo>>(&res).unwrap();
+    let data = from_json::<Vec<CollectionPoolInfo>>(&res).unwrap();
 
     println!("collection infos {:?}",data);
 
@@ -880,7 +880,7 @@ fn withdraw_nfts_test(){
     })
     .unwrap();
 
-    let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+    let new_staker_info = from_json::<Vec<CollectionStakerInfo>>(&res).unwrap();
     println!("stakers info {:?}", new_staker_info);
     
     // contract_env.block.height = contract_env.block.height + 10;
@@ -890,7 +890,7 @@ fn withdraw_nfts_test(){
     //       collection_id: "1".to_string(),
     //   })
     //   .unwrap();
-    // let new_collection_pool_info = from_binary::<CollectionPoolInfo>(&res).unwrap();
+    // let new_collection_pool_info = from_json::<CollectionPoolInfo>(&res).unwrap();
     // println!("new collecion pool info after staked {:?}", new_collection_pool_info);
 
     // let res = manager
@@ -902,7 +902,7 @@ fn withdraw_nfts_test(){
     //           })
     //           .unwrap();
 
-    // let new_staker_info = from_binary::<Vec<CollectionStakerInfo>>(&res).unwrap();
+    // let new_staker_info = from_json::<Vec<CollectionStakerInfo>>(&res).unwrap();
     // println!("stakers info {:?}", new_staker_info);
   }
 }

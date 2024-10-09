@@ -1,6 +1,6 @@
 [package]
 name = "cw3-flex-multisig"
-version = "0.5.0"
+version = "1.0.1"
 authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
 edition = "2018"
 description = "Implementing cw3 with multiple voting patterns and dynamic groups"

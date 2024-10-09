@@ -5,7 +5,7 @@ use crate::state::ContractInfo;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
-use cosmwasm_std::{coins, from_binary, Addr, OwnedDeps};
+use cosmwasm_std::{coins, from_json, Addr, OwnedDeps};
 
 use market_whitelist::{
     ApprovedForAllResponse, Expiration, IsApprovedForAllResponse, MarketWhiteListExecuteMsg,
@@ -59,7 +59,7 @@ fn update_info() {
 
     // query new contract info
     let contract_info: ContractInfo =
-        from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::GetContractInfo {}).unwrap())
+        from_json(&query(deps.as_ref(), mock_env(), QueryMsg::GetContractInfo {}).unwrap())
             .unwrap();
     assert_eq!(contract_info.governance, Addr::unchecked("some gov"));
     assert_eq!(contract_info.creator, Addr::unchecked("not creator"));
@@ -111,7 +111,7 @@ fn test_approve_all() {
     .unwrap();
 
     // query approve all
-    let approve: IsApprovedForAllResponse = from_binary(
+    let approve: IsApprovedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -156,7 +156,7 @@ fn test_query_approves() {
     }
 
     // query approve all
-    let approve: IsApprovedForAllResponse = from_binary(
+    let approve: IsApprovedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -170,7 +170,7 @@ fn test_query_approves() {
     assert_eq!(approve.approved, true);
 
     // query list approves
-    let approves: ApprovedForAllResponse = from_binary(
+    let approves: ApprovedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -186,7 +186,7 @@ fn test_query_approves() {
     assert_eq!(approves.operators.len(), 1);
 
     // query list approves
-    let approves: ApprovedForAllResponse = from_binary(
+    let approves: ApprovedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -202,7 +202,7 @@ fn test_query_approves() {
     assert_eq!(approves.operators.len(), 1);
 
     // query again with more limits
-    let approves_again: ApprovedForAllResponse = from_binary(
+    let approves_again: ApprovedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),
@@ -267,7 +267,7 @@ fn test_revoke_all() {
     .unwrap();
 
     // query list
-    let approve: IsApprovedForAllResponse = from_binary(
+    let approve: IsApprovedForAllResponse = from_json(
         &query(
             deps.as_ref(),
             mock_env(),

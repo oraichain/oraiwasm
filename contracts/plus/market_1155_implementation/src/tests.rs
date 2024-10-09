@@ -5,7 +5,7 @@ use crate::msg::*;
 use crate::state::ContractInfo;
 use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
-    coin, coins, from_binary, from_json, to_json_binary, Addr, Binary, ContractResult, CosmosMsg,
+    coin, coins, from_json, from_json, to_json_binary, Addr, Binary, ContractResult, CosmosMsg,
     Decimal, Env, MessageInfo, OwnedDeps, QuerierResult, Response, StdError, StdResult,
     SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
 };
@@ -613,7 +613,7 @@ fn sell_auction_happy_path() {
         let _ret_error = manager.execute(info.clone(), msg.clone());
         assert_eq!(_ret_error.is_err(), true);
 
-        let result: AuctionsResponse = from_binary(
+        let result: AuctionsResponse = from_json(
             &manager
                 .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctions {
                     options: PagingOptions {
@@ -660,7 +660,7 @@ fn sell_auction_cw20_happy_path() {
         let _ret_error = manager.execute(info.clone(), msg.clone());
         assert_eq!(_ret_error.is_err(), true);
 
-        let result: AuctionsResponse = from_binary(
+        let result: AuctionsResponse = from_json(
             &manager
                 .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctions {
                     options: PagingOptions {
@@ -784,7 +784,7 @@ fn sell_auction_unhappy_path() {
         .unwrap();
 
         // query rejected list
-        let _: IsRejectedForAllResponse = from_binary(
+        let _: IsRejectedForAllResponse = from_json(
             &market_rejected_storage::contract::query(
                 manager.rejected.as_ref(),
                 mock_env(REJECT_ADDR),
@@ -878,7 +878,7 @@ fn cancel_auction_happy_path() {
                 },
             }))
             .unwrap();
-        let value: AuctionsResponse = from_binary(&res).unwrap();
+        let value: AuctionsResponse = from_json(&res).unwrap();
         assert_eq!(0, value.items.len());
     }
 }
@@ -929,7 +929,7 @@ fn cancel_auction_cw20_happy_path() {
                 },
             }))
             .unwrap();
-        let value: AuctionsResponse = from_binary(&res).unwrap();
+        let value: AuctionsResponse = from_json(&res).unwrap();
         assert_eq!(0, value.items.len());
     }
 }
@@ -1103,7 +1103,7 @@ fn claim_winner_happy_path() {
     unsafe {
         let manager = DepsManager::get_new();
         let contract_info: ContractInfo =
-            from_binary(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
+            from_json(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
         let market_fee = Decimal::permille(contract_info.fee);
         let contract_env = mock_env(MARKET_ADDR);
         handle_approve(manager);
@@ -1163,7 +1163,7 @@ fn claim_winner_happy_path() {
 
         // now claim winner after expired
         let current_market_fee: Uint128 =
-            from_binary(&manager.query(QueryMsg::GetMarketFees {}).unwrap()).unwrap();
+            from_json(&manager.query(QueryMsg::GetMarketFees {}).unwrap()).unwrap();
         let claim_info = mock_info("claimer", &coins(0, DENOM));
         let claim_msg = ExecuteMsg::ClaimWinner { auction_id: 1 };
         let mut claim_contract_env = contract_env.clone();
@@ -1172,7 +1172,7 @@ fn claim_winner_happy_path() {
             .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
             .unwrap();
         let after_claim_market_fee: Uint128 =
-            from_binary(&manager.query(QueryMsg::GetMarketFees {}).unwrap()).unwrap();
+            from_json(&manager.query(QueryMsg::GetMarketFees {}).unwrap()).unwrap();
         // fee 2% * 50_000_000 is 1_000_000
         assert_eq!(
             after_claim_market_fee,
@@ -1205,7 +1205,7 @@ fn claim_winner_happy_path() {
 
         let _ret = manager.execute(bid_info.clone(), msg.clone()).unwrap();
 
-        let result: AuctionsResponse = from_binary(
+        let result: AuctionsResponse = from_json(
             &manager
                 .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctions {
                     options: PagingOptions {
@@ -1298,7 +1298,7 @@ fn claim_winner_cw20_happy_path() {
 
         let _ret = manager.execute(bid_info.clone(), msg.clone()).unwrap();
 
-        let result: AuctionsResponse = from_binary(
+        let result: AuctionsResponse = from_json(
             &manager
                 .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctions {
                     options: PagingOptions {
@@ -1598,7 +1598,7 @@ fn test_bid_nft_happy_path() {
         // query auction to check bidder
         let auction_query_msg = QueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id: 1 });
         let result: QueryAuctionsResult =
-            from_binary(&manager.query(auction_query_msg).unwrap()).unwrap();
+            from_json(&manager.query(auction_query_msg).unwrap()).unwrap();
         assert_eq!(result.bidder.unwrap(), Addr::from(BIDDER));
     }
 }
@@ -1644,7 +1644,7 @@ fn test_bid_nft_cw20_happy_path() {
         // query auction to check bidder
         let auction_query_msg = QueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id: 1 });
         let result: QueryAuctionsResult =
-            from_binary(&manager.query(auction_query_msg).unwrap()).unwrap();
+            from_json(&manager.query(auction_query_msg).unwrap()).unwrap();
         assert_eq!(result.bidder.unwrap(), Addr::from(BIDDER));
     }
 }
@@ -1959,7 +1959,7 @@ fn update_info_test() {
         assert_eq!(response.is_err(), false);
 
         let query_info = QueryMsg::GetContractInfo {};
-        let res_info: ContractInfo = from_binary(&manager.query(query_info).unwrap()).unwrap();
+        let res_info: ContractInfo = from_json(&manager.query(query_info).unwrap()).unwrap();
         assert_eq!(res_info.governance.addr().as_str(), HUB_ADDR);
     }
 }
@@ -2008,7 +2008,7 @@ fn test_royalties() {
                 offering_id: 1,
             }))
             .unwrap();
-        let offering_first: Offering = from_binary(&offering_bin_first).unwrap();
+        let offering_first: Offering = from_json(&offering_bin_first).unwrap();
 
         println!("offering: {:?}", offering_first);
 
@@ -2036,7 +2036,7 @@ fn test_royalties() {
                 offering_id: 2,
             }))
             .unwrap();
-        let offering: Offering = from_binary(&offering_bin).unwrap();
+        let offering: Offering = from_json(&offering_bin).unwrap();
 
         println!("offering 2nd sell: {:?}", offering);
 
@@ -2052,7 +2052,7 @@ fn test_royalties() {
         let mut total_payment = Uint128::from(0u128);
 
         // query royalties
-        let royalties: Vec<Royalty> = from_binary(
+        let royalties: Vec<Royalty> = from_json(
             &manager
                 .query(QueryMsg::AiRoyalty(
                     AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
@@ -2101,7 +2101,7 @@ fn test_royalties() {
 
         // query market info to get fees
         let contract_info: ContractInfo =
-            from_binary(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
+            from_json(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
 
         let price = offering
             .per_price
@@ -2169,7 +2169,7 @@ fn test_royalties_cw20() {
                 offering_id: 1,
             }))
             .unwrap();
-        let offering_first: Offering = from_binary(&offering_bin_first).unwrap();
+        let offering_first: Offering = from_json(&offering_bin_first).unwrap();
 
         println!("offering: {:?}", offering_first);
 
@@ -2194,7 +2194,7 @@ fn test_royalties_cw20() {
                 offering_id: 2,
             }))
             .unwrap();
-        let offering: Offering = from_binary(&offering_bin).unwrap();
+        let offering: Offering = from_json(&offering_bin).unwrap();
 
         println!("offering 2nd sell: {:?}", offering);
 
@@ -2207,7 +2207,7 @@ fn test_royalties_cw20() {
         let mut total_payment = Uint128::from(0u128);
 
         // query royalties
-        let royalties: Vec<Royalty> = from_binary(
+        let royalties: Vec<Royalty> = from_json(
             &manager
                 .query(QueryMsg::AiRoyalty(
                     AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
@@ -2238,7 +2238,7 @@ fn test_royalties_cw20() {
                             send,
                         } => {
                             println!("contract addr: {}", contract_addr);
-                            let cw20_msg_result = from_binary(&msg);
+                            let cw20_msg_result = from_json(&msg);
                             if cw20_msg_result.is_ok() {
                                 let cw20_msg: (Addr, Uint128) = match cw20_msg_result.unwrap() {
                                     cw20::Cw20ExecuteMsg::Transfer { recipient, amount } => {
@@ -2271,7 +2271,7 @@ fn test_royalties_cw20() {
 
         // query market info to get fees
         let contract_info: ContractInfo =
-            from_binary(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
+            from_json(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
 
         let price = offering
             .per_price
@@ -2302,7 +2302,7 @@ fn test_buy_market_fee_calculate() {
     unsafe {
         let manager = DepsManager::get_new();
         let contract_info: ContractInfo =
-            from_binary(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
+            from_json(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
         let market_fee = Decimal::permille(contract_info.fee);
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
@@ -2339,7 +2339,7 @@ fn test_buy_market_fee_calculate() {
 
         // Buy that nft and check market fee
         let current_market_fee: Uint128 =
-            from_binary(&manager.query(QueryMsg::GetMarketFees {}).unwrap()).unwrap();
+            from_json(&manager.query(QueryMsg::GetMarketFees {}).unwrap()).unwrap();
         let buy_msg = ExecuteMsg::BuyNft {
             offering_id: 1,
             amount: Uint128::from(50u64),
@@ -2348,7 +2348,7 @@ fn test_buy_market_fee_calculate() {
 
         manager.execute(info_buy, buy_msg).unwrap();
         let after_buy_market_fee: Uint128 =
-            from_binary(&manager.query(QueryMsg::GetMarketFees {}).unwrap()).unwrap();
+            from_json(&manager.query(QueryMsg::GetMarketFees {}).unwrap()).unwrap();
         // fee 2% * 5000 is 100
         assert_eq!(
             after_buy_market_fee,
@@ -2638,7 +2638,7 @@ fn withdraw_offering() {
         let _res = manager.execute(info, msg).unwrap();
 
         // Offering should be listed
-        let res: Vec<Offering> = from_binary(
+        let res: Vec<Offering> = from_json(
             &manager
                 .query(QueryMsg::Offering(MarketQueryMsg::GetOfferings {
                     offset: None,
@@ -2666,7 +2666,7 @@ fn withdraw_offering() {
         let _res = manager.execute(withdraw_info, withdraw_msg).unwrap();
 
         // Offering should be removed
-        let res2: Vec<Offering> = from_binary(
+        let res2: Vec<Offering> = from_json(
             &manager
                 .query(QueryMsg::Offering(MarketQueryMsg::GetOfferings {
                     offset: None,
@@ -2807,7 +2807,7 @@ fn test_mint() {
             .unwrap();
 
         // query balance
-        let balance: BalanceResponse = from_binary(
+        let balance: BalanceResponse = from_json(
             &ow1155::contract::query(
                 manager.ow1155.as_ref(),
                 mock_env(OW_1155_ADDR),
@@ -2847,7 +2847,7 @@ fn test_burn() {
             .unwrap();
 
         // query balance
-        let balance: BalanceResponse = from_binary(
+        let balance: BalanceResponse = from_json(
             &ow1155::contract::query(
                 manager.ow1155.as_ref(),
                 mock_env(OW_1155_ADDR),
@@ -2875,7 +2875,7 @@ fn test_burn() {
             .unwrap();
 
         // query balance
-        let balance: BalanceResponse = from_binary(
+        let balance: BalanceResponse = from_json(
             &ow1155::contract::query(
                 manager.ow1155.as_ref(),
                 mock_env(OW_1155_ADDR),
@@ -2918,7 +2918,7 @@ fn test_change_creator_happy() {
             .unwrap();
 
         // query royalty creator, query current creator in cw1155
-        let royalty: Royalty = from_binary(
+        let royalty: Royalty = from_json(
             &manager
                 .query(QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
                     contract_addr: Addr::from(OW_1155_ADDR),
@@ -2945,7 +2945,7 @@ fn test_change_creator_happy() {
 
         // query again the data and compare
         // query royalty creator, query current creator in cw1155
-        let royalty: Royalty = from_binary(
+        let royalty: Royalty = from_json(
             &manager
                 .query(QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
                     contract_addr: Addr::from(OW_1155_ADDR),
@@ -3052,7 +3052,7 @@ fn transfer_nft_directly_happy_path() {
         // let _ret_error = manager.execute(info.clone(), msg.clone());
         // assert_eq!(_ret_error.is_err(), true);
 
-        let receiver_balance: BalanceResponse = from_binary(
+        let receiver_balance: BalanceResponse = from_json(
             &ow1155::contract::query(
                 manager.ow1155.as_ref(),
                 mock_env(OW_1155_ADDR),
@@ -3065,7 +3065,7 @@ fn transfer_nft_directly_happy_path() {
         )
         .unwrap();
 
-        let sender_balance: BalanceResponse = from_binary(
+        let sender_balance: BalanceResponse = from_json(
             &ow1155::contract::query(
                 manager.ow1155.as_ref(),
                 mock_env(OW_1155_ADDR),
@@ -3144,7 +3144,7 @@ fn transfer_nft_directly_unhappy_path() {
         // let _ret_error = manager.execute(info.clone(), msg.clone());
         // assert_eq!(_ret_error.is_err(), true);
 
-        // let receiver_balance: BalanceResponse = from_binary(
+        // let receiver_balance: BalanceResponse = from_json(
         //     &ow1155::contract::query(
         //         manager.ow1155.as_ref(),
         //         mock_env(OW_1155_ADDR),
@@ -3157,7 +3157,7 @@ fn transfer_nft_directly_unhappy_path() {
         // )
         // .unwrap();
 
-        // let sender_balance: BalanceResponse = from_binary(
+        // let sender_balance: BalanceResponse = from_json(
         //     &ow1155::contract::query(
         //         manager.ow1155.as_ref(),
         //         mock_env(OW_1155_ADDR),

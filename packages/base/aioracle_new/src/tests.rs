@@ -11,7 +11,7 @@ use cosmwasm_std::DepsMut;
 use cosmwasm_std::Env;
 use cosmwasm_std::MessageInfo;
 use cosmwasm_std::StdResult;
-use cosmwasm_std::{coins, from_binary, to_json_binary, Addr, OwnedDeps};
+use cosmwasm_std::{coins, from_json, to_json_binary, Addr, OwnedDeps};
 
 const CREATOR: &str = "orai1yc9nysml8dxy447hp3aytr0nssr9pd9au5yhrp";
 const DENOM: &str = "ORAI";
@@ -57,7 +57,7 @@ fn test_update_state() {
     );
 
     let query = QueryMsg::GetTestCases {};
-    let result: Vec<Addr> = from_binary(&query_aioracle(deps.as_ref(), query).unwrap()).unwrap();
+    let result: Vec<Addr> = from_json(&query_aioracle(deps.as_ref(), query).unwrap()).unwrap();
 
     assert_eq!(result.len(), 1);
     println!("{:?}", result);
@@ -98,7 +98,7 @@ fn test_set_threshold() {
         aggregate,
     );
     let query = QueryMsg::GetThreshold {};
-    let res: u8 = from_binary(&query_aioracle(deps.as_ref(), query).unwrap()).unwrap();
+    let res: u8 = from_json(&query_aioracle(deps.as_ref(), query).unwrap()).unwrap();
     println!("{:?}", res);
 
     // unauthorized case

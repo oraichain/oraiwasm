@@ -1,15 +1,15 @@
 use crate::error::ContractError;
 use crate::msg::{
-    AskNftMsg, AuctionsResponse, ExecuteMsg, InstantiateMsg, PagingOptions, QueryAuctionsResult, QueryMsg,
-    UpdateContractMsg,
+    AskNftMsg, AuctionsResponse, ExecuteMsg, InstantiateMsg, PagingOptions, QueryAuctionsResult,
+    QueryMsg, UpdateContractMsg,
 };
 use crate::state::{
     auctions, get_contract_token_id, increment_auctions, Auction, ContractInfo, CONTRACT_INFO,
 };
 use cosmwasm_std::{
-    attr, coins, from_binary, to_json_binary, Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg,
-    Decimal, Deps, DepsMut, Env, Response, Response, MessageInfo, Order, StdError,
-    StdResult, Uint128, WasmMsg,
+    attr, coins, from_json, to_json_binary, Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg,
+    Decimal, Deps, DepsMut, Env, MessageInfo, Order, Response, Response, StdError, StdResult,
+    Uint128, WasmMsg,
 };
 use cosmwasm_std::{Addr, KV};
 use cw721::{Cw721ExecuteMsg, Cw721ReceiveMsg};
@@ -319,7 +319,7 @@ pub fn try_receive_nft(
     rcv_msg: Cw721ReceiveMsg,
 ) -> Result<Response, ContractError> {
     let msg: AskNftMsg = match rcv_msg.msg {
-        Some(bin) => Ok(from_binary(&bin)?),
+        Some(bin) => Ok(from_json(&bin)?),
         None => Err(ContractError::NoData {}),
     }?;
 
@@ -640,7 +640,7 @@ pub fn query_auctions_by_asker(
     options: &PagingOptions,
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
-    let asker_raw = deps.api.addr_canonicalize(&asker)?;
+    let asker_raw = deps.api.addr_canonicalize(asker.as_str())?;
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .asker
@@ -660,7 +660,7 @@ pub fn query_auctions_by_bidder(
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
     let bidder_raw = match bidder {
-        Some(addr) => deps.api.addr_canonicalize(&addr)?,
+        Some(addr) => deps.api.addr_canonicalize(addr.as_str())?,
         None => CanonicalAddr::default(),
     };
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
@@ -680,7 +680,7 @@ pub fn query_auctions_by_contract(
     options: &PagingOptions,
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
-    let contract_raw = deps.api.addr_canonicalize(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .contract
@@ -701,7 +701,7 @@ pub fn query_auction_by_contract_tokenid(
     contract: Addr,
     token_id: String,
 ) -> StdResult<QueryAuctionsResult> {
-    let contract_raw = deps.api.addr_canonicalize(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
     let auction = auctions().idx.contract_token_id.item(
         deps.storage,
         get_contract_token_id(contract_raw.to_vec(), &token_id).into(),

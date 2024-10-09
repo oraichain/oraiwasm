@@ -7,7 +7,7 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    coin, coins, from_binary, from_json, Addr, Binary, BlockInfo, Coin, ContractInfo, Env,
+    coin, coins, from_json, from_json, Addr, Binary, BlockInfo, Coin, ContractInfo, Env,
     OwnedDeps, StdError, Uint128,
 };
 use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};

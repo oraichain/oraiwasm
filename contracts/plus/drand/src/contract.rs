@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    coins, from_binary, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
+    coins, from_json, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
     MessageInfo, Order, Response, Response, StdResult, Storage,
 };
 use drand_verify::{derive_randomness, g1_from_variable, verify};
@@ -151,7 +151,7 @@ fn query_get(deps: Deps, round: u64) -> Result<RandomData, QueryError> {
     let value = beacons
         .get(&round.to_be_bytes())
         .ok_or(QueryError::NoBeacon {})?;
-    let random_data: RandomData = from_binary(&value.into())?;
+    let random_data: RandomData = from_json(&value.into())?;
     Ok(random_data)
 }
 
@@ -159,7 +159,7 @@ fn query_latest(deps: Deps) -> Result<RandomData, QueryError> {
     let store = beacons_storage_read(deps.storage);
     let mut iter = store.range(None, None, Order::Descending);
     let (_key, value) = iter.next().ok_or(QueryError::NoBeacon {})?;
-    let random_data: RandomData = from_binary(&value.into())?;
+    let random_data: RandomData = from_json(&value.into())?;
     Ok(random_data)
 }
 
@@ -211,7 +211,7 @@ fn clear_bounty(storage: &mut dyn Storage, round: u64) {
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
-    use cosmwasm_std::{from_binary, Addr, Coin, Uint128};
+    use cosmwasm_std::{from_json, Addr, Coin, Uint128};
 
     const PUB_KEY: &str = "pzOZRhfkA57am7gdqjYr9eFT65WXt8hm2SETYIsGsDm7D/a6OV5Vdgvn0XL6ePeJ";
     const BOUNTY_DENOM: &str = "orai";
@@ -397,7 +397,7 @@ mod tests {
         // It starts with an empty list
 
         let response: BountiesResponse =
-            from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Bounties {}).unwrap()).unwrap();
+            from_json(&query(deps.as_ref(), mock_env(), QueryMsg::Bounties {}).unwrap()).unwrap();
         assert_eq!(response, BountiesResponse { bounties: vec![] });
 
         // Set first bounty and query again
@@ -413,7 +413,7 @@ mod tests {
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         let response: BountiesResponse =
-            from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Bounties {}).unwrap()).unwrap();
+            from_json(&query(deps.as_ref(), mock_env(), QueryMsg::Bounties {}).unwrap()).unwrap();
         assert_eq!(
             response,
             BountiesResponse {
@@ -437,7 +437,7 @@ mod tests {
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         let response: BountiesResponse =
-            from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Bounties {}).unwrap()).unwrap();
+            from_json(&query(deps.as_ref(), mock_env(), QueryMsg::Bounties {}).unwrap()).unwrap();
         assert_eq!(
             response,
             BountiesResponse {
@@ -467,7 +467,7 @@ mod tests {
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         let response: BountiesResponse =
-            from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Bounties {}).unwrap()).unwrap();
+            from_json(&query(deps.as_ref(), mock_env(), QueryMsg::Bounties {}).unwrap()).unwrap();
         assert_eq!(
             response,
             BountiesResponse {

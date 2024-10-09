@@ -7,7 +7,7 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Decimal;
-use cosmwasm_std::{coin, coins, from_binary, Addr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_json, Addr, Order, OwnedDeps, Uint128};
 use market_first_lv_royalty::FirstLvRoyalty;
 use market_first_lv_royalty::FirstLvRoyaltyExecuteMsg;
 use market_first_lv_royalty::FirstLvRoyaltyQueryMsg;
@@ -79,7 +79,7 @@ fn sort_first_lv_royalty() {
         }),
     )
     .unwrap();
-    let value: Vec<FirstLvRoyalty> = from_binary(&res).unwrap();
+    let value: Vec<FirstLvRoyalty> = from_json(&res).unwrap();
     println!("value: {:?}", value);
 
     let res = query(
@@ -96,7 +96,7 @@ fn sort_first_lv_royalty() {
         }),
     )
     .unwrap();
-    let value: Vec<FirstLvRoyalty> = from_binary(&res).unwrap();
+    let value: Vec<FirstLvRoyalty> = from_json(&res).unwrap();
     println!("first_lv royalties by contract: {:?}\n", value);
 
     assert_eq!(value.len(), 1);
@@ -111,7 +111,7 @@ fn sort_first_lv_royalty() {
         }),
     )
     .unwrap();
-    let value: Vec<FirstLvRoyalty> = from_binary(&res).unwrap();
+    let value: Vec<FirstLvRoyalty> = from_json(&res).unwrap();
     println!("first_lv royalties: {:?}", value);
     assert_eq!(value.len(), 3);
 
@@ -125,7 +125,7 @@ fn sort_first_lv_royalty() {
         }),
     )
     .unwrap();
-    let value: FirstLvRoyalty = from_binary(&res).unwrap();
+    let value: FirstLvRoyalty = from_json(&res).unwrap();
     println!("first_lv royalty: {:?}", value);
     assert_eq!(value.current_owner, Addr::unchecked("seller2"));
     assert_eq!(value.token_id, String::from("2"));
@@ -161,6 +161,6 @@ fn update_info_test() {
 
     let query_info = QueryMsg::GetContractInfo {};
     let res_info: ContractInfo =
-        from_binary(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
+        from_json(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
     assert_eq!(res_info.governance.as_str(), Addr::unchecked("asvx"));
 }

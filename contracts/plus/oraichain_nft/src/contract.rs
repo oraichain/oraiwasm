@@ -271,7 +271,7 @@ pub fn _transfer_nft(
     // ensure we have permissions
     check_can_send(deps.as_ref(), env, info, &token)?;
     // set owner and remove existing approvals
-    token.owner = deps.api.addr_canonicalize(recipient)?;
+    token.owner = deps.api.addr_canonicalize(recipient.as_str())?;
     token.approvals = vec![];
     tokens().save(deps.storage, &token_id, &token)?;
     Ok(token)
@@ -335,7 +335,7 @@ pub fn _update_approvals(
     check_can_approve(deps.as_ref(), env, info, &token)?;
 
     // update the approval list (remove any for the same spender before adding)
-    let spender_raw = deps.api.addr_canonicalize(&spender)?;
+    let spender_raw = deps.api.addr_canonicalize(spender.as_str())?;
     token.approvals = token
         .approvals
         .into_iter()
@@ -376,7 +376,7 @@ pub fn handle_approve_all(
 
     // set the operator for us
     let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
-    let operator_raw = deps.api.addr_canonicalize(&operator)?;
+    let operator_raw = deps.api.addr_canonicalize(operator.as_str())?;
     OPERATORS.save(deps.storage, (&sender_raw, &operator_raw), &expires)?;
 
     Ok(Response {
@@ -397,7 +397,7 @@ pub fn handle_revoke_all(
     operator: Addr,
 ) -> Result<Response, ContractError> {
     let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
-    let operator_raw = deps.api.addr_canonicalize(&operator)?;
+    let operator_raw = deps.api.addr_canonicalize(operator.as_str())?;
     OPERATORS.remove(deps.storage, (&sender_raw, &operator_raw));
 
     Ok(Response {
@@ -422,7 +422,7 @@ pub fn handle_change_minter(
     if !owner.eq(&owner_raw) {
         return Err(ContractError::Unauthorized {});
     }
-    let minter = deps.api.addr_canonicalize(&minter)?;
+    let minter = deps.api.addr_canonicalize(minter.as_str())?;
     MINTER.save(deps.storage, &minter)?;
     Ok(Response {
         messages: vec![],
@@ -604,11 +604,11 @@ fn query_all_approvals(
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     // transpose option result into option
     let start_canon = start_after
-        .map(|x| deps.api.addr_canonicalize(&x))
+        .map(|x| deps.api.addr_canonicalize(x.as_str()))
         .transpose()?;
     let start = start_canon.map(Bound::exclusive);
 
-    let owner_raw = deps.api.addr_canonicalize(&owner)?;
+    let owner_raw = deps.api.addr_canonicalize(owner.as_str())?;
     let res: StdResult<Vec<_>> = OPERATORS
         .prefix(&owner_raw)
         .range(deps.storage, start, None, Order::Ascending)
@@ -635,7 +635,7 @@ fn query_tokens(
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = start_after.map(Bound::exclusive);
 
-    let owner_raw = deps.api.addr_canonicalize(&owner)?;
+    let owner_raw = deps.api.addr_canonicalize(owner.as_str())?;
     let tokens: Result<Vec<String>, _> = tokens()
         .idx
         .owner

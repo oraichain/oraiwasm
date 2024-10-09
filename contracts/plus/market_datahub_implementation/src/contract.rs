@@ -17,7 +17,7 @@ use crate::msg::{
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::Addr;
 use cosmwasm_std::{
-    attr, from_binary, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
+    attr, from_json, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
     MessageInfo, MigrateResponse, Response, Response, StdResult, Uint128, WasmMsg,
 };
 use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
@@ -291,10 +291,10 @@ pub fn try_receive_nft(
     _env: Env,
     rcv_msg: Cw1155ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    if let Ok(msg_sell) = from_binary::<SellRoyalty>(&rcv_msg.msg) {
+    if let Ok(msg_sell) = from_json::<SellRoyalty>(&rcv_msg.msg) {
         return handle_sell_nft(deps, info, msg_sell, rcv_msg);
     }
-    // if let Ok(msg_annotation) = from_binary::<RequestAnnotate>(&rcv_msg.msg) {
+    // if let Ok(msg_annotation) = from_json::<RequestAnnotate>(&rcv_msg.msg) {
     //     return handle_request_annotation(deps, info, env, msg_annotation, rcv_msg);
     // }
     Err(ContractError::NoData {})

@@ -1,11 +1,12 @@
 use crate::error::ContractError;
 use crate::msg::{
-    AssertOutput, ExecuteMsg, InstantiateMsg, QueryMsg, Response, TestCaseMsg, TestCaseResponse,
+    AssertOutput, ContractResponse, ExecuteMsg, InstantiateMsg, QueryMsg, TestCaseMsg,
+    TestCaseResponse,
 };
 use crate::state::{FEES, OWNER, TEST_CASES};
 use cosmwasm_std::{
-    from_binary, from_json, to_json_binary, Addr, Api, Binary, Deps, DepsMut, Env, MessageInfo,
-    Order, Response, Response, StdResult, KV,
+    from_json, to_json_binary, Addr, Api, Binary, Deps, DepsMut, Env, MessageInfo, Order, Record,
+    Response, StdResult,
 };
 use cw_storage_plus::Bound;
 
@@ -91,7 +92,7 @@ fn try_set_owner(
     if !info.sender.eq(&old_owner) {
         return Err(ContractError::Unauthorized {});
     }
-    OWNER.save(deps.storage, &Addr::from(owner))?;
+    OWNER.save(deps.storage, &deps.api.addr_validate(&owner)?)?;
     Ok(Response::default())
 }
 
@@ -123,27 +124,27 @@ fn assert(
     env: Env,
     assert_inputs: Vec<String>,
     assert_handler: AssertHandler,
-) -> StdResult<Response> {
+) -> StdResult<ContractResponse> {
     // force all assert handler output to follow the AssertOutput struct
     let result_handler_result = assert_handler(assert_inputs.as_slice());
     if result_handler_result.is_err() {
-        return Ok(Response {
+        return Ok(ContractResponse {
             contract: env.contract.address.clone(),
             dsource_status: true,
             tcase_status: false,
         });
     }
     let result_handler = result_handler_result.unwrap();
-    let assert_result = from_binary(&result_handler);
+    let assert_result = from_json(&result_handler);
     if assert_result.is_err() {
-        return Ok(Response {
+        return Ok(ContractResponse {
             contract: env.contract.address.clone(),
             dsource_status: true,
             tcase_status: false,
         });
     };
     let assert: AssertOutput = assert_result.unwrap();
-    let response = Response {
+    let response = ContractResponse {
         contract: env.contract.address,
         dsource_status: assert.dsource_status,
         tcase_status: assert.tcase_status,
@@ -151,7 +152,7 @@ fn assert(
     Ok(response)
 }
 
-fn parse_testcase(_api: &dyn Api, item: StdResult<KV<String>>) -> StdResult<TestCaseMsg> {
+fn parse_testcase(_api: &dyn Api, item: StdResult<Record<String>>) -> StdResult<TestCaseMsg> {
     item.and_then(|(parameters, expected_output)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array
@@ -170,8 +171,8 @@ fn query_testcases(
 ) -> StdResult<TestCaseResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
 
-    let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
+    let mut min = None;
+    let mut max = None;
     let mut order_enum = Order::Ascending;
     if let Some(num) = order {
         if num == 2 {
@@ -181,7 +182,7 @@ fn query_testcases(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::Exclusive(offset.to_vec()));
+        let offset_value = Some(Bound::ExclusiveRaw(offset.to_vec()));
         match order_enum {
             Order::Ascending => min = offset_value,
             Order::Descending => max = offset_value,
@@ -213,8 +214,10 @@ mod tests {
     use std::vec;
 
     // use cosmwasm_std::from_json;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{coin, coins, from_binary};
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info,
+    };
+    use cosmwasm_std::{coin, coins, from_json};
 
     use crate::msg::{TestCaseMsg, TestCaseResponse};
     use crate::{init_testcase, query_testcase, InstantiateMsg, QueryMsg};
@@ -258,7 +261,7 @@ mod tests {
             assert,
         )
         .unwrap();
-        let value: TestCaseResponse = from_binary(&res).unwrap();
+        let value: TestCaseResponse = from_json(&res).unwrap();
 
         assert_eq!(
             value.test_cases.first().unwrap().expected_output,
@@ -266,7 +269,7 @@ mod tests {
         );
 
         // query with offset
-        let value: TestCaseResponse = from_binary(
+        let value: TestCaseResponse = from_json(
             &query_testcase(
                 deps.as_ref(),
                 mock_env(),

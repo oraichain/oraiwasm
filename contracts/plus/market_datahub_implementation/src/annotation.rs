@@ -5,8 +5,8 @@ use crate::contract::{get_handle_msg, query_datahub, DATAHUB_STORAGE};
 use crate::error::ContractError;
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, coins, from_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
-    Response, Uint128,
+    attr, coins, from_json, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo, Response,
+    Uint128,
 };
 use cosmwasm_std::{Addr, StdError};
 use market_datahub::{Annotation, AnnotationReviewer, DataHubExecuteMsg, DataHubQueryMsg};
@@ -368,7 +368,7 @@ pub fn try_payout(
 }
 
 pub fn get_annotation(deps: Deps, annotation_id: u64) -> Result<Annotation, ContractError> {
-    let annotation: Annotation = from_binary(&query_datahub(
+    let annotation: Annotation = from_json(&query_datahub(
         deps,
         DataHubQueryMsg::GetAnnotation { annotation_id },
     )?)
@@ -380,7 +380,7 @@ pub fn get_reviewer_by_annotation_id(
     deps: Deps,
     annotation_id: u64,
 ) -> Result<Vec<AnnotationReviewer>, ContractError> {
-    let reviewers = from_binary(&query_datahub(
+    let reviewers = from_json(&query_datahub(
         deps,
         DataHubQueryMsg::GetAnnotationReviewerByAnnotationId { annotation_id },
     )?)

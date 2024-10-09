@@ -5,7 +5,7 @@ use crate::msg::*;
 use crate::state::ContractInfo;
 use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
-    coin, coins, from_binary, from_json, to_json_binary, Addr, Binary, ContractResult, CosmosMsg,
+    coin, coins, from_json, from_json, to_json_binary, Addr, Binary, ContractResult, CosmosMsg,
     Decimal, MessageInfo, OwnedDeps, QuerierResult, Response, StdError, StdResult, SystemError,
     SystemResult, Uint128, WasmMsg, WasmQuery,
 };
@@ -275,7 +275,7 @@ fn update_info_test() {
         assert_eq!(response.is_err(), false);
 
         let query_info = QueryMsg::GetContractInfo {};
-        let res_info: ContractInfo = from_binary(&manager.query(query_info).unwrap()).unwrap();
+        let res_info: ContractInfo = from_json(&manager.query(query_info).unwrap()).unwrap();
         assert_eq!(res_info.governance.as_str(), HUB_ADDR);
     }
 }
@@ -325,11 +325,11 @@ fn test_royalties() {
                 offering_id: 1,
             }))
             .unwrap();
-        let offering_first: Offering = from_binary(&offering_bin_first).unwrap();
+        let offering_first: Offering = from_json(&offering_bin_first).unwrap();
 
         println!("offering: {:?}", offering_first);
 
-        let result: Vec<Offering> = from_binary(
+        let result: Vec<Offering> = from_json(
             &manager
                 .query(QueryMsg::DataHub(DataHubQueryMsg::GetOfferings {
                     offset: None,
@@ -366,7 +366,7 @@ fn test_royalties() {
                 offering_id: 2,
             }))
             .unwrap();
-        let offering: Offering = from_binary(&offering_bin).unwrap();
+        let offering: Offering = from_json(&offering_bin).unwrap();
 
         println!("offering 2nd sell: {:?}", offering);
 
@@ -379,7 +379,7 @@ fn test_royalties() {
         let mut total_payment = Uint128::from(0u128);
 
         // query royalties
-        let royalties: Vec<Royalty> = from_binary(
+        let royalties: Vec<Royalty> = from_json(
             &manager
                 .query(QueryMsg::AiRoyalty(
                     AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
@@ -473,7 +473,7 @@ fn withdraw_offering() {
         let _res = manager.execute(info, msg).unwrap();
 
         // Offering should be listed
-        let res: Vec<Offering> = from_binary(
+        let res: Vec<Offering> = from_json(
             &manager
                 .query(QueryMsg::DataHub(DataHubQueryMsg::GetOfferings {
                     offset: None,
@@ -501,7 +501,7 @@ fn withdraw_offering() {
         let _res = manager.execute(withdraw_info, withdraw_msg).unwrap();
 
         // Offering should be removed
-        let res2: Vec<Offering> = from_binary(
+        let res2: Vec<Offering> = from_json(
             &manager
                 .query(QueryMsg::DataHub(DataHubQueryMsg::GetOfferings {
                     offset: None,
@@ -609,7 +609,7 @@ fn test_buy_nft() {
 
         let query_msg = DataHubQueryMsg::GetOffering { offering_id: 1 };
         let res = manager.query(QueryMsg::DataHub(query_msg.clone())).unwrap();
-        let result = from_binary::<Offering>(&res).unwrap();
+        let result = from_json::<Offering>(&res).unwrap();
         println!("offering decrease after someone bought {:?}", result);
 
         // success buy again
@@ -619,7 +619,7 @@ fn test_buy_nft() {
 
         let query_msg = DataHubQueryMsg::GetOffering { offering_id: 1 };
         let res = manager.query(QueryMsg::DataHub(query_msg.clone())).unwrap();
-        let result = from_binary::<Offering>(&res);
+        let result = from_json::<Offering>(&res);
         assert_eq!(result.is_err(), true);
         println!("error {:?}", result);
     }
@@ -715,7 +715,7 @@ fn test_request_annotations() {
 
         let mut annotation_msg =
             QueryMsg::DataHub(DataHubQueryMsg::GetAnnotation { annotation_id: 1 });
-        let annotation: Annotation = from_binary(&manager.query(annotation_msg).unwrap()).unwrap();
+        let annotation: Annotation = from_json(&manager.query(annotation_msg).unwrap()).unwrap();
         println!("annotation: {:?}\n", annotation);
 
         // query by list
@@ -725,7 +725,7 @@ fn test_request_annotations() {
             order: Some(1),
         });
         let mut annotations: Vec<Annotation> =
-            from_binary(&manager.query(annotation_msg).unwrap()).unwrap();
+            from_json(&manager.query(annotation_msg).unwrap()).unwrap();
         println!("list annotations: {:?}\n", annotations);
 
         // query by contract
@@ -735,7 +735,7 @@ fn test_request_annotations() {
             limit: None,
             order: Some(1),
         });
-        annotations = from_binary(&manager.query(annotation_msg).unwrap()).unwrap();
+        annotations = from_json(&manager.query(annotation_msg).unwrap()).unwrap();
         println!("list annotations query contract: {:?}\n", annotations);
 
         // query by contract
@@ -746,7 +746,7 @@ fn test_request_annotations() {
             limit: None,
             order: Some(1),
         });
-        annotations = from_binary(&manager.query(annotation_msg).unwrap()).unwrap();
+        annotations = from_json(&manager.query(annotation_msg).unwrap()).unwrap();
         println!("annotation query contract token id: {:?}\n", annotations);
     }
 }
@@ -1049,7 +1049,7 @@ fn test_add_annotation_reviewer() {
 
         let res = manager.query(query_reviewer_msg).unwrap();
 
-        let reviewer = from_binary::<AnnotationReviewer>(&res).unwrap();
+        let reviewer = from_json::<AnnotationReviewer>(&res).unwrap();
 
         println!("Reviewer 1 {:?}", reviewer);
 
@@ -1067,7 +1067,7 @@ fn test_add_annotation_reviewer() {
 
         let res = manager.query(msg).unwrap();
 
-        let results = from_binary::<Vec<AnnotationReviewer>>(&res).unwrap();
+        let results = from_json::<Vec<AnnotationReviewer>>(&res).unwrap();
         println!("Reviewers in annotation 1 {:?}", results);
 
         let annotator_results = vec![
@@ -1192,7 +1192,7 @@ fn test_reviewed_upload() {
                 },
             ))
             .unwrap();
-        let result = from_binary::<Option<AnnotationResult>>(&res).unwrap();
+        let result = from_json::<Option<AnnotationResult>>(&res).unwrap();
         println!("Reviewed result by annotationId and reviewer: {:?}", result);
     }
 }
@@ -1267,7 +1267,7 @@ fn test_migrate() {
                     {
                         println!("in wasm msg execute");
                         assert_eq!(contract_addr, Addr::unchecked("offering"));
-                        let transfer_msg: Cw1155ExecuteMsg = from_binary(&msg).unwrap();
+                        let transfer_msg: Cw1155ExecuteMsg = from_json(&msg).unwrap();
                         if let Cw1155ExecuteMsg::SendFrom {
                             from,
                             to,
@@ -1336,7 +1336,7 @@ fn test_mint() {
             .unwrap();
 
         // query balance
-        let balance: BalanceResponse = from_binary(
+        let balance: BalanceResponse = from_json(
             &ow1155::contract::query(
                 manager.ow1155.as_ref(),
                 mock_env(OW_1155_ADDR),
@@ -1357,7 +1357,7 @@ fn test_mint() {
             .execute(provider_info.clone(), mint_msg.clone())
             .unwrap();
 
-        let balance2: BalanceResponse = from_binary(
+        let balance2: BalanceResponse = from_json(
             &ow1155::contract::query(
                 manager.ow1155.as_ref(),
                 mock_env(OW_1155_ADDR),
@@ -1373,7 +1373,7 @@ fn test_mint() {
         assert_eq!(balance2.balance, Uint128::from(150u64));
 
         for owner_addr in co_owners {
-            let balance: BalanceResponse = from_binary(
+            let balance: BalanceResponse = from_json(
                 &ow1155::contract::query(
                     manager.ow1155.as_ref(),
                     mock_env(OW_1155_ADDR),

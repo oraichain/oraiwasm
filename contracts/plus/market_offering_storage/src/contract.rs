@@ -369,7 +369,7 @@ pub fn query_offerings_by_seller(
     order: Option<u8>,
 ) -> StdResult<OfferingsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
-    let seller_raw = deps.api.addr_canonicalize(&seller)?;
+    let seller_raw = deps.api.addr_canonicalize(seller.as_str())?;
     let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .idx
         .seller
@@ -389,7 +389,7 @@ pub fn query_offerings_by_contract(
     order: Option<u8>,
 ) -> StdResult<OfferingsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(limit, offset, order);
-    let contract_raw = deps.api.addr_canonicalize(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
     let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .idx
         .contract
@@ -422,7 +422,7 @@ pub fn query_offering_by_contract_tokenid(
     contract: Addr,
     token_id: String,
 ) -> StdResult<QueryOfferingsResult> {
-    let contract_raw = deps.api.addr_canonicalize(&contract)?;
+    let contract_raw = deps.api.addr_canonicalize(contract.as_str())?;
     let offering = offerings().idx.contract_token_id.item(
         deps.storage,
         get_contract_token_id(&contract_raw, &token_id),

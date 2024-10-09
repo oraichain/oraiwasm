@@ -18,7 +18,7 @@ use cosmwasm_std::{
     attr, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo,
     MigrateResponse, Response, Response, StdError, StdResult, Uint128,
 };
-use cosmwasm_std::{from_binary, Addr};
+use cosmwasm_std::{from_json, Addr};
 use cw1155::{BalanceResponse, Cw1155QueryMsg, IsApprovedForAllResponse};
 use cw20::Cw20ReceiveMsg;
 use market::{
@@ -175,7 +175,7 @@ pub fn try_receive_cw20(
     env: Env,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    match from_binary(&cw20_msg.msg.unwrap_or(Binary::default())) {
+    match from_json(&cw20_msg.msg.unwrap_or(Binary::default())) {
         Ok(Cw20HookMsg::BuyNft {
             offering_id,
             amount,
@@ -325,7 +325,7 @@ pub fn get_asset_info(token_id: &str, default_denom: &str) -> StdResult<(AssetIn
             },
             id,
         ),
-        Some(data) => (parse_asset_info(from_binary(&data)?), id),
+        Some(data) => (parse_asset_info(from_json(&data)?), id),
     })
 }
 

@@ -1,8 +1,7 @@
 use std::convert::TryInto;
 
 use cosmwasm_std::{
-    attr, from_binary, CosmosMsg, Deps, DepsMut, Env, Response, Addr, MessageInfo,
-    StdError,
+    attr, from_json, Addr, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError,
 };
 use market_datahub::{
     AnnotationResult, AnnotationReviewer, AnnotatorResult, DataHubExecuteMsg, DataHubQueryMsg,
@@ -315,7 +314,7 @@ pub fn get_annotation_results_by_annotation_id(
     deps: Deps,
     annotation_id: u64,
 ) -> Result<Vec<AnnotationResult>, ContractError> {
-    let annotation_results = from_binary(&query_datahub(
+    let annotation_results = from_json(&query_datahub(
         deps,
         DataHubQueryMsg::GetAnnotationResultsByAnnotationId { annotation_id },
     )?)
@@ -328,7 +327,7 @@ pub fn get_annotation_results_by_annotation_id_and_reviewer(
     annotation_id: u64,
     reviewer_address: Addr,
 ) -> Result<Option<AnnotationResult>, ContractError> {
-    let result = from_binary(&query_datahub(
+    let result = from_json(&query_datahub(
         deps,
         DataHubQueryMsg::GetAnnotationResultsByAnnotationIdAndReviewer {
             annotation_id,
@@ -349,7 +348,7 @@ pub fn get_annotation_reviewer_by_unique_key(
     annotation_id: u64,
     reviewer_address: Addr,
 ) -> Result<Option<AnnotationReviewer>, ContractError> {
-    let annotation_reviewer = from_binary(&query_datahub(
+    let annotation_reviewer = from_json(&query_datahub(
         deps,
         DataHubQueryMsg::GetAnnotationReviewerByUniqueKey {
             annotation_id,
@@ -368,7 +367,7 @@ pub fn get_reviewed_upload_by_annotation_id(
     deps: Deps,
     annotation_id: u64,
 ) -> Result<Vec<AnnotationResult>, ContractError> {
-    let reviewed_upload = from_binary(&query_datahub(
+    let reviewed_upload = from_json(&query_datahub(
         deps,
         DataHubQueryMsg::GetReviewedUploadByAnnotationId { annotation_id },
     )?)
@@ -385,7 +384,7 @@ pub fn get_reviewed_upload_by_annotation_and_reviewer(
     annotation_id: u64,
     reviewer_address: Addr,
 ) -> Result<Option<AnnotationResult>, ContractError> {
-    let item = from_binary(&query_datahub(
+    let item = from_json(&query_datahub(
         deps,
         DataHubQueryMsg::GetReviewedUploadByAnnotationIdAndReviewer {
             annotation_id,

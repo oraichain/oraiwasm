@@ -58,7 +58,7 @@ mod test {
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
     use cosmwasm_std::Addr;
-    use cosmwasm_std::{coins, from_binary, Coin, OwnedDeps, Uint128};
+    use cosmwasm_std::{coins, from_json, Coin, OwnedDeps, Uint128};
     use cw_storage_plus::Item;
 
     use super::{OldConfig, OLD_CONFIG_KEY};
@@ -102,7 +102,7 @@ mod test {
 
     //     // query config
     //     let config: Config =
-    //         from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
+    //         from_json(&query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap()).unwrap();
     //     println!("config: {:?}", config)
     // }
 }
