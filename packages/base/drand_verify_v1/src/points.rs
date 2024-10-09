@@ -59,14 +59,14 @@ pub fn g2_from_variable(data: &[u8]) -> Result<G2Affine, InvalidPoint> {
 pub fn g1_from_fixed(data: [u8; 48]) -> Result<G1Affine, InvalidPoint> {
     // Workaround for https://github.com/filecoin-project/paired/pull/23
     let mut compressed = G1Compressed::empty();
-    compressed.as_mut().copy_from_json(&data);
+    compressed.as_mut().copy_from_slice(&data);
     Ok(compressed.into_affine()?)
 }
 
 pub fn g2_from_fixed(data: [u8; 96]) -> Result<G2Affine, InvalidPoint> {
     // Workaround for https://github.com/filecoin-project/paired/pull/23
     let mut compressed = G2Compressed::empty();
-    compressed.as_mut().copy_from_json(&data);
+    compressed.as_mut().copy_from_slice(&data);
     Ok(compressed.into_affine()?)
 }
 

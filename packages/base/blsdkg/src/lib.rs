@@ -587,12 +587,12 @@ impl Ciphertext {
         }
 
         let mut u_compressed: <G1Affine as CurveAffine>::Compressed = EncodedPoint::empty();
-        u_compressed.as_mut().copy_from_json(&bytes[0..PK_SIZE]);
+        u_compressed.as_mut().copy_from_slice(&bytes[0..PK_SIZE]);
 
         let mut w_compressed: <G2Affine as CurveAffine>::Compressed = EncodedPoint::empty();
         w_compressed
             .as_mut()
-            .copy_from_json(&bytes[PK_SIZE..PK_SIZE + SIG_SIZE]);
+            .copy_from_slice(&bytes[PK_SIZE..PK_SIZE + SIG_SIZE]);
 
         let v: Vec<u8> = (&bytes[PK_SIZE + SIG_SIZE..]).to_vec();
 

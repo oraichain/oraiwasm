@@ -61,7 +61,7 @@ pub fn get_contract_token_id(contract: Vec<u8>, token_id: &str) -> u128 {
     hasher.update(contract);
     hasher.update(token_id.as_bytes());
     let mut dst = [0; 16];
-    dst.copy_from_json(&hasher.finalize()[0..16]);
+    dst.copy_from_slice(&hasher.finalize()[0..16]);
     u128::from_be_bytes(dst)
 }
 
