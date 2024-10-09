@@ -231,7 +231,7 @@ pub fn try_update_offering(
 
     offerings().save(deps.storage, &offering.id.unwrap().to_be_bytes(), &offering)?;
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![
             attr("action", "update_offering"),
             attr("offering_id", offering.id.unwrap()),
@@ -255,7 +255,7 @@ pub fn try_withdraw_offering(
     // remove offering
     offerings().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![attr("action", "remove_offering"), attr("offering_id", id)],
         ));
 }
@@ -285,7 +285,7 @@ pub fn try_update_annotation(
         &annotation,
     )?;
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![
             attr("action", "update_annotation"),
             attr("annotation_id", annotation.id.unwrap()),
@@ -308,7 +308,7 @@ pub fn try_withdraw_annotation(
     // remove offering
     annotations().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![
             attr("action", "remove_annotation"),
             attr("annotation_id", id),
@@ -336,7 +336,7 @@ pub fn try_update_annotation_results(
 
     annotation_results().save(deps.storage, &data.id.unwrap().to_be_bytes(), &data)?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![
             attr("action", "update_annotation_result"),
             attr("annotation_result_id", &data.id.unwrap().to_string()),
@@ -456,7 +456,7 @@ pub fn try_remove_annotation_result_data(
         annotation_reviewers().remove(deps.storage, &item.id.unwrap().to_be_bytes().to_vec())?;
     }
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![attr("action", "remove annotation result")],
         ))
 }
@@ -485,7 +485,7 @@ pub fn try_add_reviewed_upload(
         &reviewed_upload,
     )?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![
             attr("action", "add_reviewed_count"),
             attr("review_result_id", &reviewed_upload.id.unwrap().to_string()),
@@ -515,7 +515,7 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![attr("action", "update_info")],
         data: to_json_binary(&new_contract_info).ok(),
     })
@@ -665,7 +665,7 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
 }
 
-fn parse_offering<'a>(item: StdResult<KV<Offering>>) -> StdResult<Offering> {
+fn parse_offering<'a>(item: StdResult<Record<Offering>>) -> StdResult<Offering> {
     item.and_then(|(k, offering)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array
@@ -774,7 +774,7 @@ pub fn query_annotations_by_requester(
     Ok(annotations_result?)
 }
 
-fn parse_annotation<'a>(item: StdResult<KV<Annotation>>) -> StdResult<Annotation> {
+fn parse_annotation<'a>(item: StdResult<Record<Annotation>>) -> StdResult<Annotation> {
     item.and_then(|(k, annotation)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array
@@ -858,7 +858,7 @@ pub fn query_annotation_result_by_annotation_and_reviewer(
 }
 
 fn parse_annotation_result<'a>(
-    item: StdResult<KV<AnnotationResult>>,
+    item: StdResult<Record<AnnotationResult>>,
 ) -> StdResult<AnnotationResult> {
     item.and_then(|(k, result)| {
         let value = k
@@ -914,7 +914,7 @@ pub fn query_annotation_reviewer_by_unique_key(
 }
 
 fn parse_annotation_reviewer<'a>(
-    item: StdResult<KV<AnnotationReviewer>>,
+    item: StdResult<Record<AnnotationReviewer>>,
 ) -> StdResult<AnnotationReviewer> {
     item.and_then(|(k, result)| {
         let value = k

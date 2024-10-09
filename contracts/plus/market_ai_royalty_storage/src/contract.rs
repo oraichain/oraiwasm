@@ -270,7 +270,7 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![attr("action", "update_info")],
         data: to_json_binary(&new_contract_info).ok(),
     })
@@ -439,7 +439,7 @@ pub fn query_royalties_map_by_contract_token_id(
     Ok(royalties?)
 }
 
-fn parse_royalty<'a>(item: StdResult<KV<Royalty>>) -> StdResult<Royalty> {
+fn parse_royalty<'a>(item: StdResult<Record<Royalty>>) -> StdResult<Royalty> {
     item.and_then(|(_, payout)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array

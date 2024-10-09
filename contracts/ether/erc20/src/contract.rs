@@ -49,7 +49,7 @@ pub fn instantiate(
     }
 
     let mut config_store = PrefixedStorage::new(deps.storage, PREFIX_CONFIG);
-    let constants = to_vec(&Constants {
+    let constants = to_json_vec(&Constants {
         name: msg.name,
         symbol: msg.symbol,
         decimals: msg.decimals,

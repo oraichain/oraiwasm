@@ -156,7 +156,7 @@ pub fn try_init_offering(
 
     package_offerings().save(deps.storage, &id.to_be_bytes(), &package_offering)?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![
             attr("action", "create_package_offering_on_an_invoice"),
             attr("owner", package_offering.seller),
@@ -198,7 +198,7 @@ pub fn try_update_success_request(
 
     package_offerings().save(deps.storage, &id.to_be_bytes(), &package_offering)?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![
             attr("action", "update_success_request"),
             attr("id", id),

@@ -137,7 +137,7 @@ pub fn try_update_offering_payment(
     )?;
     let asset_info_bin = to_json_binary(&payment.asset_info)?;
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![
             attr("action", "update_offering_payment"),
             attr("asset_info", asset_info_bin),
@@ -171,7 +171,7 @@ pub fn try_update_auction_payment(
     )?;
     let asset_info_bin = to_json_binary(&payment.asset_info)?;
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![
             attr("action", "update_auction_payment"),
             attr("asset_info", asset_info_bin),
@@ -200,7 +200,7 @@ pub fn try_remove_offering_payment(
         &parse_payment_key(contract_addr.as_str(), token_id.as_str(), sender)?,
     );
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![
             attr("action", "remove_offering_payment"),
             attr("contract_addr", contract_addr),
@@ -230,7 +230,7 @@ pub fn try_remove_auction_payment(
         &parse_payment_key(contract_addr.as_str(), token_id.as_str(), sender)?,
     );
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![
             attr("action", "remove_offering_payment"),
             attr("contract_addr", contract_addr),
@@ -264,7 +264,7 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![attr("action", "update_info")],
         data: to_json_binary(&new_contract_info).ok(),
     })
@@ -376,7 +376,7 @@ pub fn query_auction_payments(
     Ok(res?)
 }
 
-fn parse_payment_response<'a>(item: StdResult<KV<AssetInfo>>) -> StdResult<PaymentResponse> {
+fn parse_payment_response<'a>(item: StdResult<Record<AssetInfo>>) -> StdResult<PaymentResponse> {
     item.and_then(|(key, value)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array

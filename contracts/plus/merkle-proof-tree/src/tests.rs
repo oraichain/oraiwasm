@@ -139,7 +139,7 @@ struct Encoded {
 fn claim() {
     // Run test 1
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
-    deps.api.canonical_length = 54;
+
     let test_data: Encoded = from_json(TEST_DATA_1).unwrap();
 
     let user_input = format!(

@@ -1,3 +1,6 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use crate::{
     error::ContractError,
     msg::{
@@ -10,8 +13,8 @@ use crate::{
     },
 };
 use cosmwasm_std::{
-    attr, from_json, to_json_binary, to_vec, Addr, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Order, Response, Response, StdError, StdResult, WasmMsg, KV,
+    attr, from_json, to_json_binary, to_json_vec, Addr, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Order, Record, Response, StdError, StdResult, WasmMsg,
 };
 
 // ******************************** TODO: ADD change allowed pub key **************************
@@ -87,12 +90,10 @@ pub fn change_owner(
     owner_read.owner = new_owner;
     owner(deps.storage).save(&owner_read)?;
 
-    Ok(Response::new().add_messages( Vec::new(),
-        add_attributes(vec![
-            attr("old_owner", old_owner),
-            attr("new_owner", owner_read.owner),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("old_owner", old_owner),
+        attr("new_owner", owner_read.owner),
+    ]))
 }
 
 pub fn try_lock(
@@ -132,15 +133,13 @@ pub fn try_lock(
     let new_nonce: Nonce = Nonce(nonce_u64 + 1);
     nonce(deps.storage).save(&new_nonce)?;
 
-    Ok(Response::new().add_messages( Vec::new(),
-        add_attributes(vec![
-            attr("action", "lock"),
-            attr("nft_addr", info.sender),
-            attr("bsc_addr", &msg.bsc_addr),
-            attr("orai_addr", &msg.orai_addr),
-            attr("nonce", &nonce_u64),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "lock"),
+        attr("nft_addr", info.sender),
+        attr("bsc_addr", &msg.bsc_addr),
+        attr("orai_addr", &msg.orai_addr),
+        attr("nonce", &nonce_u64.to_string()),
+    ]))
 }
 
 pub fn try_unlock(
@@ -181,7 +180,7 @@ pub fn try_unlock(
         orai_addr: (&unlock_msg).orai_addr.to_string(),
         nonce: unlock_msg.nonce,
     };
-    let unlock_vec_result = to_vec(&unlock_raw);
+    let unlock_vec_result = to_json_vec(&unlock_raw);
     if unlock_vec_result.is_err() {
         return Err(ContractError::FailedHash {});
     }
@@ -216,7 +215,7 @@ pub fn try_unlock(
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: Addr::unchecked(&unlock_msg.nft_addr),
+        contract_addr: unlock_msg.nft_addr.to_string(),
         msg: to_json_binary(&transfer_cw721_msg)?,
         funds: vec![],
     };
@@ -228,20 +227,20 @@ pub fn try_unlock(
     locked.other_chain_nonce = unlock_msg.nonce.to_string().parse().unwrap();
     LOCKED.save(
         deps.storage,
-        &get_locked_key(&unlock_msg.token_id, &unlock_msg.nft_addr),
+        &get_locked_key(&unlock_msg.token_id, unlock_msg.nft_addr.as_str()),
         &locked,
     )?;
 
-    return Ok(Response::new().add_messages( cw721_transfer_cosmos_msg,
-        add_attributes(vec![
+    return Ok(Response::new()
+        .add_messages(cw721_transfer_cosmos_msg)
+        .add_attributes(vec![
             attr("action", "unlock"),
             attr("invoker", info.sender),
             attr("locked_addr", env.contract.address),
             attr("new_owner", &unlock_msg.token_id),
             attr("token_id", &unlock_msg.token_id),
             attr("unlocked_nft_addr", &unlock_msg.nft_addr),
-        ],
-        ));
+        ]));
 }
 
 pub fn try_emergency_unlock(
@@ -277,7 +276,7 @@ pub fn try_emergency_unlock(
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: Addr::unchecked(locked.nft_addr.as_str()),
+        contract_addr: locked.nft_addr.to_string(),
         msg: to_json_binary(&transfer_cw721_msg)?,
         funds: vec![],
     };
@@ -290,16 +289,16 @@ pub fn try_emergency_unlock(
     // // remove locked tokens
     // LOCKED.remove(deps.storage, &token_id);
 
-    return Ok(Response::new().add_messages( cw721_transfer_cosmos_msg,
-        add_attributes(vec![
+    return Ok(Response::new()
+        .add_messages(cw721_transfer_cosmos_msg)
+        .add_attributes(vec![
             attr("action", "emergency_unlock"),
             attr("invoker", info.sender),
             attr("locked_addr", env.contract.address),
             attr("new_owner", locked.orai_addr),
             attr("token_id", token_id),
-            attr("unlocked_nft_addr", locked.nft_addr),
-        ],
-        ));
+            attr("unlocked_nft_addr", locked.nft_addr.to_string()),
+        ]));
 }
 
 /// returns true iff the sender can execute approve or reject on the contract
@@ -352,9 +351,7 @@ pub fn add_pubkey(
         return Err(ContractError::Unauthorized {});
     }
     ALLOWED.save(deps.storage, &pub_key.as_slice(), &true)?;
-    Ok(Response::new().add_messages( vec![],
-        add_attributes(vec![],
-        ))
+    Ok(Response::new())
 }
 
 pub fn remove_pubkey(
@@ -367,9 +364,7 @@ pub fn remove_pubkey(
         return Err(check_result.err().unwrap());
     }
     ALLOWED.remove(deps.storage, &pub_key.as_slice());
-    Ok(Response::new().add_messages( vec![],
-        add_attributes(vec![],
-        ))
+    Ok(Response::new())
 }
 
 pub fn disable_pubkey(
@@ -382,9 +377,7 @@ pub fn disable_pubkey(
         return Err(check_result.err().unwrap());
     }
     ALLOWED.save(deps.storage, &pub_key.as_slice(), &false)?;
-    Ok(Response::new().add_messages( vec![],
-        add_attributes(vec![],
-        ))
+    Ok(Response::new())
 }
 
 pub fn enable_pubkey(
@@ -397,9 +390,7 @@ pub fn enable_pubkey(
         return Err(check_result.err().unwrap());
     }
     ALLOWED.save(deps.storage, &pub_key.as_slice(), &true)?;
-    Ok(Response::new().add_messages( vec![],
-        add_attributes(vec![],
-        ))
+    Ok(Response::new())
 }
 
 fn check_pubkey(deps: &DepsMut, info: &MessageInfo, pub_key: &Binary) -> Result<(), ContractError> {
@@ -509,8 +500,8 @@ fn query_pubkeys(
 ) -> StdResult<PubKeyResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
 
-    let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
+    let mut min = None;
+    let mut max = None;
     let mut order_enum = Order::Descending;
     if let Some(num) = order {
         if num == 1 {
@@ -520,7 +511,7 @@ fn query_pubkeys(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        let offset_value = Some(Bound::ExclusiveRaw(offset.to_be_bytes().to_vec()));
         match order_enum {
             Order::Ascending => min = offset_value,
             Order::Descending => max = offset_value,
@@ -538,7 +529,7 @@ fn query_pubkeys(
     })
 }
 
-fn parse_pubkey(_api: &dyn Api, item: StdResult<KV<bool>>) -> StdResult<PubKey> {
+fn parse_pubkey(_api: &dyn Api, item: StdResult<Record<bool>>) -> StdResult<PubKey> {
     item.and_then(|(k, _enabled)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array
@@ -551,7 +542,9 @@ fn parse_pubkey(_api: &dyn Api, item: StdResult<KV<bool>>) -> StdResult<PubKey> 
 mod tests {
 
     // use core::slice::SlicePattern;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::testing::{
+        mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info,
+    };
     use sha2::Sha256;
 
     use super::*;
@@ -571,7 +564,7 @@ mod tests {
     #[test]
     fn proper_initialization() {
         let mut deps = mock_dependencies_with_balance(&[]);
-        deps.api.canonical_length = 54;
+
         setup_contract(deps.as_mut());
 
         let owner = owner_read(&deps.storage).load().unwrap();
@@ -588,7 +581,7 @@ mod tests {
     #[test]
     fn change_owner() {
         let mut deps = mock_dependencies_with_balance(&[]);
-        deps.api.canonical_length = 54;
+
         setup_contract(deps.as_mut());
 
         let msg = ExecuteMsg::ChangeOwner {
@@ -616,7 +609,7 @@ mod tests {
     #[test]
     fn add_pubkey() {
         let mut deps = mock_dependencies_with_balance(&[]);
-        deps.api.canonical_length = 54;
+
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgs1QU=").unwrap();
         let msg = ExecuteMsg::AddPubKey {
@@ -643,7 +636,7 @@ mod tests {
     #[test]
     fn remove_pubkey() {
         let mut deps = mock_dependencies_with_balance(&[]);
-        deps.api.canonical_length = 54;
+
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
         let msg = ExecuteMsg::RemovePubKey {
@@ -670,7 +663,7 @@ mod tests {
     #[test]
     fn disable_pubkey() {
         let mut deps = mock_dependencies_with_balance(&[]);
-        deps.api.canonical_length = 54;
+
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
         let msg = ExecuteMsg::DisablePubKey {
@@ -697,7 +690,7 @@ mod tests {
     #[test]
     fn enable_pubkey() {
         let mut deps = mock_dependencies_with_balance(&[]);
-        deps.api.canonical_length = 54;
+
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
         let msg = ExecuteMsg::EnablePubKey {
@@ -730,7 +723,7 @@ mod tests {
             orai_addr: String::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
             nonce: 0,
         };
-        let unlock_vec_result = to_vec(&unlock_raw).unwrap();
+        let unlock_vec_result = to_json_vec(&unlock_raw).unwrap();
         let hash = Sha256::digest(&unlock_vec_result);
         let hash_str = format!("{:x}", hash);
         println!("hash str: {}", hash_str);
@@ -743,7 +736,7 @@ mod tests {
     #[test]
     fn test_query_pubkeys() {
         let mut deps = mock_dependencies_with_balance(&[]);
-        deps.api.canonical_length = 54;
+
         setup_contract(deps.as_mut());
 
         // Offering should be listed

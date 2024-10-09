@@ -22,7 +22,7 @@ const MOCK_UNIT_PRICE: Uint128 = Uint128::from(1u128));
 
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
-    deps.api.canonical_length = 54;
+    
     let msg = InstantiateMsg {
         name: "ai_market".into(),
         creator: Addr::unchecked(CREATOR_ADDR),

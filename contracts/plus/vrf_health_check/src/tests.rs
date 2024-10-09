@@ -12,7 +12,7 @@ const OWNER: &str = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3d";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies_with_balance(&coins(100000, "orai"));
-    deps.api.canonical_length = 54;
+    
     let msg = InstantiateMsg {
         members: vec![
             Member {

@@ -242,7 +242,7 @@ struct Encoded {
 fn claim() {
     // Run test 1
     let mut deps = mock_dependencies_with_balance(&[]);
-    deps.api.canonical_length = 54;
+    
     let test_data: Encoded = from_json(TEST_DATA_1).unwrap();
 
     let msg = InstantiateMsg {
@@ -411,7 +411,7 @@ struct MultipleData {
 fn multiple_claim() {
     // Run test 1
     let mut deps = mock_dependencies_with_balance(&[]);
-    deps.api.canonical_length = 54;
+    
     let test_data: MultipleData = from_json(TEST_DATA_1_MULTI).unwrap();
 
     let msg = InstantiateMsg {
@@ -483,7 +483,7 @@ fn multiple_claim() {
 fn test_query_claim_keys() {
     // Run test 1
     let mut deps = mock_dependencies_with_balance(&[]);
-    deps.api.canonical_length = 54;
+    
     let test_data: MultipleData = from_json(TEST_DATA_1_MULTI).unwrap();
 
     let msg = InstantiateMsg {
@@ -681,7 +681,7 @@ fn cant_burn() {
 #[test]
 fn can_burn() {
     let mut deps = mock_dependencies_with_balance(&[]);
-    deps.api.canonical_length = 54;
+    
     let test_data: Encoded = from_json(TEST_DATA_1).unwrap();
 
     let msg = InstantiateMsg {
@@ -766,7 +766,7 @@ fn can_burn() {
 #[test]
 fn cant_withdraw() {
     let mut deps = mock_dependencies_with_balance(&[]);
-    deps.api.canonical_length = 54;
+    
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
         cw20_token_address: "token0000".into(),
@@ -804,7 +804,7 @@ fn cant_withdraw() {
 #[test]
 fn can_withdraw() {
     let mut deps = mock_dependencies_with_balance(&[]);
-    deps.api.canonical_length = 54;
+    
     let test_data: Encoded = from_json(TEST_DATA_1).unwrap();
 
     let msg = InstantiateMsg {
@@ -891,7 +891,7 @@ fn can_withdraw() {
 #[test]
 fn stage_starts() {
     let mut deps = mock_dependencies_with_balance(&[]);
-    deps.api.canonical_length = 54;
+    
     let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
         cw20_token_address: "token0000".into(),

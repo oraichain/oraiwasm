@@ -1263,7 +1263,7 @@ pub fn query_collection_staker_info_by_staker(
 // ================================ HELPERS ==========================
 
 fn parse_collection_staker_info<'a>(
-    item: StdResult<KV<CollectionStakerInfo>>,
+    item: StdResult<Record<CollectionStakerInfo>>,
 ) -> StdResult<CollectionStakerInfo> {
     item.and_then(|(k, collection_staker_info)| {
         let value = k

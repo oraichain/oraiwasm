@@ -20,7 +20,7 @@ const DENOM: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
-    deps.api.canonical_length = 54;
+    
     let msg = InstantiateMsg {
         name: String::from(CONTRACT_NAME),
         denom: DENOM.into(),

@@ -151,7 +151,7 @@ pub fn try_invoke(
             expected_denom: "orai".to_string(),
         });
     }
-    let res = Response::new().add_messages( vec![],
+    let res = Response::new().
         add_attributes(vec![attr("action", "invoke_add"), attr("user_input", user_input)],
         );
 

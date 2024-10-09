@@ -78,7 +78,7 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![attr("action", "update_info")],
         data: to_json_binary(&new_contract_info).ok(),
     })
@@ -206,7 +206,7 @@ fn query_all_approvals(
     Ok(ApprovedForAllResponse { operators })
 }
 
-fn parse_approved(item: StdResult<KV<Expiration>>) -> StdResult<Approved> {
+fn parse_approved(item: StdResult<Record<Expiration>>) -> StdResult<Approved> {
     item.and_then(|(k, expires)| {
         let spender = String::from_utf8(k)?;
         Ok(Approved { spender, expires })

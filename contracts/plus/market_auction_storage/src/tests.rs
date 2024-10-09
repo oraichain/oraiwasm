@@ -16,7 +16,7 @@ const DENOM: &str = "orai";
 
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
-    deps.api.canonical_length = 54;
+    
     let msg = InstantiateMsg {
         governance: Addr::unchecked(CREATOR),
     };

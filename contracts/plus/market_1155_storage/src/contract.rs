@@ -151,7 +151,7 @@ pub fn try_update_offering(
 
     offerings().save(deps.storage, &offering.id.unwrap().to_be_bytes(), &offering)?;
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![
             attr("action", "update_offering"),
             attr("offering_id", offering.id.unwrap()),
@@ -175,7 +175,7 @@ pub fn try_withdraw_offering(
     // remove offering
     offerings().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![attr("action", "remove_offering"), attr("offering_id", id)],
         ));
 }
@@ -324,7 +324,7 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
 }
 
-fn parse_offering<'a>(item: StdResult<KV<Offering>>) -> StdResult<Offering> {
+fn parse_offering<'a>(item: StdResult<Record<Offering>>) -> StdResult<Offering> {
     item.and_then(|(k, offering)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array

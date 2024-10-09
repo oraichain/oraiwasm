@@ -238,7 +238,7 @@ fn initialization(deps: DepsMut) -> Response {
 #[test]
 fn proper_initialization() {
     let mut deps = mock_dependencies();
-    // deps.api.canonical_length = 54;
+    // 
     let res = initialization(deps.as_mut());
     assert_eq!(res.messages.len(), 0);
 }
@@ -246,7 +246,7 @@ fn proper_initialization() {
 #[test]
 fn share_dealer() {
     let mut deps = mock_dependencies();
-    // deps.api.canonical_length = 54;
+    // 
     let _res = initialization(deps.as_mut());
 
     init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD, true);
@@ -290,7 +290,7 @@ fn share_dealer() {
 #[test]
 fn request_round() {
     let mut deps = mock_dependencies();
-    // deps.api.canonical_length = 54;
+    // 
     let _res = initialization(deps.as_mut());
 
     init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD, true);
@@ -412,7 +412,7 @@ fn request_round() {
 #[test]
 fn test_reset() {
     let mut deps = mock_dependencies();
-    // deps.api.canonical_length = 54;
+    // 
     let _res = initialization(deps.as_mut());
 
     let config: Config =

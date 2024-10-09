@@ -157,7 +157,7 @@ pub fn try_update_offering(
 
     offerings().save(deps.storage, &offering.id.unwrap().to_be_bytes(), &offering)?;
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![
             attr("action", "update_offering"),
             attr("offering_id", offering.id.unwrap()),
@@ -181,7 +181,7 @@ pub fn try_remove_offering(
     // remove offering
     offerings().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![attr("action", "remove_offering"), attr("offering_id", id)],
         ));
 }
@@ -210,7 +210,7 @@ pub fn try_update_offering_royalty(
         &offering,
     )?;
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![attr("action", "update_offering_royalty")],
         data: to_json_binary(&offering).ok(),
     });
@@ -265,7 +265,7 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![attr("action", "update_info")],
         data: to_json_binary(&new_contract_info).ok(),
     })
@@ -524,7 +524,7 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
 
 fn parse_offering<'a>(
     api: &dyn Api,
-    item: StdResult<KV<Offering>>,
+    item: StdResult<Record<Offering>>,
 ) -> StdResult<QueryOfferingsResult> {
     item.and_then(|(k, offering)| {
         // will panic if length is greater than 8, but we can make sure it is u64
@@ -540,7 +540,7 @@ fn parse_offering<'a>(
     })
 }
 
-fn parse_offering_royalty<'a>(item: StdResult<KV<OfferingRoyalty>>) -> StdResult<OfferingRoyalty> {
+fn parse_offering_royalty<'a>(item: StdResult<Record<OfferingRoyalty>>) -> StdResult<OfferingRoyalty> {
     item.and_then(|(_, offering)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array

@@ -118,7 +118,7 @@ pub fn try_update_first_lv_royalty(
         &first_lv_royalty,
     )?;
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![attr("action", "update_offering_royalty")],
         data: to_json_binary(&first_lv_royalty).ok(),
     });
@@ -144,7 +144,7 @@ pub fn try_delete_first_lv_royalty(
         &get_key_royalty(contract_addr.as_bytes(), token_id.as_bytes()),
     )?;
 
-    return Ok(Response::new().add_messages( vec![],
+    return Ok(Response::new().
         add_attributes(vec![attr("action", "remove_offering_royalty")],
         ));
 }
@@ -171,7 +171,7 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![attr("action", "update_info")],
         data: to_json_binary(&new_contract_info).ok(),
     })
@@ -290,7 +290,7 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
 }
 
-fn parse_first_lv_royalty<'a>(item: StdResult<KV<FirstLvRoyalty>>) -> StdResult<FirstLvRoyalty> {
+fn parse_first_lv_royalty<'a>(item: StdResult<Record<FirstLvRoyalty>>) -> StdResult<FirstLvRoyalty> {
     item.and_then(|(_, first_lv)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array

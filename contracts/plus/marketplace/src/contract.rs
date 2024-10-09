@@ -183,7 +183,7 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![
             attr("action", "update_info"),
             attr("info_sender", info.sender),
@@ -649,7 +649,7 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
 fn parse_offering<'a>(
     storage: &'a dyn Storage,
     api: &dyn Api,
-    item: StdResult<KV<Offering>>,
+    item: StdResult<Record<Offering>>,
 ) -> StdResult<QueryOfferingsResult> {
     item.and_then(|(k, offering)| {
         // will panic if length is greater than 8, but we can make sure it is u64

@@ -135,7 +135,7 @@ pub fn handle_mint(
 
     increment_tokens(deps.storage)?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![
             attr("action", "mint_nft"),
             attr("minter", info.sender),
@@ -157,7 +157,7 @@ pub fn handle_burn(
 
     decrement_tokens(deps.storage)?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![
             attr("action", "burn_nft"),
             attr("minter", info.sender),
@@ -178,7 +178,7 @@ pub fn handle_transfer_nft(
 
     // need transfer_payout as well
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![
             attr("action", "transfer_nft"),
             attr("sender", info.sender),
@@ -279,7 +279,7 @@ pub fn handle_approve(
 ) -> Result<Response, ContractError> {
     _update_approvals(deps, &env, &info, &spender, &token_id, true, expires)?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![
             attr("action", "approve"),
             attr("sender", info.sender),
@@ -298,7 +298,7 @@ pub fn handle_revoke(
 ) -> Result<Response, ContractError> {
     _update_approvals(deps, &env, &info, &spender, &token_id, false, None)?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![
             attr("action", "revoke"),
             attr("sender", info.sender),
@@ -367,7 +367,7 @@ pub fn handle_approve_all(
     let operator_raw = deps.api.addr_canonicalize(operator.as_str())?;
     OPERATORS.save(deps.storage, (&sender_raw, &operator_raw), &expires)?;
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![
             attr("action", "approve_all"),
             attr("sender", info.sender),
@@ -386,7 +386,7 @@ pub fn handle_revoke_all(
     let operator_raw = deps.api.addr_canonicalize(operator.as_str())?;
     OPERATORS.remove(deps.storage, (&sender_raw, &operator_raw));
 
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![
             attr("action", "revoke_all"),
             attr("sender", info.sender),
@@ -408,7 +408,7 @@ pub fn handle_change_minter(
     }
     let minter = deps.api.addr_canonicalize(minter.as_str())?;
     MINTER.save(deps.storage, &minter)?;
-    Ok(Response::new().add_messages( vec![],
+    Ok(Response::new().
         add_attributes(vec![
             attr("action", "change_minter"),
             attr("minter", minter),
@@ -601,7 +601,7 @@ fn query_all_approvals(
     Ok(ApprovedForAllResponse { operators: res? })
 }
 
-fn parse_approval(api: &dyn Api, item: StdResult<KV<Expiration>>) -> StdResult<cw721::Approval> {
+fn parse_approval(api: &dyn Api, item: StdResult<Record<Expiration>>) -> StdResult<cw721::Approval> {
     item.and_then(|(k, expires)| {
         let spender = api.addr_humanize(&k.into())?;
         Ok(cw721::Approval { spender, expires })

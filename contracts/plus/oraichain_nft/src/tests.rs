@@ -22,7 +22,7 @@ const SYMBOL: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies_with_balance(&coins(100000, "orai"));
-    deps.api.canonical_length = 54;
+    
     let msg = InstantiateMsg {
         name: Some(CONTRACT_NAME.to_string()),
         symbol: SYMBOL.to_string(),
