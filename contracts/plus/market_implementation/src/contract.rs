@@ -21,7 +21,7 @@ use crate::msg::{
 use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
     attr, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo,
-    MigrateResponse, Response, Response, StdError, StdResult, Uint128, WasmMsg,
+    Response, Response, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{from_json, Addr};
 use cw20::Cw20ReceiveMsg;
@@ -191,9 +191,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateResponse> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     // MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
-    Ok(MigrateResponse::default())
+    Ok(Response::default())
 }
 
 // ============================== Message Handlers ==============================
@@ -240,7 +240,7 @@ pub fn try_withdraw_funds(
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address,
-        to_address: Addr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
+        to_address: Addr::unchecked(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
@@ -331,7 +331,7 @@ pub fn try_migrate(
     new_marketplace: Addr,
 ) -> Result<Response, ContractError> {
     let ContractInfo { creator, .. } = CONTRACT_INFO.load(deps.storage)?;
-    if info.sender.ne(&Addr(creator.clone())) {
+    if info.sender.ne(&Addr::unchecked(creator.clone())) {
         return Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
         });
@@ -469,7 +469,7 @@ pub fn verify_owner(
         .ok();
 
     if let Some(nft_owners) = nft_owners {
-        if nft_owners.owner.ne(&Addr::from(sender)) {
+        if nft_owners.owner.ne(&Addr::unchecked(sender)) {
             return Err(ContractError::Unauthorized {
                 sender: sender.to_string(),
             });
@@ -494,7 +494,7 @@ pub fn verify_nft(
 
     // verify if the nft contract address is whitelisted. If not => reject
     let is_approved: IsApprovedForAllResponse = deps.querier.query_wasm_smart(
-        get_storage_addr(deps, Addr::from(governance), WHITELIST_STORAGE)?,
+        get_storage_addr(deps, Addr::unchecked(governance), WHITELIST_STORAGE)?,
         &ProxyQueryMsg::Msg(MarketWhiteListdQueryMsg::IsApprovedForAll {
             nft_addr: contract_addr.to_string(),
         }),
@@ -508,9 +508,9 @@ pub fn verify_nft(
     let offering_result: Result<QueryOfferingsResult, ContractError> = deps
         .querier
         .query_wasm_smart(
-            get_storage_addr(deps, Addr::from(governance), OFFERING_STORAGE)?,
+            get_storage_addr(deps, Addr::unchecked(governance), OFFERING_STORAGE)?,
             &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingByContractTokenId {
-                contract: Addr::from(contract_addr),
+                contract: Addr::unchecked(contract_addr),
                 token_id: token_id.to_string(),
             }) as &ProxyQueryMsg,
         )
@@ -524,9 +524,9 @@ pub fn verify_nft(
     let auction: Option<QueryAuctionsResult> = deps
         .querier
         .query_wasm_smart(
-            get_storage_addr(deps, Addr::from(governance), AUCTION_STORAGE)?,
+            get_storage_addr(deps, Addr::unchecked(governance), AUCTION_STORAGE)?,
             &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionByContractTokenId {
-                contract: Addr::from(contract_addr),
+                contract: Addr::unchecked(contract_addr),
                 token_id: token_id.to_string(),
             }) as &ProxyQueryMsg,
         )
@@ -682,7 +682,7 @@ where
         });
 
     Ok(WasmMsg::Execute {
-        contract_addr: Addr::from(addr),
+        contract_addr: Addr::unchecked(addr),
         msg: to_json_binary(&proxy_msg)?,
         funds: vec![],
     }

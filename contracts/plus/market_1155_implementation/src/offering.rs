@@ -63,7 +63,7 @@ pub fn add_msg_royalty(
         governance,
         AI_ROYALTY_STORAGE,
         AiRoyaltyExecuteMsg::UpdateRoyalty(RoyaltyMsg {
-            creator: Addr(sender.to_string()),
+            creator: Addr::unchecked(sender.to_string()),
             creator_type: Some(String::from(CREATOR_NAME)),
             ..royalty_msg
         }),
@@ -99,7 +99,7 @@ pub fn try_handle_mint(
     msg.mint.mint.to = info.sender.to_string();
 
     let mint_msg = WasmMsg::Execute {
-        contract_addr: msg.contract_addr.clone(),
+        contract_addr: msg.contract_addr.to_string(),
         msg: to_json_binary(&msg.mint)?,
         funds: vec![],
     }
@@ -109,9 +109,12 @@ pub fn try_handle_mint(
     let mut cosmos_msgs = add_msg_royalty(info.sender.as_str(), &governance, msg)?;
     cosmos_msgs.push(mint_msg);
 
-    let response = Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![attr("action", "mint_nft"), attr("minter", info.sender)],
-        );
+    let response = Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
+            attr("action", "mint_nft"),
+            attr("minter", info.sender),
+        ]);
 
     Ok(response)
 }
@@ -123,7 +126,7 @@ pub fn try_handle_transfer_directly(
     msg: TransferNftDirectlyMsg,
 ) -> Result<Response, ContractError> {
     let mut rsp = Response::default();
-    let mut cosmos_msgs = vec![];
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
 
     let final_seller = verify_nft(
         deps.as_ref(),
@@ -145,14 +148,14 @@ pub fn try_handle_transfer_directly(
 
     cosmos_msgs.push(
         WasmMsg::Execute {
-            contract_addr: msg.contract_addr.clone(),
+            contract_addr: msg.contract_addr.to_string(),
             msg: to_json_binary(&transfer_cw1155_msg)?,
             funds: vec![],
         }
         .into(),
     );
 
-    rsp.messages = cosmos_msgs;
+    rsp = rsp.add_messages(cosmos_msgs);
     rsp.attributes.extend(vec![
         attr("action", "transfer_nft_directly"),
         attr("receiver", msg.to.clone().to_string()),
@@ -221,7 +224,7 @@ pub fn try_buy(
         // pay for the owner of this minter contract if there is fee set in marketplace
         let fee_amount = price.mul(Decimal::permille(contract_info.fee));
         // Rust will automatically floor down the value to 0 if amount is too small => error
-        seller_amount = seller_amount.sub(fee_amount)?;
+        seller_amount = seller_amount.sub(fee_amount);
         MARKET_FEES.update(deps.storage, |current_fees| -> StdResult<_> {
             Ok(current_fees.add(fee_amount))
         })?;
@@ -266,7 +269,7 @@ pub fn try_buy(
     // if everything is fine transfer NFT token to buyer
     cosmos_msgs.push(
         WasmMsg::Execute {
-            contract_addr: off.contract_addr.clone(),
+            contract_addr: off.contract_addr.to_string(),
             msg: to_json_binary(&transfer_cw721_msg)?,
             funds: vec![],
         }
@@ -282,7 +285,7 @@ pub fn try_buy(
         )?);
     } else {
         // if not equal => reduce amount
-        off.amount = off.amount.sub(&amount)?;
+        off.amount = off.amount.sub(&amount);
         cosmos_msgs.push(get_handle_msg(
             &governance,
             STORAGE_1155,
@@ -291,11 +294,11 @@ pub fn try_buy(
             },
         )?);
     }
-    rsp.messages = cosmos_msgs;
+    rsp = rsp.add_messages(cosmos_msgs);
     rsp.attributes.extend(vec![
         attr("buyer", sender),
         attr("seller", seller_addr),
-        attr("offering_id", offering_id),
+        attr("offering_id", offering_id.to_string()),
         attr("per_price", off.per_price),
         attr("amount", amount),
     ]);
@@ -329,16 +332,14 @@ pub fn try_withdraw(
             MarketExecuteMsg::RemoveOffering { id: offering_id },
         )?);
 
-        return Ok(Response {
-            messages: cw1155_cosmos_msg,
-            add_attributes(vec![
+        return Ok(Response::new()
+            .add_messages(cw1155_cosmos_msg)
+            .add_attributes(vec![
                 attr("action", "withdraw_nft"),
                 attr("seller", info.sender),
-                attr("offering_id", offering_id),
+                attr("offering_id", offering_id.to_string()),
                 attr("token_id", off.token_id),
-            ],
-            data: None,
-        });
+            ]));
     }
     Err(ContractError::Unauthorized {
         sender: info.sender.to_string(),
@@ -360,22 +361,22 @@ pub fn try_burn(
     };
 
     let exec_msg = WasmMsg::Execute {
-        contract_addr: contract_addr.clone(),
+        contract_addr: contract_addr.to_string(),
         msg: to_json_binary(&cw1155_msg)?,
         funds: vec![],
     };
 
     let cosmos_msg: Vec<CosmosMsg> = vec![exec_msg.into()];
 
-    return Ok(Response::new().add_messages( cosmos_msg,
-        add_attributes(vec![
+    return Ok(Response::new()
+        .add_messages(cosmos_msg)
+        .add_attributes(vec![
             attr("action", "burn_nft"),
             attr("burner", info.sender),
             attr("contract_addr", contract_addr),
             attr("token_id", token_id),
             attr("value", value),
-        ],
-        ));
+        ]));
 }
 
 pub fn try_change_creator(
@@ -405,21 +406,21 @@ pub fn try_change_creator(
         AiRoyaltyExecuteMsg::UpdateRoyalty(RoyaltyMsg {
             contract_addr: contract_addr.clone(),
             token_id: token_id.clone(),
-            creator: Addr::from(to.as_str()),
+            creator: Addr::unchecked(to.as_str()),
             creator_type: Some(royalty.creator_type),
             royalty: Some(royalty.royalty),
         }),
     )?);
 
-    return Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![
+    return Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
             attr("action", "change_creator_nft"),
             attr("from", info.sender),
             attr("contract_addr", contract_addr),
             attr("token_id", token_id),
             attr("to", to),
-        ],
-        ));
+        ]));
 }
 
 pub fn try_sell_nft(
@@ -449,7 +450,7 @@ pub fn try_sell_nft(
         id: None,
         token_id: token_id.clone(),
         contract_addr: msg.contract_addr.clone(),
-        seller: Addr(final_seller),
+        seller: Addr::unchecked(final_seller),
         per_price: msg.per_price,
         amount: msg.amount,
     };
@@ -476,16 +477,16 @@ pub fn try_sell_nft(
         }),
     )?);
 
-    Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
             attr("action", "sell_nft"),
             attr("seller", info.sender),
             attr("contract_addr", msg.contract_addr),
             attr("per price", offering.per_price.to_string()),
             attr("token_id", token_id),
             attr("initial_token_id", msg.token_id),
-        ],
-        ))
+        ]))
 }
 
 fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError> {

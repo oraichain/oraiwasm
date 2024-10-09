@@ -212,7 +212,7 @@ fn sort_annotations() {
             id: Some(i),
             contract_addr: Addr::unchecked("xxx"),
             token_id: i.to_string(),
-            requester: Addr::from(format!("requester{}", i)),
+            requester: Addr::unchecked(format!("requester{}", i)),
             reward_per_sample: Uint128::from(1u64),
             number_of_samples: Uint128::from(10u64),
             max_annotation_per_task: Uint128::from(10u64),

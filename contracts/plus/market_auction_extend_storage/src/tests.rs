@@ -18,7 +18,7 @@ fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
     let msg = InstantiateMsg {
-        governance: Addr::from(CREATOR),
+        governance: Addr::unchecked(CREATOR),
     };
     let info = mock_info(CREATOR, &[]);
     let contract_env = mock_env();

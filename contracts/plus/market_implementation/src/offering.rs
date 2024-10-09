@@ -251,7 +251,7 @@ pub fn try_withdraw(
     // check if token_id is currently sold by the requesting address
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
     let off: Offering = get_offering(deps.as_ref(), offering_id)?;
-    if info.sender.ne(&Addr(creator.clone()))
+    if info.sender.ne(&Addr::unchecked(creator.clone()))
         && off.seller.ne(&deps.api.addr_canonicalize(&info.sender)?)
     {
         return Err(ContractError::Unauthorized {
@@ -481,7 +481,7 @@ pub fn get_offering_handle_msg(
 //         governance,
 //         ..
 //     } = CONTRACT_INFO.load(deps.storage)?;
-//     if info.sender.ne(&Addr(creator.clone())) {
+//     if info.sender.ne(&Addr::unchecked(creator.clone())) {
 //         return Err(ContractError::Unauthorized {
 //             sender: info.sender.to_string(),
 //         });

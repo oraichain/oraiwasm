@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, MigrateResponse, Order,
+    attr, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Order,
     Response, Response, StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
@@ -520,6 +520,6 @@ pub fn migrate(
     _deps: DepsMut,
     _env: Env,
     _msg: MigrateMsg,
-) -> Result<MigrateResponse, ContractError> {
-    Ok(MigrateResponse::default())
+) -> Result<Response, ContractError> {
+    Ok(Response::default())
 }

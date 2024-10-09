@@ -142,7 +142,7 @@ pub fn try_withdraw_funds(
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address,
-        to_address: Addr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
+        to_address: Addr::unchecked(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
@@ -232,7 +232,7 @@ pub fn try_buy(
                     cosmos_msgs.push(
                         BankMsg::Send {
                             from_address: env.contract.address.clone(),
-                            to_address: Addr::from(contract_info.creator),
+                            to_address: Addr::unchecked(contract_info.creator),
                             amount: coins(fee_amount.u128(), &contract_info.denom),
                         }
                         .into(),

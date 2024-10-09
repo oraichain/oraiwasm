@@ -234,7 +234,7 @@ fn query_rounds(
         .map(|kv_item| {
             kv_item.and_then(|(k, v)| {
                 Ok(QueryRoundResponse {
-                    executor: Addr::from(String::from_utf8(k)?),
+                    executor: Addr::unchecked(String::from_utf8(k)?),
                     round_info: v,
                 })
             })

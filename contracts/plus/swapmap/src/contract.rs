@@ -3,7 +3,7 @@ use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{config, config_read, State, MAPPED_TXS};
 use cosmwasm_std::{
     to_json_binary, Attribute, Binary, Deps, DepsMut, Env, Response, Addr, Response,
-    MessageInfo, MigrateResponse, StdResult,
+    MessageInfo, Response, StdResult,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -95,6 +95,6 @@ fn query_tx(deps: Deps, hash: Binary) -> StdResult<Binary> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateResponse> {
-    Ok(MigrateResponse::default())
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }

@@ -2057,7 +2057,7 @@ mod tests {
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    from_address: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     to_address: Addr::unchecked("delegator1"),
                     amount: vec![Coin {
                         denom: "ujack".to_string(),
@@ -2196,7 +2196,7 @@ mod tests {
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    from_address: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     to_address: Addr::unchecked("delegator1"),
                     amount: vec![Coin {
                         denom: "upot".to_string(),
@@ -2330,7 +2330,7 @@ mod tests {
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    from_address: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     to_address: Addr::unchecked("delegator1"),
                     amount: vec![Coin {
                         denom: "ujack".to_string(),
@@ -2436,7 +2436,7 @@ mod tests {
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    from_address: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     to_address: Addr::unchecked("validator1"),
                     amount: vec![Coin {
                         denom: "uscrt".to_string(),
@@ -2559,7 +2559,7 @@ mod tests {
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    from_address: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     to_address: Addr::unchecked("validator1"),
                     amount: vec![Coin {
                         denom: "uscrt".to_string(),
@@ -2695,7 +2695,7 @@ mod tests {
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    from_address: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     to_address: Addr::unchecked("validator1"),
                     amount: vec![Coin {
                         denom: "uscrt".to_string(),
@@ -2926,7 +2926,7 @@ mod tests {
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    from_address: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     to_address: Addr::unchecked("address1"),
                     amount: vec![Coin {
                         denom: "uscrt".to_string(),
@@ -3092,7 +3092,7 @@ mod tests {
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    from_address: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     to_address: Addr::unchecked("address2"),
                     amount: vec![Coin {
                         denom: "ujack".to_string(),
@@ -3158,7 +3158,7 @@ mod tests {
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    from_address: Addr::unchecked(MOCK_CONTRACT_ADDR),
                     to_address: Addr::unchecked("address1"),
                     amount: vec![
                         Coin {
@@ -3550,7 +3550,7 @@ mod tests {
         }
 
         fn init_voter(address: String, deps: DepsMut, vote: bool, env: &Env) {
-            let info = mock_info(Addr::from(address.clone()), &[]);
+            let info = mock_info(Addr::unchecked(address.clone()), &[]);
             let msg = ExecuteMsg::Vote {
                 poll_id: 1,
                 approve: vote,

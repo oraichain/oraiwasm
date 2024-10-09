@@ -58,35 +58,38 @@ impl DepsManager {
 
     fn new() -> Self {
         let info = mock_info(CREATOR, &[]);
-        let mut hub = mock_dependencies(Addr::from(HUB_ADDR), &[], Self::query_wasm);
+        let mut hub = mock_dependencies(Addr::unchecked(HUB_ADDR), &[], Self::query_wasm);
         let _res = market_hub::contract::instantiate(
             hub.as_mut(),
             mock_env(HUB_ADDR),
             info.clone(),
             market_hub::msg::InstantiateMsg {
-                admins: vec![Addr::from(CREATOR)],
+                admins: vec![Addr::unchecked(CREATOR)],
                 mutable: true,
                 storages: vec![
-                    (DATAHUB_STORAGE.to_string(), Addr::from(OFFERING_ADDR)),
-                    (AI_ROYALTY_STORAGE.to_string(), Addr::from(AI_ROYALTY_ADDR)),
+                    (DATAHUB_STORAGE.to_string(), Addr::unchecked(OFFERING_ADDR)),
+                    (
+                        AI_ROYALTY_STORAGE.to_string(),
+                        Addr::unchecked(AI_ROYALTY_ADDR),
+                    ),
                 ],
-                implementations: vec![Addr::from(MARKET_ADDR)],
+                implementations: vec![Addr::unchecked(MARKET_ADDR)],
             },
         )
         .unwrap();
 
-        let mut offering = mock_dependencies(Addr::from(OFFERING_ADDR), &[], Self::query_wasm);
+        let mut offering = mock_dependencies(Addr::unchecked(OFFERING_ADDR), &[], Self::query_wasm);
         let _res = market_datahub_storage::contract::instantiate(
             offering.as_mut(),
             mock_env(OFFERING_ADDR),
             info.clone(),
             market_datahub_storage::msg::InstantiateMsg {
-                governance: Addr::from(HUB_ADDR),
+                governance: Addr::unchecked(HUB_ADDR),
             },
         )
         .unwrap();
 
-        let mut ow1155 = mock_dependencies(Addr::from(OW_1155_ADDR), &[], Self::query_wasm);
+        let mut ow1155 = mock_dependencies(Addr::unchecked(OW_1155_ADDR), &[], Self::query_wasm);
         let _res = ow1155::contract::instantiate(
             ow1155.as_mut(),
             mock_env(OW_1155_ADDR),
@@ -97,19 +100,20 @@ impl DepsManager {
         )
         .unwrap();
 
-        let mut ai_royalty = mock_dependencies(Addr::from(AI_ROYALTY_ADDR), &[], Self::query_wasm);
+        let mut ai_royalty =
+            mock_dependencies(Addr::unchecked(AI_ROYALTY_ADDR), &[], Self::query_wasm);
         let _res = market_ai_royalty_storage::contract::instantiate(
             ai_royalty.as_mut(),
             mock_env(AI_ROYALTY_ADDR),
             info.clone(),
             market_ai_royalty_storage::msg::InstantiateMsg {
-                governance: Addr::from(HUB_ADDR),
+                governance: Addr::unchecked(HUB_ADDR),
             },
         )
         .unwrap();
 
         let mut deps = mock_dependencies(
-            Addr::from(MARKET_ADDR),
+            Addr::unchecked(MARKET_ADDR),
             &coins(100000, DENOM),
             Self::query_wasm,
         );
@@ -119,7 +123,7 @@ impl DepsManager {
             denom: DENOM.into(),
             fee: 1, // 0.1%
             // creator can update storage contract
-            governance: Addr::from(HUB_ADDR),
+            governance: Addr::unchecked(HUB_ADDR),
             max_royalty: 20,
         };
 
@@ -559,7 +563,7 @@ fn test_buy_nft() {
         // beneficiary can release it
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -577,7 +581,7 @@ fn test_buy_nft() {
         let sell_msg = ExecuteMsg::SellNft {
             token_id: String::from("SellableNFT"),
             amount: Uint128::from(2u64),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             royalty_msg: SellRoyalty {
                 per_price: Uint128::from(90u128),
                 royalty: Some(10),
@@ -636,7 +640,7 @@ fn test_sell() {
         let msg = ExecuteMsg::SellNft {
             token_id: String::from("SellableNFT"),
             amount: Uint128::from(10u64),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             royalty_msg: SellRoyalty {
                 per_price: Uint128::from(90u128),
                 royalty: Some(10),
@@ -651,7 +655,7 @@ fn test_sell() {
 
         // mint before sell
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -684,7 +688,7 @@ fn test_request_annotations() {
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -730,7 +734,7 @@ fn test_request_annotations() {
 
         // query by contract
         annotation_msg = QueryMsg::DataHub(DataHubQueryMsg::GetAnnotationsByContract {
-            contract: Addr::from(MARKET_ADDR),
+            contract: Addr::unchecked(MARKET_ADDR),
             offset: None,
             limit: None,
             order: Some(1),
@@ -740,7 +744,7 @@ fn test_request_annotations() {
 
         // query by contract
         annotation_msg = QueryMsg::DataHub(DataHubQueryMsg::GetAnnotationsByContractTokenId {
-            contract: Addr::from(MARKET_ADDR),
+            contract: Addr::unchecked(MARKET_ADDR),
             token_id: String::from("SellableNFTSecond"),
             offset: None,
             limit: None,
@@ -758,7 +762,7 @@ fn test_request_annotations_unhappy_path() {
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -827,7 +831,7 @@ fn test_payout_annotations() {
         let manager = DepsManager::get_new();
         let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -961,7 +965,7 @@ fn test_withdraw_annotation() {
         let manager = DepsManager::get_new();
         let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -1005,7 +1009,7 @@ fn test_add_annotation_reviewer() {
         let manager = DepsManager::get_new();
         let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -1128,7 +1132,7 @@ fn test_reviewed_upload() {
         let manager = DepsManager::get_new();
         let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -1205,7 +1209,7 @@ fn test_migrate() {
         // try mint nft to get royalty for provider
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -1296,7 +1300,7 @@ fn test_mint() {
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mut mint = MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("creator"),
             mint: MintIntermediate {
                 mint: MintStruct {

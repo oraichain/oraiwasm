@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     attr, from_json, to_json_binary, Addr, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, MigrateResponse, Order, Response, Response, StdError, StdResult, Uint128, KV,
+    MessageInfo, Response, Order, Response, Response, StdError, StdResult, Uint128, KV,
 };
 use cw_storage_plus::Bound;
 
@@ -25,7 +25,7 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> StdResult<Response> {
-    let minter = Addr(msg.minter);
+    let minter = Addr::unchecked(msg.minter);
     MINTER.save(deps.storage, &minter)?;
     OWNER.save(deps.storage, &info.sender)?;
     Ok(Response::default())
@@ -39,8 +39,8 @@ pub struct ExecuteEnv<'a> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateResponse> {
-    Ok(MigrateResponse::default())
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -117,7 +117,7 @@ fn change_minter(env: ExecuteEnv, minter: String) -> Result<Response, ContractEr
     if !owner.eq(&env.info.sender) {
         return Err(ContractError::Unauthorized {});
     }
-    let minter = Addr(minter);
+    let minter = Addr::unchecked(minter);
     MINTER.save(env.deps.storage, &minter)?;
     Ok(Response::new().add_messages( vec![],
         add_attributes(vec![
@@ -133,7 +133,7 @@ fn change_owner(env: ExecuteEnv, new_owner: String) -> Result<Response, Contract
     if !owner.eq(&env.info.sender) {
         return Err(ContractError::Unauthorized {});
     }
-    OWNER.save(env.deps.storage, &Addr::from(new_owner.clone()))?;
+    OWNER.save(env.deps.storage, &Addr::unchecked(new_owner.clone()))?;
     Ok(Response::new().add_messages( vec![],
         add_attributes(vec![
             attr("action", "change_owner"),
@@ -222,8 +222,8 @@ pub fn execute_send_from(
     amount: Uint128,
     msg: Option<Binary>,
 ) -> Result<Response, ContractError> {
-    let from_addr = Addr(from.clone());
-    let to_addr = Addr(to.clone());
+    let from_addr = Addr::unchecked(from.clone());
+    let to_addr = Addr::unchecked(to.clone());
 
     let ExecuteEnv {
         mut deps,
@@ -247,7 +247,7 @@ pub fn execute_send_from(
     // send funds to market implementation
     let cosmos_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address.clone(),
-        to_address: Addr(to.clone()),
+        to_address: Addr::unchecked(to.clone()),
         amount: info.funds.clone(),
     }
     .into();
@@ -295,7 +295,7 @@ pub fn execute_mint(
 ) -> Result<Response, ContractError> {
     let ExecuteEnv { mut deps, info, .. } = env;
 
-    let to_addr = Addr(to.clone());
+    let to_addr = Addr::unchecked(to.clone());
 
     if info.sender != MINTER.load(deps.storage)? {
         return Err(ContractError::Unauthorized {});
@@ -338,7 +338,7 @@ pub fn execute_burn(
         env,
     } = env;
 
-    let from_addr = Addr(from);
+    let from_addr = Addr::unchecked(from);
     // whoever can transfer these tokens can burn
     guard_can_approve(deps.as_ref(), &env, &from_addr, &info.sender)?;
 
@@ -361,8 +361,8 @@ pub fn execute_batch_send_from(
         info,
     } = env;
 
-    let from_addr = Addr(from.clone());
-    let to_addr = Addr(to.clone());
+    let from_addr = Addr::unchecked(from.clone());
+    let to_addr = Addr::unchecked(to.clone());
 
     guard_can_approve(deps.as_ref(), &env, &from_addr, &info.sender)?;
 
@@ -402,7 +402,7 @@ pub fn execute_batch_mint(
         return Err(ContractError::Unauthorized {});
     }
 
-    let to_addr = Addr(to.clone());
+    let to_addr = Addr::unchecked(to.clone());
 
     let mut rsp = Response::default();
 
@@ -442,7 +442,7 @@ pub fn execute_batch_burn(
         env,
     } = env;
 
-    let from_addr = Addr(from);
+    let from_addr = Addr::unchecked(from);
 
     guard_can_approve(deps.as_ref(), &env, &from_addr, &info.sender)?;
 
@@ -468,7 +468,7 @@ pub fn execute_approve_all(
     }
 
     // set the operator for us
-    let operator_addr = Addr(operator.clone());
+    let operator_addr = Addr::unchecked(operator.clone());
     APPROVES.save(
         deps.storage,
         (info.sender.as_bytes(), operator_addr.as_bytes()),
@@ -487,7 +487,7 @@ pub fn execute_approve_all(
 
 pub fn execute_revoke_all(env: ExecuteEnv, operator: String) -> Result<Response, ContractError> {
     let ExecuteEnv { deps, info, .. } = env;
-    let operator_addr = Addr(operator.clone());
+    let operator_addr = Addr::unchecked(operator.clone());
     APPROVES.remove(
         deps.storage,
         (info.sender.as_bytes(), operator_addr.as_bytes()),
@@ -506,14 +506,14 @@ pub fn execute_revoke_all(env: ExecuteEnv, operator: String) -> Result<Response,
 pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
     match msg {
         Cw1155QueryMsg::Balance { owner, token_id } => {
-            let owner_addr = Addr(owner);
+            let owner_addr = Addr::unchecked(owner);
             let balance = BALANCES
                 .may_load(deps.storage, (owner_addr.as_bytes(), token_id.as_bytes()))?
                 .unwrap_or_default();
             to_json_binary(&BalanceResponse { balance })
         }
         Cw1155QueryMsg::BatchBalance { owner, token_ids } => {
-            let owner_addr = Addr(owner);
+            let owner_addr = Addr::unchecked(owner);
             let balances = token_ids
                 .into_iter()
                 .map(|token_id| -> StdResult<_> {
@@ -525,8 +525,8 @@ pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
             to_json_binary(&BatchBalanceResponse { balances })
         }
         Cw1155QueryMsg::IsApprovedForAll { owner, operator } => {
-            let owner_addr = Addr(owner);
-            let operator_addr = Addr(operator);
+            let owner_addr = Addr::unchecked(owner);
+            let operator_addr = Addr::unchecked(operator);
             let approved = check_can_approve(deps, &env, &owner_addr, &operator_addr)?;
             to_json_binary(&IsApprovedForAllResponse { approved })
         }
@@ -536,7 +536,7 @@ pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
             start_after,
             limit,
         } => {
-            let owner_addr = Addr(owner);
+            let owner_addr = Addr::unchecked(owner);
             let start_addr = start_after.map(Addr);
             to_json_binary(&query_all_approvals(
                 deps,
@@ -558,7 +558,7 @@ pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
             start_after,
             limit,
         } => {
-            let owner_addr = Addr(owner);
+            let owner_addr = Addr::unchecked(owner);
             to_json_binary(&query_tokens(deps, owner_addr, start_after, limit)?)
         }
         Cw1155QueryMsg::AllTokens { start_after, limit } => {

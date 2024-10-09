@@ -105,7 +105,7 @@ pub fn try_lock(
         None => Err(ContractError::NoData {}),
     }?;
     // check authorization
-    if !info.sender.eq(&Addr::from(msg.nft_addr.as_str())) {
+    if !info.sender.eq(&Addr::unchecked(msg.nft_addr.as_str())) {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -211,12 +211,12 @@ pub fn try_unlock(
 
     // transfer token back to original owner
     let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
-        recipient: Addr::from(&unlock_msg.orai_addr),
+        recipient: Addr::unchecked(&unlock_msg.orai_addr),
         token_id: String::from(&unlock_msg.token_id),
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: Addr::from(&unlock_msg.nft_addr),
+        contract_addr: Addr::unchecked(&unlock_msg.nft_addr),
         msg: to_json_binary(&transfer_cw721_msg)?,
         funds: vec![],
     };
@@ -272,12 +272,12 @@ pub fn try_emergency_unlock(
 
     // transfer token back to original owner
     let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
-        recipient: Addr::from(locked.orai_addr.as_str()),
+        recipient: Addr::unchecked(locked.orai_addr.as_str()),
         token_id: token_id.to_owned(),
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: Addr::from(locked.nft_addr.as_str()),
+        contract_addr: Addr::unchecked(locked.nft_addr.as_str()),
         msg: to_json_binary(&transfer_cw721_msg)?,
         funds: vec![],
     };

@@ -6,7 +6,7 @@ use crate::state::{
 
 use cosmwasm_std::{
     attr, from_json, from_json, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
-    MigrateResponse, Order, Response, Response, StdError, StdResult, KV,
+    Response, Order, Response, Response, StdError, StdResult, KV,
 };
 use cw_storage_plus::Bound;
 use market_payment::{
@@ -68,8 +68,8 @@ pub fn execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateResponse> {
-    Ok(MigrateResponse::default())
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {

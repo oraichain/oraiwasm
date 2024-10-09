@@ -47,4 +47,4 @@ market_payment_storage = { workspace = true }
 market_first_level_royalty_storage = { workspace = true }
 market_whitelist_storage = { workspace = true }
 oraichain_nft = { workspace = true }
-ow20 = { workspace = true }
+cw20-base = { workspace = true }

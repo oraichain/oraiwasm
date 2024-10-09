@@ -213,7 +213,7 @@ fn test_royalties() {
                         total_payment = total_payment + amount;
                     }
 
-                    if to_address.eq(&Addr::from(contract_info.creator.as_str())) {
+                    if to_address.eq(&Addr::unchecked(contract_info.creator.as_str())) {
                         royatly_marketplace = amount;
                         assert_eq!(
                             offering.price.mul(Decimal::permille(contract_info.fee)),

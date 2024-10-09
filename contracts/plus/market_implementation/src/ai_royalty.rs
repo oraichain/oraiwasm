@@ -35,7 +35,7 @@ pub fn add_msg_royalty(
         governance,
         AI_ROYALTY_STORAGE,
         AiRoyaltyExecuteMsg::UpdateRoyalty(RoyaltyMsg {
-            creator: Addr(sender.to_string()),
+            creator: Addr::unchecked(sender.to_string()),
             creator_type: Some(String::from(CREATOR_NAME)),
             ..msg
         }),
@@ -69,7 +69,7 @@ pub fn get_royalties(
     let royalties: Vec<Royalty> = from_json(&query_ai_royalty(
         deps,
         AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
-            contract_addr: Addr::from(contract_addr),
+            contract_addr: Addr::unchecked(contract_addr),
             token_id: token_id.to_string(),
             offset: None,
             limit: None,
@@ -149,9 +149,9 @@ pub fn query_first_lv_royalty(
     let first_lv_royalty: FirstLvRoyalty = deps
         .querier
         .query_wasm_smart(
-            get_storage_addr(deps, Addr::from(governance), FIRST_LV_ROYALTY_STORAGE)?,
+            get_storage_addr(deps, Addr::unchecked(governance), FIRST_LV_ROYALTY_STORAGE)?,
             &ProxyQueryMsg::Msg(FirstLvRoyaltyQueryMsg::GetFirstLvRoyalty {
-                contract: Addr::from(contract),
+                contract: Addr::unchecked(contract),
                 token_id: token_id.to_string(),
             }) as &ProxyQueryMsg<FirstLvRoyaltyQueryMsg>,
         )
@@ -172,7 +172,7 @@ pub fn try_update_royalties(
         governance,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
-    if info.sender.ne(&Addr(creator.clone())) {
+    if info.sender.ne(&Addr::unchecked(creator.clone())) {
         return Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
         });

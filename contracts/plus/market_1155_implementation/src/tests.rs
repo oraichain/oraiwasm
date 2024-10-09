@@ -91,42 +91,48 @@ impl DepsManager {
 
     fn new() -> Self {
         let info = mock_info(CREATOR, &[]);
-        let mut hub = mock_dependencies(Addr::from(HUB_ADDR), &[], Self::query_wasm);
+        let mut hub = mock_dependencies(Addr::unchecked(HUB_ADDR), &[], Self::query_wasm);
         let _res = market_hub::contract::instantiate(
             hub.as_mut(),
             mock_env(HUB_ADDR),
             info.clone(),
             market_hub::msg::InstantiateMsg {
-                admins: vec![Addr::from(CREATOR)],
+                admins: vec![Addr::unchecked(CREATOR)],
                 mutable: true,
                 storages: vec![
-                    (STORAGE_1155.to_string(), Addr::from(OFFERING_ADDR)),
-                    (AUCTION_STORAGE.to_string(), Addr::from(AUCTION_ADDR)),
-                    (AI_ROYALTY_STORAGE.to_string(), Addr::from(AI_ROYALTY_ADDR)),
-                    (REJECTED_STORAGE.to_string(), Addr::from(REJECT_ADDR)),
-                    (WHITELIST_STORAGE.to_string(), Addr::from(WHITELIST_ADDR)),
+                    (STORAGE_1155.to_string(), Addr::unchecked(OFFERING_ADDR)),
+                    (AUCTION_STORAGE.to_string(), Addr::unchecked(AUCTION_ADDR)),
+                    (
+                        AI_ROYALTY_STORAGE.to_string(),
+                        Addr::unchecked(AI_ROYALTY_ADDR),
+                    ),
+                    (REJECTED_STORAGE.to_string(), Addr::unchecked(REJECT_ADDR)),
+                    (
+                        WHITELIST_STORAGE.to_string(),
+                        Addr::unchecked(WHITELIST_ADDR),
+                    ),
                     (
                         PAYMENT_STORAGE.to_string(),
-                        Addr::from(PAYMENT_STORAGE_ADDR),
+                        Addr::unchecked(PAYMENT_STORAGE_ADDR),
                     ),
                 ],
-                implementations: vec![Addr::from(MARKET_ADDR)],
+                implementations: vec![Addr::unchecked(MARKET_ADDR)],
             },
         )
         .unwrap();
 
-        let mut offering = mock_dependencies(Addr::from(OFFERING_ADDR), &[], Self::query_wasm);
+        let mut offering = mock_dependencies(Addr::unchecked(OFFERING_ADDR), &[], Self::query_wasm);
         let _res = market_1155_storage::contract::instantiate(
             offering.as_mut(),
             mock_env(OFFERING_ADDR),
             info.clone(),
             market_1155_storage::msg::InstantiateMsg {
-                governance: Addr::from(HUB_ADDR),
+                governance: Addr::unchecked(HUB_ADDR),
             },
         )
         .unwrap();
 
-        let mut ow1155 = mock_dependencies(Addr::from(OW_1155_ADDR), &[], Self::query_wasm);
+        let mut ow1155 = mock_dependencies(Addr::unchecked(OW_1155_ADDR), &[], Self::query_wasm);
         let _res = ow1155::contract::instantiate(
             ow1155.as_mut(),
             mock_env(OW_1155_ADDR),
@@ -137,8 +143,8 @@ impl DepsManager {
         )
         .unwrap();
 
-        let mut ow20 = mock_dependencies(Addr::from(OW20), &[], Self::query_wasm);
-        let _res = ow20::contract::instantiate(
+        let mut ow20 = mock_dependencies(Addr::unchecked(OW20), &[], Self::query_wasm);
+        let _res = cw20_base::contract::instantiate(
             ow20.as_mut(),
             mock_env(OW20),
             info.clone(),
@@ -148,10 +154,10 @@ impl DepsManager {
                 decimals: 6u8,
                 initial_balances: vec![Cw20CoinHuman {
                     amount: Uint128::from(1000000000000000000u64),
-                    address: Addr::from(OW20_MINTER),
+                    address: Addr::unchecked(OW20_MINTER),
                 }],
                 mint: Some(MinterResponse {
-                    minter: Addr::from(OW20_MINTER),
+                    minter: Addr::unchecked(OW20_MINTER),
                     cap: None,
                 }),
             },
@@ -159,18 +165,18 @@ impl DepsManager {
         .unwrap();
 
         // mint ow20 for several popular test accs
-        ow20::contract::execute(
+        cw20_base::contract::execute(
             ow20.as_mut(),
             mock_env(OW20),
             mock_info(OW20_MINTER, &[]),
             ow20::msg::ExecuteMsg::Mint {
-                recipient: Addr::from(BIDDER),
+                recipient: Addr::unchecked(BIDDER),
                 amount: Uint128::from(1000000000000000000u64),
             },
         )
         .unwrap();
 
-        ow20::contract::execute(
+        cw20_base::contract::execute(
             ow20.as_mut(),
             mock_env(OW20),
             mock_info(OW20_MINTER, &[]),
@@ -181,59 +187,61 @@ impl DepsManager {
         )
         .unwrap();
 
-        let mut ai_royalty = mock_dependencies(Addr::from(AI_ROYALTY_ADDR), &[], Self::query_wasm);
+        let mut ai_royalty =
+            mock_dependencies(Addr::unchecked(AI_ROYALTY_ADDR), &[], Self::query_wasm);
         let _res = market_ai_royalty_storage::contract::instantiate(
             ai_royalty.as_mut(),
             mock_env(AI_ROYALTY_ADDR),
             info.clone(),
             market_ai_royalty_storage::msg::InstantiateMsg {
-                governance: Addr::from(HUB_ADDR),
+                governance: Addr::unchecked(HUB_ADDR),
             },
         )
         .unwrap();
 
-        let mut auction = mock_dependencies(Addr::from(AUCTION_ADDR), &[], Self::query_wasm);
+        let mut auction = mock_dependencies(Addr::unchecked(AUCTION_ADDR), &[], Self::query_wasm);
         let _res = market_auction_extend_storage::contract::instantiate(
             auction.as_mut(),
             mock_env(AUCTION_ADDR),
             info.clone(),
             market_auction_extend_storage::msg::InstantiateMsg {
-                governance: Addr::from(HUB_ADDR),
+                governance: Addr::unchecked(HUB_ADDR),
             },
         )
         .unwrap();
 
-        let mut rejected = mock_dependencies(Addr::from(REJECT_ADDR), &[], Self::query_wasm);
+        let mut rejected = mock_dependencies(Addr::unchecked(REJECT_ADDR), &[], Self::query_wasm);
         let _res = market_rejected_storage::contract::instantiate(
             rejected.as_mut(),
             mock_env(REJECT_ADDR),
             info.clone(),
             market_rejected_storage::msg::InstantiateMsg {
-                governance: Addr::from(HUB_ADDR),
+                governance: Addr::unchecked(HUB_ADDR),
             },
         )
         .unwrap();
 
-        let mut whitelist = mock_dependencies(Addr::from(WHITELIST_ADDR), &[], Self::query_wasm);
+        let mut whitelist =
+            mock_dependencies(Addr::unchecked(WHITELIST_ADDR), &[], Self::query_wasm);
         let _res = market_whitelist_storage::contract::instantiate(
             whitelist.as_mut(),
             mock_env(WHITELIST_ADDR),
             info.clone(),
             market_whitelist_storage::msg::InstantiateMsg {
-                governance: Addr::from(HUB_ADDR),
+                governance: Addr::unchecked(HUB_ADDR),
             },
         )
         .unwrap();
 
         // init payment storage addr
         let mut payment_storage =
-            mock_dependencies(Addr::from(PAYMENT_STORAGE_ADDR), &[], Self::query_wasm);
+            mock_dependencies(Addr::unchecked(PAYMENT_STORAGE_ADDR), &[], Self::query_wasm);
         let _res = market_payment_storage::contract::instantiate(
             payment_storage.as_mut(),
             mock_env(PAYMENT_STORAGE_ADDR),
             info.clone(),
             market_payment_storage::msg::InstantiateMsg {
-                governance: Addr::from(HUB_ADDR),
+                governance: Addr::unchecked(HUB_ADDR),
             },
         )
         .unwrap();
@@ -256,7 +264,7 @@ impl DepsManager {
         .unwrap();
 
         let mut deps = mock_dependencies(
-            Addr::from(MARKET_ADDR),
+            Addr::unchecked(MARKET_ADDR),
             &coins(100000, DENOM),
             Self::query_wasm,
         );
@@ -266,7 +274,7 @@ impl DepsManager {
             denom: DENOM.into(),
             fee: 20, // 0.1%
             // creator can update storage contract
-            governance: Addr::from(HUB_ADDR),
+            governance: Addr::unchecked(HUB_ADDR),
             auction_duration: Uint128::from(10000000000000u64),
             step_price: 1,
         };
@@ -352,7 +360,7 @@ impl DepsManager {
                         from_json(msg).unwrap(),
                     )
                     .ok(),
-                    OW20 => ow20::contract::execute(
+                    OW20 => cw20_base::contract::execute(
                         self.ow20.as_mut(),
                         mock_env(OW20),
                         mock_info(MARKET_ADDR, &[]),
@@ -453,7 +461,7 @@ impl DepsManager {
                             from_json(&msg).unwrap(),
                         )
                         .unwrap_or_default(),
-                        OW20 => ow20::contract::query(
+                        OW20 => cw20_base::contract::query(
                             manager.ow20.as_ref(),
                             mock_env(OW20),
                             from_json(msg).unwrap(),
@@ -504,7 +512,7 @@ fn handle_approve(manager: &mut DepsManager) {
 
     for token_id in token_ids {
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("creator"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -556,7 +564,7 @@ fn handle_approve(manager: &mut DepsManager) {
 
 fn generate_msg_bid_cw20(auction_id: u64, amount: u64, per_price: u64) -> ExecuteMsg {
     ExecuteMsg::Receive(Cw20ReceiveMsg {
-        sender: Addr::from(BIDDER),
+        sender: Addr::unchecked(BIDDER),
         amount: Uint128::from(amount),
         msg: Some(
             to_json_binary(&Cw20HookMsg::BidNft {
@@ -570,7 +578,7 @@ fn generate_msg_bid_cw20(auction_id: u64, amount: u64, per_price: u64) -> Execut
 
 fn generate_msg_buy_cw20(offering_id: u64, amount: u64, nft_amount: u64) -> ExecuteMsg {
     ExecuteMsg::Receive(Cw20ReceiveMsg {
-        sender: Addr::from(BIDDER),
+        sender: Addr::unchecked(BIDDER),
         amount: Uint128::from(amount),
         msg: Some(
             to_json_binary(&Cw20HookMsg::BuyNft {
@@ -601,7 +609,7 @@ fn sell_auction_happy_path() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
         };
@@ -648,7 +656,7 @@ fn sell_auction_cw20_happy_path() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
         };
@@ -696,7 +704,7 @@ fn sell_auction_unhappy_path() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10000000000u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
         });
@@ -718,7 +726,7 @@ fn sell_auction_unhappy_path() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10000000000u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: Some(Addr::unchecked("Somebody")),
         });
@@ -738,7 +746,7 @@ fn sell_auction_unhappy_path() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
         });
@@ -754,7 +762,7 @@ fn sell_auction_unhappy_path() {
 
         // Cannot sell either by the same person
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(50u128),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             amount: Uint128::from(100u128),
@@ -848,7 +856,7 @@ fn cancel_auction_happy_path() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
         };
@@ -901,7 +909,7 @@ fn cancel_auction_cw20_happy_path() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
         };
@@ -952,7 +960,7 @@ fn cancel_auction_unhappy_path() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
         };
@@ -996,7 +1004,7 @@ fn cancel_bid_happy_path() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
         };
@@ -1034,7 +1042,7 @@ fn cancel_bid_cw20_happy_path() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
         };
@@ -1072,7 +1080,7 @@ fn cancel_bid_unhappy_path() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
         };
@@ -1115,12 +1123,12 @@ fn claim_winner_happy_path() {
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128::from(1000u128))),
+            buyout_per_price: Some(Uint128::from(1000u128)),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
         };
@@ -1197,7 +1205,7 @@ fn claim_winner_happy_path() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
         };
@@ -1238,12 +1246,12 @@ fn claim_winner_cw20_happy_path() {
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128::from(1000u128))),
+            buyout_per_price: Some(Uint128::from(1000u128)),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
         };
@@ -1290,7 +1298,7 @@ fn claim_winner_cw20_happy_path() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
         };
@@ -1331,12 +1339,12 @@ fn claim_winner_with_market_fees() {
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128::from(5000u128))),
+            buyout_per_price: Some(Uint128::from(5000u128)),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
         };
@@ -1371,11 +1379,7 @@ fn claim_winner_with_market_fees() {
                 if let CosmosMsg::Bank(msg) = message {
                     // total pay is 50000. Fee is 2% => remaining is 49000. Creator has royalty as 1% => total royalty is 49000 * (1 - 0.01) = 48510. Seller receives 48510
                     match msg {
-                        cosmwasm_std::BankMsg::Send {
-                            from_address,
-                            to_address,
-                            amount,
-                        } => {
+                        cosmwasm_std::BankMsg::Send { to_address, amount } => {
                             println!("from address: {}", from_address);
                             println!("to address: {}", to_address);
                             println!("amount: {:?}", amount);
@@ -1388,6 +1392,7 @@ fn claim_winner_with_market_fees() {
                             }
                             // check royalty sent to seller
                         }
+                        _ => todo!(),
                     }
                 } else {
                 }
@@ -1410,12 +1415,12 @@ fn claim_winner_unhappy_path() {
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128::from(50u128))),
+            buyout_per_price: Some(Uint128::from(50u128)),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
         };
@@ -1490,12 +1495,12 @@ fn claim_winner_cw20_unhappy_path() {
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128::from(50u128))),
+            buyout_per_price: Some(Uint128::from(50u128)),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
         };
@@ -1568,12 +1573,12 @@ fn test_bid_nft_happy_path() {
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128::from(1000u128))),
+            buyout_per_price: Some(Uint128::from(1000u128)),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
         };
@@ -1599,7 +1604,7 @@ fn test_bid_nft_happy_path() {
         let auction_query_msg = QueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id: 1 });
         let result: QueryAuctionsResult =
             from_json(&manager.query(auction_query_msg).unwrap()).unwrap();
-        assert_eq!(result.bidder.unwrap(), Addr::from(BIDDER));
+        assert_eq!(result.bidder.unwrap(), Addr::unchecked(BIDDER));
     }
 }
 
@@ -1617,12 +1622,12 @@ fn test_bid_nft_cw20_happy_path() {
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128::from(1000u128))),
+            buyout_per_price: Some(Uint128::from(1000u128)),
             start_timestamp: None,
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
         };
@@ -1645,7 +1650,7 @@ fn test_bid_nft_cw20_happy_path() {
         let auction_query_msg = QueryMsg::Auction(AuctionQueryMsg::GetAuction { auction_id: 1 });
         let result: QueryAuctionsResult =
             from_json(&manager.query(auction_query_msg).unwrap()).unwrap();
-        assert_eq!(result.bidder.unwrap(), Addr::from(BIDDER));
+        assert_eq!(result.bidder.unwrap(), Addr::unchecked(BIDDER));
     }
 }
 
@@ -1663,12 +1668,12 @@ fn test_bid_nft_unhappy_path() {
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128::from(10u128))),
+            buyout_per_price: Some(Uint128::from(10u128)),
             start_timestamp: None,
             end_timestamp: None,
             step_price: Some(50000000),
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_NATIVE),
             asker: None,
         };
@@ -1810,12 +1815,12 @@ fn test_bid_nft_cw20_unhappy_path() {
             cancel_fee: Some(10),
             start: Some(contract_env.block.height + 15),
             end: Some(contract_env.block.height + 100),
-            buyout_per_price: Some(Uint128::from(10u128))),
+            buyout_per_price: Some(Uint128::from(10u128)),
             start_timestamp: None,
             end_timestamp: None,
             step_price: Some(50000000),
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(BIDDABLE_NFT_CW20),
             asker: None,
         };
@@ -1976,8 +1981,8 @@ fn test_royalties() {
         handle_approve(manager);
 
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from(PROVIDER),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
+            creator: Addr::unchecked(PROVIDER),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from(PROVIDER),
@@ -1994,7 +1999,7 @@ fn test_royalties() {
 
         // beneficiary can release it
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(10u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(100u64),
@@ -2022,7 +2027,7 @@ fn test_royalties() {
 
         let info_sell = mock_info("seller", &vec![coin(50, DENOM)]);
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(10u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(50u64),
@@ -2056,7 +2061,7 @@ fn test_royalties() {
             &manager
                 .query(QueryMsg::AiRoyalty(
                     AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
-                        contract_addr: Addr::from(OW_1155_ADDR),
+                        contract_addr: Addr::unchecked(OW_1155_ADDR),
                         token_id: String::from(SELLABLE_NFT),
                         offset: None,
                         limit: None,
@@ -2077,11 +2082,7 @@ fn test_royalties() {
             for message in result.clone().messages {
                 if let CosmosMsg::Bank(msg) = message {
                     match msg {
-                        cosmwasm_std::BankMsg::Send {
-                            from_address,
-                            to_address,
-                            amount,
-                        } => {
+                        cosmwasm_std::BankMsg::Send { to_address, amount } => {
                             println!("from address: {}", from_address);
                             println!("to address: {}", to_address);
                             println!("amount: {:?}", amount);
@@ -2093,6 +2094,7 @@ fn test_royalties() {
                                 total_payment = total_payment + amount;
                             }
                         }
+                        _ => todo!(),
                     }
                 } else {
                 }
@@ -2137,8 +2139,8 @@ fn test_royalties_cw20() {
         handle_approve(manager);
 
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from(PROVIDER),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
+            creator: Addr::unchecked(PROVIDER),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from(PROVIDER),
@@ -2155,7 +2157,7 @@ fn test_royalties_cw20() {
 
         // beneficiary can release it
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(10u128),
             token_id: String::from(SELLABLE_NFT_CW20),
             amount: Uint128::from(100u64),
@@ -2180,7 +2182,7 @@ fn test_royalties_cw20() {
 
         let info_sell = mock_info("seller", &vec![coin(50, DENOM)]);
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(10u128),
             token_id: String::from(SELLABLE_NFT_CW20),
             amount: Uint128::from(50u64),
@@ -2211,7 +2213,7 @@ fn test_royalties_cw20() {
             &manager
                 .query(QueryMsg::AiRoyalty(
                     AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
-                        contract_addr: Addr::from(OW_1155_ADDR),
+                        contract_addr: Addr::unchecked(OW_1155_ADDR),
                         token_id: String::from(SELLABLE_NFT),
                         offset: None,
                         limit: None,
@@ -2235,7 +2237,7 @@ fn test_royalties_cw20() {
                         cosmwasm_std::WasmMsg::Execute {
                             contract_addr,
                             msg,
-                            send,
+                            funds: send,
                         } => {
                             println!("contract addr: {}", contract_addr);
                             let cw20_msg_result = from_json(&msg);
@@ -2260,9 +2262,11 @@ fn test_royalties_cw20() {
                         cosmwasm_std::WasmMsg::Instantiate {
                             code_id,
                             label,
+                            admin: None,
                             msg,
-                            send,
+                            funds: send,
                         } => {}
+                        _ => todo!(),
                     }
                 } else {
                 }
@@ -2311,8 +2315,8 @@ fn test_buy_market_fee_calculate() {
 
         // Mint a new NFT for sell
         let mint_msg = ExecuteMsg::MintNft(MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from(PROVIDER),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
+            creator: Addr::unchecked(PROVIDER),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from(PROVIDER),
@@ -2329,7 +2333,7 @@ fn test_buy_market_fee_calculate() {
 
         // Sell it to market
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(100u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(100u64),
@@ -2368,7 +2372,7 @@ fn test_sell_nft_unhappy() {
 
         // beneficiary can release it
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(10000000000000u64),
@@ -2383,7 +2387,7 @@ fn test_sell_nft_unhappy() {
 
         // unauthorized case when non-approved
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(10u64),
@@ -2396,7 +2400,7 @@ fn test_sell_nft_unhappy() {
         ));
 
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(10u64),
@@ -2422,7 +2426,7 @@ fn test_sell_nft_unhappy() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10000000000u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             asker: None,
         };
@@ -2494,7 +2498,7 @@ fn test_sell_nft_unhappy_cw20() {
 
         // beneficiary can release it
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_CW20),
             amount: Uint128::from(10000000000000u64),
@@ -2509,7 +2513,7 @@ fn test_sell_nft_unhappy_cw20() {
 
         // unauthorized case when non-approved
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_CW20),
             amount: Uint128::from(10u64),
@@ -2522,7 +2526,7 @@ fn test_sell_nft_unhappy_cw20() {
         ));
 
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_CW20),
             amount: Uint128::from(10u64),
@@ -2548,7 +2552,7 @@ fn test_sell_nft_unhappy_cw20() {
             end_timestamp: None,
             step_price: None,
             amount: Uint128::from(10000000000u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(SELLABLE_NFT_CW20),
             asker: None,
         };
@@ -2629,7 +2633,7 @@ fn withdraw_offering() {
         let info = mock_info("creator", &coins(2, DENOM));
 
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(50u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(10u64),
@@ -2702,7 +2706,7 @@ fn test_buy_nft_unhappy() {
         let info = mock_info("seller", &coins(2, DENOM));
 
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(90u128),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             amount: Uint128::from(10u64),
@@ -2747,7 +2751,7 @@ fn test_buy_nft_unhappy_cw20() {
         let info = mock_info("seller", &coins(2, DENOM));
 
         let msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(90u128),
             token_id: String::from(SELLABLE_NFT_CW20),
             amount: Uint128::from(10u64),
@@ -2770,7 +2774,7 @@ fn test_mint() {
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mut mint = MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("creator"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -2836,7 +2840,7 @@ fn test_burn() {
         // non-approve case => fail
         // burn nft
         let burn_msg = ExecuteMsg::BurnNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(SELLABLE_NFT),
             value: Uint128::from(25u64),
         };
@@ -2864,7 +2868,7 @@ fn test_burn() {
 
         // burn nft
         let burn_msg = ExecuteMsg::BurnNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(SELLABLE_NFT),
             value: Uint128::from(25u64),
         };
@@ -2899,7 +2903,7 @@ fn test_change_creator_happy() {
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint = MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("creator"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -2921,7 +2925,7 @@ fn test_change_creator_happy() {
         let royalty: Royalty = from_json(
             &manager
                 .query(QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
-                    contract_addr: Addr::from(OW_1155_ADDR),
+                    contract_addr: Addr::unchecked(OW_1155_ADDR),
                     token_id: String::from(SELLABLE_NFT),
                     creator: Addr::unchecked("creator"),
                 }))
@@ -2933,7 +2937,7 @@ fn test_change_creator_happy() {
 
         // change creator nft
         let burn_msg = ExecuteMsg::ChangeCreator {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(SELLABLE_NFT),
             to: String::from("someone"),
         };
@@ -2948,7 +2952,7 @@ fn test_change_creator_happy() {
         let royalty: Royalty = from_json(
             &manager
                 .query(QueryMsg::AiRoyalty(AiRoyaltyQueryMsg::GetRoyalty {
-                    contract_addr: Addr::from(OW_1155_ADDR),
+                    contract_addr: Addr::unchecked(OW_1155_ADDR),
                     token_id: String::from(SELLABLE_NFT),
                     creator: Addr::unchecked("someone"),
                 }))
@@ -2969,7 +2973,7 @@ fn test_change_creator_unhappy() {
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mint = MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             creator: Addr::unchecked("creator"),
             mint: MintIntermediate {
                 mint: MintStruct {
@@ -2989,7 +2993,7 @@ fn test_change_creator_unhappy() {
 
         // change creator nft
         let burn_msg = ExecuteMsg::ChangeCreator {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(SELLABLE_NFT_NATIVE),
             to: String::from("someone"),
         };
@@ -3019,8 +3023,8 @@ fn transfer_nft_directly_happy_path() {
         let sender_info = mock_info(sender, &vec![coin(5, DENOM)]);
 
         let mint = MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from(sender),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
+            creator: Addr::unchecked(sender),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: "".to_string(),
@@ -3039,9 +3043,9 @@ fn transfer_nft_directly_happy_path() {
 
         let transfer_msg = TransferNftDirectlyMsg {
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(token_id),
-            to: Addr::from(receiver),
+            to: Addr::unchecked(receiver),
         };
         let msg = ExecuteMsg::TransferNftDirectly(transfer_msg);
 
@@ -3078,8 +3082,8 @@ fn transfer_nft_directly_happy_path() {
         )
         .unwrap();
 
-        assert_eq!(receiver_balance.balance, Uint128::from(10u128)));
-        assert_eq!(sender_balance.balance, Uint128::from(40u128)));
+        assert_eq!(receiver_balance.balance, Uint128::from(10u128));
+        assert_eq!(sender_balance.balance, Uint128::from(40u128));
     }
 }
 
@@ -3098,8 +3102,8 @@ fn transfer_nft_directly_unhappy_path() {
         let sender_info = mock_info(sender, &vec![coin(5, DENOM)]);
 
         let mint = MintMsg {
-            contract_addr: Addr::from(OW_1155_ADDR),
-            creator: Addr::from(sender),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
+            creator: Addr::unchecked(sender),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: "".to_string(),
@@ -3117,7 +3121,7 @@ fn transfer_nft_directly_unhappy_path() {
             .unwrap();
 
         let sell_msg = ExecuteMsg::SellNft(SellNft {
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             per_price: Uint128::from(50u128),
             token_id: String::from(token_id),
             amount: Uint128::from(amount),
@@ -3131,9 +3135,9 @@ fn transfer_nft_directly_unhappy_path() {
 
         let transfer = TransferNftDirectlyMsg {
             amount: Uint128::from(10u128),
-            contract_addr: Addr::from(OW_1155_ADDR),
+            contract_addr: Addr::unchecked(OW_1155_ADDR),
             token_id: String::from(token_id),
-            to: Addr::from(receiver),
+            to: Addr::unchecked(receiver),
         };
         let transfer_msg = ExecuteMsg::TransferNftDirectly(transfer);
 
@@ -3184,7 +3188,7 @@ fn transfer_nft_directly_unhappy_path() {
 
 //         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
 //         let mint = MintMsg {
-//             contract_addr: Addr::from(OW_1155_ADDR),
+//             contract_addr: Addr::unchecked(OW_1155_ADDR),
 //             creator: Addr::unchecked("creator"),
 //             mint: MintIntermediate {
 //                 mint: MintStruct {
@@ -3204,7 +3208,7 @@ fn transfer_nft_directly_unhappy_path() {
 
 //         // Cannot sell either by the same person
 //         let msg = ExecuteMsg::SellNft(SellNft {
-//             contract_addr: Addr::from(OW_1155_ADDR),
+//             contract_addr: Addr::unchecked(OW_1155_ADDR),
 //             per_price: Uint128::from(5u128),
 //             token_id: String::from(BIDDABLE_NFT_NATIVE),
 //             amount: Uint128::from(1u128),

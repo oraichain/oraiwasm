@@ -18,7 +18,7 @@ use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::Addr;
 use cosmwasm_std::{
     attr, from_json, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
-    MessageInfo, MigrateResponse, Response, Response, StdResult, Uint128, WasmMsg,
+    MessageInfo, Response, Response, Response, StdResult, Uint128, WasmMsg,
 };
 use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
 use market::{query_proxy, StorageExecuteMsg, StorageQueryMsg};
@@ -174,7 +174,7 @@ pub fn try_withdraw_funds(
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address,
-        to_address: Addr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
+        to_address: Addr::unchecked(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
@@ -245,7 +245,7 @@ pub fn try_migrate(
     new_marketplace: Addr,
 ) -> Result<Response, ContractError> {
     let ContractInfo { creator, .. } = CONTRACT_INFO.load(deps.storage)?;
-    if info.sender.ne(&Addr(creator.clone())) {
+    if info.sender.ne(&Addr::unchecked(creator.clone())) {
         return Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
         });
@@ -322,7 +322,7 @@ where
         });
 
     Ok(WasmMsg::Execute {
-        contract_addr: Addr::from(addr),
+        contract_addr: Addr::unchecked(addr),
         msg: to_json_binary(&proxy_msg)?,
         funds: vec![],
     }
@@ -352,6 +352,6 @@ pub fn migrate(
     _deps: DepsMut,
     _env: Env,
     _msg: MigrateMsg,
-) -> Result<MigrateResponse, ContractError> {
-    Ok(MigrateResponse::default())
+) -> Result<Response, ContractError> {
+    Ok(Response::default())
 }

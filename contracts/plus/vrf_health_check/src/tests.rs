@@ -200,7 +200,7 @@ fn change_owner() {
     ));
 
     // authorized reset
-    let info = mock_info(Addr(OWNER.to_string()), &[]);
+    let info = mock_info(Addr::unchecked(OWNER.to_string()), &[]);
     execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     // query new state

@@ -37,7 +37,7 @@ fn update_ai_royalty() {
     for i in 1u64..3u64 {
         let royalty = RoyaltyMsg {
             contract_addr: Addr::unchecked("xxx"),
-            creator: Addr::from(format!("provider{}", i)),
+            creator: Addr::unchecked(format!("provider{}", i)),
             token_id: i.to_string(),
             creator_type: Some(String::from("sacx")),
             royalty: Some(40),
@@ -90,7 +90,7 @@ fn update_ai_royalty() {
             QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr: Addr::unchecked("xxx"),
                 token_id: i.to_string(),
-                creator: Addr::from(format!("provider{}", i)),
+                creator: Addr::unchecked(format!("provider{}", i)),
             }),
         )
         .unwrap();
@@ -100,7 +100,7 @@ fn update_ai_royalty() {
 
     let mut royalty_msg = RoyaltyMsg {
         contract_addr: Addr::unchecked("xxx"),
-        creator: Addr::from(format!("provider{}", "1")),
+        creator: Addr::unchecked(format!("provider{}", "1")),
         token_id: "1".to_string(),
         creator_type: Some(String::from("sacx")),
         royalty: None,
@@ -161,8 +161,8 @@ fn query_royalties() {
 
     for i in 1u64..5u64 {
         let royalty = RoyaltyMsg {
-            contract_addr: Addr::from(format!("xxx{}", i)),
-            creator: Addr::from(format!("provider{}", i)),
+            contract_addr: Addr::unchecked(format!("xxx{}", i)),
+            creator: Addr::unchecked(format!("provider{}", i)),
             token_id: "1".to_string(),
             creator_type: Some(String::from("sacx")),
             royalty: None,
@@ -202,7 +202,7 @@ fn query_royalties() {
 
     // // query royalties using owner
     query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyaltiesOwner {
-        owner: Addr::from(format!("provider{}", 1)),
+        owner: Addr::unchecked(format!("provider{}", 1)),
         offset: None,
         limit: None,
         order: Some(1),
@@ -250,7 +250,7 @@ fn remove_ai_royalty() {
     for i in 1u64..3u64 {
         let royalty = RoyaltyMsg {
             contract_addr: Addr::unchecked("xxx"),
-            creator: Addr::from(format!("provider{}", i)),
+            creator: Addr::unchecked(format!("provider{}", i)),
             token_id: i.to_string(),
             creator_type: Some(String::from("sacx")),
             royalty: None,
@@ -285,7 +285,7 @@ fn remove_ai_royalty() {
             QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalty {
                 contract_addr: Addr::unchecked("xxx"),
                 token_id: i.to_string(),
-                creator: Addr::from(format!("provider{}", i)),
+                creator: Addr::unchecked(format!("provider{}", i)),
             }),
         );
         let _err: Result<u64, StdError> = Err(cosmwasm_std::StdError::NotFound {

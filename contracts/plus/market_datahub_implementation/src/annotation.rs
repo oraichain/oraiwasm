@@ -59,7 +59,7 @@ pub fn try_withdraw(
             cosmos_msgs.push(
                 BankMsg::Send {
                     from_address: env.contract.address.clone(),
-                    to_address: Addr::from(off.requester),
+                    to_address: Addr::unchecked(off.requester),
                     amount: coins(annotation_price.clone().u128(), &denom),
                 }
                 .into(),

@@ -25,7 +25,7 @@ pub fn parse_payment_key(
     sender: Option<Addr>,
 ) -> StdResult<Vec<u8>> {
     Ok(to_vec(&PaymentKey {
-        contract_addr: Addr::from(contract_addr),
+        contract_addr: Addr::unchecked(contract_addr),
         token_id: token_id.to_string(),
         sender,
     })?)

@@ -48,7 +48,7 @@ impl DepsManager {
     fn new() -> Self {
         //let info = mock_info(CREATOR, &[]);
 
-        let mut ow1155 = mock_dependencies(Addr::from(OW_1155_ADDR), &[], Self::query_wasm);
+        let mut ow1155 = mock_dependencies(Addr::unchecked(OW_1155_ADDR), &[], Self::query_wasm);
         let _ = ow1155::contract::instantiate(
             ow1155.as_mut(),
             mock_env(OW_1155_ADDR),
@@ -59,7 +59,7 @@ impl DepsManager {
         )
         .unwrap();
 
-        let mut ow721 = mock_dependencies(Addr::from(OW_721_ADDR), &[], Self::query_wasm);
+        let mut ow721 = mock_dependencies(Addr::unchecked(OW_721_ADDR), &[], Self::query_wasm);
         let _ = oraichain_nft::contract::instantiate(
             ow721.as_mut(),
             mock_env(OW_721_ADDR),
@@ -68,20 +68,20 @@ impl DepsManager {
                 name: Some("OW721".to_string()),
                 symbol: "TOKEN".to_string(),
                 version: None,
-                minter: Addr::from(CONTRACT_ADDR),
+                minter: Addr::unchecked(CONTRACT_ADDR),
             },
         );
 
         let mut deps = mock_dependencies(
-            Addr::from(CONTRACT_ADDR),
+            Addr::unchecked(CONTRACT_ADDR),
             &coins(100000, DENOM),
             Self::query_wasm,
         );
 
         let msg = InstantiateMsg {
             verifier_pubkey_base64: String::from("A0ff/7Xp0Gx+9+MOhezAP3WFQ2NWBYuq4Mg3TaW1adBr"),
-            nft_1155_contract_addr_whitelist: vec![Addr::from(OW_1155_ADDR)],
-            nft_721_contract_addr_whitelist: vec![Addr::from(OW_721_ADDR)],
+            nft_1155_contract_addr_whitelist: vec![Addr::unchecked(OW_1155_ADDR)],
+            nft_721_contract_addr_whitelist: vec![Addr::unchecked(OW_721_ADDR)],
             admin: None
         };
 
@@ -152,7 +152,7 @@ impl DepsManager {
     //         self.deps.as_ref(),
     //         collection_pool_info,
     //         info.sender,
-    //         Addr::from(CREATOR),
+    //         Addr::unchecked(CREATOR),
     //     )
     // }
 
@@ -227,7 +227,7 @@ fn create_collection_pool_info_helper(
 //         mock_env(OW_721_ADDR),
 //         mock_info(owner, &[]),
 //         oraichain_nft::msg::ExecuteMsg::ApproveAll {
-//             operator: Addr::from(CREATOR),
+//             operator: Addr::unchecked(CREATOR),
 //             expires: None,
 //         },
 //     )
@@ -262,7 +262,7 @@ fn create_mock_nft_for_user(manager: &mut DepsManager, owner: String) {
         mock_info(CONTRACT_ADDR, &[]),
         oraichain_nft::msg::ExecuteMsg::Mint(MintMsg {
             token_id: (owner.clone().to_string() + "_721_1").to_string(),
-            owner: Addr::from(owner.clone()),
+            owner: Addr::unchecked(owner.clone()),
             image: String::from(owner.clone().to_string() + "_image1"),
             description: None,
             name: "nft1".to_string(),
@@ -275,7 +275,7 @@ fn create_mock_nft_for_user(manager: &mut DepsManager, owner: String) {
         mock_info(CONTRACT_ADDR, &[]),
         oraichain_nft::msg::ExecuteMsg::Mint(MintMsg {
             token_id: (owner.clone().to_string() + "_721_2").to_string(),
-            owner: Addr::from(owner.clone()),
+            owner: Addr::unchecked(owner.clone()),
             image: String::from(owner.clone().to_string() + "imag2"),
             description: None,
             name: "nft2".to_string(),
@@ -446,7 +446,7 @@ fn update_collection_pool_info_test() {
 //             mock_env(OW_721_ADDR),
 //             mock_info("staker", &[]),
 //             oraichain_nft::msg::ExecuteMsg::ApproveAll {
-//                 operator: Addr::from(CREATOR),
+//                 operator: Addr::unchecked(CREATOR),
 //                 expires: None,
 //             },
 //         )

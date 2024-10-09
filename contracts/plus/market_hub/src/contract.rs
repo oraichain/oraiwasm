@@ -279,7 +279,7 @@ fn get_storage_addr(registry: &Registry, name: &str) -> StdResult<Addr> {
         .storages
         .iter()
         .find(|item| item.0.eq(name))
-        .map(|item| Addr::from(item.1.to_string()))
+        .map(|item| Addr::unchecked(item.1.to_string()))
         .ok_or(StdError::generic_err("storage not found".to_string()))
 }
 

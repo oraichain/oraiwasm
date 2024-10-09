@@ -1,3 +1,6 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use crate::auction::{
     handle_ask_auction, try_bid_nft, try_cancel_bid, try_claim_winner,
     try_emergency_cancel_auction, AUCTION_STORAGE,
@@ -16,7 +19,7 @@ use crate::msg::{
 use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
     attr, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo,
-    MigrateResponse, Response, Response, StdError, StdResult, Uint128,
+    Response, StdError, StdResult, Uint128,
 };
 use cosmwasm_std::{from_json, Addr};
 use cw1155::{BalanceResponse, Cw1155QueryMsg, IsApprovedForAllResponse};
@@ -105,9 +108,7 @@ pub fn execute(
             env,
             offering_id,
             amount,
-            Funds::Native {
-                fund: info.funds,
-            },
+            Funds::Native { fund: info.funds },
             // None,
             // Some(info.funds),
         ),
@@ -125,9 +126,7 @@ pub fn execute(
             env,
             auction_id,
             per_price,
-            Funds::Native {
-                fund: info.funds,
-            },
+            Funds::Native { fund: info.funds },
             // None,
             // Some(info.funds),
         ),
@@ -148,9 +147,9 @@ pub fn execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateResponse> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     // MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
-    Ok(MigrateResponse::default())
+    Ok(Response::default())
 }
 
 // ============================== Query Handlers ==============================
@@ -175,13 +174,13 @@ pub fn try_receive_cw20(
     env: Env,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    match from_json(&cw20_msg.msg.unwrap_or(Binary::default())) {
+    match from_json(&cw20_msg.msg) {
         Ok(Cw20HookMsg::BuyNft {
             offering_id,
             amount,
         }) => try_buy(
             deps,
-            cw20_msg.sender,
+            Addr::unchecked(cw20_msg.sender),
             env,
             offering_id,
             amount,
@@ -196,7 +195,7 @@ pub fn try_receive_cw20(
             per_price,
         }) => try_bid_nft(
             deps,
-            cw20_msg.sender,
+            Addr::unchecked(cw20_msg.sender),
             env,
             auction_id,
             per_price,
@@ -220,20 +219,19 @@ pub fn try_withdraw_funds(
 ) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
-        from_address: env.contract.address,
-        to_address: Addr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
+        to_address: contract_info.creator.to_string(), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
 
-    Ok(Response::new().add_messages( vec![bank_msg],
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(vec![bank_msg])
+        .add_attributes(vec![
             attr("action", "withdraw_funds"),
             attr("denom", fund.denom),
             attr("amount", fund.amount),
             attr("receiver", contract_info.creator),
-        ],
-        ))
+        ]))
 }
 
 pub fn try_update_info(
@@ -273,10 +271,9 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().add_messages( vec![],
-        add_attributes(vec![attr("action", "update_info")],
-        data: to_json_binary(&new_contract_info).ok(),
-    })
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "update_info")])
+        .set_data(to_json_binary(&new_contract_info)?))
 }
 
 pub fn verify_native_funds(native_funds: &[Coin], denom: &str, price: &Uint128) -> StdResult<()> {
@@ -424,7 +421,7 @@ pub fn get_royalties(
         deps,
         AI_ROYALTY_STORAGE,
         AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
-            contract_addr: Addr::from(contract_addr),
+            contract_addr: Addr::unchecked(contract_addr),
             token_id: token_id.to_string(),
             offset: None,
             limit: Some(30),
@@ -447,9 +444,9 @@ pub fn get_royalty(
         deps,
         AI_ROYALTY_STORAGE,
         AiRoyaltyQueryMsg::GetRoyalty {
-            contract_addr: Addr::from(contract_addr),
+            contract_addr: Addr::unchecked(contract_addr),
             token_id: token_id.to_string(),
-            creator: Addr::from(creator),
+            creator: Addr::unchecked(creator),
         },
     )
     .map_err(|_| ContractError::Std(StdError::generic_err("Invalid get unique royalty")))?;
@@ -538,9 +535,9 @@ pub fn verify_nft(
         deps,
         STORAGE_1155,
         MarketQueryMsg::GetUniqueOffering {
-            contract: Addr::from(contract_addr),
+            contract: Addr::unchecked(contract_addr),
             token_id: token_id.to_string(),
-            seller: Addr::from(final_seller.as_str()),
+            seller: Addr::unchecked(final_seller.as_str()),
         },
     )
     .ok();
@@ -557,9 +554,9 @@ pub fn verify_nft(
         deps,
         AUCTION_STORAGE,
         AuctionQueryMsg::GetUniqueAuction {
-            contract: Addr::from(contract_addr),
+            contract: Addr::unchecked(contract_addr),
             token_id: token_id.to_string(),
-            asker: Addr::from(final_seller.as_str()),
+            asker: Addr::unchecked(final_seller.as_str()),
         },
     )
     .ok();
@@ -600,11 +597,11 @@ pub fn query_payment_auction_asset_info(
 ) -> StdResult<AssetInfo> {
     // collect payment type
     Ok(deps.querier.query_wasm_smart(
-        get_storage_addr(deps, governance.into(), PAYMENT_STORAGE)?,
+        get_storage_addr(deps, Addr::unchecked(governance), PAYMENT_STORAGE)?,
         &ProxyQueryMsg::Msg(PaymentQueryMsg::GetAuctionPayment {
             contract_addr,
             token_id: token_id.into(),
-            sender: Some(Addr::from(asker)),
+            sender: Some(Addr::unchecked(asker)),
         }),
     )?)
 }
@@ -618,11 +615,11 @@ pub fn query_payment_offering_asset_info(
 ) -> StdResult<AssetInfo> {
     // collect payment type
     Ok(deps.querier.query_wasm_smart(
-        get_storage_addr(deps, governance.into(), PAYMENT_STORAGE)?,
+        get_storage_addr(deps, Addr::unchecked(governance), PAYMENT_STORAGE)?,
         &ProxyQueryMsg::Msg(PaymentQueryMsg::GetOfferingPayment {
             contract_addr,
             token_id: token_id.into(),
-            sender: Some(Addr::from(seller)),
+            sender: Some(Addr::unchecked(seller)),
         }),
     )?)
 }

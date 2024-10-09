@@ -7,7 +7,7 @@ use std::{
 
 use cosmwasm_std::{
     attr, entry_point, from_json, to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Empty,
-    Env, MessageInfo, MigrateResponse, Order, Response, Response, StdError, StdResult, Storage,
+    Env, MessageInfo, Response, Order, Response, Response, StdError, StdResult, Storage,
     Uint128, WasmMsg, KV,
 };
 use cw1155::Cw1155ReceiveMsg;
@@ -338,7 +338,7 @@ pub fn handle_receive_1155(
     handle_stake(
         deps,
         env,
-        Addr::from(receive_msg.operator),
+        Addr::unchecked(receive_msg.operator),
         stake_msg,
         deposit_msg.signature_hash,
     )
@@ -379,7 +379,7 @@ pub fn handle_receive_721(
     handle_stake(
         deps,
         env,
-        Addr::from(receive_msg.sender),
+        Addr::unchecked(receive_msg.sender),
         stake_msg,
         deposit_msg.signature_hash,
     )
@@ -954,7 +954,7 @@ pub fn migrate(
     _env: Env,
     // new_contract_addr: Addr,
     _msg: Empty,
-) -> Result<MigrateResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // check_admin_permission(deps.as_ref(), &info.sender)?;
 
     // let contract_info = CONTRACT_INFO.load(deps.storage)?;
@@ -1007,7 +1007,7 @@ pub fn migrate(
     //         .into(),
     //     );
     // }
-    Ok(MigrateResponse {
+    Ok(Response {
         data: None,
         messages: vec![],
         add_attributes(vec![attr("action", "migrate")],

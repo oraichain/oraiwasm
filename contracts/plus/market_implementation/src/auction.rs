@@ -60,10 +60,16 @@ pub fn try_bid_nft(
     )?;
 
     // check auction started or finished, both means auction not started anymore
-    if off.start_timestamp.gt(&Uint128::from(env.block.time)) {
+    if off
+        .start_timestamp
+        .gt(&Uint128::from(env.block.time.seconds()))
+    {
         return Err(ContractError::AuctionNotStarted {});
     }
-    if off.end_timestamp.lt(&Uint128::from(env.block.time)) {
+    if off
+        .end_timestamp
+        .lt(&Uint128::from(env.block.time.seconds()))
+    {
         return Err(ContractError::AuctionHasEnded {});
     }
 
@@ -133,14 +139,14 @@ pub fn try_bid_nft(
         return Err(ContractError::InvalidZeroAmount {});
     }
 
-    Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
             attr("action", "bid_nft"),
             attr("bidder", sender),
             attr("auction_id", auction_id),
             attr("token_id", token_id),
-        ],
-        ))
+        ]))
 }
 
 /// anyone can claim
@@ -168,7 +174,10 @@ pub fn try_claim_winner(
         .map_err(|_op| ContractError::AuctionNotFound {})?;
 
     // check is auction finished
-    if off.end_timestamp.gt(&Uint128::from(env.block.time)) {
+    if off
+        .end_timestamp
+        .gt(&Uint128::from(env.block.time.seconds()))
+    {
         if let Some(buyout_price) = off.buyout_price {
             if off.price.lt(&buyout_price) {
                 return Err(ContractError::AuctionNotFinished {});
@@ -362,15 +371,15 @@ pub fn try_handle_ask_aution(
     let asker = deps.api.addr_canonicalize(&info.sender)?;
     let start_timestamp = start_timestamp
         .map(|mut start| {
-            if start.lt(&Uint128::from(env.block.time)) {
-                start = Uint128::from(env.block.time);
+            if start.lt(&Uint128::from(env.block.time.seconds())) {
+                start = Uint128::from(env.block.time.seconds());
             }
             start
         })
-        .unwrap_or(Uint128::from(env.block.time));
+        .unwrap_or(Uint128::from(env.block.time.seconds()));
     let end_timestamp = end_timestamp
         .map(|mut end| {
-            if end.lt(&Uint128::from(env.block.time)) {
+            if end.lt(&Uint128::from(env.block.time.seconds())) {
                 end = end.add(Uint128::from(auction_duration)).into();
             }
             end
@@ -396,7 +405,9 @@ pub fn try_handle_ask_aution(
         .unwrap_or(start + DEFAULT_AUCTION_BLOCK);
 
     // verify start and end block, must start in the future
-    if start_timestamp.lt(&Uint128::from(env.block.time)) || end_timestamp.lt(&start_timestamp) {
+    if start_timestamp.lt(&Uint128::from(env.block.time.seconds()))
+        || end_timestamp.lt(&start_timestamp)
+    {
         return Err(ContractError::InvalidBlockNumberArgument {
             start_timestamp,
             end_timestamp,
@@ -478,15 +489,15 @@ pub fn try_handle_ask_aution(
         },
     )?);
 
-    Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
             attr("action", "ask_nft"),
             attr("asker", info.sender),
             attr("price", price),
             attr("token_id", token_id),
             attr("initial_token_id", initial_token_id),
-        ],
-        ))
+        ]))
 }
 
 // when bidder cancel the bid, he must pay for asker the cancel-fee
@@ -560,16 +571,14 @@ pub fn try_cancel_bid(
                 AuctionExecuteMsg::UpdateAuction { auction: off },
             )?);
 
-            return Ok(Response {
-                messages: cosmos_msgs,
-                add_attributes(vec![
+            return Ok(Response::new()
+                .add_messages(cosmos_msgs)
+                .add_attributes(vec![
                     attr("action", "cancel_bid"),
                     attr("bidder", info.sender),
                     attr("auction_id", auction_id),
                     attr("token_id", token_id),
-                ],
-                data: None,
-            });
+                ]));
         } else {
             return Err(ContractError::InvalidBidder {
                 bidder: bidder_addr.to_string(),
@@ -665,14 +674,14 @@ pub fn try_emergency_cancel_auction(
         AuctionExecuteMsg::RemoveAuction { id: auction_id },
     )?);
 
-    return Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![
+    return Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
             attr("action", "withdraw_nft"),
             attr("asker", info.sender),
             attr("auction_id", auction_id),
             attr("token_id", token_id),
-        ],
-        ));
+        ]));
 }
 
 pub fn get_auction_handle_msg(

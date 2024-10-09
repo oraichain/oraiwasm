@@ -25,13 +25,13 @@ fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
     deps.api.canonical_length = 54;
     let msg = InstantiateMsg {
         name: "ai_market".into(),
-        creator: Addr::from(CREATOR_ADDR),
-        governance: Addr::from(GOVERNANCE),
+        creator: Addr::unchecked(CREATOR_ADDR),
+        governance: Addr::unchecked(GOVERNANCE),
         denom: DENOM.into(),
         fee: 1, //1%
     };
 
-    let info = mock_info(Addr::from(CREATOR_ADDR), &[]);
+    let info = mock_info(Addr::unchecked(CREATOR_ADDR), &[]);
     let contract_env = mock_env();
     let res = instantiate(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -48,7 +48,7 @@ fn offering_factory(
     unit_price: Uint128,
 ) -> PackageOffering {
     let info_buy = mock_info(customer, &vec![coin(30, DENOM)]);
-    let creator_buy = mock_info(Addr::from(CREATOR_ADDR), &vec![]);
+    let creator_buy = mock_info(Addr::unchecked(CREATOR_ADDR), &vec![]);
     let msg_buy = ExecuteMsg::Buy {
         owner: owner.clone(),
         package_id: package_id.clone(),
@@ -97,8 +97,8 @@ fn test_buy_and_instantiate() {
 
     // let number_requests = Uint128::from(30u128));
     // let per_price = Uint128::from(1u128));
-    let customer_address = Addr::from(CUSTOMER_ADDR);
-    let owner_address = Addr::from(SELLER_ADDR);
+    let customer_address = Addr::unchecked(CUSTOMER_ADDR);
+    let owner_address = Addr::unchecked(SELLER_ADDR);
     let info_buy = mock_info(customer_address.clone(), &vec![coin(30, DENOM)]);
     let msg_buy = ExecuteMsg::Buy {
         owner: owner_address,
@@ -132,7 +132,7 @@ fn test_buy_and_instantiate() {
             id: offering_id,
             number_requests: Uint128::from(0u128),
             success_requests: Uint128::from(0u128),
-            seller: Addr::from(SELLER_ADDR),
+            seller: Addr::unchecked(SELLER_ADDR),
             customer: info_buy.clone().sender,
             is_init: false,
             total_amount_paid: Uint128::from(30u128),
@@ -162,7 +162,7 @@ fn test_buy_and_instantiate() {
     assert_eq!(_res_non_creator_init, Err(ContractError::Unauthorized {}));
 
     // Test init with creator - should be successful
-    let creator_buy = mock_info(Addr::from(CREATOR_ADDR), &vec![]);
+    let creator_buy = mock_info(Addr::unchecked(CREATOR_ADDR), &vec![]);
     let _res_creator_init = execute(
         deps.as_mut(),
         contract_env.clone(),
@@ -188,8 +188,8 @@ fn test_update_success_request() {
     let new_offering = offering_factory(
         &mut deps,
         contract_env.clone(),
-        Addr::from(SELLER_ADDR),
-        Addr::from(CUSTOMER_ADDR),
+        Addr::unchecked(SELLER_ADDR),
+        Addr::unchecked(CUSTOMER_ADDR),
         String::from(MOCK_PACKAGE_ID),
         MOCK_NUMBER_OF_REQUEST,
         MOCK_UNIT_PRICE,
@@ -200,7 +200,7 @@ fn test_update_success_request() {
         success_requests: mock_success_request,
     };
 
-    let creator_buy = mock_info(Addr::from(CREATOR_ADDR), &vec![]);
+    let creator_buy = mock_info(Addr::unchecked(CREATOR_ADDR), &vec![]);
     let _res_creator_update_success_request = execute(
         deps.as_mut(),
         contract_env.clone(),
@@ -256,8 +256,8 @@ fn test_claim() {
     let new_offering = offering_factory(
         &mut deps,
         contract_env.clone(),
-        Addr::from(SELLER_ADDR),
-        Addr::from(CUSTOMER_ADDR),
+        Addr::unchecked(SELLER_ADDR),
+        Addr::unchecked(CUSTOMER_ADDR),
         String::from(MOCK_PACKAGE_ID),
         MOCK_NUMBER_OF_REQUEST,
         MOCK_UNIT_PRICE,
@@ -268,7 +268,7 @@ fn test_claim() {
     };
     // test Unauthorized
 
-    let non_owner_buy = mock_info(Addr::from(CUSTOMER_ADDR), &vec![]);
+    let non_owner_buy = mock_info(Addr::unchecked(CUSTOMER_ADDR), &vec![]);
 
     let _res_non_owner_claim = execute(
         deps.as_mut(),
@@ -283,7 +283,7 @@ fn test_claim() {
 
     // update success_requests
 
-    let creator_buy = mock_info(Addr::from(CREATOR_ADDR), &vec![]);
+    let creator_buy = mock_info(Addr::unchecked(CREATOR_ADDR), &vec![]);
 
     let failed_msg_update_success_request = ExecuteMsg::UpdatePackageOfferingSuccessRequest {
         id: new_offering.id,
@@ -300,7 +300,7 @@ fn test_claim() {
     let claimable_amount = Uint128::from(11u128)) * Decimal::from_ratio(new_offering.unit_price, Uint128::from(1u128)))
         - new_offering.claimed;
 
-    let owner_address = Addr::from(SELLER_ADDR);
+    let owner_address = Addr::unchecked(SELLER_ADDR);
     let owner_buy = mock_info(owner_address, &vec![]);
 
     let _res_owner_claim = execute(
@@ -327,8 +327,8 @@ fn test_query_offerings_by_selle() {
         offering_factory(
             &mut deps,
             contract_env.clone(),
-            Addr::from(SELLER_ADDR),
-            Addr::from(CUSTOMER_ADDR),
+            Addr::unchecked(SELLER_ADDR),
+            Addr::unchecked(CUSTOMER_ADDR),
             String::from(MOCK_PACKAGE_ID),
             MOCK_NUMBER_OF_REQUEST,
             MOCK_UNIT_PRICE,
@@ -339,7 +339,7 @@ fn test_query_offerings_by_selle() {
         &mut deps,
         contract_env.clone(),
         Addr::unchecked("strangeOwner"),
-        Addr::from(CUSTOMER_ADDR),
+        Addr::unchecked(CUSTOMER_ADDR),
         String::from(MOCK_PACKAGE_ID),
         MOCK_NUMBER_OF_REQUEST,
         MOCK_UNIT_PRICE,
@@ -350,7 +350,7 @@ fn test_query_offerings_by_selle() {
             deps.as_ref(),
             contract_env.clone(),
             AIMarketQueryMsg::GetPackageOfferingsBySeller {
-                seller: Addr::from(SELLER_ADDR),
+                seller: Addr::unchecked(SELLER_ADDR),
                 offset: Some(0),
                 limit: Some(6),
                 order: Some(1),

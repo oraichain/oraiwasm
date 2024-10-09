@@ -56,7 +56,7 @@ fn check_transfers() {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(Addr(user1.clone()), &[]),
+            mock_info(Addr::unchecked(user1.clone()), &[]),
             mint_msg.clone(),
         ),
         Err(ContractError::Unauthorized {})
@@ -67,7 +67,7 @@ fn check_transfers() {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(Addr(minter.clone()), &[]),
+            mock_info(Addr::unchecked(minter.clone()), &[]),
             mint_msg,
         )
         .unwrap(),
@@ -110,7 +110,7 @@ fn check_transfers() {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(Addr(minter.clone()), &[]),
+            mock_info(Addr::unchecked(minter.clone()), &[]),
             transfer_msg.clone(),
         ),
         Err(ContractError::Unauthorized {})
@@ -120,7 +120,7 @@ fn check_transfers() {
     execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(Addr(user1.clone()), &[]),
+        mock_info(Addr::unchecked(user1.clone()), &[]),
         Cw1155ExecuteMsg::ApproveAll {
             operator: minter.clone(),
             expires: None,
@@ -133,7 +133,7 @@ fn check_transfers() {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(Addr(minter.clone()), &[]),
+            mock_info(Addr::unchecked(minter.clone()), &[]),
             transfer_msg,
         )
         .unwrap(),
@@ -182,7 +182,7 @@ fn check_transfers() {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(Addr(minter.clone()), &[]),
+            mock_info(Addr::unchecked(minter.clone()), &[]),
             Cw1155ExecuteMsg::BatchMint {
                 to: user2.clone(),
                 batch: vec![(token2.clone(), 1u64.into()), (token3.clone(), 1u64.into())],
@@ -220,7 +220,7 @@ fn check_transfers() {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(Addr(minter.clone()), &[]),
+            mock_info(Addr::unchecked(minter.clone()), &[]),
             batch_transfer_msg.clone(),
         ),
         Err(ContractError::Unauthorized {}),
@@ -230,7 +230,7 @@ fn check_transfers() {
     execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(Addr(user2.clone()), &[]),
+        mock_info(Addr::unchecked(user2.clone()), &[]),
         Cw1155ExecuteMsg::ApproveAll {
             operator: minter.clone(),
             expires: None,
@@ -243,7 +243,7 @@ fn check_transfers() {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(Addr(minter.clone()), &[]),
+            mock_info(Addr::unchecked(minter.clone()), &[]),
             batch_transfer_msg,
         )
         .unwrap(),
@@ -288,7 +288,7 @@ fn check_transfers() {
     execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(Addr(user1.clone()), &[]),
+        mock_info(Addr::unchecked(user1.clone()), &[]),
         Cw1155ExecuteMsg::RevokeAll {
             operator: minter.clone(),
         },
@@ -313,7 +313,7 @@ fn check_transfers() {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(Addr(minter.clone()), &[]),
+            mock_info(Addr::unchecked(minter.clone()), &[]),
             Cw1155ExecuteMsg::SendFrom {
                 from: user1.clone(),
                 to: user2,
@@ -330,7 +330,7 @@ fn check_transfers() {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(Addr(user1.clone()), &[]),
+            mock_info(Addr::unchecked(user1.clone()), &[]),
             Cw1155ExecuteMsg::Burn {
                 from: user1.clone(),
                 token_id: token1.clone(),
@@ -354,7 +354,7 @@ fn check_transfers() {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(Addr(user1.clone()), &[]),
+            mock_info(Addr::unchecked(user1.clone()), &[]),
             Cw1155ExecuteMsg::BatchBurn {
                 from: user1.clone(),
                 batch: vec![(token2.clone(), 1u64.into()), (token3.clone(), 1u64.into())]
@@ -396,7 +396,7 @@ fn check_send_contract() {
     execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(Addr(minter.clone()), &[]),
+        mock_info(Addr::unchecked(minter.clone()), &[]),
         Cw1155ExecuteMsg::Mint {
             to: user1.clone(),
             token_id: token2.clone(),
@@ -411,7 +411,7 @@ fn check_send_contract() {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(Addr(minter.clone()), &[]),
+            mock_info(Addr::unchecked(minter.clone()), &[]),
             Cw1155ExecuteMsg::Mint {
                 to: receiver.clone(),
                 token_id: token1.clone(),
@@ -445,7 +445,7 @@ fn check_send_contract() {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(Addr(user1.clone()), &[]),
+            mock_info(Addr::unchecked(user1.clone()), &[]),
             Cw1155ExecuteMsg::BatchSendFrom {
                 from: user1.clone(),
                 to: receiver.clone(),
@@ -493,7 +493,7 @@ fn check_queries() {
     execute(
         deps.as_mut(),
         mock_env(),
-        mock_info(Addr(minter), &[]),
+        mock_info(Addr::unchecked(minter), &[]),
         Cw1155ExecuteMsg::BatchMint {
             to: users[0].clone(),
             batch: tokens
@@ -564,7 +564,7 @@ fn check_queries() {
         execute(
             deps.as_mut(),
             mock_env(),
-            mock_info(Addr(users[0].clone()), &[]),
+            mock_info(Addr::unchecked(users[0].clone()), &[]),
             Cw1155ExecuteMsg::ApproveAll {
                 operator: user.clone(),
                 expires: None,
@@ -616,7 +616,7 @@ fn approval_expires() {
     execute(
         deps.as_mut(),
         env.clone(),
-        mock_info(Addr(minter), &[]),
+        mock_info(Addr::unchecked(minter), &[]),
         Cw1155ExecuteMsg::Mint {
             to: user1.clone(),
             token_id: token1,
@@ -631,7 +631,7 @@ fn approval_expires() {
         execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(Addr(user1.clone()), &[]),
+            mock_info(Addr::unchecked(user1.clone()), &[]),
             Cw1155ExecuteMsg::ApproveAll {
                 operator: user2.clone(),
                 expires: Some(Expiration::AtHeight(5)),
@@ -643,7 +643,7 @@ fn approval_expires() {
     execute(
         deps.as_mut(),
         env.clone(),
-        mock_info(Addr(user1.clone()), &[]),
+        mock_info(Addr::unchecked(user1.clone()), &[]),
         Cw1155ExecuteMsg::ApproveAll {
             operator: user2.clone(),
             expires: Some(Expiration::AtHeight(100)),
@@ -689,7 +689,7 @@ fn mint_overflow() {
     execute(
         deps.as_mut(),
         env.clone(),
-        mock_info(Addr(minter.clone()), &[]),
+        mock_info(Addr::unchecked(minter.clone()), &[]),
         Cw1155ExecuteMsg::Mint {
             to: user1.clone(),
             token_id: token1.clone(),
@@ -703,7 +703,7 @@ fn mint_overflow() {
         execute(
             deps.as_mut(),
             env,
-            mock_info(Addr(minter.clone()), &[]),
+            mock_info(Addr::unchecked(minter.clone()), &[]),
             Cw1155ExecuteMsg::Mint {
                 to: user1,
                 token_id: token1,
@@ -733,7 +733,7 @@ fn change_minter() {
         execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(Addr(minter.clone()), &[]),
+            mock_info(Addr::unchecked(minter.clone()), &[]),
             Cw1155ExecuteMsg::ChangeMinter {
                 minter: "hello there".to_string()
             },
@@ -775,7 +775,7 @@ fn change_owner() {
         execute(
             deps.as_mut(),
             env.clone(),
-            mock_info(Addr(minter.clone()), &[]),
+            mock_info(Addr::unchecked(minter.clone()), &[]),
             Cw1155ExecuteMsg::ChangeOwner {
                 owner: "hello there".to_string()
             },

@@ -123,7 +123,7 @@ fn sort_offering_royalty() {
             token_id: i.to_string(),
             previous_owner: None,
             prev_royalty: None,
-            current_owner: Addr::from(format!("{}{}", "seller", i)),
+            current_owner: Addr::unchecked(format!("{}{}", "seller", i)),
             cur_royalty: Some(15u64),
         };
         offerings.push(offering);

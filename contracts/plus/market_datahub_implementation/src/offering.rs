@@ -36,7 +36,7 @@ pub fn add_msg_royalty(
         governance,
         AI_ROYALTY_STORAGE,
         AiRoyaltyExecuteMsg::UpdateRoyalty(RoyaltyMsg {
-            creator: Addr(sender.to_string()),
+            creator: Addr::unchecked(sender.to_string()),
             creator_type: Some(String::from(CREATOR_NAME)),
             ..msg
         }),
@@ -219,7 +219,7 @@ pub fn try_buy(
             // cosmos_msgs.push(
             //     BankMsg::Send {
             //         from_address: env.contract.address.clone(),
-            //         to_address: Addr::from(contract_info.creator),
+            //         to_address: Addr::unchecked(contract_info.creator),
             //         amount: coins(fee_amount.u128(), &contract_info.denom),
             //     }
             //     .into(),
@@ -387,7 +387,7 @@ pub fn handle_sell_nft(
             &ProxyQueryMsg::Msg(DataHubQueryMsg::GetUniqueOffering {
                 contract: info.sender.clone(),
                 token_id: rcv_msg.token_id.clone(),
-                owner: Addr::from(rcv_msg.operator.as_str()),
+                owner: Addr::unchecked(rcv_msg.operator.as_str()),
             }),
         )
         .map_err(|_| ContractError::InvalidGetOffering {});
@@ -399,7 +399,7 @@ pub fn handle_sell_nft(
         id: None,
         token_id: rcv_msg.token_id,
         contract_addr: info.sender.clone(),
-        seller: Addr::from(rcv_msg.operator.clone()),
+        seller: Addr::unchecked(rcv_msg.operator.clone()),
         per_price: msg.per_price,
         amount: rcv_msg.amount,
     };
@@ -441,7 +441,7 @@ fn get_royalties(
     let royalties: Vec<Royalty> = from_json(&query_ai_royalty(
         deps,
         AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
-            contract_addr: Addr::from(contract_addr),
+            contract_addr: Addr::unchecked(contract_addr),
             token_id: token_id.to_string(),
             offset: None,
             limit: None,

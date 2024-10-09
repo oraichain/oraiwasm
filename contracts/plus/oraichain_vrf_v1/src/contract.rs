@@ -516,7 +516,7 @@ mod tests {
         assert_eq!(
             response.messages[0],
             CosmosMsg::Bank(BankMsg::Send {
-                from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                from_address: Addr::unchecked(MOCK_CONTRACT_ADDR),
                 to_address: Addr::unchecked("claimer"),
                 amount: coins(4500, BOUNTY_DENOM),
             })

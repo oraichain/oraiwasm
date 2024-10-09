@@ -222,7 +222,7 @@ pub fn revoke_all(
 
     for msg in revoke_msgs {
         let revoke_msg = WasmMsg::Execute {
-            contract_addr: Addr::from(Rc::clone(&contract).as_str()),
+            contract_addr: Addr::unchecked(Rc::clone(&contract).as_str()),
             msg: to_json_binary(&msg)?,
             funds: vec![],
         }
@@ -403,7 +403,7 @@ pub fn share_revenue(
         if revenue.u128() > 0u128 {
             cosmos_msgs.push(
                 BankMsg::Send {
-                    from_address: Addr::from(Rc::clone(&contract_addr).as_str()),
+                    from_address: Addr::unchecked(Rc::clone(&contract_addr).as_str()),
                     to_address: co_founder.address,
                     amount: coins(revenue.u128(), denom.as_str()),
                 }
