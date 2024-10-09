@@ -9,7 +9,7 @@ use cosmwasm_std::{
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
 pub fn init<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+    deps: &mut DepsMut,
     _env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
@@ -26,7 +26,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 
 // And declare a custom Error variant for the ones where you will want to make use of it
 pub fn handle<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+    deps: &mut DepsMut,
     _env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
@@ -38,7 +38,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 }
 
 pub fn try_update_datasource<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+    deps: &mut DepsMut,
     info: MessageInfo,
     name: Vec<String>,
 ) -> Result<Response, ContractError> {
@@ -54,7 +54,7 @@ pub fn try_update_datasource<S: Storage, A: Api, Q: Querier>(
 }
 
 pub fn try_update_testcase<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
+    deps: &mut DepsMut,
     info: MessageInfo,
     name: Vec<String>,
 ) -> Result<Response, ContractError> {
@@ -70,7 +70,7 @@ pub fn try_update_testcase<S: Storage, A: Api, Q: Querier>(
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
+    deps: &DepsMut,
     _env: Env,
     msg: QueryMsg,
 ) -> StdResult<Binary> {
@@ -82,21 +82,21 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 }
 
 fn query_datasource<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
+    deps: &DepsMut,
 ) -> StdResult<Vec<String>> {
     let state = config_read(&deps.storage).load()?;
     Ok(state.ai_data_source)
 }
 
 fn query_testcase<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
+    deps: &DepsMut,
 ) -> StdResult<Vec<String>> {
     let state = config_read(&deps.storage).load()?;
     Ok(state.testcase)
 }
 
 fn query_aggregation<S: Storage, A: Api, Q: Querier>(
-    _deps: &Extern<S, A, Q>,
+    _deps: &DepsMut,
     results: Vec<String>,
 ) -> StdResult<String> {
     if results.is_empty() {

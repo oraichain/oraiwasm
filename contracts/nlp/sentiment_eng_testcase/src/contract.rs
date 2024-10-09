@@ -8,7 +8,7 @@ use cosmwasm_std::{
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
 pub fn init<S: Storage, A: Api, Q: Querier>(
-    _deps: &mut Extern<S, A, Q>,
+    _deps: &mut DepsMut,
     _env: Env,
     _info: MessageInfo,
     _: InstantiateMsg,
@@ -18,7 +18,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 
 // And declare a custom Error variant for the ones where you will want to make use of it
 pub fn handle<S: Storage, A: Api, Q: Querier>(
-    _: &mut Extern<S, A, Q>,
+    _: &mut DepsMut,
     _env: Env,
     _: MessageInfo,
     _: ExecuteMsg,
@@ -27,7 +27,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
+    deps: &DepsMut,
     _env: Env,
     msg: QueryMsg,
 ) -> StdResult<Binary> {
@@ -41,7 +41,7 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
 }
 
 fn test_datasource<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
+    deps: &DepsMut,
     contract: &Addr,
     input: String,
     output: String,

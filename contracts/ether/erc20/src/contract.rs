@@ -1,6 +1,8 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_json_binary, to_vec, Binary, CanonicalAddr, Deps, DepsMut, Env, Response, Addr,
-    Response, MessageInfo, StdResult, Storage, Uint128,
+    attr, to_json_binary, to_vec, Addr, Binary, CanonicalAddr, Deps, DepsMut, Env, MessageInfo,
+    Response, StdResult, Storage, Uint128,
 };
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use std::convert::TryInto;
@@ -28,7 +30,7 @@ pub fn instantiate(
         // Initial balances
         let mut balances_store = PrefixedStorage::new(deps.storage, PREFIX_BALANCES);
         for row in msg.initial_balances {
-            let raw_address = deps.api.addr_canonicalize(&row.address)?;
+            let raw_address = deps.api.addr_canonicalize(row.address.as_str())?;
             let amount_raw = row.amount.u128();
             balances_store.set(raw_address.as_slice(), &amount_raw.to_be_bytes());
             total_supply += amount_raw;
@@ -82,7 +84,7 @@ pub fn execute(
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     match msg {
         QueryMsg::Balance { address } => {
-            let address_key = deps.api.addr_canonicalize(&address)?;
+            let address_key = deps.api.addr_canonicalize(address.as_str())?;
             let balance = read_balance(deps.storage, &address_key)?;
             let out = to_json_binary(&BalanceResponse {
                 balance: Uint128::from(balance),
@@ -90,9 +92,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             Ok(out)
         }
         QueryMsg::Allowance { owner, spender } => {
-            let owner_key = deps.api.addr_canonicalize(&owner)?;
-            let spender_key = deps.api.addr_canonicalize(&spender)?;
-            let allowance = read_allowance(deps.storage, &owner_key, &spender_key)?;
+            let owner_key = deps.api.addr_canonicalize(owner.as_str())?;
+            let spender_key = deps.api.addr_canonicalize(spender.as_str())?;
+            let allowance = read_allowance(deps.storage, &owner_key, spender_key.as_str())?;
             let out = to_json_binary(&AllowanceResponse {
                 allowance: Uint128::from(allowance),
             })?;
@@ -359,7 +361,7 @@ mod tests {
     use super::*;
     use crate::msg::InitialBalance;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{from_json, Api, Env, Addr, MessageInfo, Storage, Uint128};
+    use cosmwasm_std::{from_json, Addr, Api, Env, MessageInfo, Storage, Uint128};
     use cosmwasm_storage::ReadonlyPrefixedStorage;
 
     fn mock_env_height(signer: &Addr, height: u64, time: u64) -> (Env, MessageInfo) {
@@ -393,12 +395,7 @@ mod tests {
         let balances_storage = ReadonlyPrefixedStorage::new(storage, PREFIX_BALANCES);
         return read_u128(&balances_storage, address_key.as_slice()).unwrap();
     }
-    fn get_allowance(
-        api: &dyn Api,
-        storage: &dyn Storage,
-        owner: &Addr,
-        spender: &Addr,
-    ) -> u128 {
+    fn get_allowance(api: &dyn Api, storage: &dyn Storage, owner: &Addr, spender: &Addr) -> u128 {
         let owner_raw_address = api
             .addr_canonicalize(owner)
             .expect("addr_canonicalize failed");
@@ -1142,7 +1139,8 @@ mod tests {
                 amount: Uint128::from(3u128),
             };
             let (env, info) = mock_env_height(&spender.clone(), 450, 550);
-            let transfer_from_result = execute(deps.as_mut(), env, info, transfer_from_msg).unwrap();
+            let transfer_from_result =
+                execute(deps.as_mut(), env, info, transfer_from_msg).unwrap();
             assert_eq!(transfer_from_result.messages.len(), 0);
             assert_eq!(
                 transfer_from_result.attributes,
