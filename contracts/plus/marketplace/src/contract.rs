@@ -213,7 +213,7 @@ pub fn try_buy(
         let contract_info = CONTRACT_INFO.load(deps.storage)?;
         // find the desired coin to process
         if let Some(sent_fund) = info
-            .sent_funds
+            .funds
             .iter()
             .find(|fund| fund.denom.eq(&contract_info.denom))
         {

@@ -111,7 +111,7 @@ pub fn try_execute_request_annotation(
     } = CONTRACT_INFO.load(deps.storage)?;
 
     // Requester is required to deposited
-    if let Some(fund) = info.sent_funds.iter().find(|fund| fund.denom.eq(&denom)) {
+    if let Some(fund) = info.funds.iter().find(|fund| fund.denom.eq(&denom)) {
         let mut reward = calculate_annotation_price(
             reward_per_sample.clone(),
             Uint128::from(number_of_samples.clone().0 + max_upload_tasks.clone().0),

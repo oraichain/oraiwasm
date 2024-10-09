@@ -141,12 +141,12 @@ pub fn try_invoke(
     user_input: String,
 ) -> Result<Response, HandleError> {
     let fees = query_fees(deps.as_ref()).unwrap();
-    if info.sent_funds.len() == 0 {
+    if info.funds.len() == 0 {
         return Err(HandleError::NoFundsSent {
             expected_denom: "orai".to_string(),
         });
     }
-    if !info.sent_funds[0].denom.eq("orai") || info.sent_funds[0].amount.lt(&fees) {
+    if !info.funds[0].denom.eq("orai") || info.funds[0].amount.lt(&fees) {
         return Err(HandleError::LessFundsSent {
             expected_denom: "orai".to_string(),
         });
@@ -165,7 +165,7 @@ pub fn try_set_bounty(
 ) -> Result<Response, HandleError> {
     let denom = config_read(deps.storage).load()?.bounty_denom;
 
-    let matching_coin = info.sent_funds.iter().find(|fund| fund.denom == denom);
+    let matching_coin = info.funds.iter().find(|fund| fund.denom == denom);
     let sent_amount: u128 = match matching_coin {
         Some(coin) => coin.amount.into(),
         None => {
@@ -270,7 +270,7 @@ fn query_get(deps: Deps, round: u64) -> Result<RandomData, QueryError> {
     let value = beacons
         .get(&round.to_be_bytes())
         .ok_or(QueryError::NoBeacon {})?;
-    let random_data: RandomData = from_json(&value.into())?;
+    let random_data: RandomData = from_json(&value)?;
     Ok(random_data)
 }
 
@@ -288,7 +288,7 @@ fn query_latest(deps: Deps) -> Result<RandomData, QueryError> {
     let store = beacons_storage_read(deps.storage);
     let mut iter = store.range(None, None, Order::Descending);
     let (_key, value) = iter.next().ok_or(QueryError::NoBeacon {})?;
-    let random_data: RandomData = from_json(&value.into())?;
+    let random_data: RandomData = from_json(&value)?;
     Ok(random_data)
 }
 

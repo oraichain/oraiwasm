@@ -248,7 +248,7 @@ pub fn execute_send_from(
     let cosmos_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address.clone(),
         to_address: Addr(to.clone()),
-        amount: info.sent_funds.clone(),
+        amount: info.funds.clone(),
     }
     .into();
 
@@ -265,9 +265,9 @@ pub fn execute_send_from(
         let request_annotation_result: StdResult<RequestAnnotate> = from_json(&msg);
         // if the msg is request annotation then we check balance. If does not match info sent funds amount => error
         if let Some(request_annotation_msg) = request_annotation_result.ok() {
-            for fund in info.sent_funds.clone() {
-                if fund.denom.eq(&request_annotation_msg.sent_funds.denom)
-                    && fund.amount.ge(&request_annotation_msg.sent_funds.amount)
+            for fund in info.funds.clone() {
+                if fund.denom.eq(&request_annotation_msg.funds.denom)
+                    && fund.amount.ge(&request_annotation_msg.funds.amount)
                 {
                     rsp.messages.push(cosmos_msg);
                     break;
@@ -276,8 +276,8 @@ pub fn execute_send_from(
             // error when there's no message pushed
             if rsp.messages.len() == 1 {
                 return Err(ContractError::InvalidSentFunds {
-                    expected: format!("{:?}", request_annotation_msg.sent_funds),
-                    got: format!("{:?}", info.sent_funds),
+                    expected: format!("{:?}", request_annotation_msg.funds),
+                    got: format!("{:?}", info.funds),
                 });
             }
         }

@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 
-members = ["packages/*/*", "contracts/plus/auction_nft"]
+members = ["packages/*/*", "contracts/*/*"]
 
 [workspace.dependencies]
 cosmwasm-crypto = { version = "1.5.0" }

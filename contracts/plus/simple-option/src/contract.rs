@@ -23,7 +23,7 @@ pub fn instantiate(
     let state = State {
         creator: info.sender.clone(),
         owner: info.sender.clone(),
-        collateral: info.sent_funds,
+        collateral: info.funds,
         counter_offer: msg.counter_offer,
         expires: msg.expires,
     };
@@ -88,9 +88,9 @@ pub fn handle_execute(
     }
 
     // ensure sending proper counter_offer
-    if info.sent_funds != state.counter_offer {
+    if info.funds != state.counter_offer {
         return Err(ContractError::CounterOfferMismatch {
-            offer: info.sent_funds,
+            offer: info.funds,
             counter_offer: state.counter_offer,
         });
     }
@@ -127,7 +127,7 @@ pub fn handle_burn(deps: DepsMut, env: Env, info: MessageInfo) -> Result<Respons
     }
 
     // ensure sending proper counter_offer
-    if !info.sent_funds.is_empty() {
+    if !info.funds.is_empty() {
         return Err(ContractError::FundsSentWithBurn {});
     }
 

@@ -1,6 +1,9 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use cosmwasm_std::{
     coins, from_json, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
-    Order, Response, Response, StdResult, Storage,
+    Order, Response, StdResult, Storage,
 };
 use drand_verify::{derive_randomness, g1_from_variable, verify};
 
@@ -56,7 +59,7 @@ pub fn try_set_bounty(
 ) -> Result<Response, HandleError> {
     let denom = config_read(deps.storage).load()?.bounty_denom;
 
-    let matching_coin = info.sent_funds.iter().find(|fund| fund.denom == denom);
+    let matching_coin = info.funds.iter().find(|fund| fund.denom == denom);
     let sent_amount: u128 = match matching_coin {
         Some(coin) => coin.amount.into(),
         None => {
@@ -127,11 +130,10 @@ pub fn try_add(
     response.data = Some(randomness.into());
     let bounty = get_bounty(deps.storage, round)?;
     if bounty != 0 {
-        response.messages = vec![CosmosMsg::Bank(BankMsg::Send {
-            from_address: env.contract.address,
-            to_address: info.sender,
+        response = response.add_messages([CosmosMsg::Bank(BankMsg::Send {
+            to_address: info.sender.to_string(),
             amount: coins(bounty, bounty_denom),
-        })];
+        })]);
         clear_bounty(deps.storage, round);
     }
     Ok(response)
@@ -151,7 +153,7 @@ fn query_get(deps: Deps, round: u64) -> Result<RandomData, QueryError> {
     let value = beacons
         .get(&round.to_be_bytes())
         .ok_or(QueryError::NoBeacon {})?;
-    let random_data: RandomData = from_json(&value.into())?;
+    let random_data: RandomData = from_json(&value)?;
     Ok(random_data)
 }
 
@@ -159,7 +161,7 @@ fn query_latest(deps: Deps) -> Result<RandomData, QueryError> {
     let store = beacons_storage_read(deps.storage);
     let mut iter = store.range(None, None, Order::Descending);
     let (_key, value) = iter.next().ok_or(QueryError::NoBeacon {})?;
-    let random_data: RandomData = from_json(&value.into())?;
+    let random_data: RandomData = from_json(&value)?;
     Ok(random_data)
 }
 
@@ -210,7 +212,9 @@ fn clear_bounty(storage: &mut dyn Storage, round: u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
+    use cosmwasm_std::testing::{
+        mock_dependencies_with_balance, mock_env, mock_info, MOCK_CONTRACT_ADDR,
+    };
     use cosmwasm_std::{from_json, Addr, Coin, Uint128};
 
     const PUB_KEY: &str = "pzOZRhfkA57am7gdqjYr9eFT65WXt8hm2SETYIsGsDm7D/a6OV5Vdgvn0XL6ePeJ";
@@ -365,10 +369,9 @@ mod tests {
         let response = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(response.messages.len(), 1);
         assert_eq!(
-            response.messages[0],
+            response.messages[0].msg,
             CosmosMsg::Bank(BankMsg::Send {
-                from_address: Addr::from(MOCK_CONTRACT_ADDR),
-                to_address: Addr::unchecked("claimer"),
+                to_address: "claimer".to_string(),
                 amount: coins(4500, BOUNTY_DENOM),
             })
         );

@@ -94,9 +94,9 @@ pub fn execute(
             env,
             auction_id,
             Funds::Native {
-                fund: info.sent_funds,
+                fund: info.funds,
             },
-            // Some(info.sent_funds),
+            // Some(info.funds),
         ),
         ExecuteMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
         // ExecuteMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
@@ -149,9 +149,9 @@ pub fn execute(
             env,
             offering_id,
             Funds::Native {
-                fund: info.sent_funds,
+                fund: info.funds,
             },
-            // Some(info.sent_funds),
+            // Some(info.funds),
         ),
         ExecuteMsg::MigrateVersion {
             nft_contract_addr,

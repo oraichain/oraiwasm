@@ -106,10 +106,10 @@ pub fn execute(
             offering_id,
             amount,
             Funds::Native {
-                fund: info.sent_funds,
+                fund: info.funds,
             },
             // None,
-            // Some(info.sent_funds),
+            // Some(info.funds),
         ),
         ExecuteMsg::BurnNft {
             contract_addr,
@@ -126,10 +126,10 @@ pub fn execute(
             auction_id,
             per_price,
             Funds::Native {
-                fund: info.sent_funds,
+                fund: info.funds,
             },
             // None,
-            // Some(info.sent_funds),
+            // Some(info.funds),
         ),
         ExecuteMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
         // ExecuteMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),

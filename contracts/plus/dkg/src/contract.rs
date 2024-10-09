@@ -1,9 +1,3 @@
-use cosmwasm_std::{
-    attr, coins, from_json, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    Response, Response, MessageInfo, Order,
-};
-use cw_storage_plus::{Bound, Endian};
-
 use crate::errors::ContractError;
 use crate::msg::{
     AggregateSig, DistributedShareData, ExecuteMsg, InstantiateMsg, MemberMsg, QueryMsg, ShareMsg,
@@ -12,6 +6,13 @@ use crate::msg::{
 use crate::state::{
     beacons_handle_storage, beacons_handle_storage_read, beacons_storage, beacons_storage_read,
     config, config_read, members_storage, members_storage_read, owner, owner_read, Config, Owner,
+};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+use cosmwasm_std::Storage;
+use cosmwasm_std::{
+    attr, coins, from_json, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Order, Response,
 };
 
 use sha2::{Digest, Sha256};
@@ -102,7 +103,7 @@ pub fn update_members(
     // ready to remove all old members before adding new
     let old_members: Vec<MemberMsg> = members_store
         .range(None, None, Order::Ascending)
-        .map(|(_key, value)| from_json(&value.into()).unwrap())
+        .map(|(_key, value)| from_json(&value).unwrap())
         .collect();
     for old_member in old_members {
         members_store.remove(old_member.address.as_bytes());
@@ -132,11 +133,7 @@ pub fn update_threshold(
     Ok(Response::default())
 }
 
-pub fn update_fees(
-    deps: DepsMut,
-    info: MessageInfo,
-    fee: Coin,
-) -> Result<Response, ContractError> {
+pub fn update_fees(deps: DepsMut, info: MessageInfo, fee: Coin) -> Result<Response, ContractError> {
     let owner = owner_read(deps.storage).load()?;
     if !owner.owner.eq(info.sender.as_str()) {
         return Err(ContractError::Unauthorized(
@@ -246,21 +243,20 @@ pub fn update_share_sig(
                 fee.amount.multiply_ratio(1u128, threshold as u128).u128(),
                 fee.denom,
             );
-            response.messages = vec![CosmosMsg::Bank(BankMsg::Send {
-                from_address: env.contract.address,
-                to_address: info.sender.clone(),
+            response = response.add_message(CosmosMsg::Bank(BankMsg::Send {
+                to_address: info.sender.to_string(),
                 amount: paid_fee,
-            })];
+            }));
         }
     }
 
-    response.data = Some(msg);
-    response.attributes = vec![
+    response = response.set_data(msg);
+    response = response.add_attributes(vec![
         attr("action", "update_share_sig"),
         attr("sender", info.sender),
-        attr("round", share_sig.round),
-        attr("signature", share_sig.sig),
-    ];
+        attr("round", share_sig.round.to_string()),
+        attr("signature", share_sig.sig.to_string()),
+    ]);
     Ok(response)
 }
 
@@ -312,15 +308,16 @@ pub fn aggregate_sig(
     beacons_handle_storage(deps.storage).remove(&round.to_be_bytes());
 
     // return response events
-    let response = Response::new().add_messages( vec![],
-        add_attributes(vec![
-            attr("action", "aggregate_sig"),
-            attr("share_data", to_json_binary(&share_data)?),
-            attr("aggregate_sig", to_json_binary(&share_data.aggregate_sig)?),
-            attr("round", round),
-            attr("sender", info.sender),
-        ],
-        );
+    let response = Response::new().add_attributes(vec![
+        attr("action", "aggregate_sig"),
+        attr("share_data", to_json_binary(&share_data)?.to_string()),
+        attr(
+            "aggregate_sig",
+            to_json_binary(&share_data.aggregate_sig)?.to_string(),
+        ),
+        attr("round", round.to_string()),
+        attr("sender", info.sender),
+    ]);
     Ok(response)
 }
 
@@ -349,7 +346,7 @@ pub fn request_random(
     // check sent_fund is enough
     if let Some(fee) = fee_val {
         if !fee.amount.is_zero() {
-            match info.sent_funds.into_iter().find(|i| i.denom.eq(&fee.denom)) {
+            match info.funds.into_iter().find(|i| i.denom.eq(&fee.denom)) {
                 None => {
                     return Err(ContractError::NoFundsSent {
                         expected_denom: fee.denom,
@@ -384,14 +381,13 @@ pub fn request_random(
     beacons_handle_storage(deps.storage).set(&round.to_be_bytes(), &msg);
 
     // return the round
-    let response = Response::new().add_messages( vec![],
-        add_attributes(vec![
+    let response = Response::new()
+        .add_attributes(vec![
             attr("action", "request_random"),
-            attr("input", input),
-            attr("round", round),
-        ],
-        data: Some(Binary::from(round.to_be_bytes())),
-    };
+            attr("input", input.to_string()),
+            attr("round", round.to_string()),
+        ])
+        .set_data(Binary::from(round.to_be_bytes()));
     Ok(response)
 }
 
@@ -416,7 +412,7 @@ fn query_member(deps: Deps, address: &str) -> Result<MemberMsg, ContractError> {
     let value = beacons
         .get(&address.as_bytes())
         .ok_or(ContractError::NoBeacon {})?;
-    let member: MemberMsg = from_json(&value.into())?;
+    let member: MemberMsg = from_json(&value)?;
     Ok(member)
 }
 
@@ -450,7 +446,7 @@ fn query_members(
     let members = members_storage_read(deps.storage)
         .range(min, max, order_enum)
         .take(limit)
-        .map(|(_key, value)| from_json(&value.into()).unwrap())
+        .map(|(_key, value)| from_json(&value).unwrap())
         .collect();
     Ok(members)
 }
@@ -465,7 +461,7 @@ fn query_get(deps: Deps, round: u64) -> Result<DistributedShareData, ContractErr
     let value = beacons
         .get(&round.to_be_bytes())
         .ok_or(ContractError::NoBeacon {})?;
-    let share_data: DistributedShareData = from_json(&value.into())?;
+    let share_data: DistributedShareData = from_json(&value)?;
     Ok(share_data)
 }
 
@@ -473,7 +469,7 @@ fn query_latest(deps: Deps) -> Result<DistributedShareData, ContractError> {
     let store = beacons_storage_read(deps.storage);
     let mut iter = store.range(None, None, Order::Descending);
     let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
-    let share_data: DistributedShareData = from_json(&value.into())?;
+    let share_data: DistributedShareData = from_json(&value)?;
     Ok(share_data)
 }
 
@@ -481,7 +477,7 @@ fn query_earliest(deps: Deps) -> Result<DistributedShareData, ContractError> {
     let store = beacons_handle_storage_read(deps.storage);
     let mut iter = store.range(None, None, Order::Ascending);
     let (_key, value) = iter.next().ok_or(ContractError::NoBeacon {})?;
-    let share_data: DistributedShareData = from_json(&value.into())?;
+    let share_data: DistributedShareData = from_json(&value)?;
     Ok(share_data)
 }
 
@@ -497,8 +493,8 @@ mod tests {
     use super::*;
     use crate::msg::MemberMsg;
     use cosmwasm_std::{
-        testing::{mock_dependencies, mock_env, mock_info},
-        Api, Addr,
+        testing::{mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info},
+        Addr, Api,
     };
     use hex;
 
@@ -577,7 +573,7 @@ mod tests {
     #[test]
     fn proper_initialization() {
         let mut deps = mock_dependencies_with_balance(&[]);
-        deps.api.canonical_length = 54;
+
         let res = initialization(deps.as_mut());
         assert_eq!(res.messages.len(), 0);
 

@@ -131,11 +131,11 @@ pub fn handle_register(
     }
 
     // Check if some funds are sent
-    let sent = match info.sent_funds.len() {
+    let sent = match info.funds.len() {
         0 => Err(ContractError::NoFunds {}),
         1 => {
-            if info.sent_funds[0].denom == state.denom_ticket {
-                Ok(info.sent_funds[0].amount)
+            if info.funds[0].denom == state.denom_ticket {
+                Ok(info.funds[0].amount)
             } else {
                 Err(ContractError::MissingDenom(
                     state.denom_ticket.clone().to_string(),
@@ -190,7 +190,7 @@ pub fn handle_ticket(
     // convert the sender to canonical address
     let sender = deps.api.addr_canonicalize(&info.sender).unwrap();
     // Ensure the sender not sending funds accidentally
-    if !info.sent_funds.is_empty() {
+    if !info.funds.is_empty() {
         return Err(ContractError::DoNotSendFunds("Claim".to_string()));
     }
 
@@ -291,7 +291,7 @@ pub fn handle_play(
     }
 
     // Ensure the sender not sending funds accidentally
-    if !info.sent_funds.is_empty() {
+    if !info.funds.is_empty() {
         return Err(ContractError::DoNotSendFunds("Play".to_string()));
     }
     // Make the contract callable for everyone every x blocks
@@ -493,11 +493,11 @@ pub fn handle_ico(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Respons
         return Err(ContractError::TheIcoIsEnded {});
     }
     // Check if some funds are sent
-    let sent = match info.sent_funds.len() {
+    let sent = match info.funds.len() {
         0 => Err(ContractError::NoFunds {}),
         1 => {
-            if info.sent_funds[0].denom == state.denom_delegation {
-                Ok(info.sent_funds[0].amount)
+            if info.funds[0].denom == state.denom_delegation {
+                Ok(info.funds[0].amount)
             } else {
                 Err(ContractError::MissingDenom(state.denom_delegation.clone()))
             }
@@ -544,11 +544,11 @@ pub fn handle_buy(deps: DepsMut, _env: Env, info: MessageInfo) -> Result<Respons
     let state = config(deps.storage).load()?;
 
     // Get the funds
-    let sent = match info.sent_funds.len() {
+    let sent = match info.funds.len() {
         0 => Err(ContractError::NoFunds {}),
         1 => {
-            if info.sent_funds[0].denom == state.denom_delegation {
-                Ok(info.sent_funds[0].amount)
+            if info.funds[0].denom == state.denom_delegation {
+                Ok(info.funds[0].amount)
             } else {
                 Err(ContractError::MissingDenom(state.denom_delegation.clone()))
             }
@@ -598,7 +598,7 @@ pub fn handle_reward(
     // convert the sender to canonical address
     let sender = deps.api.addr_canonicalize(&info.sender).unwrap();
     // Ensure the sender not sending funds accidentally
-    if !info.sent_funds.is_empty() {
+    if !info.funds.is_empty() {
         return Err(ContractError::DoNotSendFunds("Reward".to_string()));
     }
     if state.token_holder_supply.is_zero() {
@@ -689,7 +689,7 @@ pub fn handle_jackpot(
     // Load winners
     let store = query_all_winner(deps.as_ref()).unwrap();
     // Ensure the sender is not sending funds
-    if !info.sent_funds.is_empty() {
+    if !info.funds.is_empty() {
         return Err(ContractError::DoNotSendFunds("Jackpot".to_string()));
     }
     // Ensure there is jackpot reward to claim
@@ -891,7 +891,7 @@ pub fn handle_proposal(
     state.poll_count = poll_id;
 
     //Handle sender is not sending funds
-    if !info.sent_funds.is_empty() {
+    if !info.funds.is_empty() {
         return Err(ContractError::DoNotSendFunds("Proposal".to_string()));
     }
 
@@ -1088,7 +1088,7 @@ pub fn handle_vote(
     let sender = deps.api.addr_canonicalize(&info.sender).unwrap();
 
     // Ensure the sender not sending funds accidentally
-    if !info.sent_funds.is_empty() {
+    if !info.funds.is_empty() {
         return Err(ContractError::DoNotSendFunds("Vote".to_string()));
     }
     // Ensure the poll is still valid
@@ -1136,7 +1136,7 @@ pub fn handle_reject_proposal(
     let sender = deps.api.addr_canonicalize(&info.sender).unwrap();
 
     // Ensure the sender not sending funds accidentally
-    if !info.sent_funds.is_empty() {
+    if !info.funds.is_empty() {
         return Err(ContractError::DoNotSendFunds("RejectProposal".to_string()));
     }
     // Ensure end proposal height is not expired
@@ -1195,7 +1195,7 @@ pub fn handle_present_proposal(
         .unwrap();
 
     // Ensure the sender not sending funds accidentally
-    if !info.sent_funds.is_empty() {
+    if !info.funds.is_empty() {
         return Err(ContractError::DoNotSendFunds("PresentProposal".to_string()));
     }
     // Ensure the proposal is still in Progress

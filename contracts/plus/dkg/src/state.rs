@@ -7,11 +7,11 @@ use cosmwasm_storage::{
     ReadonlySingleton, Singleton,
 };
 
-const CONFIG_KEY: &[u8] = b"config";
-const MEMBERS_KEY: &[u8] = b"members";
-const BEACONS_KEY: &[u8] = b"beacons";
-const BEACONS_HANDLE_KEY: &[u8] = b"beacons_handle";
-const OWNER_KEY: &[u8] = b"owner";
+pub const CONFIG_KEY: &[u8] = b"config";
+pub const MEMBERS_KEY: &[u8] = b"members";
+pub const BEACONS_KEY: &[u8] = b"beacons";
+pub const BEACONS_HANDLE_KEY: &[u8] = b"beacons_handle";
+pub const OWNER_KEY: &[u8] = b"owner";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
