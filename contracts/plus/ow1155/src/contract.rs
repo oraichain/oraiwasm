@@ -1,6 +1,9 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use cosmwasm_std::{
     attr, from_json, to_json_binary, Addr, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Response, Order, Response, Response, StdError, StdResult, Uint128, KV,
+    MessageInfo, Order, Record, Response, StdError, StdResult, Uint128,
 };
 use cw_storage_plus::Bound;
 
@@ -87,31 +90,6 @@ pub fn execute(
     }
 }
 
-pub fn checked_add(this: Uint128, other: Uint128) -> StdResult<Uint128> {
-    this.0.checked_add(other.0).map(Uint128).ok_or_else(|| {
-        StdError::generic_err(OverflowError::new(OverflowOperation::Add, this, other).to_string())
-    })
-}
-
-pub fn checked_sub(this: Uint128, other: Uint128) -> StdResult<Uint128> {
-    this.0.checked_sub(other.0).map(Uint128).ok_or_else(|| {
-        StdError::generic_err(OverflowError::new(OverflowOperation::Sub, this, other).to_string())
-    })
-}
-
-pub fn checked_mul(this: Uint128, other: Uint128) -> StdResult<Uint128> {
-    this.0.checked_mul(other.0).map(Uint128).ok_or_else(|| {
-        StdError::generic_err(OverflowError::new(OverflowOperation::Mul, this, other).to_string())
-    })
-}
-
-pub fn checked_div(this: Uint128, other: Uint128) -> StdResult<Uint128> {
-    this.0
-        .checked_div(other.0)
-        .map(Uint128)
-        .ok_or_else(|| StdError::generic_err(DivideByZeroError::new(this).to_string()))
-}
-
 fn change_minter(env: ExecuteEnv, minter: String) -> Result<Response, ContractError> {
     let owner = OWNER.load(env.deps.storage)?;
     if !owner.eq(&env.info.sender) {
@@ -119,13 +97,11 @@ fn change_minter(env: ExecuteEnv, minter: String) -> Result<Response, ContractEr
     }
     let minter = Addr::unchecked(minter);
     MINTER.save(env.deps.storage, &minter)?;
-    Ok(Response::new().add_messages( vec![],
-        add_attributes(vec![
-            attr("action", "change_minter"),
-            attr("minter", minter),
-            attr("owner", env.info.sender),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "change_minter"),
+        attr("minter", minter),
+        attr("owner", env.info.sender),
+    ]))
 }
 
 fn change_owner(env: ExecuteEnv, new_owner: String) -> Result<Response, ContractError> {
@@ -134,13 +110,11 @@ fn change_owner(env: ExecuteEnv, new_owner: String) -> Result<Response, Contract
         return Err(ContractError::Unauthorized {});
     }
     OWNER.save(env.deps.storage, &Addr::unchecked(new_owner.clone()))?;
-    Ok(Response::new().add_messages( vec![],
-        add_attributes(vec![
-            attr("action", "change_owner"),
-            attr("owner", owner),
-            attr("new_owner", new_owner),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "change_owner"),
+        attr("owner", owner),
+        attr("new_owner", new_owner),
+    ]))
 }
 
 /// When from is None: mint new coins
@@ -160,7 +134,7 @@ fn execute_transfer_inner<'a>(
             deps.storage,
             (from_addr.as_bytes(), token_id.as_bytes()),
             |balance: Option<Uint128>| -> StdResult<_> {
-                checked_sub(balance.unwrap_or_default(), amount)
+                Ok(balance.unwrap_or_default().checked_sub(amount)?)
             },
         )?;
     }
@@ -170,7 +144,7 @@ fn execute_transfer_inner<'a>(
             deps.storage,
             (to_addr.as_bytes(), token_id.as_bytes()),
             |balance: Option<Uint128>| -> StdResult<_> {
-                checked_add(balance.unwrap_or_default(), amount)
+                Ok(balance.unwrap_or_default().checked_add(amount)?)
             },
         )?;
     }
@@ -246,37 +220,36 @@ pub fn execute_send_from(
 
     // send funds to market implementation
     let cosmos_msg: CosmosMsg = BankMsg::Send {
-        from_address: env.contract.address.clone(),
-        to_address: Addr::unchecked(to.clone()),
+        to_address: to.clone(),
         amount: info.funds.clone(),
     }
     .into();
 
     if let Some(msg) = msg {
-        rsp.messages = vec![Cw1155ReceiveMsg {
+        rsp = rsp.add_messages(vec![Cw1155ReceiveMsg {
             operator: info.sender.to_string(),
             from: Some(from),
             amount,
             token_id: token_id.clone(),
             msg: msg.clone(),
         }
-        .into_cosmos_msg(to)?];
+        .into_cosmos_msg(to)?]);
 
         let request_annotation_result: StdResult<RequestAnnotate> = from_json(&msg);
         // if the msg is request annotation then we check balance. If does not match info sent funds amount => error
         if let Some(request_annotation_msg) = request_annotation_result.ok() {
             for fund in info.funds.clone() {
-                if fund.denom.eq(&request_annotation_msg.funds.denom)
-                    && fund.amount.ge(&request_annotation_msg.funds.amount)
+                if fund.denom.eq(&request_annotation_msg.sent_funds.denom)
+                    && fund.amount.ge(&request_annotation_msg.sent_funds.amount)
                 {
-                    rsp.messages.push(cosmos_msg);
+                    rsp = rsp.add_message(cosmos_msg);
                     break;
                 }
             }
             // error when there's no message pushed
             if rsp.messages.len() == 1 {
                 return Err(ContractError::InvalidSentFunds {
-                    expected: format!("{:?}", request_annotation_msg.funds),
+                    expected: format!("{:?}", request_annotation_msg.sent_funds),
                     got: format!("{:?}", info.funds),
                 });
             }
@@ -307,14 +280,14 @@ pub fn execute_mint(
     event.add_attributes(&mut rsp);
 
     if let Some(msg) = msg {
-        rsp.messages = vec![Cw1155ReceiveMsg {
+        rsp = rsp.add_messages(vec![Cw1155ReceiveMsg {
             operator: info.sender.to_string(),
             from: None,
             amount,
             token_id: token_id.clone(),
             msg,
         }
-        .into_cosmos_msg(to)?]
+        .into_cosmos_msg(to)?])
     }
 
     // insert if not exist
@@ -379,13 +352,13 @@ pub fn execute_batch_send_from(
     }
 
     if let Some(msg) = msg {
-        rsp.messages = vec![Cw1155BatchReceiveMsg {
+        rsp = rsp.add_messages(vec![Cw1155BatchReceiveMsg {
             operator: info.sender.to_string(),
             from: Some(from),
             batch,
             msg,
         }
-        .into_cosmos_msg(to)?]
+        .into_cosmos_msg(to)?]);
     };
 
     Ok(rsp)
@@ -419,13 +392,13 @@ pub fn execute_batch_mint(
     }
 
     if let Some(msg) = msg {
-        rsp.messages = vec![Cw1155BatchReceiveMsg {
+        rsp = rsp.add_messages(vec![Cw1155BatchReceiveMsg {
             operator: info.sender.to_string(),
             from: None,
             batch,
             msg,
         }
-        .into_cosmos_msg(to)?]
+        .into_cosmos_msg(to)?]);
     };
 
     Ok(rsp)
@@ -537,7 +510,7 @@ pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
             limit,
         } => {
             let owner_addr = Addr::unchecked(owner);
-            let start_addr = start_after.map(Addr);
+            let start_addr = start_after.map(Addr::unchecked);
             to_json_binary(&query_all_approvals(
                 deps,
                 env,
@@ -567,7 +540,7 @@ pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn parse_approval(item: StdResult<KV<Expiration>>) -> StdResult<cw1155::Approval> {
+fn parse_approval(item: StdResult<Record<Expiration>>) -> StdResult<cw1155::Approval> {
     item.and_then(|(k, expires)| {
         let spender = String::from_utf8(k)?;
         Ok(cw1155::Approval { spender, expires })
@@ -583,7 +556,7 @@ fn query_all_approvals(
     limit: Option<u32>,
 ) -> StdResult<ApprovedForAllResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|addr| Bound::exclusive(addr.as_bytes()));
+    let start = start_after.map(|addr| Bound::ExclusiveRaw(addr.as_bytes().to_vec()));
 
     let operators = APPROVES
         .prefix(owner.as_bytes())
@@ -612,7 +585,7 @@ fn query_tokens(
     limit: Option<u32>,
 ) -> StdResult<TokensResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(Bound::exclusive);
+    let start = start_after.map(|s| Bound::ExclusiveRaw(s.as_bytes().to_vec()));
 
     let tokens = BALANCES
         .prefix(owner.as_bytes())
@@ -629,7 +602,7 @@ fn query_all_tokens(
     limit: Option<u32>,
 ) -> StdResult<TokensResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(Bound::exclusive);
+    let start = start_after.map(|s| Bound::ExclusiveRaw(s.as_bytes().to_vec()));
     let tokens = TOKENS
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)

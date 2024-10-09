@@ -1,9 +1,10 @@
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{config, config_read, State, MAPPED_TXS};
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    to_json_binary, Attribute, Binary, Deps, DepsMut, Env, Response, Addr, Response,
-    MessageInfo, Response, StdResult,
+    to_json_binary, Addr, Attribute, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 
 // Note, you can use StdResult in some functions where you do not
@@ -38,14 +39,10 @@ pub fn execute(
         ExecuteMsg::ChangeOwner { owner } => change_owner(deps, info, owner),
         ExecuteMsg::AddTx { hash, value } => add_tx(deps, info, hash, value),
         ExecuteMsg::Ping {} => {
-            let response = Response {
-                messages: vec![],
-                add_attributes(vec![Attribute {
-                    key: "action".to_string(),
-                    value: "ping".to_string(),
-                }],
-                data: None,
-            };
+            let response = Response::new().add_attributes(vec![Attribute {
+                key: "action".to_string(),
+                value: "ping".to_string(),
+            }]);
             Ok(response)
         }
     }
