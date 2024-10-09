@@ -1,3 +1,6 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use std::fmt;
 
 use crate::ai_royalty::{
@@ -21,7 +24,7 @@ use crate::msg::{
 use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
     attr, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo,
-    Response, Response, Response, StdError, StdResult, Uint128, WasmMsg,
+    Response, StdError, StdResult, Uint128, WasmMsg,
 };
 use cosmwasm_std::{from_json, Addr};
 use cw20::Cw20ReceiveMsg;
@@ -93,9 +96,7 @@ pub fn execute(
             info.sender,
             env,
             auction_id,
-            Funds::Native {
-                fund: info.funds,
-            },
+            Funds::Native { fund: info.funds },
             // Some(info.funds),
         ),
         ExecuteMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
@@ -148,9 +149,7 @@ pub fn execute(
             info.sender,
             env,
             offering_id,
-            Funds::Native {
-                fund: info.funds,
-            },
+            Funds::Native { fund: info.funds },
             // Some(info.funds),
         ),
         ExecuteMsg::MigrateVersion {
@@ -204,10 +203,10 @@ pub fn try_receive_cw20(
     env: Env,
     cw20_msg: Cw20ReceiveMsg,
 ) -> Result<Response, ContractError> {
-    match from_json(&cw20_msg.msg.unwrap_or(Binary::default())) {
+    match from_json(&cw20_msg.msg) {
         Ok(Cw20HookMsg::BuyNft { offering_id }) => try_buy(
             deps,
-            cw20_msg.sender,
+            Addr::unchecked(cw20_msg.sender),
             env,
             offering_id,
             // Some(cw20_msg.amount),
@@ -217,7 +216,7 @@ pub fn try_receive_cw20(
         ),
         Ok(Cw20HookMsg::BidNft { auction_id }) => try_bid_nft(
             deps,
-            cw20_msg.sender,
+            Addr::unchecked(cw20_msg.sender),
             env,
             auction_id,
             // Some(cw20_msg.amount),
@@ -239,20 +238,19 @@ pub fn try_withdraw_funds(
 ) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
-        from_address: env.contract.address,
-        to_address: Addr::unchecked(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
+        to_address: contract_info.creator.to_string(), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
 
-    Ok(Response::new().add_messages( vec![bank_msg],
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(vec![bank_msg])
+        .add_attributes(vec![
             attr("action", "withdraw_funds"),
             attr("denom", fund.denom),
             attr("amount", fund.amount),
             attr("receiver", contract_info.creator),
-        ],
-        ))
+        ]))
 }
 
 pub fn try_update_info(
@@ -295,10 +293,9 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().add_messages( vec![],
-        add_attributes(vec![attr("action", "update_info")],
-        data: to_json_binary(&new_contract_info).ok(),
-    })
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "update_info")])
+        .set_data(to_json_binary(&new_contract_info)?))
 }
 
 // when user sell NFT to
@@ -346,21 +343,21 @@ pub fn try_migrate(
         };
 
         let exec_cw721_transfer = WasmMsg::Execute {
-            contract_addr: nft_contract_addr.clone(),
+            contract_addr: nft_contract_addr.to_string(),
             msg: to_json_binary(&transfer_cw721_msg)?,
             funds: vec![],
         }
         .into();
         cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
     }
-    Ok(Response::new().add_messages( cw721_transfer_cosmos_msg,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cw721_transfer_cosmos_msg)
+        .add_attributes(vec![
             attr("action", "migrate_marketplace"),
             attr("nft_contract_addr", nft_contract_addr),
             attr("token_ids", format!("{:?}", token_ids)),
             attr("new_marketplace", new_marketplace),
-        ],
-        ))
+        ]))
 }
 
 pub fn handle_transfer_nft(
@@ -387,10 +384,10 @@ pub fn handle_transfer_nft(
 
     verify_nft(
         deps.as_ref(),
-        &governance,
-        &contract_addr,
+        &governance.as_str(),
+        &contract_addr.as_str(),
         &token_id,
-        &info.sender,
+        &info.sender.as_str(),
     )?;
 
     let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
@@ -400,20 +397,20 @@ pub fn handle_transfer_nft(
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: contract_addr.clone(),
+        contract_addr: contract_addr.to_string(),
         msg: to_json_binary(&transfer_cw721_msg)?,
         funds: vec![],
     }
     .into();
     cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
-    Ok(Response::new().add_messages( cw721_transfer_cosmos_msg,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cw721_transfer_cosmos_msg)
+        .add_attributes(vec![
             attr("action", "transfer_nft_directly"),
             attr("token_id", token_id),
             attr("sender", info.sender),
             attr("recipient", recipient),
-        ],
-        ))
+        ]))
 }
 
 pub fn try_approve_all(
@@ -436,19 +433,19 @@ pub fn try_approve_all(
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: contract_addr.clone(),
+        contract_addr: contract_addr.to_string(),
         msg: to_json_binary(&transfer_cw721_msg)?,
         funds: vec![],
     }
     .into();
     cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
-    Ok(Response::new().add_messages( cw721_transfer_cosmos_msg,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cw721_transfer_cosmos_msg)
+        .add_attributes(vec![
             attr("action", "approve_all"),
             attr("contract_addr", contract_addr),
             attr("operator", operator),
-        ],
-        ))
+        ]))
 }
 
 pub fn verify_owner(
@@ -634,7 +631,7 @@ pub fn query_offering_payment_asset_info(
 ) -> StdResult<AssetInfo> {
     // collect payment type
     Ok(deps.querier.query_wasm_smart(
-        get_storage_addr(deps, governance.into(), PAYMENT_STORAGE)?,
+        get_storage_addr(deps, Addr::unchecked(governance), PAYMENT_STORAGE)?,
         &ProxyQueryMsg::Msg(PaymentQueryMsg::GetOfferingPayment {
             contract_addr,
             token_id: token_id.into(),
@@ -651,7 +648,7 @@ pub fn query_auction_payment_asset_info(
 ) -> StdResult<AssetInfo> {
     // collect payment type
     Ok(deps.querier.query_wasm_smart(
-        get_storage_addr(deps, governance.into(), PAYMENT_STORAGE)?,
+        get_storage_addr(deps, Addr::unchecked(governance), PAYMENT_STORAGE)?,
         &ProxyQueryMsg::Msg(PaymentQueryMsg::GetAuctionPayment {
             contract_addr,
             token_id: token_id.into(),
@@ -682,7 +679,7 @@ where
         });
 
     Ok(WasmMsg::Execute {
-        contract_addr: Addr::unchecked(addr),
+        contract_addr: addr.to_string(),
         msg: to_json_binary(&proxy_msg)?,
         funds: vec![],
     }

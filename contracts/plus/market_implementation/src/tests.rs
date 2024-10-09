@@ -111,12 +111,18 @@ impl DepsManager {
                 storages: vec![
                     (AUCTION_STORAGE.to_string(), Addr::unchecked(AUCTION_ADDR)),
                     (OFFERING_STORAGE.to_string(), Addr::unchecked(OFFERING_ADDR)),
-                    (AI_ROYALTY_STORAGE.to_string(), Addr::unchecked(AI_ROYALTY_ADDR)),
+                    (
+                        AI_ROYALTY_STORAGE.to_string(),
+                        Addr::unchecked(AI_ROYALTY_ADDR),
+                    ),
                     (
                         FIRST_LV_ROYALTY_STORAGE.to_string(),
                         Addr::unchecked(FIRST_LV_ROYALTY_ADDR),
                     ),
-                    (WHITELIST_STORAGE.to_string(), Addr::unchecked(WHITELIST_ADDR)),
+                    (
+                        WHITELIST_STORAGE.to_string(),
+                        Addr::unchecked(WHITELIST_ADDR),
+                    ),
                     (
                         PAYMENT_STORAGE.to_string(),
                         Addr::unchecked(PAYMENT_STORAGE_ADDR),
@@ -163,7 +169,8 @@ impl DepsManager {
         )
         .unwrap();
 
-        let mut ai_royalty = mock_dependencies(Addr::unchecked(AI_ROYALTY_ADDR), &[], Self::query_wasm);
+        let mut ai_royalty =
+            mock_dependencies(Addr::unchecked(AI_ROYALTY_ADDR), &[], Self::query_wasm);
         let _res = market_ai_royalty_storage::contract::instantiate(
             ai_royalty.as_mut(),
             mock_env(AI_ROYALTY_ADDR),
@@ -174,7 +181,8 @@ impl DepsManager {
         )
         .unwrap();
 
-        let mut whitelist = mock_dependencies(Addr::unchecked(WHITELIST_ADDR), &[], Self::query_wasm);
+        let mut whitelist =
+            mock_dependencies(Addr::unchecked(WHITELIST_ADDR), &[], Self::query_wasm);
         let _res = market_whitelist_storage::contract::instantiate(
             whitelist.as_mut(),
             mock_env(WHITELIST_ADDR),
@@ -202,8 +210,11 @@ impl DepsManager {
         )
         .unwrap();
 
-        let mut first_lv_royalty =
-            mock_dependencies(Addr::unchecked(FIRST_LV_ROYALTY_ADDR), &[], Self::query_wasm);
+        let mut first_lv_royalty = mock_dependencies(
+            Addr::unchecked(FIRST_LV_ROYALTY_ADDR),
+            &[],
+            Self::query_wasm,
+        );
         let _res = market_first_level_royalty_storage::contract::instantiate(
             first_lv_royalty.as_mut(),
             mock_env(FIRST_LV_ROYALTY_ADDR),
@@ -785,7 +796,10 @@ fn test_royalty_auction_happy_path() {
                 bid_contract_env,
                 mock_info(
                     "bidder1",
-                    &coins(Uint128::from(10u128)).add(Uint128::from(10u64)).u128(), DENOM),
+                    &coins(
+                        Uint128::from(10u128).add(Uint128::from(10u64)).u128(),
+                        DENOM,
+                    ),
                 ),
                 bid_msg,
             )
@@ -830,18 +844,14 @@ fn test_royalty_auction_happy_path() {
             for message in result.clone().messages {
                 if let CosmosMsg::Bank(msg) = message {
                     match msg {
-                        cosmwasm_std::BankMsg::Send {
-                            from_address: _,
-                            to_address,
-                            amount,
-                        } => {
+                        cosmwasm_std::BankMsg::Send { to_address, amount } => {
                             let amount = amount[0].amount;
                             println!("to address: {}\n", to_address);
                             if to_address.eq(&result_royalty.previous_owner.clone().unwrap()) {
                                 flag = 1;
                                 println!("in here ready to pay for prev owner");
                                 assert_eq!(
-                                    Uint128::from(19u128)).mul(Decimal::from_ratio(
+                                    Uint128::from(19u128).mul(Decimal::from_ratio(
                                         // initial buy amount is 20, but fee is 0.1% => decreased to 19
                                         result_royalty.prev_royalty.unwrap(),
                                         MAX_DECIMAL_POINT
@@ -850,6 +860,8 @@ fn test_royalty_auction_happy_path() {
                                 );
                             }
                         }
+
+                        _ => todo!(),
                     }
                 }
             }
@@ -2064,11 +2076,7 @@ fn test_royalties() {
             for message in result.clone().messages {
                 if let CosmosMsg::Bank(msg) = message {
                     match msg {
-                        cosmwasm_std::BankMsg::Send {
-                            from_address: _,
-                            to_address,
-                            amount,
-                        } => {
+                        cosmwasm_std::BankMsg::Send { to_address, amount } => {
                             println!("to address: {}", to_address);
                             println!("amount: {:?}", amount);
                             let amount = amount[0].amount;
@@ -2100,6 +2108,8 @@ fn test_royalties() {
                                 );
                             }
                         }
+
+                        _ => todo!(),
                     }
                 }
             }
@@ -2323,7 +2333,7 @@ fn test_royalties_ow20() {
                         cosmwasm_std::WasmMsg::Execute {
                             contract_addr,
                             msg,
-                            send,
+                            funds: send,
                         } => {
                             println!("contract addr: {}", contract_addr);
                             let cw20_msg_result = from_json(&msg);

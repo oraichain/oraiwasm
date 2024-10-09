@@ -95,13 +95,13 @@ pub fn try_update_preference(
         AiRoyaltyExecuteMsg::UpdatePreference(pref),
     )?;
 
-    Ok(Response::new().add_messages( vec![cosmos_msg],
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(vec![cosmos_msg])
+        .add_attributes(vec![
             attr("action", "update_preference"),
             attr("caller", info.sender),
-            attr("new_preference", pref),
-        ],
-        ))
+            attr("new_preference", pref.to_string()),
+        ]))
 }
 
 pub fn try_update_royalty_creator(
@@ -131,12 +131,12 @@ pub fn try_update_royalty_creator(
         }),
     )?;
 
-    Ok(Response::new().add_messages( vec![cosmos_msg],
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(vec![cosmos_msg])
+        .add_attributes(vec![
             attr("action", "update_royalty_creator"),
             attr("caller", info.sender),
-        ],
-        ))
+        ]))
 }
 
 // query first level royalty
@@ -192,7 +192,7 @@ pub fn try_update_royalties(
             }),
         )?);
     }
-    Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![attr("action", "update_creator_royalties")],
-        ))
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![attr("action", "update_creator_royalties")]))
 }

@@ -144,7 +144,7 @@ pub fn try_bid_nft(
         .add_attributes(vec![
             attr("action", "bid_nft"),
             attr("bidder", sender),
-            attr("auction_id", auction_id),
+            attr("auction_id", auction_id.to_string()),
             attr("token_id", token_id),
         ]))
 }
@@ -201,7 +201,7 @@ pub fn try_claim_winner(
         // transfer token to bidder
         cosmos_msgs.push(
             WasmMsg::Execute {
-                contract_addr: deps.api.addr_humanize(&off.contract_addr)?,
+                contract_addr: deps.api.addr_humanize(&off.contract_addr)?.to_string(),
                 msg: to_json_binary(&Cw721ExecuteMsg::TransferNft {
                     recipient: bidder_addr.clone(),
                     token_id: token_id.clone(),
@@ -293,15 +293,15 @@ pub fn try_claim_winner(
         // return nft back to asker. if nft is owned by market address => transfer nft back to asker
         if verify_owner(
             deps.as_ref(),
-            &contract_addr,
+            &contract_addr.as_str(),
             &token_id,
-            &env.contract.address,
+            &env.contract.address.as_str(),
         )
         .is_ok()
         {
             cosmos_msgs.push(
                 WasmMsg::Execute {
-                    contract_addr: deps.api.addr_humanize(&off.contract_addr)?,
+                    contract_addr: deps.api.addr_humanize(&off.contract_addr)?.to_string(),
                     msg: to_json_binary(&Cw721ExecuteMsg::TransferNft {
                         recipient: asker_addr,
                         token_id: token_id.clone(),
@@ -320,13 +320,13 @@ pub fn try_claim_winner(
         AuctionExecuteMsg::RemoveAuction { id: auction_id },
     )?);
 
-    rsp.messages = cosmos_msgs;
+    rsp = rsp.add_messages(cosmos_msgs);
     rsp.attributes.extend(vec![
         attr("claimer", info.sender),
         attr("token_id", token_id),
-        attr("auction_id", auction_id),
+        attr("auction_id", auction_id.to_string()),
         attr("total_price", off.price),
-        attr("royalty", true),
+        attr("royalty", "true"),
     ]);
 
     Ok(rsp)
@@ -361,14 +361,14 @@ pub fn try_handle_ask_aution(
 
     verify_nft(
         deps.as_ref(),
-        &governance,
-        &contract_addr,
+        governance.as_str(),
+        contract_addr.as_str(),
         &token_id,
-        &info.sender,
+        info.sender.as_str(),
     )?;
 
     // get Auctions count
-    let asker = deps.api.addr_canonicalize(&info.sender)?;
+    let asker = deps.api.addr_canonicalize(info.sender.as_str())?;
     let start_timestamp = start_timestamp
         .map(|mut start| {
             if start.lt(&Uint128::from(env.block.time.seconds())) {
@@ -538,7 +538,7 @@ pub fn try_cancel_bid(
             if let Some(cancel_fee) = off.cancel_fee {
                 let asker_addr = deps.api.addr_humanize(&off.asker)?;
                 let asker_amount = sent_amount.mul(Decimal::permille(cancel_fee));
-                sent_amount = sent_amount.sub(&asker_amount)?;
+                sent_amount = sent_amount.sub(&asker_amount);
                 // only allow sending if asker amount is greater than 0
                 if !asker_amount.is_zero() {
                     // transfer fee to asker
@@ -576,7 +576,7 @@ pub fn try_cancel_bid(
                 .add_attributes(vec![
                     attr("action", "cancel_bid"),
                     attr("bidder", info.sender),
-                    attr("auction_id", auction_id),
+                    attr("auction_id", auction_id.to_string()),
                     attr("token_id", token_id),
                 ]));
         } else {
@@ -635,15 +635,15 @@ pub fn try_emergency_cancel_auction(
     // if market address is the owner => transfer back to original owner which is asker
     if verify_owner(
         deps.as_ref(),
-        &deps.api.addr_humanize(&off.contract_addr)?,
+        &deps.api.addr_humanize(&off.contract_addr)?.to_string(),
         &token_id,
-        &env.contract.address,
+        env.contract.address.as_str(),
     )
     .is_ok()
     {
         cosmos_msgs.push(
             WasmMsg::Execute {
-                contract_addr: deps.api.addr_humanize(&off.contract_addr)?,
+                contract_addr: deps.api.addr_humanize(&off.contract_addr)?.to_string(),
                 msg: to_json_binary(&Cw721ExecuteMsg::TransferNft {
                     recipient: deps.api.addr_humanize(&off.asker)?,
                     token_id: token_id.clone(),
@@ -679,7 +679,7 @@ pub fn try_emergency_cancel_auction(
         .add_attributes(vec![
             attr("action", "withdraw_nft"),
             attr("asker", info.sender),
-            attr("auction_id", auction_id),
+            attr("auction_id", auction_id.to_string()),
             attr("token_id", token_id),
         ]));
 }
@@ -698,7 +698,7 @@ pub fn get_auction_handle_msg(
         });
 
     Ok(WasmMsg::Execute {
-        contract_addr: addr,
+        contract_addr: addr.to_string(),
         msg: to_json_binary(&proxy_msg)?,
         funds: vec![],
     }
