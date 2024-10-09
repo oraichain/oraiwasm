@@ -29,7 +29,7 @@ impl Cw1155ReceiveMsg {
     pub fn into_cosmos_msg<T: Into<String>>(self, contract_addr: T) -> StdResult<CosmosMsg> {
         let msg = self.into_json_binary()?;
         let execute = WasmMsg::Execute {
-            contract_addr: Addr(contract_addr.into()),
+            contract_addr: contract_addr.into(),
             msg,
             funds: vec![],
         };
@@ -58,7 +58,7 @@ impl Cw1155BatchReceiveMsg {
     pub fn into_cosmos_msg<T: Into<String>>(self, contract_addr: T) -> StdResult<CosmosMsg> {
         let msg = self.into_json_binary()?;
         let execute = WasmMsg::Execute {
-            contract_addr: Addr(contract_addr.into()),
+            contract_addr: contract_addr.into(),
             msg,
             funds: vec![],
         };

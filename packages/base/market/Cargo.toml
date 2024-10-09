@@ -9,8 +9,8 @@ homepage = "https://orai.io"
 
 [dependencies]
 cosmwasm-std = { workspace = true }
+cosmwasm-schema = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-cosmwasm-schema = { workspace = true }

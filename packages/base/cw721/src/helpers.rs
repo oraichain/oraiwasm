@@ -2,8 +2,8 @@ use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use cosmwasm_std::{
-    to_json_binary, Addr, Api, CanonicalAddr, CosmosMsg, Querier, QuerierWrapper, StdResult,
-    WasmMsg, WasmQuery,
+    to_json_binary, Addr, Api, CanonicalAddr, CosmosMsg, Empty, Querier, QuerierWrapper,
+    QueryRequest, StdResult, WasmMsg, WasmQuery,
 };
 
 use crate::{
@@ -25,14 +25,14 @@ impl Cw721Contract {
 
     /// Convert this address to a form fit for storage
     pub fn canonical<A: Api>(&self, api: &A) -> StdResult<Cw721CanonicalContract> {
-        let canon = api.addr_canonicalize(&self.0)?;
+        let canon = api.addr_canonicalize(self.0.as_str())?;
         Ok(Cw721CanonicalContract(canon))
     }
 
     pub fn call(&self, msg: Cw721ExecuteMsg) -> StdResult<CosmosMsg> {
         let msg = to_json_binary(&msg)?;
         Ok(WasmMsg::Execute {
-            contract_addr: self.addr(),
+            contract_addr: self.addr().to_string(),
             msg,
             funds: vec![],
         }
@@ -44,8 +44,8 @@ impl Cw721Contract {
         querier: &Q,
         req: Cw721QueryMsg,
     ) -> StdResult<T> {
-        let query = WasmQuery::Smart {
-            contract_addr: self.addr(),
+        let query: QueryRequest<Empty> = WasmQuery::Smart {
+            contract_addr: self.addr().to_string(),
             msg: to_json_binary(&req)?,
         }
         .into();

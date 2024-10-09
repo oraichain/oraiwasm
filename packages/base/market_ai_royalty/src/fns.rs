@@ -1,8 +1,7 @@
 use std::ops::{Mul, Sub};
 
 use cosmwasm_std::{
-    coins, to_json_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Response, StdError, Uint128,
-    WasmMsg,
+    coins, to_json_binary, Addr, BankMsg, CosmosMsg, Response, StdError, Uint128, WasmMsg,
 };
 use market::AssetInfo;
 
@@ -41,14 +40,16 @@ pub fn parse_transfer_msg(
 ) -> Result<CosmosMsg, StdError> {
     match asset_info {
         AssetInfo::NativeToken { denom } => Ok(BankMsg::Send {
-            from_address: Addr::from(sender),
-            to_address: recipient,
+            to_address: recipient.to_string(),
             amount: coins(amount.u128(), denom),
         }
         .into()),
         AssetInfo::Token { contract_addr } => Ok(WasmMsg::Execute {
-            contract_addr,
-            msg: to_json_binary(&cw20::Cw20ExecuteMsg::Transfer { recipient, amount })?,
+            contract_addr: contract_addr.to_string(),
+            msg: to_json_binary(&cw20::Cw20ExecuteMsg::Transfer {
+                recipient: recipient.to_string(),
+                amount,
+            })?,
             funds: vec![],
         }
         .into()),
@@ -75,9 +76,10 @@ pub fn pay_royalties(
             token_id = royalty.token_id.as_str();
         }
         // royalty = total price * royalty percentage
-        let creator_amount = price.mul(Decimal::from_ratio(royalty.royalty, decimal_point));
+        let creator_amount =
+            price.mul(Uint128::from(royalty.royalty)) / Uint128::from(decimal_point);
         if creator_amount.gt(&Uint128::from(0u128)) {
-            *remaining = remaining.sub(creator_amount)?;
+            *remaining = remaining.sub(creator_amount);
             cosmos_msgs.push(parse_transfer_msg(
                 asset_info.clone(),
                 creator_amount,

@@ -1,5 +1,6 @@
+use cosmwasm_schema::cw_serde;
 use cosmwasm_std::{
-    from_json, to_json_binary, to_vec, Addr, Binary, CanonicalAddr, ContractResult, CosmosMsg,
+    from_json, to_json_binary, to_json_vec, Addr, Binary, CanonicalAddr, ContractResult, CosmosMsg,
     Deps, Empty, QuerierWrapper, QueryRequest, StdError, StdResult, SystemResult, WasmMsg,
     WasmQuery,
 };
@@ -11,7 +12,7 @@ use crate::{
     TokenInfo,
 };
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
+#[cw_serde]
 pub struct AdminList {
     pub admins: Vec<CanonicalAddr>,
     pub owner: CanonicalAddr,
@@ -73,12 +74,12 @@ impl Registry {
 
 fn get_raw_request(addr: Addr, msg: Binary) -> StdResult<Vec<u8>> {
     let request: QueryRequest<Empty> = WasmQuery::Smart {
-        contract_addr: addr,
+        contract_addr: addr.to_string(),
         msg,
     }
     .into();
 
-    let raw = to_vec(&request).map_err(|serialize_err| {
+    let raw = to_json_vec(&request).map_err(|serialize_err| {
         StdError::generic_err(format!("Serializing QueryRequest: {}", serialize_err))
     });
     raw
@@ -158,7 +159,7 @@ impl MarketHubContract {
 
     fn encode_msg(&self, msg: MarketHubExecuteMsg) -> StdResult<CosmosMsg> {
         Ok(WasmMsg::Execute {
-            contract_addr: self.addr(),
+            contract_addr: self.addr().to_string(),
             msg: to_json_binary(&msg)?,
             funds: vec![],
         }
@@ -172,7 +173,7 @@ impl MarketHubContract {
 
     fn encode_smart_query(&self, msg: MarketHubQueryMsg) -> StdResult<QueryRequest<Empty>> {
         Ok(WasmQuery::Smart {
-            contract_addr: self.addr(),
+            contract_addr: self.addr().to_string(),
             msg: to_json_binary(&msg)?,
         }
         .into())
@@ -204,9 +205,9 @@ mod tests {
         let api = MockApi::default();
         let admins: Vec<_> = vec!["bob", "paul", "john"]
             .into_iter()
-            .map(|name| api.addr_canonicalize(Addr::from(name.as_str())).unwrap())
+            .map(|name| api.addr_canonicalize(name).unwrap())
             .collect();
-        let owner = api.addr_canonicalize(&"tupt".into()).unwrap();
+        let owner = api.addr_canonicalize("tupt").unwrap();
         let config = AdminList {
             admins: admins.clone(),
             mutable: false,
@@ -215,16 +216,16 @@ mod tests {
         assert!(config.is_admin(&owner));
         assert!(config.is_admin(&admins[0]));
         assert!(config.is_admin(&admins[2]));
-        let other = api.addr_canonicalize(&Addr::unchecked("other")).unwrap();
+        let other = api.addr_canonicalize("other").unwrap();
         assert!(!config.is_admin(&other));
     }
 
     #[test]
     fn can_modify() {
         let api = MockApi::default();
-        let alice = api.addr_canonicalize(&Addr::unchecked("alice")).unwrap();
-        let bob = api.addr_canonicalize(&Addr::unchecked("bob")).unwrap();
-        let owner = api.addr_canonicalize(&Addr::unchecked("tupt")).unwrap();
+        let alice = api.addr_canonicalize("alice").unwrap();
+        let bob = api.addr_canonicalize("bob").unwrap();
+        let owner = api.addr_canonicalize("tupt").unwrap();
 
         // admin can modify mutable contract
         let config = AdminList {

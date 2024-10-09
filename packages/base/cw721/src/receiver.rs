@@ -23,7 +23,7 @@ impl Cw721ReceiveMsg {
     pub fn into_cosmos_msg(self, contract_addr: Addr) -> StdResult<CosmosMsg> {
         let msg = self.into_json_binary()?;
         let execute = WasmMsg::Execute {
-            contract_addr,
+            contract_addr: contract_addr.to_string(),
             msg,
             funds: vec![],
         };

@@ -1,7 +1,9 @@
+use std::marker::PhantomData;
+
 use cosmwasm_std::testing::{BankQuerier, MockApi, MockStorage, StakingQuerier};
 use cosmwasm_std::{
     from_json, Addr, BlockInfo, Coin, ContractInfo, Empty, Env, OwnedDeps, Querier, QuerierResult,
-    QueryRequest, SystemError, SystemResult, WasmQuery,
+    QueryRequest, SystemError, SystemResult, Timestamp, WasmQuery,
 };
 
 const CANONICAL_LENGTH: usize = 32;
@@ -41,6 +43,9 @@ impl MockQuerier {
             }
             QueryRequest::Staking(staking_query) => self.staking.query(staking_query),
             QueryRequest::Wasm(msg) => (self.wasm_handler)(msg),
+            QueryRequest::Stargate { path, data } => todo!(),
+            QueryRequest::Ibc(ibc_query) => todo!(),
+            _ => todo!(),
         }
     }
 }
@@ -50,13 +55,14 @@ pub fn mock_dependencies(
     contract_balance: &[Coin],
     wasm_handler: WasmHandler,
 ) -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-    let mut api = MockApi::default();
-    api.canonical_length = CANONICAL_LENGTH;
+    let api = MockApi::default();
+
     OwnedDeps {
+        custom_query_type: PhantomData,
         storage: MockStorage::default(),
         api,
         querier: MockQuerier {
-            bank: BankQuerier::new(&[(&contract_addr, contract_balance)]),
+            bank: BankQuerier::new(&[(contract_addr.as_str(), contract_balance)]),
             staking: StakingQuerier::default(),
             wasm_handler,
         },
@@ -67,12 +73,12 @@ pub fn mock_env(contract_addr: &str) -> Env {
     Env {
         block: BlockInfo {
             height: 12_345,
-            time: 1_571_797_419,
-            time_nanos: 879305533,
+            time: Timestamp::from_seconds(1_571_797_419),
             chain_id: "oraichain-2021".to_string(),
         },
         contract: ContractInfo {
-            address: Addr::from(contract_addr),
+            address: Addr::unchecked(contract_addr),
         },
+        transaction: None,
     }
 }
