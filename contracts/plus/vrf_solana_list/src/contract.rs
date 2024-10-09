@@ -1,22 +1,23 @@
 use cosmwasm_std::{
-    attr, from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse,
-    MessageInfo, Order, StdResult, Storage,
+    attr, from_slice, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    Response, StdResult, Storage,
 };
 
 use crate::errors::ContractError;
-use crate::msg::{HandleMsg, InitMsg, Member, MemberMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, Member, MemberMsg, QueryMsg};
 use crate::state::{clear_store, members_storage, members_storage_read, owner, owner_read, Owner};
 
 // settings for pagination
 const MAX_LIMIT: u8 = 30;
 const DEFAULT_LIMIT: u8 = 5;
 
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     // update owner
     owner(deps.storage).save(&Owner {
         owner: info.sender.to_string(),
@@ -25,29 +26,30 @@ pub fn init(
     // store all members
     store_members(deps.storage, msg.members, false)?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Reset { members } => reset(deps, info, members),
+        ExecuteMsg::Reset { members } => reset(deps, info, members),
     }
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     let response = match msg {
-        QueryMsg::ContractInfo {} => to_binary(&query_contract_info(deps)?)?,
-        QueryMsg::GetMember { address } => to_binary(&query_member(deps, address.as_str())?)?,
+        QueryMsg::ContractInfo {} => to_json_binary(&query_contract_info(deps)?)?,
+        QueryMsg::GetMember { address } => to_json_binary(&query_member(deps, address.as_str())?)?,
         QueryMsg::GetMembers {
             limit,
             offset,
             order,
-        } => to_binary(&query_members(deps, limit, offset, order)?)?,
+        } => to_json_binary(&query_members(deps, limit, offset, order)?)?,
     };
     Ok(response)
 }
@@ -70,7 +72,7 @@ fn store_members(storage: &mut dyn Storage, members: Vec<MemberMsg>, clear: bool
             sol_pub: msg.sol_pub.clone(),
         };
 
-        members_store.set(member.orai_pub.as_slice(), &to_binary(&member)?);
+        members_store.set(member.orai_pub.as_slice(), &to_json_binary(&member)?);
     }
     Ok(())
 }
@@ -81,7 +83,7 @@ pub fn reset(
     deps: DepsMut,
     info: MessageInfo,
     members: Option<Vec<MemberMsg>>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let owner = owner_read(deps.storage).load()?;
     if !owner.owner.eq(info.sender.as_str()) {
         return Err(ContractError::Unauthorized(
@@ -94,7 +96,7 @@ pub fn reset(
         store_members(deps.storage, members, true)?;
     }
 
-    let mut response = HandleResponse::default();
+    let mut response = Response::default();
     response.attributes = vec![attr("action", "update_members")];
     Ok(response)
 }

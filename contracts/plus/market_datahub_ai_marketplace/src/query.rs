@@ -1,4 +1,4 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,7 @@ use crate::state::PackageOffering;
 #[serde(rename_all = "snake_case")]
 pub enum AIMarketQueryMsg {
     GetPackageOfferingsBySeller {
-        seller: HumanAddr,
+        seller: Addr,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,

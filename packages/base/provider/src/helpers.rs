@@ -1,17 +1,19 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, StateMsg, UpdateServiceFees, UpdateServiceFeesMsg};
+use crate::msg::{
+    ExecuteMsg, InstantiateMsg, QueryMsg, StateMsg, UpdateServiceFees, UpdateServiceFeesMsg,
+};
 use crate::state::{config, config_read, State, OWNER};
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, StdResult, WasmMsg,
+    attr, to_json_binary, Addr, BankMsg, Binary, Coin, Deps, DepsMut, Env, MessageInfo, Response,
+    Response, StdResult, WasmMsg,
 };
 
 pub fn init_provider(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> StdResult<InitResponse> {
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
     let state: State = msg.0;
     // let state: State = State {
     //     language: "node".to_string(),
@@ -24,7 +26,7 @@ pub fn init_provider(
     // };
     config(deps.storage).save(&state)?;
     OWNER.save(deps.storage, &info.sender)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
@@ -32,15 +34,15 @@ pub fn handle_provider(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::SetState(state) => try_set_state(deps, info, state),
-        HandleMsg::SetServiceFees { contract_addr, fee } => {
+        ExecuteMsg::SetState(state) => try_set_state(deps, info, state),
+        ExecuteMsg::SetServiceFees { contract_addr, fee } => {
             try_set_fees(deps, info, contract_addr, fee)
         }
-        HandleMsg::WithdrawFees { fee } => try_withdraw_fees(deps, info, env, fee),
-        HandleMsg::SetOwner { owner } => try_set_owner(deps, info, owner),
+        ExecuteMsg::WithdrawFees { fee } => try_withdraw_fees(deps, info, env, fee),
+        ExecuteMsg::SetOwner { owner } => try_set_owner(deps, info, owner),
     }
 }
 
@@ -48,13 +50,13 @@ fn try_set_owner(
     deps: DepsMut,
     info: MessageInfo,
     owner: String,
-) -> Result<HandleResponse, ContractError> {
-    let old_owner: HumanAddr = OWNER.load(deps.storage)?;
+) -> Result<Response, ContractError> {
+    let old_owner: Addr = OWNER.load(deps.storage)?;
     if !info.sender.eq(&old_owner) {
         return Err(ContractError::Unauthorized {});
     }
-    OWNER.save(deps.storage, &HumanAddr::from(owner))?;
-    Ok(HandleResponse::default())
+    OWNER.save(deps.storage, &Addr::from(owner))?;
+    Ok(Response::default())
 }
 
 fn try_withdraw_fees(
@@ -62,8 +64,8 @@ fn try_withdraw_fees(
     info: MessageInfo,
     env: Env,
     fees: Coin,
-) -> Result<HandleResponse, ContractError> {
-    let owner: HumanAddr = OWNER.load(deps.storage)?;
+) -> Result<Response, ContractError> {
+    let owner: Addr = OWNER.load(deps.storage)?;
     if !info.sender.eq(&owner) {
         return Err(ContractError::Unauthorized {});
     }
@@ -73,34 +75,34 @@ fn try_withdraw_fees(
         amount: vec![fees],
     }
     .into();
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![cosmos_msg],
         attributes: vec![attr("action", "withdraw_fees")],
-        ..HandleResponse::default()
+        ..Response::default()
     })
 }
 
 fn try_set_fees(
     deps: DepsMut,
     info: MessageInfo,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     fees: Coin,
-) -> Result<HandleResponse, ContractError> {
-    let owner: HumanAddr = OWNER.load(deps.storage)?;
+) -> Result<Response, ContractError> {
+    let owner: Addr = OWNER.load(deps.storage)?;
     if !info.sender.eq(&owner) {
         return Err(ContractError::Unauthorized {});
     }
     let execute_msg = WasmMsg::Execute {
         contract_addr,
-        msg: to_binary(&UpdateServiceFeesMsg {
+        msg: to_json_binary(&UpdateServiceFeesMsg {
             update_service_fees: UpdateServiceFees { fees },
         })
         .unwrap(),
-        send: vec![],
+        funds: vec![],
     };
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![execute_msg.into()],
-        ..HandleResponse::default()
+        ..Response::default()
     })
 }
 
@@ -108,8 +110,8 @@ fn try_set_state(
     deps: DepsMut,
     info: MessageInfo,
     state_msg: StateMsg,
-) -> Result<HandleResponse, ContractError> {
-    let owner: HumanAddr = OWNER.load(deps.storage)?;
+) -> Result<Response, ContractError> {
+    let owner: Addr = OWNER.load(deps.storage)?;
     if !info.sender.eq(&owner) {
         return Err(ContractError::Unauthorized {});
     }
@@ -124,17 +126,17 @@ fn try_set_state(
         state.parameters = parameters;
     }
     config(deps.storage).save(&state)?;
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
 pub fn query_provider(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetState {} => to_binary(&query_state(deps)?),
-        QueryMsg::GetOwner {} => to_binary(&query_owner(deps)?),
+        QueryMsg::GetState {} => to_json_binary(&query_state(deps)?),
+        QueryMsg::GetOwner {} => to_json_binary(&query_owner(deps)?),
     }
 }
 
-fn query_owner(deps: Deps) -> StdResult<HumanAddr> {
+fn query_owner(deps: Deps) -> StdResult<Addr> {
     let state = OWNER.load(deps.storage)?;
     Ok(state)
 }
@@ -152,7 +154,7 @@ mod tests {
     };
 
     use crate::{
-        handle_provider, init_provider, msg::StateMsg, query_provider, state::State, InitMsg,
+        handle_provider, init_provider, msg::StateMsg, query_provider, state::State, InstantiateMsg,
     };
 
     // use cosmwasm_std::from_slice;
@@ -165,7 +167,7 @@ mod tests {
             deps.as_mut(),
             mock_env(),
             mock_info("creator", &coins(0u128, "orai")),
-            InitMsg(State {
+            InstantiateMsg(State {
                 language: String::from("node"),
                 script_url: String::from("url"),
                 parameters: vec![String::from("param")],
@@ -187,7 +189,7 @@ mod tests {
             deps.as_mut(),
             mock_env(),
             mock_info("creator", &coins(0u128, "orai")),
-            InitMsg(State {
+            InstantiateMsg(State {
                 language: String::from("node"),
                 script_url: String::from("url"),
                 parameters: vec![String::from("param")],
@@ -201,7 +203,7 @@ mod tests {
                 deps.as_mut(),
                 mock_env(),
                 mock_info("thief", &coins(0u128, "orai")),
-                crate::HandleMsg::SetState(StateMsg {
+                crate::ExecuteMsg::SetState(StateMsg {
                     parameters: Some(vec![]),
                     language: None,
                     script_url: None,
@@ -215,7 +217,7 @@ mod tests {
             deps.as_mut(),
             mock_env(),
             mock_info("creator", &coins(0u128, "orai")),
-            crate::HandleMsg::SetState(StateMsg {
+            crate::ExecuteMsg::SetState(StateMsg {
                 parameters: Some(vec![]),
                 language: None,
                 script_url: None,

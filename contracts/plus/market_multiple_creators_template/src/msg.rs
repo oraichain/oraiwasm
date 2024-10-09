@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 use cw_utils::Expiration;
 use market_1155::MintMsg;
 use market_royalty::MintMsg as MintMsg721;
@@ -8,14 +8,14 @@ use serde::{Deserialize, Serialize};
 use crate::state::Founder;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub co_founders: Vec<Founder>,
     pub threshold: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     ChangeState {
         co_founders: Option<Vec<Founder>>,
         threshold: Option<u64>,
@@ -26,11 +26,11 @@ pub enum HandleMsg {
         amount: Uint128,
         denom: String,
     },
-    Mint1155(HumanAddr, WrapMintMsg),
-    Mint721(HumanAddr, WrapMintMsg721),
-    ApproveAll(HumanAddr, ApproveAllMsg),
-    RevokeAll(HumanAddr, Vec<RevokeAllMsg>),
-    ChangeCreator(HumanAddr, ChangeCreatorMsg),
+    Mint1155(Addr, WrapMintMsg),
+    Mint721(Addr, WrapMintMsg721),
+    ApproveAll(Addr, ApproveAllMsg),
+    RevokeAll(Addr, Vec<RevokeAllMsg>),
+    ChangeCreator(Addr, ChangeCreatorMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -61,7 +61,7 @@ pub struct ChangeCreatorMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct ChangeCreator {
-    pub contract_addr: HumanAddr,
+    pub contract_addr: Addr,
     pub token_id: String,
     pub to: String,
 }
@@ -82,6 +82,6 @@ pub struct WrapMintMsg721 {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     GetState {},
-    GetCoFounder { co_founder: HumanAddr },
+    GetCoFounder { co_founder: Addr },
     GetShareChange { round: u64 },
 }

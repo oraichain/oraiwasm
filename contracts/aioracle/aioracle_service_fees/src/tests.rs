@@ -2,18 +2,18 @@ use crate::contract::*;
 
 use crate::msg::*;
 use aioracle_base::ServiceFeesResponse;
+use cosmwasm_std::testing::mock_dependencies_with_balance;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
-use cosmwasm_std::{coin, coins, from_binary, Env, HumanAddr, OwnedDeps};
+use cosmwasm_std::{coin, coins, from_binary, Addr, Env, OwnedDeps};
 
 const CREATOR: &str = "owner";
 const DENOM: &str = "orai";
 
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
-    deps.api.canonical_length = 54;
-    let msg = InitMsg {};
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
+    let msg = InstantiateMsg {};
     let info = mock_info(CREATOR, &[]);
     let contract_env = mock_env();
     let res = init(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
@@ -26,13 +26,13 @@ fn sort_service_fees() {
     let (mut deps, contract_env) = setup_contract();
 
     for i in 0..5 {
-        let update_fees_msg = HandleMsg::UpdateServiceFees {
+        let update_fees_msg = ExecuteMsg::UpdateServiceFees {
             fees: coin(i as u128, "orai"),
         };
         handle(
             deps.as_mut(),
             contract_env.clone(),
-            mock_info(format!("abcd{}", i), &vec![coin(50000000, DENOM)]),
+            mock_info(&format!("abcd{}", i), &vec![coin(50000000, DENOM)]),
             update_fees_msg,
         )
         .unwrap();
@@ -74,13 +74,13 @@ fn sort_service_fees() {
 fn remove_service_fees() {
     let (mut deps, contract_env) = setup_contract();
     for i in 0..5 {
-        let update_fees_msg = HandleMsg::UpdateServiceFees {
+        let update_fees_msg = ExecuteMsg::UpdateServiceFees {
             fees: coin(i as u128, "orai"),
         };
         handle(
             deps.as_mut(),
             contract_env.clone(),
-            mock_info(format!("abcd{}", i), &vec![coin(50000000, DENOM)]),
+            mock_info(&format!("abcd{}", i), &vec![coin(50000000, DENOM)]),
             update_fees_msg,
         )
         .unwrap();
@@ -89,8 +89,8 @@ fn remove_service_fees() {
     handle(
         deps.as_mut(),
         contract_env.clone(),
-        mock_info(HumanAddr::from("abcd3"), &vec![coin(50000000, DENOM)]).clone(),
-        HandleMsg::RemoveServiceFees(),
+        mock_info(Addr::from("abcd3"), &vec![coin(50000000, DENOM)]).clone(),
+        ExecuteMsg::RemoveServiceFees(),
     )
     .unwrap();
     let _err = cosmwasm_std::StdError::generic_err("query service fees not found");

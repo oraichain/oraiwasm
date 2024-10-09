@@ -1,16 +1,16 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, MigrateMsg, QueryMsg, UpdateContractMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
     parse_payment_key, ContractInfo, PaymentKey, AUCTION_PAYMENTS, CONTRACT_INFO, OFFERING_PAYMENTS,
 };
 
 use cosmwasm_std::{
-    attr, from_binary, from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse,
-    HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError, StdResult, KV,
+    attr, from_binary, from_slice, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
+    MigrateResponse, Order, Response, Response, StdError, StdResult, KV,
 };
 use cw_storage_plus::Bound;
 use market_payment::{
-    AssetInfo, Payment, PaymentHandleMsg, PaymentMsg, PaymentQueryMsg, PaymentResponse,
+    AssetInfo, Payment, PaymentExecuteMsg, PaymentMsg, PaymentQueryMsg, PaymentResponse,
 };
 
 // settings for pagination
@@ -19,12 +19,13 @@ const DEFAULT_LIMIT: u8 = 20;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     // first time deploy, it will not know about the implementation
     let info = ContractInfo {
         governance: msg.governance,
@@ -32,45 +33,42 @@ pub fn init(
         default_denom: "orai".into(),
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Msg(handle) => match handle {
-            PaymentHandleMsg::UpdateAuctionPayment(payment) => {
+        ExecuteMsg::Msg(handle) => match handle {
+            PaymentExecuteMsg::UpdateAuctionPayment(payment) => {
                 try_update_auction_payment(deps, info, env, payment)
             }
-            PaymentHandleMsg::UpdateOfferingPayment(payment) => {
+            PaymentExecuteMsg::UpdateOfferingPayment(payment) => {
                 try_update_offering_payment(deps, info, env, payment)
             }
-            PaymentHandleMsg::RemoveAuctionPayment {
+            PaymentExecuteMsg::RemoveAuctionPayment {
                 contract_addr,
                 token_id,
                 sender,
             } => try_remove_auction_payment(deps, info, env, contract_addr, token_id, sender),
-            PaymentHandleMsg::RemoveOfferingPayment {
+            PaymentExecuteMsg::RemoveOfferingPayment {
                 contract_addr,
                 token_id,
                 sender,
             } => try_remove_offering_payment(deps, info, env, contract_addr, token_id, sender),
         },
-        HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
+        ExecuteMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
 }
 
-pub fn migrate(
-    _deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _msg: MigrateMsg,
-) -> StdResult<MigrateResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateResponse> {
     Ok(MigrateResponse::default())
 }
 
@@ -81,7 +79,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 contract_addr,
                 token_id,
                 sender,
-            } => to_binary(&query_auction_payment(
+            } => to_json_binary(&query_auction_payment(
                 deps,
                 contract_addr,
                 token_id,
@@ -91,12 +89,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 offset,
                 limit,
                 order,
-            } => to_binary(&query_auction_payments(deps, offset, limit, order)?),
+            } => to_json_binary(&query_auction_payments(deps, offset, limit, order)?),
             PaymentQueryMsg::GetOfferingPayment {
                 contract_addr,
                 token_id,
                 sender,
-            } => to_binary(&query_offering_payment(
+            } => to_json_binary(&query_offering_payment(
                 deps,
                 contract_addr,
                 token_id,
@@ -106,10 +104,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 offset,
                 limit,
                 order,
-            } => to_binary(&query_offering_payments(deps, offset, limit, order)?),
-            PaymentQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+            } => to_json_binary(&query_offering_payments(deps, offset, limit, order)?),
+            PaymentQueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
         },
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        QueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
     }
 }
 
@@ -118,7 +116,7 @@ pub fn try_update_offering_payment(
     info: MessageInfo,
     _env: Env,
     payment: Payment,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // must check the sender is implementation contract
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
@@ -137,9 +135,9 @@ pub fn try_update_offering_payment(
         )?,
         &payment.asset_info,
     )?;
-    let asset_info_bin = to_binary(&payment.asset_info)?;
+    let asset_info_bin = to_json_binary(&payment.asset_info)?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "update_offering_payment"),
@@ -154,7 +152,7 @@ pub fn try_update_auction_payment(
     info: MessageInfo,
     _env: Env,
     payment: Payment,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // must check the sender is implementation contract
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
@@ -173,9 +171,9 @@ pub fn try_update_auction_payment(
         )?,
         &payment.asset_info,
     )?;
-    let asset_info_bin = to_binary(&payment.asset_info)?;
+    let asset_info_bin = to_json_binary(&payment.asset_info)?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "update_auction_payment"),
@@ -189,10 +187,10 @@ pub fn try_remove_offering_payment(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     token_id: String,
-    sender: Option<HumanAddr>,
-) -> Result<HandleResponse, ContractError> {
+    sender: Option<Addr>,
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if contract_info.governance.ne(&info.sender) {
         return Err(ContractError::Unauthorized {
@@ -206,7 +204,7 @@ pub fn try_remove_offering_payment(
         &parse_payment_key(contract_addr.as_str(), token_id.as_str(), sender)?,
     );
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "remove_offering_payment"),
@@ -221,10 +219,10 @@ pub fn try_remove_auction_payment(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     token_id: String,
-    sender: Option<HumanAddr>,
-) -> Result<HandleResponse, ContractError> {
+    sender: Option<Addr>,
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if contract_info.governance.ne(&info.sender) {
         return Err(ContractError::Unauthorized {
@@ -238,7 +236,7 @@ pub fn try_remove_auction_payment(
         &parse_payment_key(contract_addr.as_str(), token_id.as_str(), sender)?,
     );
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "remove_offering_payment"),
@@ -254,7 +252,7 @@ pub fn try_update_info(
     info: MessageInfo,
     _env: Env,
     msg: UpdateContractMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
         // Unauthorized
         if !info.sender.eq(&contract_info.creator) {
@@ -274,10 +272,10 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "update_info")],
-        data: to_binary(&new_contract_info).ok(),
+        data: to_json_binary(&new_contract_info).ok(),
     })
 }
 
@@ -289,9 +287,9 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
 
 pub fn query_auction_payment(
     deps: Deps,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     token_id: String,
-    sender: Option<HumanAddr>,
+    sender: Option<Addr>,
 ) -> StdResult<AssetInfo> {
     let ContractInfo { default_denom, .. } = CONTRACT_INFO.load(deps.storage)?;
     Ok(AUCTION_PAYMENTS
@@ -306,9 +304,9 @@ pub fn query_auction_payment(
 
 pub fn query_offering_payment(
     deps: Deps,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     token_id: String,
-    sender: Option<HumanAddr>,
+    sender: Option<Addr>,
 ) -> StdResult<AssetInfo> {
     let ContractInfo { default_denom, .. } = CONTRACT_INFO.load(deps.storage)?;
     Ok(OFFERING_PAYMENTS

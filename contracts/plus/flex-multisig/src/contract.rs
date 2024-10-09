@@ -1,30 +1,36 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use std::cmp::Ordering;
 
 use cosmwasm_std::{
-    attr, to_binary, Binary, BlockInfo, CanonicalAddr, CosmosMsg, Deps, DepsMut, Empty, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdResult,
+    attr, to_json_binary, Addr, Binary, BlockInfo, CanonicalAddr, CosmosMsg, Deps, DepsMut, Empty,
+    Env, MessageInfo, Order, Response, StdResult,
 };
 
-use cw_utils::{maybe_canonical, Duration, Expiration};
+use cw_utils::ThresholdResponse;
+
 use cw3::{
-    ProposalListResponse, ProposalResponse, Status, ThresholdResponse, Vote, VoteInfo,
-    VoteListResponse, VoteResponse, VoterDetail, VoterListResponse, VoterResponse,
+    ProposalListResponse, ProposalResponse, Status, Vote, VoteInfo, VoteListResponse, VoteResponse,
+    VoterDetail, VoterListResponse, VoterResponse,
 };
 use cw4::{Cw4Contract, MemberChangedHookMsg, MemberDiff};
 use cw_storage_plus::Bound;
+use cw_utils::{maybe_canonical, Duration, Expiration};
 
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, Threshold};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, Threshold};
 use crate::state::{
     next_id, parse_id, Ballot, Config, Proposal, Votes, BALLOTS, CONFIG, PROPOSALS,
 };
 
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     // we just convert to canonical to check if this is a valid format
     if deps.api.canonical_address(&msg.group_addr).is_err() {
         return Err(ContractError::InvalidGroup {
@@ -43,31 +49,32 @@ pub fn init(
     };
     CONFIG.save(deps.storage, &cfg)?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse<Empty>, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Propose {
+        ExecuteMsg::Propose {
             title,
             description,
             msgs,
             latest,
         } => handle_propose(deps, env, info, title, description, msgs, latest),
-        HandleMsg::Vote { proposal_id, vote } => handle_vote(deps, env, info, proposal_id, vote),
-        HandleMsg::Execute { proposal_id } => handle_execute(deps, env, info, proposal_id),
-        HandleMsg::Close { proposal_id } => handle_close(deps, env, info, proposal_id),
-        HandleMsg::EditState {
+        ExecuteMsg::Vote { proposal_id, vote } => handle_vote(deps, env, info, proposal_id, vote),
+        ExecuteMsg::Execute { proposal_id } => handle_execute(deps, env, info, proposal_id),
+        ExecuteMsg::Close { proposal_id } => handle_close(deps, env, info, proposal_id),
+        ExecuteMsg::EditState {
             threshold,
             max_period,
             group_addr,
         } => handle_edit(deps, env, info, threshold, max_period, group_addr),
-        HandleMsg::MemberChangedHook(MemberChangedHookMsg { diffs }) => {
+        ExecuteMsg::MemberChangedHook(MemberChangedHookMsg { diffs }) => {
             handle_membership_hook(deps, env, info, diffs)
         }
     }
@@ -82,14 +89,14 @@ pub fn handle_propose(
     msgs: Vec<CosmosMsg>,
     // we ignore earliest
     latest: Option<Expiration>,
-) -> Result<HandleResponse<Empty>, ContractError> {
+) -> Result<Response, ContractError> {
     // only members of the multisig can create a proposal
-    let raw_sender = deps.api.canonical_address(&info.sender)?;
+    let raw_sender = deps.api.addr_validate(info.sender.as_str())?;
     let cfg = CONFIG.load(deps.storage)?;
 
     let vote_power = cfg
         .group_addr
-        .is_member(&deps.querier, &raw_sender)?
+        .is_member(&deps.querier, &raw_sender, None)?
         .ok_or_else(|| ContractError::Unauthorized {})?;
 
     // max expires also used as default
@@ -125,8 +132,9 @@ pub fn handle_propose(
     };
     BALLOTS.save(deps.storage, (id.into(), &raw_sender), &ballot)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
+        events: vec![],
         attributes: vec![
             attr("action", "propose"),
             attr("sender", info.sender),
@@ -143,9 +151,9 @@ pub fn handle_vote(
     info: MessageInfo,
     proposal_id: u64,
     vote: Vote,
-) -> Result<HandleResponse<Empty>, ContractError> {
+) -> Result<Response, ContractError> {
     // only members of the multisig can vote
-    let raw_sender = deps.api.canonical_address(&info.sender)?;
+    let raw_sender = deps.api.addr_validate(info.sender.as_str())?;
     let cfg = CONFIG.load(deps.storage)?;
 
     // ensure proposal exists and can be voted on
@@ -181,8 +189,9 @@ pub fn handle_vote(
     prop.update_status(&env.block);
     PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
+        events: vec![],
         attributes: vec![
             attr("action", "vote"),
             attr("sender", info.sender),
@@ -198,7 +207,7 @@ pub fn handle_execute(
     _env: Env,
     info: MessageInfo,
     proposal_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // anyone can trigger this if the vote passed
 
     let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
@@ -213,8 +222,9 @@ pub fn handle_execute(
     PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
 
     // dispatch all proposed messages
-    Ok(HandleResponse {
+    Ok(Response {
         messages: prop.msgs,
+        events: vec![],
         attributes: vec![
             attr("action", "execute"),
             attr("sender", info.sender),
@@ -230,8 +240,8 @@ pub fn handle_edit(
     info: MessageInfo,
     threshold: Option<Threshold>,
     max_period: Option<Duration>,
-    group_addr: Option<HumanAddr>,
-) -> Result<HandleResponse, ContractError> {
+    group_addr: Option<Addr>,
+) -> Result<Response, ContractError> {
     if info.sender.ne(&env.contract.address) {
         return Err(ContractError::Unauthorized {});
     }
@@ -249,7 +259,8 @@ pub fn handle_edit(
     CONFIG.save(deps.storage, &config)?;
 
     // dispatch all proposed messages
-    Ok(HandleResponse {
+    Ok(Response {
+        events: vec![],
         messages: vec![],
         attributes: vec![attr("action", "edit"), attr("sender", info.sender)],
         data: None,
@@ -261,7 +272,7 @@ pub fn handle_close(
     env: Env,
     info: MessageInfo,
     proposal_id: u64,
-) -> Result<HandleResponse<Empty>, ContractError> {
+) -> Result<Response<Empty>, ContractError> {
     // anyone can trigger this if the vote passed
 
     let mut prop = PROPOSALS.load(deps.storage, proposal_id.into())?;
@@ -279,7 +290,8 @@ pub fn handle_close(
     prop.status = Status::Rejected;
     PROPOSALS.save(deps.storage, proposal_id.into(), &prop)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
+        events: vec![],
         messages: vec![],
         attributes: vec![
             attr("action", "close"),
@@ -295,7 +307,7 @@ pub fn handle_membership_hook(
     _env: Env,
     info: MessageInfo,
     _diffs: Vec<MemberDiff>,
-) -> Result<HandleResponse<Empty>, ContractError> {
+) -> Result<Response, ContractError> {
     // This is now a no-op
     // But we leave the authorization check as a demo
     let cfg = CONFIG.load(deps.storage)?;
@@ -303,29 +315,33 @@ pub fn handle_membership_hook(
         return Err(ContractError::Unauthorized {});
     }
 
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Threshold {} => to_binary(&query_threshold(deps)?),
-        QueryMsg::Proposal { proposal_id } => to_binary(&query_proposal(deps, env, proposal_id)?),
-        QueryMsg::Vote { proposal_id, voter } => to_binary(&query_vote(deps, proposal_id, voter)?),
+        QueryMsg::Threshold {} => to_json_binary(&query_threshold(deps)?),
+        QueryMsg::Proposal { proposal_id } => {
+            to_json_binary(&query_proposal(deps, env, proposal_id)?)
+        }
+        QueryMsg::Vote { proposal_id, voter } => {
+            to_json_binary(&query_vote(deps, proposal_id, voter)?)
+        }
         QueryMsg::ListProposals { start_after, limit } => {
-            to_binary(&list_proposals(deps, env, start_after, limit)?)
+            to_json_binary(&list_proposals(deps, env, start_after, limit)?)
         }
         QueryMsg::ReverseProposals {
             start_before,
             limit,
-        } => to_binary(&reverse_proposals(deps, env, start_before, limit)?),
+        } => to_json_binary(&reverse_proposals(deps, env, start_before, limit)?),
         QueryMsg::ListVotes {
             proposal_id,
             start_after,
             limit,
-        } => to_binary(&list_votes(deps, proposal_id, start_after, limit)?),
-        QueryMsg::Voter { address } => to_binary(&query_voter(deps, address)?),
+        } => to_json_binary(&list_votes(deps, proposal_id, start_after, limit)?),
+        QueryMsg::Voter { address } => to_json_binary(&query_voter(deps, address)?),
         QueryMsg::ListVoters { start_after, limit } => {
-            to_binary(&list_voters(deps, start_after, limit)?)
+            to_json_binary(&list_voters(deps, start_after, limit)?)
         }
     }
 }
@@ -341,6 +357,7 @@ fn query_proposal(deps: Deps, env: Env, id: u64) -> StdResult<ProposalResponse> 
     let status = prop.current_status(&env.block);
     let threshold = prop.threshold.to_response(prop.total_weight);
     Ok(ProposalResponse {
+        proposer:prop
         id,
         title: prop.title,
         description: prop.description,
@@ -407,7 +424,7 @@ fn map_proposal(
     })
 }
 
-fn query_vote(deps: Deps, proposal_id: u64, voter: HumanAddr) -> StdResult<VoteResponse> {
+fn query_vote(deps: Deps, proposal_id: u64, voter: Addr) -> StdResult<VoteResponse> {
     let voter_raw = deps.api.canonical_address(&voter)?;
     let prop = BALLOTS.may_load(deps.storage, (proposal_id.into(), &voter_raw))?;
     let vote = prop.map(|b| VoteInfo {
@@ -421,7 +438,7 @@ fn query_vote(deps: Deps, proposal_id: u64, voter: HumanAddr) -> StdResult<VoteR
 fn list_votes(
     deps: Deps,
     proposal_id: u64,
-    start_after: Option<HumanAddr>,
+    start_after: Option<Addr>,
     limit: Option<u32>,
 ) -> StdResult<VoteListResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
@@ -446,7 +463,7 @@ fn list_votes(
     Ok(VoteListResponse { votes: votes? })
 }
 
-fn query_voter(deps: Deps, voter: HumanAddr) -> StdResult<VoterResponse> {
+fn query_voter(deps: Deps, voter: Addr) -> StdResult<VoterResponse> {
     let cfg = CONFIG.load(deps.storage)?;
     let voter_raw = deps.api.canonical_address(&voter)?;
     let weight = cfg.group_addr.is_member(&deps.querier, &voter_raw)?;
@@ -456,7 +473,7 @@ fn query_voter(deps: Deps, voter: HumanAddr) -> StdResult<VoterResponse> {
 
 fn list_voters(
     deps: Deps,
-    start_after: Option<HumanAddr>,
+    start_after: Option<Addr>,
     limit: Option<u32>,
 ) -> StdResult<VoterListResponse> {
     let cfg = CONFIG.load(deps.storage)?;
@@ -477,10 +494,10 @@ mod tests {
     use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
     use cosmwasm_std::{coin, coins, BankMsg, Coin, Decimal};
 
-    use cw_utils::Duration;
-    use cw4::{Cw4HandleMsg, Member};
+    use cw4::{Cw4ExecuteMsg, Member};
     use cw4_group::helpers::Cw4GroupContract;
     use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
+    use cw_utils::Duration;
 
     use super::*;
     use crate::msg::Threshold;
@@ -493,7 +510,7 @@ mod tests {
     const VOTER5: &str = "voter0005";
     const SOMEBODY: &str = "somebody";
 
-    fn member<T: Into<HumanAddr>>(addr: T, weight: u64) -> Member {
+    fn member<T: Into<Addr>>(addr: T, weight: u64) -> Member {
         Member {
             addr: addr.into(),
             weight,
@@ -519,17 +536,13 @@ mod tests {
     }
 
     fn mock_app() -> App {
-        let env = mock_env();
-        let api = Box::new(MockApi::default());
-        let bank = SimpleBank {};
-
-        App::new(api, env.block, bank, || Box::new(MockStorage::new()))
+        App::new(|router, _, storage| {})
     }
 
     // uploads code and returns address of group contract
-    fn init_group(app: &mut App, members: Vec<Member>) -> HumanAddr {
+    fn init_group(app: &mut App, members: Vec<Member>) -> Addr {
         let group_id = app.store_code(contract_group());
-        let msg = cw4_group::msg::InitMsg {
+        let msg = cw4_group::msg::InstantiateMsg {
             admin: Some(OWNER.into()),
             members,
         };
@@ -539,12 +552,12 @@ mod tests {
 
     fn init_flex(
         app: &mut App,
-        group: HumanAddr,
+        group: Addr,
         threshold: Threshold,
         max_voting_period: Duration,
-    ) -> HumanAddr {
+    ) -> Addr {
         let flex_id = app.store_code(contract_flex());
-        let msg = crate::msg::InitMsg {
+        let msg = crate::msg::InstantiateMsg {
             group_addr: group,
             threshold,
             max_voting_period,
@@ -562,7 +575,7 @@ mod tests {
         max_voting_period: Duration,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
-    ) -> (HumanAddr, HumanAddr) {
+    ) -> (Addr, Addr) {
         setup_test_case(
             app,
             Threshold::AbsoluteCount {
@@ -580,7 +593,7 @@ mod tests {
         max_voting_period: Duration,
         init_funds: Vec<Coin>,
         multisig_as_group_admin: bool,
-    ) -> (HumanAddr, HumanAddr) {
+    ) -> (Addr, Addr) {
         // 1. Initialize group contract with members (and OWNER as admin)
         let members = vec![
             member(OWNER, 0),
@@ -599,7 +612,7 @@ mod tests {
 
         // 3. (Optional) Set the multisig as the group owner
         if multisig_as_group_admin {
-            let update_admin = Cw4HandleMsg::UpdateAdmin {
+            let update_admin = Cw4ExecuteMsg::UpdateAdmin {
                 admin: Some(flex_addr.clone()),
             };
             app.execute_contract(OWNER, &group_addr, &update_admin, &[])
@@ -614,7 +627,7 @@ mod tests {
         (flex_addr, group_addr)
     }
 
-    fn proposal_info(flex_addr: &HumanAddr) -> (Vec<CosmosMsg<Empty>>, String, String) {
+    fn proposal_info(flex_addr: &Addr) -> (Vec<CosmosMsg<Empty>>, String, String) {
         let bank_msg = BankMsg::Send {
             from_address: flex_addr.clone(),
             to_address: SOMEBODY.into(),
@@ -626,9 +639,9 @@ mod tests {
         (msgs, title, description)
     }
 
-    fn pay_somebody_proposal(flex_addr: &HumanAddr) -> HandleMsg {
+    fn pay_somebody_proposal(flex_addr: &Addr) -> ExecuteMsg {
         let (msgs, title, description) = proposal_info(flex_addr);
-        HandleMsg::Propose {
+        ExecuteMsg::Propose {
             title,
             description,
             msgs,
@@ -647,7 +660,7 @@ mod tests {
         let max_voting_period = Duration::Time(1234567);
 
         // Zero required weight fails
-        let init_msg = InitMsg {
+        let init_msg = InstantiateMsg {
             group_addr: group_addr.clone(),
             threshold: Threshold::AbsoluteCount { weight: 0 },
             max_voting_period,
@@ -661,7 +674,7 @@ mod tests {
         );
 
         // Total weight less than required weight not allowed
-        let init_msg = InitMsg {
+        let init_msg = InstantiateMsg {
             group_addr: group_addr.clone(),
             threshold: Threshold::AbsoluteCount { weight: 100 },
             max_voting_period,
@@ -675,7 +688,7 @@ mod tests {
         );
 
         // All valid
-        let init_msg = InitMsg {
+        let init_msg = InstantiateMsg {
             group_addr: group_addr.clone(),
             threshold: Threshold::AbsoluteCount { weight: 1 },
             max_voting_period,
@@ -725,10 +738,10 @@ mod tests {
 
         // Wrong expiration option fails
         let msgs = match proposal.clone() {
-            HandleMsg::Propose { msgs, .. } => msgs,
+            ExecuteMsg::Propose { msgs, .. } => msgs,
             _ => panic!("Wrong variant"),
         };
-        let proposal_wrong_exp = HandleMsg::Propose {
+        let proposal_wrong_exp = ExecuteMsg::Propose {
             title: "Rewarding somebody".to_string(),
             description: "Do we reward her?".to_string(),
             msgs,
@@ -769,7 +782,7 @@ mod tests {
         );
     }
 
-    fn get_tally(app: &App, flex_addr: &HumanAddr, proposal_id: u64) -> u64 {
+    fn get_tally(app: &App, flex_addr: &Addr, proposal_id: u64) -> u64 {
         // Get all the voters on the proposal
         let voters = QueryMsg::ListVotes {
             proposal_id,
@@ -924,7 +937,7 @@ mod tests {
         let proposal_id: u64 = res.attributes[2].value.parse().unwrap();
 
         // Owner cannot vote (again)
-        let yes_vote = HandleMsg::Vote {
+        let yes_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::Yes,
         };
@@ -959,7 +972,7 @@ mod tests {
         assert_eq!(tally, 1);
 
         // Cast a No vote
-        let no_vote = HandleMsg::Vote {
+        let no_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::No,
         };
@@ -968,7 +981,7 @@ mod tests {
             .unwrap();
 
         // Cast a Veto vote
-        let veto_vote = HandleMsg::Vote {
+        let veto_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::Veto,
         };
@@ -1080,14 +1093,14 @@ mod tests {
         let proposal_id: u64 = res.attributes[2].value.parse().unwrap();
 
         // Only Passed can be executed
-        let execution = HandleMsg::Execute { proposal_id };
+        let execution = ExecuteMsg::Execute { proposal_id };
         let err = app
             .execute_contract(OWNER, &flex_addr, &execution, &[])
             .unwrap_err();
         assert_eq!(err, ContractError::WrongExecuteStatus {}.to_string());
 
         // Vote it, so it passes
-        let vote = HandleMsg::Vote {
+        let vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::Yes,
         };
@@ -1105,7 +1118,7 @@ mod tests {
         );
 
         // In passing: Try to close Passed fails
-        let closing = HandleMsg::Close { proposal_id };
+        let closing = ExecuteMsg::Close { proposal_id };
         let err = app
             .execute_contract(OWNER, &flex_addr, &closing, &[])
             .unwrap_err();
@@ -1161,7 +1174,7 @@ mod tests {
         let proposal_id: u64 = res.attributes[2].value.parse().unwrap();
 
         // Non-expired proposals cannot be closed
-        let closing = HandleMsg::Close { proposal_id };
+        let closing = ExecuteMsg::Close { proposal_id };
         let err = app
             .execute_contract(SOMEBODY, &flex_addr, &closing, &[])
             .unwrap_err();
@@ -1182,7 +1195,7 @@ mod tests {
         );
 
         // Trying to close it again fails
-        let closing = HandleMsg::Close { proposal_id };
+        let closing = ExecuteMsg::Close { proposal_id };
         let err = app
             .execute_contract(SOMEBODY, &flex_addr, &closing, &[])
             .unwrap_err();
@@ -1242,7 +1255,7 @@ mod tests {
         // adds NEWBIE with 2 power -> with snapshot, invalid vote
         // removes VOTER3 -> with snapshot, can vote and pass proposal
         let newbie: &str = "newbie";
-        let update_msg = cw4_group::msg::HandleMsg::UpdateMembers {
+        let update_msg = cw4_group::msg::ExecuteMsg::UpdateMembers {
             remove: vec![VOTER3.into()],
             add: vec![member(VOTER2, 7), member(newbie, 2)],
         };
@@ -1274,7 +1287,7 @@ mod tests {
         let proposal_id2: u64 = res.attributes[2].value.parse().unwrap();
 
         // VOTER2 can pass this alone with the updated vote (newer height ignores snapshot)
-        let yes_vote = HandleMsg::Vote {
+        let yes_vote = ExecuteMsg::Vote {
             proposal_id: proposal_id2,
             vote: Vote::Yes,
         };
@@ -1283,7 +1296,7 @@ mod tests {
         assert_eq!(prop_status(&app, proposal_id2), Status::Passed);
 
         // VOTER2 can only vote on first proposal with weight of 2 (not enough to pass)
-        let yes_vote = HandleMsg::Vote {
+        let yes_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::Yes,
         };
@@ -1337,7 +1350,7 @@ mod tests {
         let update_msg = Cw4GroupContract::new(group_addr.clone())
             .update_members(vec![VOTER3.into()], vec![])
             .unwrap();
-        let update_proposal = HandleMsg::Propose {
+        let update_proposal = ExecuteMsg::Propose {
             title: "Kick out VOTER3".to_string(),
             description: "He's trying to steal our money".to_string(),
             msgs: vec![update_msg],
@@ -1377,13 +1390,13 @@ mod tests {
         app.update_block(|b| b.height += 1);
 
         // Pass and execute first proposal
-        let yes_vote = HandleMsg::Vote {
+        let yes_vote = ExecuteMsg::Vote {
             proposal_id: update_proposal_id,
             vote: Vote::Yes,
         };
         app.execute_contract(VOTER4, &flex_addr, &yes_vote, &[])
             .unwrap();
-        let execution = HandleMsg::Execute {
+        let execution = ExecuteMsg::Execute {
             proposal_id: update_proposal_id,
         };
         app.execute_contract(VOTER4, &flex_addr, &execution, &[])
@@ -1398,7 +1411,7 @@ mod tests {
 
         // VOTER3 can still pass the cash proposal
         // voting on it fails
-        let yes_vote = HandleMsg::Vote {
+        let yes_vote = ExecuteMsg::Vote {
             proposal_id: cash_proposal_id,
             vote: Vote::Yes,
         };
@@ -1414,7 +1427,7 @@ mod tests {
         assert_eq!(err, ContractError::Unauthorized {}.to_string());
 
         // extra: ensure no one else can call the hook
-        let hook_hack = HandleMsg::MemberChangedHook(MemberChangedHookMsg {
+        let hook_hack = ExecuteMsg::MemberChangedHook(MemberChangedHookMsg {
             diffs: vec![MemberDiff::new(VOTER1, Some(1), None)],
         });
         let err = app
@@ -1464,7 +1477,7 @@ mod tests {
 
         // admin changes the group (3 -> 0, 2 -> 7, 0 -> 15) - total = 32, require 11 to pass
         let newbie: &str = "newbie";
-        let update_msg = cw4_group::msg::HandleMsg::UpdateMembers {
+        let update_msg = cw4_group::msg::ExecuteMsg::UpdateMembers {
             remove: vec![VOTER3.into()],
             add: vec![member(VOTER2, 7), member(newbie, 15)],
         };
@@ -1476,7 +1489,7 @@ mod tests {
 
         // VOTER2 votes according to original weights: 3 + 2 = 5 / 5 => Passed
         // with updated weights, it would be 3 + 7 = 10 / 11 => Open
-        let yes_vote = HandleMsg::Vote {
+        let yes_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::Yes,
         };
@@ -1546,7 +1559,7 @@ mod tests {
 
         // admin changes the group (3 -> 0, 2 -> 7, 0 -> 15) - total = 32, require 11 to pass
         let newbie: &str = "newbie";
-        let update_msg = cw4_group::msg::HandleMsg::UpdateMembers {
+        let update_msg = cw4_group::msg::ExecuteMsg::UpdateMembers {
             remove: vec![VOTER3.into()],
             add: vec![member(VOTER2, 7), member(newbie, 15)],
         };
@@ -1558,7 +1571,7 @@ mod tests {
 
         // VOTER2 votes no, according to original weights: 3 yes, 2 no, 5 total (will pass when expired)
         // with updated weights, it would be 3 yes, 7 no, 10 total (will fail when expired)
-        let yes_vote = HandleMsg::Vote {
+        let yes_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::No,
         };
@@ -1610,7 +1623,7 @@ mod tests {
         app.update_block(|block| block.height += 3);
 
         // reach 60% of yes votes, not enough to pass early (or late)
-        let yes_vote = HandleMsg::Vote {
+        let yes_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::Yes,
         };
@@ -1620,7 +1633,7 @@ mod tests {
         assert_eq!(prop_status(&app), Status::Open);
 
         // add 3 weight no vote and we hit quorum and this passes
-        let no_vote = HandleMsg::Vote {
+        let no_vote = ExecuteMsg::Vote {
             proposal_id,
             vote: Vote::No,
         };

@@ -2,10 +2,10 @@ use crate::state::{PollStatus, Proposal, State, WinnerInfoState};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Binary, CanonicalAddr, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, CanonicalAddr, Addr, Uint128};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub denom_ticket: String,
     pub denom_delegation: String,
     pub denom_delegation_decimal: Uint128,
@@ -35,7 +35,7 @@ pub struct InitMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     /// Registering to the lottery
     Register { combination: String },
     /// Run the lottery
@@ -124,7 +124,7 @@ pub struct AllWinnerResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct GetPollResponse {
-    pub creator: HumanAddr,
+    pub creator: Addr,
     pub status: PollStatus,
     pub end_height: u64,
     pub start_height: u64,

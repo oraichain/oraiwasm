@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, Storage};
+use cosmwasm_std::{Addr, Storage};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 use cw_storage_plus::Map;
 use schemars::JsonSchema;
@@ -8,7 +8,7 @@ pub static CONFIG_KEY: &[u8] = b"config";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub owner: HumanAddr,
+    pub owner: Addr,
 }
 
 pub fn config(storage: &mut dyn Storage) -> Singleton<State> {

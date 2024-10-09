@@ -11,7 +11,7 @@ use cosmwasm_std::DepsMut;
 use cosmwasm_std::Env;
 use cosmwasm_std::MessageInfo;
 use cosmwasm_std::StdResult;
-use cosmwasm_std::{coins, from_binary, to_binary, HumanAddr, OwnedDeps};
+use cosmwasm_std::{coins, from_binary, to_json_binary, Addr, OwnedDeps};
 
 const CREATOR: &str = "orai1yc9nysml8dxy447hp3aytr0nssr9pd9au5yhrp";
 const DENOM: &str = "ORAI";
@@ -19,7 +19,7 @@ const DENOM: &str = "ORAI";
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
-    let msg = InitMsg {
+    let msg = InstantiateMsg {
         dsources: vec![],
         tcases: vec![],
         threshold: 1,
@@ -36,17 +36,17 @@ pub fn aggregate(
     _info: &MessageInfo,
     _: &[String],
 ) -> StdResult<Binary> {
-    Ok(to_binary("value")?)
+    Ok(to_json_binary("value")?)
 }
 
 #[test]
 fn test_update_state() {
     let mut deps = setup_contract();
     let info = mock_info(CREATOR, &[]);
-    let msg = HandleMsg::SetState(StateMsg {
-        owner: Some(HumanAddr::from("hey")),
+    let msg = ExecuteMsg::SetState(StateMsg {
+        owner: Some(Addr::from("hey")),
         dsources: None,
-        tcases: Some(vec![HumanAddr::from("hlhlhlhlhlh")]),
+        tcases: Some(vec![Addr::from("hlhlhlhlhlh")]),
     });
     let _ = handle_aioracle(
         deps.as_mut(),
@@ -57,8 +57,7 @@ fn test_update_state() {
     );
 
     let query = QueryMsg::GetTestCases {};
-    let result: Vec<HumanAddr> =
-        from_binary(&query_aioracle(deps.as_ref(), query).unwrap()).unwrap();
+    let result: Vec<Addr> = from_binary(&query_aioracle(deps.as_ref(), query).unwrap()).unwrap();
 
     assert_eq!(result.len(), 1);
     println!("{:?}", result);
@@ -74,7 +73,7 @@ fn test_set_validator_fees_unhappy() {
     let mut deps = setup_contract();
     let info = mock_info(CREATOR, &[]);
 
-    let msg = HandleMsg::SetValidatorFees { fees: 10 };
+    let msg = ExecuteMsg::SetValidatorFees { fees: 10 };
     let res = handle_aioracle(
         deps.as_mut(),
         mock_env(),
@@ -90,7 +89,7 @@ fn test_set_threshold() {
     let mut deps = setup_contract();
     let info = mock_info(CREATOR, &[]);
 
-    let msg = HandleMsg::SetThreshold(100);
+    let msg = ExecuteMsg::SetThreshold(100);
     let _ = handle_aioracle(
         deps.as_mut(),
         mock_env(),

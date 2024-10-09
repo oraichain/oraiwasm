@@ -1,24 +1,25 @@
 use std::convert::TryFrom;
 
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, Order, StdResult, Uint128,
+    attr, to_json_binary, BankMsg, Binary, Coin, Deps, DepsMut, Env, Response, Addr,
+    Response, MessageInfo, Order, StdResult, Uint128,
 };
 
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg};
 use crate::query::AIMarketQueryMsg;
 use crate::state::{
     get_next_package_offering_id, package_offerings, ContractInfo, PackageOffering, CONTRACT_INFO,
 };
 use cw_storage_plus::Bound;
 
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     _msg_info: MessageInfo,
-    msg: InitMsg,
-) -> StdResult<InitResponse> {
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
     let info = ContractInfo {
         name: msg.name,
         creator: msg.creator,
@@ -27,27 +28,28 @@ pub fn init(
         fee: msg.fee,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Buy { owner, package_id } => try_buy_package(deps, env, info, owner, package_id),
-        HandleMsg::UpdatePackageOfferingSuccessRequest {
+        ExecuteMsg::Buy { owner, package_id } => try_buy_package(deps, env, info, owner, package_id),
+        ExecuteMsg::UpdatePackageOfferingSuccessRequest {
             id,
             success_requests,
         } => try_update_success_request(deps, env, info, id, success_requests),
-        HandleMsg::InitPackageOffering {
+        ExecuteMsg::InitPackageOffering {
             id,
             number_requests,
             unit_price,
         } => try_init_offering(deps, info, id, number_requests, unit_price),
-        HandleMsg::Claim { id } => try_claim(deps, env, info, id),
+        ExecuteMsg::Claim { id } => try_claim(deps, env, info, id),
     }
 }
 
@@ -58,11 +60,11 @@ pub fn query(deps: Deps, _env: Env, msg: AIMarketQueryMsg) -> StdResult<Binary> 
             offset,
             limit,
             order,
-        } => to_binary(&query_package_offerings_by_seller(
+        } => to_json_binary(&query_package_offerings_by_seller(
             deps, seller, limit, offset, order,
         )?),
         AIMarketQueryMsg::GetPackageOfferingByID { id } => {
-            to_binary(&query_package_offering_by_id(deps, id)?)
+            to_json_binary(&query_package_offering_by_id(deps, id)?)
         }
     }
 }
@@ -73,9 +75,9 @@ pub fn try_buy_package(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    owner: HumanAddr,
+    owner: Addr,
     package_id: String,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if let Some(sent_fund) = info
         .sent_funds
@@ -104,7 +106,7 @@ pub fn try_buy_package(
             &package_offering,
         )?;
 
-        Ok(HandleResponse {
+        Ok(Response {
             messages: vec![],
             attributes: vec![
                 attr("action", "buy_ai_package"),
@@ -127,7 +129,7 @@ pub fn try_init_offering(
     id: u64,
     number_requests: Uint128,
     unit_price: Uint128,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // only for contract creator
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let creator = contract_info.creator;
@@ -154,7 +156,7 @@ pub fn try_init_offering(
 
     package_offerings().save(deps.storage, &id.to_be_bytes(), &package_offering)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "create_package_offering_on_an_invoice"),
@@ -173,7 +175,7 @@ pub fn try_update_success_request(
     info: MessageInfo,
     id: u64,
     success_requests: Uint128,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let creator = contract_info.creator;
     if info.sender != creator {
@@ -198,7 +200,7 @@ pub fn try_update_success_request(
 
     package_offerings().save(deps.storage, &id.to_be_bytes(), &package_offering)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "update_success_request"),
@@ -214,7 +216,7 @@ pub fn try_claim(
     env: Env,
     info: MessageInfo,
     id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     let owner = info.sender.clone();
@@ -255,7 +257,7 @@ pub fn try_claim(
 
     package_offerings().save(deps.storage, &id.to_be_bytes(), &package_offering)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![bank_msg],
         attributes: vec![
             attr("action", "claim_ai_package_offering"),
@@ -298,7 +300,7 @@ pub fn query_package_offering_by_id(deps: Deps, id: u64) -> StdResult<PackageOff
 
 pub fn query_package_offerings_by_seller(
     deps: Deps,
-    seller: HumanAddr,
+    seller: Addr,
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,

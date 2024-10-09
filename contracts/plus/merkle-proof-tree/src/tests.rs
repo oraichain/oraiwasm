@@ -3,14 +3,14 @@ use std::convert::TryInto;
 use crate::contract::{handle, init, query};
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse, MerkleRootResponse,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse, MerkleRootResponse,
     QueryMsg,
 };
 
 use sha2::Digest;
 
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{attr, coins, from_binary, from_slice, HumanAddr};
+use cosmwasm_std::{attr, coins, from_binary, from_slice, Addr};
 use serde::Deserialize;
 
 const DENOM: &str = "ORAI";
@@ -19,7 +19,7 @@ const DENOM: &str = "ORAI";
 fn proper_instantiation() {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
 
-    let msg = InitMsg {
+    let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
     };
 
@@ -43,7 +43,7 @@ fn proper_instantiation() {
 fn update_config() {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
 
-    let msg = InitMsg { owner: None };
+    let msg = InstantiateMsg { owner: None };
 
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
@@ -52,7 +52,7 @@ fn update_config() {
     // update owner
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::UpdateConfig {
+    let msg = ExecuteMsg::UpdateConfig {
         new_owner: Some("owner0001".into()),
     };
 
@@ -67,7 +67,7 @@ fn update_config() {
     // Unauthorized err
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::UpdateConfig { new_owner: None };
+    let msg = ExecuteMsg::UpdateConfig { new_owner: None };
 
     let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
     assert_eq!(res, ContractError::Unauthorized {});
@@ -77,7 +77,7 @@ fn update_config() {
 fn register_merkle_root() {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
 
-    let msg = InitMsg {
+    let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
     };
 
@@ -88,7 +88,7 @@ fn register_merkle_root() {
     // register new merkle root
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
+    let msg = ExecuteMsg::RegisterMerkleRoot {
         merkle_root: "634de21cde1044f41d90373733b0f0fb1c1c71f9652b905cdf159e73c4cf0d37".to_string(),
     };
 
@@ -129,7 +129,7 @@ const TEST_DATA_2: &[u8] = include_bytes!("../testdata/airdrop_stage_2_test_data
 
 #[derive(Deserialize, Debug)]
 struct Encoded {
-    address: HumanAddr,
+    address: Addr,
     data: String,
     root: String,
     proofs: Vec<String>,
@@ -169,7 +169,7 @@ fn claim() {
 
     println!("hash {:?} {:?}", test_data.root, hex::encode(computed_hash));
 
-    let msg = InitMsg {
+    let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
     };
 
@@ -179,12 +179,12 @@ fn claim() {
 
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
+    let msg = ExecuteMsg::RegisterMerkleRoot {
         merkle_root: test_data.root,
     };
     let _res = handle(deps.as_mut(), env, info, msg).unwrap();
 
-    let msg = HandleMsg::Claim {
+    let msg = ExecuteMsg::Claim {
         data: test_data.data.to_string(),
         stage: 1u8,
         proof: test_data.proofs,
@@ -230,13 +230,13 @@ fn claim() {
     // register new drop
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
+    let msg = ExecuteMsg::RegisterMerkleRoot {
         merkle_root: test_data.root,
     };
     let _res = handle(deps.as_mut(), env, info, msg).unwrap();
 
     // Claim next airdrop
-    let msg = HandleMsg::Claim {
+    let msg = ExecuteMsg::Claim {
         data: test_data.data.to_string(),
         stage: 2u8,
         proof: test_data.proofs,
@@ -261,7 +261,7 @@ fn claim() {
 fn owner_freeze() {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
 
-    let msg = InitMsg {
+    let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
     };
 
@@ -272,7 +272,7 @@ fn owner_freeze() {
     // can register merkle root
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
+    let msg = ExecuteMsg::RegisterMerkleRoot {
         merkle_root: "5d4f48f147cb6cb742b376dce5626b2a036f69faec10cd73631c791780e150fc".to_string(),
     };
     let _res = handle(deps.as_mut(), env, info, msg).unwrap();
@@ -280,7 +280,7 @@ fn owner_freeze() {
     // can update owner
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::UpdateConfig {
+    let msg = ExecuteMsg::UpdateConfig {
         new_owner: Some("owner0001".into()),
     };
 
@@ -290,7 +290,7 @@ fn owner_freeze() {
     // freeze contract
     let env = mock_env();
     let info = mock_info("owner0001", &[]);
-    let msg = HandleMsg::UpdateConfig { new_owner: None };
+    let msg = ExecuteMsg::UpdateConfig { new_owner: None };
 
     let res = handle(deps.as_mut(), env, info, msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -298,7 +298,7 @@ fn owner_freeze() {
     // cannot register new drop
     let env = mock_env();
     let info = mock_info("owner0001", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
+    let msg = ExecuteMsg::RegisterMerkleRoot {
         merkle_root: "ebaa83c7eaf7467c378d2f37b5e46752d904d2d17acd380b24b02e3b398b3e5a".to_string(),
     };
     let res = handle(deps.as_mut(), env, info, msg).unwrap_err();
@@ -307,7 +307,7 @@ fn owner_freeze() {
     // cannot update config
     let env = mock_env();
     let info = mock_info("owner0001", &[]);
-    let msg = HandleMsg::RegisterMerkleRoot {
+    let msg = ExecuteMsg::RegisterMerkleRoot {
         merkle_root: "ebaa83c7eaf7467c378d2f37b5e46752d904d2d17acd380b24b02e3b398b3e5a".to_string(),
     };
     let res = handle(deps.as_mut(), env, info, msg).unwrap_err();

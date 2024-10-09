@@ -1,21 +1,21 @@
 use cosmwasm_std::{
     coins,
     testing::{mock_dependencies, MockApi, MockQuerier, MockStorage},
-    HumanAddr, OwnedDeps,
+    Addr, OwnedDeps,
 };
 
 use rstest::fixture;
 
 pub struct MockConstants<'a> {
     denom: &'a str,
-    // contract_addr: HumanAddr,
+    // contract_addr: Addr,
 }
 
 #[fixture]
 pub fn mock_constants() -> MockConstants<'static> {
     MockConstants {
         denom: "orai",
-        // contract_addr: HumanAddr::from("dummy_contract_addr"),
+        // contract_addr: Addr::from("dummy_contract_addr"),
     }
 }
 

@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, HumanAddr, Storage};
+use cosmwasm_std::{Binary, Addr, Storage};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 use cw_storage_plus::Map;
 use schemars::JsonSchema;
@@ -8,7 +8,7 @@ pub static CONFIG_KEY: &[u8] = b"config";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub owner: HumanAddr,
+    pub owner: Addr,
     pub round_jump: u64,
     pub members: Vec<Member>,
     pub prev_checkpoint: u64,
@@ -17,7 +17,7 @@ pub struct State {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Member {
-    pub address: HumanAddr,
+    pub address: Addr,
     pub pubkey: Binary,
 }
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

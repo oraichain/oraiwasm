@@ -1,4 +1,4 @@
-use cosmwasm_std::{CanonicalAddr, Deps, HumanAddr, Order, StdResult};
+use cosmwasm_std::{CanonicalAddr, Deps, Addr, Order, StdResult};
 use cw_utils::calc_range_start_human;
 use cw20::{AllAccountsResponse, AllAllowancesResponse, AllowanceInfo};
 
@@ -10,8 +10,8 @@ const DEFAULT_LIMIT: u32 = 10;
 
 pub fn query_all_allowances(
     deps: Deps,
-    owner: HumanAddr,
-    start_after: Option<HumanAddr>,
+    owner: Addr,
+    start_after: Option<Addr>,
     limit: Option<u32>,
 ) -> StdResult<AllAllowancesResponse> {
     let owner_raw = deps.api.canonical_address(&owner)?;
@@ -38,7 +38,7 @@ pub fn query_all_allowances(
 
 pub fn query_all_accounts(
     deps: Deps,
-    start_after: Option<HumanAddr>,
+    start_after: Option<Addr>,
     limit: Option<u32>,
 ) -> StdResult<AllAccountsResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
@@ -65,11 +65,11 @@ mod tests {
     use cw20::{Cw20CoinHuman, Expiration, TokenInfoResponse};
 
     use crate::contract::{handle, init, query_token_info};
-    use crate::msg::{HandleMsg, InitMsg};
+    use crate::msg::{ExecuteMsg, InstantiateMsg};
 
     // this will set up the init for other tests
-    fn do_init(mut deps: DepsMut, addr: &HumanAddr, amount: Uint128) -> TokenInfoResponse {
-        let init_msg = InitMsg {
+    fn do_init(mut deps: DepsMut, addr: &Addr, amount: Uint128) -> TokenInfoResponse {
+        let init_msg = InstantiateMsg {
             name: "Auto Gen".to_string(),
             symbol: "AUTO".to_string(),
             decimals: 3,
@@ -79,7 +79,7 @@ mod tests {
             }],
             mint: None,
         };
-        let info = mock_info(&HumanAddr("creator".to_string()), &[]);
+        let info = mock_info(&Addr("creator".to_string()), &[]);
         let env = mock_env();
         init(deps.branch(), env, info, init_msg).unwrap();
         query_token_info(deps.as_ref()).unwrap()
@@ -89,10 +89,10 @@ mod tests {
     fn query_all_allowances_works() {
         let mut deps = mock_dependencies(&coins(2, "token"));
 
-        let owner = HumanAddr::from("owner");
+        let owner = Addr::from("owner");
         // these are in alphabetical order different than insert order
-        let spender1 = HumanAddr::from("later");
-        let spender2 = HumanAddr::from("earlier");
+        let spender1 = Addr::from("later");
+        let spender2 = Addr::from("earlier");
 
         let info = mock_info(owner.clone(), &[]);
         let env = mock_env();
@@ -105,7 +105,7 @@ mod tests {
         // set allowance with height expiration
         let allow1 = Uint128(7777);
         let expires = Expiration::AtHeight(5432);
-        let msg = HandleMsg::IncreaseAllowance {
+        let msg = ExecuteMsg::IncreaseAllowance {
             spender: spender1.clone(),
             amount: allow1,
             expires: Some(expires.clone()),
@@ -114,7 +114,7 @@ mod tests {
 
         // set allowance with no expiration
         let allow2 = Uint128(54321);
-        let msg = HandleMsg::IncreaseAllowance {
+        let msg = ExecuteMsg::IncreaseAllowance {
             spender: spender2.clone(),
             amount: allow2,
             expires: None,
@@ -125,7 +125,7 @@ mod tests {
         let allowances = query_all_allowances(deps.as_ref(), owner.clone(), None, None).unwrap();
         assert_eq!(allowances.allowances.len(), 2);
 
-        // first one is spender1 (order of CanonicalAddr uncorrelated with HumanAddr)
+        // first one is spender1 (order of CanonicalAddr uncorrelated with Addr)
         let allowances = query_all_allowances(deps.as_ref(), owner.clone(), None, Some(1)).unwrap();
         assert_eq!(allowances.allowances.len(), 1);
         let allow = &allowances.allowances[0];
@@ -153,10 +153,10 @@ mod tests {
         let mut deps = mock_dependencies(&coins(2, "token"));
 
         // insert order and lexographical order are different
-        let acct1 = HumanAddr::from("acct01");
-        let acct2 = HumanAddr::from("zebra");
-        let acct3 = HumanAddr::from("nice");
-        let acct4 = HumanAddr::from("aaaardvark");
+        let acct1 = Addr::from("acct01");
+        let acct2 = Addr::from("zebra");
+        let acct3 = Addr::from("nice");
+        let acct4 = Addr::from("aaaardvark");
         let expected_order = [acct2.clone(), acct1.clone(), acct3.clone(), acct4.clone()];
 
         do_init(deps.as_mut(), &acct1, Uint128(12340000));
@@ -168,7 +168,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             info.clone(),
-            HandleMsg::Transfer {
+            ExecuteMsg::Transfer {
                 recipient: acct2,
                 amount: Uint128(222222),
             },
@@ -178,7 +178,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             info.clone(),
-            HandleMsg::Transfer {
+            ExecuteMsg::Transfer {
                 recipient: acct3,
                 amount: Uint128(333333),
             },
@@ -188,7 +188,7 @@ mod tests {
             deps.as_mut(),
             env.clone(),
             info.clone(),
-            HandleMsg::Transfer {
+            ExecuteMsg::Transfer {
                 recipient: acct4,
                 amount: Uint128(444444),
             },

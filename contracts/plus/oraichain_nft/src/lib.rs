@@ -6,9 +6,6 @@ pub mod state;
 #[cfg(test)]
 mod tests;
 
-#[cfg(target_arch = "wasm32")]
-cosmwasm_std::create_entry_points_with_migration!(contract);
-
 #[macro_export]
 macro_rules! check_size {
     ($arg:ident, $len:expr) => {{

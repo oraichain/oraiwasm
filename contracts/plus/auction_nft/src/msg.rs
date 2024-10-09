@@ -1,10 +1,10 @@
-use cosmwasm_std::{Coin, HumanAddr, Uint128};
+use cosmwasm_std::{Coin, Addr, Uint128};
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub name: String,
     pub fee: u64,
     pub denom: String,
@@ -14,7 +14,7 @@ pub struct InitMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     // this require bidder to pay fee for asker
     CancelBid {
         auction_id: u64,
@@ -79,22 +79,22 @@ pub enum QueryMsg {
         options: PagingOptions,
     },
     GetAuctionsByAsker {
-        asker: HumanAddr,
+        asker: Addr,
         options: PagingOptions,
     },
     GetAuctionsByBidder {
-        bidder: Option<HumanAddr>,
+        bidder: Option<Addr>,
         options: PagingOptions,
     },
     GetAuctionsByContract {
-        contract: HumanAddr,
+        contract: Addr,
         options: PagingOptions,
     },
     GetAuction {
         auction_id: u64,
     },
     GetAuctionByContractTokenId {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
     },
     GetContractInfo {},
@@ -106,9 +106,9 @@ pub struct QueryAuctionsResult {
     pub token_id: String,
     pub price: Uint128,
     pub orig_price: Uint128,
-    pub contract_addr: HumanAddr,
-    pub asker: HumanAddr,
-    pub bidder: Option<HumanAddr>,
+    pub contract_addr: Addr,
+    pub asker: Addr,
+    pub bidder: Option<Addr>,
     pub cancel_fee: Option<u64>,
     pub start: u64,
     pub end: u64,

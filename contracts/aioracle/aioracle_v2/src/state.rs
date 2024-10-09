@@ -1,5 +1,5 @@
 use aioracle_base::{Executor, Reward};
-use cosmwasm_std::{Coin, HumanAddr};
+use cosmwasm_std::{Addr, Coin};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -8,8 +8,8 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, U64Ke
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     /// Owner If None set, contract is frozen.
-    pub owner: HumanAddr,
-    pub service_addr: HumanAddr,
+    pub owner: Addr,
+    pub service_addr: Addr,
     pub contract_fee: Coin,
     /// this threshold is to update the checkpoint stage when current previous checkpoint +
     pub checkpoint_threshold: u64,
@@ -23,15 +23,15 @@ pub struct Config {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct Contracts {
-    pub dsources: Vec<HumanAddr>,
-    pub tcases: Vec<HumanAddr>,
-    pub oscript: HumanAddr,
+    pub dsources: Vec<Addr>,
+    pub tcases: Vec<Addr>,
+    pub oscript: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Request {
     /// Owner If None set, contract is frozen.
-    pub requester: HumanAddr,
+    pub requester: Addr,
     pub preference_executor_fee: Coin,
     pub request_height: u64,
     pub submit_merkle_height: u64,

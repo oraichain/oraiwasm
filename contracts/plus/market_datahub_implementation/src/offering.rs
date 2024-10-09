@@ -6,13 +6,13 @@ use crate::error::ContractError;
 use crate::msg::{ProxyQueryMsg, SellRoyalty};
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    HandleResponse, MessageInfo, StdResult, Uint128, WasmMsg,
+    attr, coins, from_binary, to_json_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Response, StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{HumanAddr, StdError};
+use cosmwasm_std::{Addr, StdError};
 use cw1155::{BalanceResponse, Cw1155ExecuteMsg, Cw1155QueryMsg, Cw1155ReceiveMsg};
-use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
-use market_datahub::{DataHubHandleMsg, DataHubQueryMsg, MintMsg, Offering};
+use market_ai_royalty::{AiRoyaltyExecuteMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
+use market_datahub::{DataHubExecuteMsg, DataHubQueryMsg, MintMsg, Offering};
 use std::ops::{Mul, Sub};
 
 pub fn add_msg_royalty(
@@ -25,7 +25,7 @@ pub fn add_msg_royalty(
     cosmos_msgs.push(get_handle_msg(
         governance,
         AI_ROYALTY_STORAGE,
-        AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+        AiRoyaltyExecuteMsg::UpdateRoyalty(RoyaltyMsg {
             royalty: None,
             ..msg.clone()
         }),
@@ -35,8 +35,8 @@ pub fn add_msg_royalty(
     cosmos_msgs.push(get_handle_msg(
         governance,
         AI_ROYALTY_STORAGE,
-        AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
-            creator: HumanAddr(sender.to_string()),
+        AiRoyaltyExecuteMsg::UpdateRoyalty(RoyaltyMsg {
+            creator: Addr(sender.to_string()),
             creator_type: Some(String::from(CREATOR_NAME)),
             ..msg
         }),
@@ -48,7 +48,7 @@ pub fn try_handle_mint(
     deps: DepsMut,
     info: MessageInfo,
     mut msg: MintMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // query nft. If exist => cannot mint anymore
     let royalty_result = get_royalties(
         deps.as_ref(),
@@ -74,8 +74,8 @@ pub fn try_handle_mint(
 
     let mint_msg = WasmMsg::Execute {
         contract_addr: msg.contract_addr.clone(),
-        msg: to_binary(&msg.mint)?,
-        send: vec![],
+        msg: to_json_binary(&msg.mint)?,
+        funds: vec![],
     }
     .into();
 
@@ -94,7 +94,7 @@ pub fn try_handle_mint(
     )?;
     cosmos_msgs.push(mint_msg);
 
-    let response = HandleResponse {
+    let response = Response {
         messages: cosmos_msgs,
         attributes: vec![attr("action", "mint_nft"), attr("invoker", info.sender)],
         data: None,
@@ -107,11 +107,11 @@ pub fn try_sell(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     token_id: String,
     amount: Uint128,
     royalty_msg: SellRoyalty,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     let sender = info.sender.clone().to_string();
 
@@ -166,10 +166,10 @@ pub fn try_sell(
     cosmos_msg.push(get_handle_msg(
         governance.as_str(),
         DATAHUB_STORAGE,
-        DataHubHandleMsg::UpdateOffering { offering },
+        DataHubExecuteMsg::UpdateOffering { offering },
     )?);
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: cosmos_msg,
         attributes: vec![
             attr("action", "sell_nft"),
@@ -187,7 +187,7 @@ pub fn try_buy(
     info: MessageInfo,
     env: Env,
     offering_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo {
         governance,
         decimal_point,
@@ -223,7 +223,7 @@ pub fn try_buy(
             // cosmos_msgs.push(
             //     BankMsg::Send {
             //         from_address: env.contract.address.clone(),
-            //         to_address: HumanAddr::from(contract_info.creator),
+            //         to_address: Addr::from(contract_info.creator),
             //         amount: coins(fee_amount.u128(), &contract_info.denom),
             //     }
             //     .into(),
@@ -280,8 +280,8 @@ pub fn try_buy(
     cosmos_msgs.push(
         WasmMsg::Execute {
             contract_addr: off.contract_addr.clone(),
-            msg: to_binary(&transfer_cw721_msg)?,
-            send: vec![],
+            msg: to_json_binary(&transfer_cw721_msg)?,
+            funds: vec![],
         }
         .into(),
     );
@@ -291,7 +291,7 @@ pub fn try_buy(
         cosmos_msgs.push(get_handle_msg(
             governance.as_str(),
             DATAHUB_STORAGE,
-            DataHubHandleMsg::RemoveOffering { id: offering_id },
+            DataHubExecuteMsg::RemoveOffering { id: offering_id },
         )?);
     } else {
         // decrease sell amount by 1
@@ -299,13 +299,13 @@ pub fn try_buy(
         cosmos_msgs.push(get_handle_msg(
             governance.as_str(),
             DATAHUB_STORAGE,
-            DataHubHandleMsg::UpdateOffering {
+            DataHubExecuteMsg::UpdateOffering {
                 offering: off.clone(),
             },
         )?);
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "buy_nft"),
@@ -325,7 +325,7 @@ pub fn try_withdraw(
     info: MessageInfo,
     env: Env,
     offering_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo {
         governance,
         creator,
@@ -347,8 +347,8 @@ pub fn try_withdraw(
 
         let exec_cw721_transfer = WasmMsg::Execute {
             contract_addr: off.contract_addr,
-            msg: to_binary(&transfer_cw721_msg)?,
-            send: vec![],
+            msg: to_json_binary(&transfer_cw721_msg)?,
+            funds: vec![],
         };
 
         let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![exec_cw721_transfer.into()];
@@ -357,10 +357,10 @@ pub fn try_withdraw(
         cw721_transfer_cosmos_msg.push(get_handle_msg(
             governance.as_str(),
             DATAHUB_STORAGE,
-            DataHubHandleMsg::RemoveOffering { id: offering_id },
+            DataHubExecuteMsg::RemoveOffering { id: offering_id },
         )?);
 
-        return Ok(HandleResponse {
+        return Ok(Response {
             messages: cw721_transfer_cosmos_msg,
             attributes: vec![
                 attr("action", "withdraw_nft"),
@@ -381,7 +381,7 @@ pub fn handle_sell_nft(
     info: MessageInfo,
     msg: SellRoyalty,
     rcv_msg: Cw1155ReceiveMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     // check if same token Id form same original contract is already on sale
 
@@ -393,7 +393,7 @@ pub fn handle_sell_nft(
             &ProxyQueryMsg::Msg(DataHubQueryMsg::GetUniqueOffering {
                 contract: info.sender.clone(),
                 token_id: rcv_msg.token_id.clone(),
-                owner: HumanAddr::from(rcv_msg.operator.as_str()),
+                owner: Addr::from(rcv_msg.operator.as_str()),
             }),
         )
         .map_err(|_| ContractError::InvalidGetOffering {});
@@ -405,7 +405,7 @@ pub fn handle_sell_nft(
         id: None,
         token_id: rcv_msg.token_id,
         contract_addr: info.sender.clone(),
-        seller: HumanAddr::from(rcv_msg.operator.clone()),
+        seller: Addr::from(rcv_msg.operator.clone()),
         per_price: msg.per_price,
         amount: rcv_msg.amount,
     };
@@ -415,12 +415,12 @@ pub fn handle_sell_nft(
     cosmos_msgs.push(get_handle_msg(
         governance.as_str(),
         DATAHUB_STORAGE,
-        DataHubHandleMsg::UpdateOffering {
+        DataHubExecuteMsg::UpdateOffering {
             offering: offering.clone(),
         },
     )?);
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "sell_nft"),
@@ -449,7 +449,7 @@ fn get_royalties(
     let royalties: Vec<Royalty> = from_binary(&query_ai_royalty(
         deps,
         AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
-            contract_addr: HumanAddr::from(contract_addr),
+            contract_addr: Addr::from(contract_addr),
             token_id: token_id.to_string(),
             offset: None,
             limit: None,

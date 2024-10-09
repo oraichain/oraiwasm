@@ -6,33 +6,33 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{coins, from_binary, Binary, BlockInfo, OwnedDeps};
-use cosmwasm_std::{Env, HumanAddr};
+use cosmwasm_std::{Env, Addr};
 
 const OWNER: &str = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3d";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, "orai"));
     deps.api.canonical_length = 54;
-    let msg = InitMsg {
+    let msg = InstantiateMsg {
         members: vec![
             Member {
-                address: HumanAddr::from("1"),
+                address: Addr::from("1"),
                 pubkey: Binary::from_base64("eyJ2ZXJpZnlfcm91bmQiOjF9").unwrap(),
             },
             Member {
-                address: HumanAddr::from("2"),
+                address: Addr::from("2"),
                 pubkey: Binary::from_base64("eyJ2ZXJpZnlfcm91bmQiOjF9").unwrap(),
             },
             Member {
-                address: HumanAddr::from("3"),
+                address: Addr::from("3"),
                 pubkey: Binary::from_base64("eyJ2ZXJpZnlfcm91bmQiOjF9").unwrap(),
             },
             Member {
-                address: HumanAddr::from("4"),
+                address: Addr::from("4"),
                 pubkey: Binary::from_base64("eyJ2ZXJpZnlfcm91bmQiOjF9").unwrap(),
             },
             Member {
-                address: HumanAddr::from("5"),
+                address: Addr::from("5"),
                 pubkey: Binary::from_base64("eyJ2ZXJpZnlfcm91bmQiOjF9").unwrap(),
             },
         ],
@@ -49,14 +49,14 @@ fn proper_initialization() {
 
     // init ping
     for i in 1..5 {
-        let msg = HandleMsg::Ping {};
+        let msg = ExecuteMsg::Ping {};
         let info = mock_info(i.to_string(), &[]);
         handle(deps.as_mut(), mock_env(), info, msg).unwrap();
     }
 
     // query ping
     let query_ping = QueryMsg::GetRounds {
-        offset: Some(HumanAddr::from("2")),
+        offset: Some(Addr::from("2")),
         limit: Some(30),
         order: None,
     };
@@ -69,7 +69,7 @@ fn proper_initialization() {
 
     // update ping
     for i in 1..4 {
-        let msg = HandleMsg::Ping {};
+        let msg = ExecuteMsg::Ping {};
         let info = mock_info(i.to_string(), &[]);
         handle(
             deps.as_mut(),
@@ -103,7 +103,7 @@ fn proper_initialization() {
     }
 
     // test reset round
-    let reset_msg = HandleMsg::ResetCount {};
+    let reset_msg = ExecuteMsg::ResetCount {};
     handle(deps.as_mut(), mock_env(), mock_info(OWNER, &[]), reset_msg).unwrap();
 
     // query again to verify all the rounds have been terminated
@@ -126,7 +126,7 @@ fn update_ping_too_soon() {
 
     // init ping
     for i in 1..5 {
-        let msg = HandleMsg::Ping {};
+        let msg = ExecuteMsg::Ping {};
         let info = mock_info(i.to_string(), &[]);
         handle(deps.as_mut(), mock_env(), info, msg).unwrap();
     }
@@ -145,7 +145,7 @@ fn update_ping_too_soon() {
 
     // update ping
     for i in 1..4 {
-        let msg = HandleMsg::Ping {};
+        let msg = ExecuteMsg::Ping {};
         let info = mock_info(i.to_string(), &[]);
         assert!(matches!(
             handle(
@@ -186,21 +186,21 @@ fn change_owner() {
     let mut deps = setup_contract();
 
     // unauthorized change owner
-    let msg = HandleMsg::ChangeState {
-        owner: Some(HumanAddr("new owner".to_string())),
+    let msg = ExecuteMsg::ChangeState {
+        owner: Some(Addr("new owner".to_string())),
         round_jump: None,
         members: None,
         prev_checkpoint: None,
         cur_checkpoint: None,
     };
-    let info = mock_info(HumanAddr("someone".to_string()), &[]);
+    let info = mock_info(Addr("someone".to_string()), &[]);
     assert!(matches!(
         handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()),
         Err(ContractError::Unauthorized {})
     ));
 
     // authorized reset
-    let info = mock_info(HumanAddr(OWNER.to_string()), &[]);
+    let info = mock_info(Addr(OWNER.to_string()), &[]);
     handle(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     // query new state

@@ -1,16 +1,16 @@
-use cosmwasm_std::{Binary, Coin, HumanAddr};
+use cosmwasm_std::{Addr, Binary, Coin};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub test_cases: Vec<TestCaseMsg>,
     pub fees: Option<Coin>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     SetOwner { owner: String },
     AddTestCase { test_case: TestCaseMsg },
     RemoveTestCase { input: Vec<String> },
@@ -54,7 +54,7 @@ pub struct AssertOutput {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct Response {
-    pub contract: HumanAddr,
+    pub contract: Addr,
     pub dsource_status: bool,
     pub tcase_status: bool,
 }

@@ -5,13 +5,13 @@ use crate::model::{
     },
     offering::UsageOfferingSold,
 };
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 
 use crate::model::CompositeKeyModel;
 
 #[test]
 fn test_dataset_type() {
-    let owner_addr: HumanAddr = HumanAddr::from("cosmos1yqyakmh22p4zdlksspgz393m9glcc0uzjf7eh5");
+    let owner_addr: Addr = Addr::from("cosmos1yqyakmh22p4zdlksspgz393m9glcc0uzjf7eh5");
     let eueno = Datasource::Eueno {
         project_id: "fake_project".to_owned(),
         folder_path: "/abc".to_owned(),
@@ -49,7 +49,7 @@ fn test_composite_key_on_usage_offering_solds() {
     let usage_offering_sold_ins = UsageOfferingSold {
         offering_id: String::from("offering_id"),
         version: String::from("1.0.1"),
-        buyer: HumanAddr::from("buyer_addr"),
+        buyer: Addr::from("buyer_addr"),
         is_available: true,
     };
     assert_eq!(

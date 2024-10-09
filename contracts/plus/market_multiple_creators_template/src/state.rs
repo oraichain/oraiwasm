@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, StdResult, Storage};
+use cosmwasm_std::{Addr, StdResult, Storage};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
@@ -14,7 +14,7 @@ pub struct State {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Founder {
-    pub address: HumanAddr,
+    pub address: Addr,
     pub share_revenue: u64,
 }
 

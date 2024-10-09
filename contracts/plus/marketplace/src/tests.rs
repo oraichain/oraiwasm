@@ -10,7 +10,7 @@ use cosmwasm_std::testing::{
 use cosmwasm_std::BankMsg;
 use cosmwasm_std::CosmosMsg;
 use cosmwasm_std::Decimal;
-use cosmwasm_std::{coin, coins, from_binary, to_binary, HumanAddr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_binary, to_json_binary, Addr, Order, OwnedDeps, Uint128};
 
 use cw721::Cw721ReceiveMsg;
 
@@ -21,7 +21,7 @@ const DENOM: &str = "MGK";
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
-    let msg = InitMsg {
+    let msg = InstantiateMsg {
         name: String::from(CONTRACT_NAME),
         denom: DENOM.into(),
         fee: 90,         // 0.1%
@@ -57,10 +57,10 @@ fn sort_offering() {
             price: Uint128(i),
             royalty: None,
         };
-        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-            sender: HumanAddr::from("seller"),
+        let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
+            sender: Addr::from("seller"),
             token_id: String::from(format!("SellableNFT {}", i)),
-            msg: to_binary(&sell_msg).ok(),
+            msg: to_json_binary(&sell_msg).ok(),
         });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
@@ -70,10 +70,10 @@ fn sort_offering() {
             price: Uint128(i),
             royalty: None,
         };
-        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-            sender: HumanAddr::from("tupt"),
+        let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
+            sender: Addr::from("tupt"),
             token_id: String::from(format!("SellableNFT {}", i)),
-            msg: to_binary(&sell_msg).ok(),
+            msg: to_json_binary(&sell_msg).ok(),
         });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
@@ -120,10 +120,10 @@ fn test_royalties() {
     // beneficiary can release it
     let info_sell = mock_info("nft_contract", &vec![coin(50, DENOM)]);
 
-    let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-        sender: HumanAddr::from("seller"),
+    let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
+        sender: Addr::from("seller"),
         token_id: String::from("SellableNFT"),
-        msg: to_binary(&SellNft {
+        msg: to_json_binary(&SellNft {
             price: Uint128(50),
             royalty: Some(10),
         })
@@ -131,15 +131,15 @@ fn test_royalties() {
     });
     handle(deps.as_mut(), mock_env(), info_sell.clone(), msg).unwrap();
 
-    let buy_msg = HandleMsg::BuyNft { offering_id: 1 };
+    let buy_msg = ExecuteMsg::BuyNft { offering_id: 1 };
     let info_buy = mock_info("buyer", &coins(50, DENOM));
     handle(deps.as_mut(), mock_env(), info_buy, buy_msg).unwrap();
 
     // sell again
-    let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-        sender: HumanAddr::from("buyer"),
+    let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
+        sender: Addr::from("buyer"),
         token_id: String::from("SellableNFT"),
-        msg: to_binary(&SellNft {
+        msg: to_json_binary(&SellNft {
             price: Uint128(70),
             royalty: Some(10),
         })
@@ -148,15 +148,15 @@ fn test_royalties() {
     handle(deps.as_mut(), mock_env(), info_sell.clone(), msg).unwrap();
 
     // other buyer
-    let buy_msg = HandleMsg::BuyNft { offering_id: 2 };
+    let buy_msg = ExecuteMsg::BuyNft { offering_id: 2 };
     let info_buy = mock_info("buyer1", &coins(70, DENOM));
     handle(deps.as_mut(), mock_env(), info_buy, buy_msg).unwrap();
 
     // sell again again
-    let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-        sender: HumanAddr::from("buyer1"),
+    let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
+        sender: Addr::from("buyer1"),
         token_id: String::from("SellableNFT"),
-        msg: to_binary(&SellNft {
+        msg: to_json_binary(&SellNft {
             price: Uint128(90),
             royalty: Some(10),
         })
@@ -177,7 +177,7 @@ fn test_royalties() {
         offering.royalty_creator.clone().unwrap().creator
     );
     // other buyer again
-    let buy_msg = HandleMsg::BuyNft { offering_id: 3 };
+    let buy_msg = ExecuteMsg::BuyNft { offering_id: 3 };
     let info_buy = mock_info("buyer2", &coins(9000000, DENOM));
     let result = handle(deps.as_mut(), mock_env(), info_buy, buy_msg).unwrap();
     let mut total_payment = Uint128::from(0u128);
@@ -213,7 +213,7 @@ fn test_royalties() {
                         total_payment = total_payment + amount;
                     }
 
-                    if to_address.eq(&HumanAddr::from(contract_info.creator.as_str())) {
+                    if to_address.eq(&Addr::from(contract_info.creator.as_str())) {
                         royatly_marketplace = amount;
                         assert_eq!(
                             offering.price.mul(Decimal::permille(contract_info.fee)),
@@ -267,16 +267,16 @@ fn sell_offering_happy_path() {
 
     println!("msg: {:?}", sell_msg);
 
-    let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-        sender: HumanAddr::from("seller"),
+    let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
+        sender: Addr::from("seller"),
         token_id: String::from("SellableNFT"),
-        msg: to_binary(&sell_msg).ok(),
+        msg: to_json_binary(&sell_msg).ok(),
     });
 
-    let msg_second = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-        sender: HumanAddr::from("seller"),
+    let msg_second = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
+        sender: Addr::from("seller"),
         token_id: String::from("SellableNFT"),
-        msg: to_binary(&sell_msg_second).ok(),
+        msg: to_json_binary(&sell_msg_second).ok(),
     });
     let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
     match handle(deps.as_mut(), mock_env(), info.clone(), msg_second).unwrap_err() {
@@ -298,7 +298,7 @@ fn update_info_test() {
         fee: Some(5),
         max_royalty: None,
     };
-    let update_info_msg = HandleMsg::UpdateInfo(update_info);
+    let update_info_msg = ExecuteMsg::UpdateInfo(update_info);
 
     // random account cannot update info, only creator
     let info_unauthorized = mock_info("anyone", &vec![coin(5, DENOM)]);
@@ -335,12 +335,12 @@ fn withdraw_offering_happy_path() {
         royalty: Some(10),
     };
 
-    println!("msg :{}", to_binary(&sell_msg).unwrap());
+    println!("msg :{}", to_json_binary(&sell_msg).unwrap());
 
-    let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-        sender: HumanAddr::from("seller"),
+    let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
+        sender: Addr::from("seller"),
         token_id: String::from("SellableNFT"),
-        msg: to_binary(&sell_msg).ok(),
+        msg: to_json_binary(&sell_msg).ok(),
     });
     let _res = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
 
@@ -360,7 +360,7 @@ fn withdraw_offering_happy_path() {
 
     // withdraw offering
     let withdraw_info = mock_info("seller", &coins(2, DENOM));
-    let withdraw_msg = HandleMsg::WithdrawNft {
+    let withdraw_msg = ExecuteMsg::WithdrawNft {
         offering_id: value.offerings[0].id.clone(),
     };
     let _res = handle(deps.as_mut(), mock_env(), withdraw_info, withdraw_msg).unwrap();
@@ -392,10 +392,10 @@ fn withdraw_all_offerings_happy_path() {
             price: Uint128(i),
             royalty: None,
         };
-        let msg = HandleMsg::ReceiveNft(Cw721ReceiveMsg {
-            sender: HumanAddr::from("seller"),
+        let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
+            sender: Addr::from("seller"),
             token_id: String::from(format!("SellableNFT {}", i)),
-            msg: to_binary(&sell_msg).ok(),
+            msg: to_json_binary(&sell_msg).ok(),
         });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
@@ -403,7 +403,7 @@ fn withdraw_all_offerings_happy_path() {
     let ids = query_offering_ids(deps.as_ref()).unwrap();
     println!("value list ids: {:?}", ids);
 
-    let msg = HandleMsg::WithdrawAll {};
+    let msg = ExecuteMsg::WithdrawAll {};
     let creator = mock_info(CREATOR, &vec![coin(50, DENOM)]);
     let _res = handle(deps.as_mut(), mock_env(), creator, msg).unwrap();
 

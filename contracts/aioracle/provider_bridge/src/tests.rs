@@ -1,9 +1,9 @@
 use cosmwasm_std::testing::{mock_env, MockApi, MockStorage};
-use cosmwasm_std::{coin, coins, Coin, HumanAddr, Uint128};
+use cosmwasm_std::{coin, coins, Addr, Coin, Uint128};
 use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
 
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{Contracts, ServiceInfo};
 use aioracle_base::Reward;
 
@@ -49,7 +49,7 @@ fn mock_app() -> App {
     let api = Box::new(MockApi::default());
     let bank = SimpleBank {};
 
-    App::new(api, env.block, bank, || Box::new(MockStorage::new()))
+    App::new(|router, _, storage| {})
 }
 
 // uploads code and returns address of group contract
@@ -57,11 +57,11 @@ fn init_provider(
     app: &mut App,
     service: String,
     service_contracts: Contracts,
-    service_fees_contract: HumanAddr,
+    service_fees_contract: Addr,
     sender_info_addr: &str,
-) -> HumanAddr {
+) -> Addr {
     let group_id = app.store_code(contract_provider_demo());
-    let msg = InitMsg {
+    let msg = InstantiateMsg {
         service,
         service_contracts,
         service_fees_contract,
@@ -72,9 +72,9 @@ fn init_provider(
 }
 
 // uploads code and returns address of group contract
-fn init_service_fees(app: &mut App) -> HumanAddr {
+fn init_service_fees(app: &mut App) -> Addr {
     let group_id = app.store_code(contract_service_fees());
-    let msg = aioracle_service_fees::msg::InitMsg {};
+    let msg = aioracle_service_fees::msg::InstantiateMsg {};
 
     app.instantiate_contract(
         group_id,
@@ -86,16 +86,16 @@ fn init_service_fees(app: &mut App) -> HumanAddr {
     .unwrap()
 }
 
-fn init_app1(sender_info_addr: &str) -> (App, HumanAddr, HumanAddr) {
+fn init_app1(sender_info_addr: &str) -> (App, Addr, Addr) {
     let mut app = mock_app();
     let service_fees_contract = init_service_fees(&mut app);
     let provider_contract = init_provider(
         &mut app,
         SERVICE_NAME.to_string(),
         Contracts {
-            dsources: vec![HumanAddr::from(SENDER1)],
-            tcases: vec![HumanAddr::from(SENDER2)],
-            oscript: HumanAddr::from(SENDER3),
+            dsources: vec![Addr::from(SENDER1)],
+            tcases: vec![Addr::from(SENDER2)],
+            oscript: Addr::from(SENDER3),
         },
         service_fees_contract.clone(),
         sender_info_addr,
@@ -103,24 +103,24 @@ fn init_app1(sender_info_addr: &str) -> (App, HumanAddr, HumanAddr) {
     app.update_block(next_block);
 
     // init balance for client
-    app.set_bank_balance(HumanAddr::from(CLIENT), coins(10000000000, DENOM))
+    app.set_bank_balance(Addr::from(CLIENT), coins(10000000000, DENOM))
         .unwrap();
     app.update_block(next_block);
     return (app, provider_contract, service_fees_contract);
 }
 
-fn setup_service_fee(app: &mut App, service_fee_contract: HumanAddr) {
+fn setup_service_fee(app: &mut App, service_fee_contract: Addr) {
     app.update_block(next_block);
 
     // init balance for client
-    app.set_bank_balance(HumanAddr::from(CLIENT), coins(10000000000, "orai"))
+    app.set_bank_balance(Addr::from(CLIENT), coins(10000000000, "orai"))
         .unwrap();
     app.update_block(next_block);
 
     app.execute_contract(
-        HumanAddr::from(SENDER1),
+        Addr::from(SENDER1),
         service_fee_contract.clone(),
-        &aioracle_service_fees::msg::HandleMsg::UpdateServiceFees {
+        &aioracle_service_fees::msg::ExecuteMsg::UpdateServiceFees {
             fees: coin(FEE_1.into(), DENOM),
         },
         &[],
@@ -128,9 +128,9 @@ fn setup_service_fee(app: &mut App, service_fee_contract: HumanAddr) {
     .unwrap();
 
     app.execute_contract(
-        HumanAddr::from(SENDER2),
+        Addr::from(SENDER2),
         service_fee_contract.clone(),
-        &aioracle_service_fees::msg::HandleMsg::UpdateServiceFees {
+        &aioracle_service_fees::msg::ExecuteMsg::UpdateServiceFees {
             fees: coin(FEE_2.into(), DENOM),
         },
         &[],
@@ -138,9 +138,9 @@ fn setup_service_fee(app: &mut App, service_fee_contract: HumanAddr) {
     .unwrap();
 
     app.execute_contract(
-        HumanAddr::from(SENDER3),
+        Addr::from(SENDER3),
         service_fee_contract.clone(),
-        &aioracle_service_fees::msg::HandleMsg::UpdateServiceFees {
+        &aioracle_service_fees::msg::ExecuteMsg::UpdateServiceFees {
             fees: coin(FEE_3.into(), DENOM),
         },
         &[],
@@ -169,7 +169,7 @@ fn exec_update_service_contract() {
         && service_info
             .contracts
             .dsources
-            .eq(&vec![HumanAddr::from(SENDER1)])
+            .eq(&vec![Addr::from(SENDER1)])
     {
         assert!(true);
     } else {
@@ -188,12 +188,12 @@ fn exec_update_service_contract() {
         .execute_contract(
             SENDER1,
             &provider_contract,
-            &HandleMsg::UpdateServiceContracts {
+            &ExecuteMsg::UpdateServiceContracts {
                 service: SERVICE_NAME.to_string(),
                 contracts: Contracts {
-                    dsources: vec![HumanAddr::from("d1")],
-                    tcases: vec![HumanAddr::from("t1")],
-                    oscript: HumanAddr::from("o1"),
+                    dsources: vec![Addr::from("d1")],
+                    tcases: vec![Addr::from("t1")],
+                    oscript: Addr::from("o1"),
                 },
             },
             &[],
@@ -212,13 +212,13 @@ fn exec_update_service_contract() {
      * testcase 3
      * exec handle service contract pass update
      */
-    let dsource_new = HumanAddr::from("d2");
-    let tcases_new = HumanAddr::from("t2");
-    let oscript_new = HumanAddr::from("o2");
+    let dsource_new = Addr::from("d2");
+    let tcases_new = Addr::from("t2");
+    let oscript_new = Addr::from("o2");
     app.execute_contract(
         PROVIDER_OWNER,
         &provider_contract,
-        &HandleMsg::UpdateServiceContracts {
+        &ExecuteMsg::UpdateServiceContracts {
             service: SERVICE_NAME.to_string(),
             contracts: Contracts {
                 dsources: vec![dsource_new.to_owned()],
@@ -257,10 +257,10 @@ fn exec_update_service_contract() {
     app.execute_contract(
         PROVIDER_OWNER,
         &provider_contract,
-        &HandleMsg::UpdateServiceInfo {
+        &ExecuteMsg::UpdateServiceInfo {
             service: SERVICE_NAME.to_string(),
-            owner: Some(HumanAddr::from(PROVIDER_OWNER_2)),
-            service_fees_contract: Some(HumanAddr::from(AIORACLE_SERVICE_FEES_OWNER_2)),
+            owner: Some(Addr::from(PROVIDER_OWNER_2)),
+            service_fees_contract: Some(Addr::from(AIORACLE_SERVICE_FEES_OWNER_2)),
         },
         &[],
     )
@@ -307,7 +307,7 @@ fn exec_add_service_info() {
         && service_info
             .contracts
             .dsources
-            .eq(&vec![HumanAddr::from(SENDER1)])
+            .eq(&vec![Addr::from(SENDER1)])
     {
         assert!(true);
     } else {
@@ -326,12 +326,12 @@ fn exec_add_service_info() {
         .execute_contract(
             PROVIDER_OWNER,
             &provider_contract,
-            &HandleMsg::AddServiceInfo {
+            &ExecuteMsg::AddServiceInfo {
                 service: SERVICE_NAME.to_string(),
                 contracts: Contracts {
-                    dsources: vec![HumanAddr::from(SENDER4)],
-                    tcases: vec![HumanAddr::from(SENDER5)],
-                    oscript: HumanAddr::from(SENDER6),
+                    dsources: vec![Addr::from(SENDER4)],
+                    tcases: vec![Addr::from(SENDER5)],
+                    oscript: Addr::from(SENDER6),
                 },
                 service_fees_contract: service_fees_contract.clone(),
             },
@@ -350,12 +350,12 @@ fn exec_add_service_info() {
     app.execute_contract(
         PROVIDER_OWNER_2,
         &provider_contract,
-        &HandleMsg::AddServiceInfo {
+        &ExecuteMsg::AddServiceInfo {
             service: SERVICE_NAME_1.to_string(),
             contracts: Contracts {
-                dsources: vec![HumanAddr::from(SENDER4)],
-                tcases: vec![HumanAddr::from(SENDER5)],
-                oscript: HumanAddr::from(SENDER6),
+                dsources: vec![Addr::from(SENDER4)],
+                tcases: vec![Addr::from(SENDER5)],
+                oscript: Addr::from(SENDER6),
             },
             service_fees_contract,
         },
@@ -376,7 +376,7 @@ fn exec_add_service_info() {
         && service_info3
             .contracts
             .dsources
-            .eq(&vec![HumanAddr::from(SENDER4)])
+            .eq(&vec![Addr::from(SENDER4)])
     {
         assert!(true);
     } else {
@@ -450,7 +450,7 @@ fn query_service_contract() {
         .query_wasm_smart(
             &provider_contract,
             &QueryMsg::GetParticipantFee {
-                addr: HumanAddr::from(SENDER2),
+                addr: Addr::from(SENDER2),
             },
         )
         .unwrap();

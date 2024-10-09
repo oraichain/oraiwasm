@@ -5,10 +5,10 @@ use crate::state::ContractInfo;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
-use cosmwasm_std::{coins, from_binary, to_binary, HumanAddr, OwnedDeps};
+use cosmwasm_std::{coins, from_binary, to_json_binary, Addr, OwnedDeps};
 
 use market_rejected::{
-    Expiration, IsRejectedForAllResponse, MarketRejectedHandleMsg, MarketRejectedQueryMsg, NftInfo,
+    Expiration, IsRejectedForAllResponse, MarketRejectedExecuteMsg, MarketRejectedQueryMsg, NftInfo,
     RejectedForAllResponse,
 };
 
@@ -18,8 +18,8 @@ const DENOM: &str = "MGK";
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
-    let msg = InitMsg {
-        governance: HumanAddr::from("market_hub"),
+    let msg = InstantiateMsg {
+        governance: Addr::from("market_hub"),
     };
     let info = mock_info(CREATOR, &[]);
     let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -37,9 +37,9 @@ fn update_info() {
             deps.as_mut(),
             mock_env(),
             info,
-            HandleMsg::UpdateInfo(UpdateContractMsg {
-                governance: Some(HumanAddr::from("some gov")),
-                creator: Some(HumanAddr::from("not creator")),
+            ExecuteMsg::UpdateInfo(UpdateContractMsg {
+                governance: Some(Addr::from("some gov")),
+                creator: Some(Addr::from("not creator")),
             }),
         ),
         Err(ContractError::Unauthorized { .. })
@@ -50,9 +50,9 @@ fn update_info() {
         deps.as_mut(),
         mock_env(),
         mock_info(CREATOR, &[]),
-        HandleMsg::UpdateInfo(UpdateContractMsg {
-            governance: Some(HumanAddr::from("some gov")),
-            creator: Some(HumanAddr::from("not creator")),
+        ExecuteMsg::UpdateInfo(UpdateContractMsg {
+            governance: Some(Addr::from("some gov")),
+            creator: Some(Addr::from("not creator")),
         }),
     )
     .unwrap();
@@ -61,8 +61,8 @@ fn update_info() {
     let contract_info: ContractInfo =
         from_binary(&query(deps.as_ref(), mock_env(), QueryMsg::GetContractInfo {}).unwrap())
             .unwrap();
-    assert_eq!(contract_info.governance, HumanAddr::from("some gov"));
-    assert_eq!(contract_info.creator, HumanAddr::from("not creator"));
+    assert_eq!(contract_info.governance, Addr::from("some gov"));
+    assert_eq!(contract_info.creator, Addr::from("not creator"));
 }
 
 #[test]
@@ -76,7 +76,7 @@ fn test_reject_all() {
             deps.as_mut(),
             mock_env(),
             mock_info("hacker", &[]),
-            HandleMsg::Msg(MarketRejectedHandleMsg::RejectAll {
+            ExecuteMsg::Msg(MarketRejectedExecuteMsg::RejectAll {
                 nft_info: NftInfo {
                     contract_addr: "nft_addr".to_string(),
                     token_id: "token_id".to_string(),
@@ -93,7 +93,7 @@ fn test_reject_all() {
             deps.as_mut(),
             mock_env(),
             mock_info("market_hub", &[]),
-            HandleMsg::Msg(MarketRejectedHandleMsg::RejectAll {
+            ExecuteMsg::Msg(MarketRejectedExecuteMsg::RejectAll {
                 nft_info: NftInfo {
                     contract_addr: "nft_addr".to_string(),
                     token_id: "token_id".to_string(),
@@ -109,7 +109,7 @@ fn test_reject_all() {
         deps.as_mut(),
         mock_env(),
         info,
-        HandleMsg::Msg(MarketRejectedHandleMsg::RejectAll {
+        ExecuteMsg::Msg(MarketRejectedExecuteMsg::RejectAll {
             nft_info: NftInfo {
                 contract_addr: "nft_addr".to_string(),
                 token_id: "token_id".to_string(),
@@ -181,7 +181,7 @@ fn test_query_rejects() {
             deps.as_mut(),
             mock_env(),
             info.clone(),
-            HandleMsg::Msg(MarketRejectedHandleMsg::RejectAll {
+            ExecuteMsg::Msg(MarketRejectedExecuteMsg::RejectAll {
                 nft_info,
                 expires: Some(Expiration::AtHeight(99999999)),
             }),
@@ -246,7 +246,7 @@ fn test_query_rejects() {
             QueryMsg::Msg(MarketRejectedQueryMsg::RejectedForAll {
                 include_expired: Some(true),
                 start_after: Some(
-                    to_binary(&NftInfo {
+                    to_json_binary(&NftInfo {
                         contract_addr: "214xcxzc".to_string(),
                         token_id: "341cxzcasdzx".to_string(),
                     })
@@ -278,7 +278,7 @@ fn test_revoke_all() {
         deps.as_mut(),
         mock_env(),
         info.clone(),
-        HandleMsg::Msg(MarketRejectedHandleMsg::RejectAll {
+        ExecuteMsg::Msg(MarketRejectedExecuteMsg::RejectAll {
             nft_info: NftInfo {
                 contract_addr: "nft_addr".to_string(),
                 token_id: "token_id".to_string(),
@@ -294,7 +294,7 @@ fn test_revoke_all() {
             deps.as_mut(),
             mock_env(),
             mock_info("hacker", &[]),
-            HandleMsg::Msg(MarketRejectedHandleMsg::ReleaseAll {
+            ExecuteMsg::Msg(MarketRejectedExecuteMsg::ReleaseAll {
                 nft_info: NftInfo {
                     contract_addr: "nft_addr".to_string(),
                     token_id: "token_id".to_string(),
@@ -309,7 +309,7 @@ fn test_revoke_all() {
         deps.as_mut(),
         mock_env(),
         info,
-        HandleMsg::Msg(MarketRejectedHandleMsg::ReleaseAll {
+        ExecuteMsg::Msg(MarketRejectedExecuteMsg::ReleaseAll {
             nft_info: NftInfo {
                 contract_addr: "nft_addr".to_string(),
                 token_id: "token_id".to_string(),

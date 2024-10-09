@@ -2,13 +2,13 @@ use market_1155::Offering;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{HumanAddr, StdResult, Storage};
+use cosmwasm_std::{Addr, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
-    pub governance: HumanAddr,
-    pub creator: HumanAddr,
+    pub governance: Addr,
+    pub creator: Addr,
 }
 
 /// OFFERINGS is a map which maps the offering_id to an offering. Offering_id is derived from OFFERINGS_COUNT.
@@ -46,7 +46,7 @@ impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
 }
 
 // contract nft + token id => unique id
-pub fn get_unique_offering(contract: &HumanAddr, token_id: &str, seller: &str) -> PkOwned {
+pub fn get_unique_offering(contract: &Addr, token_id: &str, seller: &str) -> PkOwned {
     let mut vec = contract.as_bytes().to_vec();
     vec.extend(token_id.as_bytes());
     vec.extend(seller.as_bytes());
@@ -54,7 +54,7 @@ pub fn get_unique_offering(contract: &HumanAddr, token_id: &str, seller: &str) -
 }
 
 // contract nft + token id => unique id
-pub fn get_contract_token_id(contract: &HumanAddr, token_id: &str) -> Vec<u8> {
+pub fn get_contract_token_id(contract: &Addr, token_id: &str) -> Vec<u8> {
     let mut vec = contract.as_bytes().to_vec();
     vec.extend(token_id.as_bytes());
     vec

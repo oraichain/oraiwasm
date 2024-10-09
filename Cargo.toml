@@ -2,12 +2,6 @@
 resolver = "2"
 
 members = ["packages/*/*", "contracts/*/*"]
-exclude = [
-    "contracts/aioracle/*",
-    "contracts/cv/*",
-    "contracts/ether/*",
-    "contracts/nlp/*",
-]
 
 [workspace.dependencies]
 cosmwasm-std = { version = "1.5.0" }

@@ -1,4 +1,4 @@
-use cosmwasm_std::{DepsMut, HumanAddr, StdResult};
+use cosmwasm_std::{DepsMut, Addr, StdResult};
 use cw_storage_plus::{IndexedMap, Map};
 
 use crate::{
@@ -35,7 +35,7 @@ impl OfferingRepository {
         &self,
         deps: DepsMut,
         offering_id: String,
-        buyer: HumanAddr,
+        buyer: Addr,
         version: String,
     ) -> StdResult<UsageOfferingSold> {
         self.storage_usage_offering_solds.load(

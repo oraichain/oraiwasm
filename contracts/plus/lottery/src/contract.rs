@@ -1,12 +1,12 @@
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Binary, CanonicalAddr, Coin, Decimal, Deps, DepsMut, Env,
-    HandleResponse, InitResponse, MessageInfo, Order, StdError, StdResult, Uint128,
+    attr, to_json_binary, BankMsg, Binary, CanonicalAddr, Coin, Decimal, Deps, DepsMut, Env,
+    Response, Response, MessageInfo, Order, StdError, StdResult, Uint128,
 };
 
 use crate::error::ContractError;
 use crate::msg::{
     AllCombinationResponse, AllWinnerResponse, CombinationInfo, ConfigResponse, GetPollResponse,
-    GetResponse, HandleMsg, InitMsg, LatestResponse, QueryMsg, RoundResponse, WinnerInfo,
+    GetResponse, ExecuteMsg, InstantiateMsg, LatestResponse, QueryMsg, RoundResponse, WinnerInfo,
 };
 use crate::state::{
     beacons_storage, beacons_storage_read, combination_storage, combination_storage_read, config,
@@ -25,7 +25,8 @@ const MAX_DESC_LEN: u64 = 64;
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
 // #[serde(rename_all = "snake_case")]
-pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(deps: DepsMut, _env: Env, info: MessageInfo, msg: InstantiateMsg) -> StdResult<Response> {
     let state = State {
         owner: deps.api.canonical_address(&info.sender)?,
         block_time_play: msg.block_time_play,
@@ -58,29 +59,30 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
         poll_end_height: msg.poll_end_height,
     };
     config(deps.storage).save(&state)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Register { combination } => handle_register(deps, _env, info, combination),
-        HandleMsg::Play {
+        ExecuteMsg::Register { combination } => handle_register(deps, _env, info, combination),
+        ExecuteMsg::Play {
             round,
             previous_signature,
             signature,
         } => handle_play(deps, _env, info, round, previous_signature, signature),
-        HandleMsg::Ticket {} => handle_ticket(deps, _env, info),
-        HandleMsg::Ico {} => handle_ico(deps, _env, info),
-        HandleMsg::Buy {} => handle_buy(deps, _env, info),
-        HandleMsg::Reward {} => handle_reward(deps, _env, info),
-        HandleMsg::Jackpot {} => handle_jackpot(deps, _env, info),
-        HandleMsg::Proposal {
+        ExecuteMsg::Ticket {} => handle_ticket(deps, _env, info),
+        ExecuteMsg::Ico {} => handle_ico(deps, _env, info),
+        ExecuteMsg::Buy {} => handle_buy(deps, _env, info),
+        ExecuteMsg::Reward {} => handle_reward(deps, _env, info),
+        ExecuteMsg::Jackpot {} => handle_jackpot(deps, _env, info),
+        ExecuteMsg::Proposal {
             description,
             proposal,
             amount,
@@ -94,11 +96,11 @@ pub fn handle(
             amount,
             prize_per_rank,
         ),
-        HandleMsg::Vote { poll_id, approve } => handle_vote(deps, _env, info, poll_id, approve),
-        HandleMsg::PresentProposal { poll_id } => {
+        ExecuteMsg::Vote { poll_id, approve } => handle_vote(deps, _env, info, poll_id, approve),
+        ExecuteMsg::PresentProposal { poll_id } => {
             handle_present_proposal(deps, _env, info, poll_id)
         }
-        HandleMsg::RejectProposal { poll_id } => handle_reject_proposal(deps, _env, info, poll_id),
+        ExecuteMsg::RejectProposal { poll_id } => handle_reject_proposal(deps, _env, info, poll_id),
     }
 }
 
@@ -107,7 +109,7 @@ pub fn handle_register(
     _env: Env,
     info: MessageInfo,
     combination: String,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // Load the state
     let state = config(deps.storage).load()?;
 
@@ -167,7 +169,7 @@ pub fn handle_register(
         )?;
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "register")],
         data: None,
@@ -178,7 +180,7 @@ pub fn handle_ticket(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // Load the state
     let mut state = config(deps.storage).load()?;
     // convert the sender to canonical address
@@ -251,7 +253,7 @@ pub fn handle_ticket(
         }],
     };
     // Send the claimed tickets
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![msg.into()],
         attributes: vec![attr("action", "claim"), attr("to", &sender)],
         data: None,
@@ -265,7 +267,7 @@ pub fn handle_play(
     round: u64,
     previous_signature: Binary,
     signature: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // Load the state
     let mut state = config(deps.storage).load()?;
     // reset holders reward
@@ -476,7 +478,7 @@ pub fn handle_play(
     // Save the new state
     config(deps.storage).save(&state)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![msg.into()],
         attributes: vec![attr("action", "reward"), attr("to", &info.sender)],
         data: None,
@@ -487,7 +489,7 @@ pub fn handle_ico(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // Load the state
     let mut state = config(deps.storage).load()?;
     // Ico expire after blocktime
@@ -536,7 +538,7 @@ pub fn handle_ico(
     // Save the new state
     config(deps.storage).save(&state)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![msg.into()],
         attributes: vec![attr("action", "ico"), attr("to", &info.sender)],
         data: None,
@@ -547,7 +549,7 @@ pub fn handle_buy(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // Load the state
     let state = config(deps.storage).load()?;
 
@@ -591,7 +593,7 @@ pub fn handle_buy(
         }],
     };
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![msg.into()],
         attributes: vec![attr("action", "ticket"), attr("to", &info.sender)],
         data: None,
@@ -602,7 +604,7 @@ pub fn handle_reward(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // Load the state
     let mut state = config(deps.storage).load()?;
     // convert the sender to canonical address
@@ -667,7 +669,7 @@ pub fn handle_reward(
         }],
     };
     // Send the claimed tickets
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![msg.into()],
         attributes: vec![attr("action", "reward"), attr("to", &sender)],
         data: None,
@@ -695,7 +697,7 @@ pub fn handle_jackpot(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // Load state
     let state = config(deps.storage).load()?;
     // Load winners
@@ -857,7 +859,7 @@ pub fn handle_jackpot(
 
     // Check if no amount to send return ok
     if amount_to_send.is_empty() {
-        return Ok(HandleResponse {
+        return Ok(Response {
             messages: vec![],
             attributes: vec![
                 attr("action", "jackpot reward"),
@@ -878,7 +880,7 @@ pub fn handle_jackpot(
     };
 
     // Send the jackpot
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![msg.into()],
         attributes: vec![
             attr("action", "jackpot reward"),
@@ -897,7 +899,7 @@ pub fn handle_proposal(
     proposal: Proposal,
     amount: Option<Uint128>,
     prize_per_rank: Option<Vec<u8>>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let mut state = config(deps.storage).load().unwrap();
     // Increment and get the new poll id for bucket key
     let poll_id = state.poll_count + 1;
@@ -1081,7 +1083,7 @@ pub fn handle_proposal(
     // Save state
     config(deps.storage).save(&state)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "create a proposal"),
@@ -1099,7 +1101,7 @@ pub fn handle_vote(
     info: MessageInfo,
     poll_id: u64,
     approve: bool,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let store = poll_storage(deps.storage).load(&poll_id.to_be_bytes())?;
     let sender = deps.api.canonical_address(&info.sender).unwrap();
 
@@ -1133,7 +1135,7 @@ pub fn handle_vote(
         }
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "vote"),
@@ -1149,7 +1151,7 @@ pub fn handle_reject_proposal(
     _env: Env,
     info: MessageInfo,
     poll_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let store = poll_storage_read(deps.storage).load(&poll_id.to_be_bytes())?;
     let sender = deps.api.canonical_address(&info.sender).unwrap();
 
@@ -1175,7 +1177,7 @@ pub fn handle_reject_proposal(
         Ok(poll_data)
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "creator reject the proposal"),
@@ -1207,7 +1209,7 @@ pub fn handle_present_proposal(
     _env: Env,
     info: MessageInfo,
     poll_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // Load storage
     let mut state = config(deps.storage).load().unwrap();
     let store = poll_storage_read(deps.storage)
@@ -1249,7 +1251,7 @@ pub fn handle_present_proposal(
             poll_data.status = PollStatus::Rejected;
             Ok(poll_data)
         })?;
-        return Ok(HandleResponse {
+        return Ok(Response {
             messages: vec![],
             attributes: vec![
                 attr("action", "present the proposal"),
@@ -1301,7 +1303,7 @@ pub fn handle_present_proposal(
 
     config(deps.storage).save(&state)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "present the proposal"),
@@ -1314,13 +1316,13 @@ pub fn handle_present_proposal(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     let response = match msg {
-        QueryMsg::Config {} => to_binary(&query_config(deps)?)?,
-        QueryMsg::LatestDrand {} => to_binary(&query_latest(deps)?)?,
-        QueryMsg::GetRandomness { round } => to_binary(&query_get(deps, round)?)?,
-        QueryMsg::Combination {} => to_binary(&query_all_combination(deps)?)?,
-        QueryMsg::Winner {} => to_binary(&query_all_winner(deps)?)?,
-        QueryMsg::GetPoll { poll_id } => to_binary(&query_poll(deps, poll_id)?)?,
-        QueryMsg::GetRound {} => to_binary(&query_round(deps)?)?,
+        QueryMsg::Config {} => to_json_binary(&query_config(deps)?)?,
+        QueryMsg::LatestDrand {} => to_json_binary(&query_latest(deps)?)?,
+        QueryMsg::GetRandomness { round } => to_json_binary(&query_get(deps, round)?)?,
+        QueryMsg::Combination {} => to_json_binary(&query_all_combination(deps)?)?,
+        QueryMsg::Winner {} => to_json_binary(&query_all_winner(deps)?)?,
+        QueryMsg::GetPoll { poll_id } => to_json_binary(&query_poll(deps, poll_id)?)?,
+        QueryMsg::GetRound {} => to_json_binary(&query_round(deps)?)?,
     };
     Ok(response)
 }
@@ -1413,13 +1415,13 @@ fn query_round(deps: Deps) -> Result<RoundResponse, ContractError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::msg::{HandleMsg, InitMsg};
+    use crate::msg::{ExecuteMsg, InstantiateMsg};
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
         MOCK_CONTRACT_ADDR,
     };
     use cosmwasm_std::{
-        Api, Binary, CanonicalAddr, CosmosMsg, Decimal, FullDelegation, HumanAddr, OwnedDeps,
+        Api, Binary, CanonicalAddr, CosmosMsg, Decimal, FullDelegation, Addr, OwnedDeps,
         StdError::NotFound, Uint128, Validator,
     };
     use regex::Regex;
@@ -1468,7 +1470,7 @@ mod tests {
             .into()
         }
 
-        let init_msg = InitMsg {
+        let init_msg = InstantiateMsg {
             denom_ticket: DENOM_TICKET.to_string(),
             denom_delegation: DENOM_DELEGATION.to_string(),
             denom_delegation_decimal: DENOM_DELEGATION_DECIMAL,
@@ -1495,7 +1497,7 @@ mod tests {
             prize_rank_winner_percentage: PRIZE_RANK_WINNER_PERCENTAGE,
             poll_end_height: POLL_END_HEIGHT,
         };
-        let info = mock_info(HumanAddr::from("owner"), &[]);
+        let info = mock_info(Addr::from("owner"), &[]);
         init(deps.as_mut(), mock_env(), info, init_msg).unwrap();
     }
 
@@ -1548,11 +1550,11 @@ mod tests {
 
         let winner_address = deps
             .api
-            .canonical_address(&HumanAddr::from("address".to_string()))
+            .canonical_address(&Addr::from("address".to_string()))
             .unwrap();
         let winner_address2 = deps
             .api
-            .canonical_address(&HumanAddr::from("address2".to_string()))
+            .canonical_address(&Addr::from("address2".to_string()))
             .unwrap();
         winner_storage(deps.as_mut().storage).save(
             &2_u8.to_be_bytes(),
@@ -1620,11 +1622,11 @@ mod tests {
             default_init(&mut deps);
 
             // Test if this succeed
-            let msg = HandleMsg::Register {
+            let msg = ExecuteMsg::Register {
                 combination: "1e3fab".to_string(),
             };
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[Coin {
                     denom: "ujack".to_string(),
                     amount: Uint128(1),
@@ -1633,11 +1635,11 @@ mod tests {
             let res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
             assert_eq!(0, res.messages.len());
             // check if we can add multiple players
-            let msg = HandleMsg::Register {
+            let msg = ExecuteMsg::Register {
                 combination: "1e3fab".to_string(),
             };
             let info = mock_info(
-                HumanAddr::from("delegator12"),
+                Addr::from("delegator12"),
                 &[Coin {
                     denom: "ujack".to_string(),
                     amount: Uint128(1),
@@ -1657,11 +1659,11 @@ mod tests {
             }]);
             default_init(&mut deps);
             // Test if this succeed
-            let msg = HandleMsg::Register {
+            let msg = ExecuteMsg::Register {
                 combination: "1e3fab".to_string(),
             };
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[Coin {
                     denom: "ujack".to_string(),
                     amount: Uint128(0),
@@ -1681,11 +1683,11 @@ mod tests {
             }]);
             default_init(&mut deps);
             // Test if this succeed
-            let msg = HandleMsg::Register {
+            let msg = ExecuteMsg::Register {
                 combination: "1e3fab".to_string(),
             };
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[Coin {
                     denom: "uscrt".to_string(),
                     amount: Uint128(2),
@@ -1707,11 +1709,11 @@ mod tests {
             }]);
             default_init(&mut deps);
             // Test if this succeed
-            let msg = HandleMsg::Register {
+            let msg = ExecuteMsg::Register {
                 combination: "1e3fab".to_string(),
             };
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[
                     Coin {
                         denom: "ujack".to_string(),
@@ -1739,11 +1741,11 @@ mod tests {
             }]);
             default_init(&mut deps);
             // Test if this succeed
-            let msg = HandleMsg::Register {
+            let msg = ExecuteMsg::Register {
                 combination: "1e3fab".to_string(),
             };
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[Coin {
                     denom: "ujack".to_string(),
                     amount: Uint128(2),
@@ -1767,11 +1769,11 @@ mod tests {
             }]);
             default_init(&mut deps);
             // Test if we get error if combination is not authorized
-            let msg = HandleMsg::Register {
+            let msg = ExecuteMsg::Register {
                 combination: "1e3fabgvcc".to_string(),
             };
             let info = mock_info(
-                HumanAddr::from("delegator12"),
+                Addr::from("delegator12"),
                 &[Coin {
                     denom: "ujack".to_string(),
                     amount: Uint128(3),
@@ -1801,15 +1803,15 @@ mod tests {
             deps.update_staking(
                 "uscrt",
                 &[Validator {
-                    address: HumanAddr::from("validator1"),
+                    address: Addr::from("validator1"),
                     commission: Decimal::percent(10),
                     max_commission: Decimal::percent(100),
                     max_change_rate: Decimal::percent(100),
                 }],
                 &[
                     FullDelegation {
-                        delegator: HumanAddr::from("delegator1"),
-                        validator: HumanAddr::from("validator1"),
+                        delegator: Addr::from("delegator1"),
+                        validator: Addr::from("validator1"),
                         amount: Coin {
                             denom: "uscrt".to_string(),
                             amount: Uint128(1_000_000),
@@ -1824,8 +1826,8 @@ mod tests {
                         }],
                     },
                     FullDelegation {
-                        delegator: HumanAddr::from("delegator1"),
-                        validator: HumanAddr::from("validator2"),
+                        delegator: Addr::from("delegator1"),
+                        validator: Addr::from("validator2"),
                         amount: Coin {
                             denom: "uscrt".to_string(),
                             amount: Uint128(15_050_030),
@@ -1840,8 +1842,8 @@ mod tests {
                         }],
                     },
                     FullDelegation {
-                        delegator: HumanAddr::from("delegator1"),
-                        validator: HumanAddr::from("validator3"),
+                        delegator: Addr::from("delegator1"),
+                        validator: Addr::from("validator3"),
                         amount: Coin {
                             denom: "uscrt".to_string(),
                             amount: Uint128(2_004_000),
@@ -1869,14 +1871,14 @@ mod tests {
             deps.update_staking(
                 "uscrt",
                 &[Validator {
-                    address: HumanAddr::from("validator1"),
+                    address: Addr::from("validator1"),
                     commission: Decimal::percent(10),
                     max_commission: Decimal::percent(100),
                     max_change_rate: Decimal::percent(100),
                 }],
                 &[FullDelegation {
-                    delegator: HumanAddr::from("delegator1"),
-                    validator: HumanAddr::from("validator2"),
+                    delegator: Addr::from("delegator1"),
+                    validator: Addr::from("validator2"),
                     amount: Coin {
                         denom: "uscrt".to_string(),
                         amount: Uint128(1_050),
@@ -1904,14 +1906,14 @@ mod tests {
             deps.update_staking(
                 "uscrt",
                 &[Validator {
-                    address: HumanAddr::from("validator1"),
+                    address: Addr::from("validator1"),
                     commission: Decimal::percent(10),
                     max_commission: Decimal::percent(100),
                     max_change_rate: Decimal::percent(100),
                 }],
                 &[FullDelegation {
-                    delegator: HumanAddr::from("delegator1"),
-                    validator: HumanAddr::from("validator2"),
+                    delegator: Addr::from("delegator1"),
+                    validator: Addr::from("validator2"),
                     amount: Coin {
                         denom: "ucoin".to_string(),
                         amount: Uint128(10_050_000),
@@ -1943,7 +1945,7 @@ mod tests {
             init_balance_and_staking_default(&mut deps.querier, Uint128(10_000));
             default_init(&mut deps);
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[Coin {
                     denom: "ujack".to_string(),
                     amount: Uint128(3),
@@ -1970,7 +1972,7 @@ mod tests {
                 },
             ]);
             default_init(&mut deps);
-            let info = mock_info(HumanAddr::from("delegator1"), &[]);
+            let info = mock_info(Addr::from("delegator1"), &[]);
             let res = handle_ticket(deps.as_mut(), mock_env(), info.clone());
             match res {
                 Err(ContractError::NoDelegations {}) => {}
@@ -1985,7 +1987,7 @@ mod tests {
             }]);
             init_balance_and_staking_default(&mut deps.querier, Uint128(10_000));
             default_init(&mut deps);
-            let info = mock_info(HumanAddr::from("delegator1"), &[]);
+            let info = mock_info(Addr::from("delegator1"), &[]);
             let res = handle_ticket(deps.as_mut(), mock_env(), info.clone());
             match res {
                 Err(ContractError::EmptyBalance {}) => {}
@@ -2006,7 +2008,7 @@ mod tests {
             ]);
             init_balance_and_staking_default(&mut deps.querier, Uint128(0));
             default_init(&mut deps);
-            let info = mock_info(HumanAddr::from("delegator1"), &[]);
+            let info = mock_info(Addr::from("delegator1"), &[]);
             let res = handle_ticket(deps.as_mut(), mock_env(), info.clone());
             match res {
                 Err(ContractError::ValidatorNotAuthorized(msg)) => {
@@ -2029,7 +2031,7 @@ mod tests {
             ]);
             init_balance_and_staking_insufficiently(&mut deps.querier, Uint128(10_000));
             default_init(&mut deps);
-            let info = mock_info(HumanAddr::from("delegator1"), &[]);
+            let info = mock_info(Addr::from("delegator1"), &[]);
             let res = handle_ticket(deps.as_mut(), mock_env(), info.clone());
             match res {
                 Err(ContractError::DelegationTooLow(msg)) => {
@@ -2052,7 +2054,7 @@ mod tests {
             ]);
             init_balance_and_staking_the_incorrect_denom(&mut deps.querier, Uint128(10_000));
             default_init(&mut deps);
-            let info = mock_info(HumanAddr::from("delegator1"), &[]);
+            let info = mock_info(Addr::from("delegator1"), &[]);
             let res = handle_ticket(deps.as_mut(), mock_env(), info.clone());
             match res {
                 Err(ContractError::NoDelegations {}) => {}
@@ -2073,14 +2075,14 @@ mod tests {
             ]);
             init_balance_and_staking_default(&mut deps.querier, Uint128(10_000));
             default_init(&mut deps);
-            let info = mock_info(HumanAddr::from("delegator1"), &[]);
+            let info = mock_info(Addr::from("delegator1"), &[]);
             let res = handle_ticket(deps.as_mut(), mock_env(), info.clone()).unwrap();
             assert_eq!(1, res.messages.len());
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-                    to_address: HumanAddr::from("delegator1"),
+                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    to_address: Addr::from("delegator1"),
                     amount: vec![Coin {
                         denom: "ujack".to_string(),
                         amount: Uint128(1)
@@ -2091,7 +2093,7 @@ mod tests {
             let res = query_config(deps.as_ref()).unwrap();
             let claimer = deps
                 .api
-                .canonical_address(&HumanAddr::from("delegator1"))
+                .canonical_address(&Addr::from("delegator1"))
                 .unwrap();
             // Test we added the claimer to the claimed vector
             assert!(res.claim_ticket.len() > 0);
@@ -2117,7 +2119,7 @@ mod tests {
             }]);
             default_init(&mut deps);
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[Coin {
                     denom: "uscrt".to_string(),
                     amount: Uint128(1_000_000),
@@ -2137,7 +2139,7 @@ mod tests {
             }]);
             default_init(&mut deps);
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[Coin {
                     denom: "uscrt".to_string(),
                     amount: Uint128(2_000_000),
@@ -2157,7 +2159,7 @@ mod tests {
             }]);
             default_init(&mut deps);
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[Coin {
                     denom: "other".to_string(),
                     amount: Uint128(2_000_000),
@@ -2179,7 +2181,7 @@ mod tests {
             }]);
             default_init(&mut deps);
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[
                     Coin {
                         denom: "uscrt".to_string(),
@@ -2207,7 +2209,7 @@ mod tests {
             }]);
             default_init(&mut deps);
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[Coin {
                     denom: "uscrt".to_string(),
                     amount: Uint128(2_000_000),
@@ -2218,8 +2220,8 @@ mod tests {
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-                    to_address: HumanAddr::from("delegator1"),
+                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    to_address: Addr::from("delegator1"),
                     amount: vec![Coin {
                         denom: "upot".to_string(),
                         amount: Uint128(2_000_000)
@@ -2251,7 +2253,7 @@ mod tests {
             }]);
             default_init(&mut deps);
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[Coin {
                     denom: "uscrt".to_string(),
                     amount: Uint128(1_000_000),
@@ -2271,7 +2273,7 @@ mod tests {
             }]);
             default_init(&mut deps);
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[Coin {
                     denom: "uscrt".to_string(),
                     amount: Uint128(2_000_000),
@@ -2291,7 +2293,7 @@ mod tests {
             }]);
             default_init(&mut deps);
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[Coin {
                     denom: "other".to_string(),
                     amount: Uint128(5_561_532),
@@ -2313,7 +2315,7 @@ mod tests {
             }]);
             default_init(&mut deps);
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[
                     Coin {
                         denom: "uscrt".to_string(),
@@ -2341,7 +2343,7 @@ mod tests {
             }]);
             default_init(&mut deps);
             let info = mock_info(
-                HumanAddr::from("delegator1"),
+                Addr::from("delegator1"),
                 &[Coin {
                     denom: "uscrt".to_string(),
                     amount: Uint128(5_961_532),
@@ -2352,8 +2354,8 @@ mod tests {
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-                    to_address: HumanAddr::from("delegator1"),
+                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    to_address: Addr::from("delegator1"),
                     amount: vec![Coin {
                         denom: "ujack".to_string(),
                         amount: Uint128(5)
@@ -2376,26 +2378,26 @@ mod tests {
             let combination5 = "954f92";
             let addresses1 = vec![
                 deps.api
-                    .canonical_address(&HumanAddr("address1".to_string()))
+                    .canonical_address(&Addr("address1".to_string()))
                     .unwrap(),
                 deps.api
-                    .canonical_address(&HumanAddr("address2".to_string()))
+                    .canonical_address(&Addr("address2".to_string()))
                     .unwrap(),
             ];
             let addresses2 = vec![
                 deps.api
-                    .canonical_address(&HumanAddr("address2".to_string()))
+                    .canonical_address(&Addr("address2".to_string()))
                     .unwrap(),
                 deps.api
-                    .canonical_address(&HumanAddr("address3".to_string()))
+                    .canonical_address(&Addr("address3".to_string()))
                     .unwrap(),
                 deps.api
-                    .canonical_address(&HumanAddr("address3".to_string()))
+                    .canonical_address(&Addr("address3".to_string()))
                     .unwrap(),
             ];
             let addresses3 = vec![deps
                 .api
-                .canonical_address(&HumanAddr("address2".to_string()))
+                .canonical_address(&Addr("address2".to_string()))
                 .unwrap()];
             combination_storage(&mut deps.storage).save(
                 &combination.as_bytes(),
@@ -2433,7 +2435,7 @@ mod tests {
             let signature  = hex::decode("99afb21f4194b282b5025cad5855b01e7f562612233aecd49ed76a32987ca7e1d3abe043ba280efd2a97467fba2639060d9bd4608e0ab5fa10754b025e011d658a73dac6ae265325a0d8c4d1dd45f0b488150e89567f807ce50cd8ba58684dde").unwrap().into();
             let previous_signature  = hex::decode("a04b9a86fb2bcaaac6a595c6405bf5bb1af657c078bf7a88f8ec74b1d363ae17e97e7f3fe466e2fc699a656312f646aa009a8b0f5e5d6b2d603a40bec29132827e59fc8f85c971482a8100bd3301c0c5c42e7f03ddaa87ba15134faa1a629027").unwrap().into();
             let round: u64 = 519530;
-            let msg = HandleMsg::Play {
+            let msg = ExecuteMsg::Play {
                 round: round,
                 previous_signature: previous_signature,
                 signature: signature,
@@ -2449,7 +2451,7 @@ mod tests {
             let res = query_all_combination(deps.as_ref()).unwrap();
             assert_eq!(5, res.combination.len());
 
-            let info = mock_info(HumanAddr::from("validator1"), &[]);
+            let info = mock_info(Addr::from("validator1"), &[]);
             let mut env = mock_env();
             // Set block time superior to the block play so the lottery can start
             env.block.time = 1610966920;
@@ -2458,8 +2460,8 @@ mod tests {
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-                    to_address: HumanAddr::from("validator1"),
+                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    to_address: Addr::from("validator1"),
                     amount: vec![Coin {
                         denom: "uscrt".to_string(),
                         amount: Uint128(80_000)
@@ -2526,7 +2528,7 @@ mod tests {
             let signature  = hex::decode("99afb21f4194b282b5025cad5855b01e7f562612233aecd49ed76a32987ca7e1d3abe043ba280efd2a97467fba2639060d9bd4608e0ab5fa10754b025e011d658a73dac6ae265325a0d8c4d1dd45f0b488150e89567f807ce50cd8ba58684dde").unwrap().into();
             let previous_signature  = hex::decode("a04b9a86fb2bcaaac6a595c6405bf5bb1af657c078bf7a88f8ec74b1d363ae17e97e7f3fe466e2fc699a656312f646aa009a8b0f5e5d6b2d603a40bec29132827e59fc8f85c971482a8100bd3301c0c5c42e7f03ddaa87ba15134faa1a629027").unwrap().into();
             let round: u64 = 519530;
-            let msg = HandleMsg::Play {
+            let msg = ExecuteMsg::Play {
                 round: round,
                 previous_signature: previous_signature,
                 signature: signature,
@@ -2539,7 +2541,7 @@ mod tests {
             init_combination(&mut deps);
 
             let info = mock_info(
-                HumanAddr::from("validator1"),
+                Addr::from("validator1"),
                 &[Coin {
                     denom: "uscrt".to_string(),
                     amount: Uint128(10_000_000),
@@ -2562,7 +2564,7 @@ mod tests {
             let signature  = hex::decode("99afb21f4194b282b5025cad5855b01e7f562612233aecd49ed76a32987ca7e1d3abe043ba280efd2a97467fba2639060d9bd4608e0ab5fa10754b025e011d658a73dac6ae265325a0d8c4d1dd45f0b488150e89567f807ce50cd8ba58684dde").unwrap().into();
             let previous_signature  = hex::decode("a04b9a86fb2bcaaac6a595c6405bf5bb1af657c078bf7a88f8ec74b1d363ae17e97e7f3fe466e2fc699a656312f646aa009a8b0f5e5d6b2d603a40bec29132827e59fc8f85c971482a8100bd3301c0c5c42e7f03ddaa87ba15134faa1a629027").unwrap().into();
             let round: u64 = 519530;
-            let msg = HandleMsg::Play {
+            let msg = ExecuteMsg::Play {
                 round: round,
                 previous_signature: previous_signature,
                 signature: signature,
@@ -2573,7 +2575,7 @@ mod tests {
             }]);
             default_init(&mut deps);
 
-            let info = mock_info(HumanAddr::from("validator1"), &[]);
+            let info = mock_info(Addr::from("validator1"), &[]);
             let mut env = mock_env();
             // Set block time superior to the block play so the lottery can start
             env.block.time = 1610966920;
@@ -2581,8 +2583,8 @@ mod tests {
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-                    to_address: HumanAddr::from("validator1"),
+                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    to_address: Addr::from("validator1"),
                     amount: vec![Coin {
                         denom: "uscrt".to_string(),
                         amount: Uint128(80_000)
@@ -2607,14 +2609,14 @@ mod tests {
         fn contract_balance_empty() {
             let mut deps = mock_dependencies(&[]);
             deps.querier.update_balance(
-                HumanAddr::from("validator1"),
+                Addr::from("validator1"),
                 vec![Coin {
                     denom: "upot".to_string(),
                     amount: Uint128(4_532_004),
                 }],
             );
             default_init(&mut deps);
-            let info = mock_info(HumanAddr::from("validator1"), &[]);
+            let info = mock_info(Addr::from("validator1"), &[]);
             let env = mock_env();
             let res = handle_reward(deps.as_mut(), env.clone(), info.clone());
             match res {
@@ -2629,14 +2631,14 @@ mod tests {
                 amount: Uint128(10_000_000),
             }]);
             deps.querier.update_balance(
-                HumanAddr::from("validator1"),
+                Addr::from("validator1"),
                 vec![Coin {
                     denom: "ujack".to_string(),
                     amount: Uint128(4_532_004),
                 }],
             );
             default_init(&mut deps);
-            let info = mock_info(HumanAddr::from("validator1"), &[]);
+            let info = mock_info(Addr::from("validator1"), &[]);
             let env = mock_env();
             let res = handle_reward(deps.as_mut(), env.clone(), info.clone());
             match res {
@@ -2651,7 +2653,7 @@ mod tests {
                 amount: Uint128(10_000_000),
             }]);
             deps.querier.update_balance(
-                HumanAddr::from("validator1"),
+                Addr::from("validator1"),
                 vec![Coin {
                     denom: "upot".to_string(),
                     amount: Uint128(4_532_004),
@@ -2659,7 +2661,7 @@ mod tests {
             );
             default_init(&mut deps);
             let info = mock_info(
-                HumanAddr::from("validator1"),
+                Addr::from("validator1"),
                 &[Coin {
                     denom: "upot".to_string(),
                     amount: Uint128(4_532_004),
@@ -2681,14 +2683,14 @@ mod tests {
                 amount: Uint128(10_000_000),
             }]);
             deps.querier.update_balance(
-                HumanAddr::from("validator1"),
+                Addr::from("validator1"),
                 vec![Coin {
                     denom: "upot".to_string(),
                     amount: Uint128(4_532),
                 }],
             );
             default_init(&mut deps);
-            let info = mock_info(HumanAddr::from("validator1"), &[]);
+            let info = mock_info(Addr::from("validator1"), &[]);
             let env = mock_env();
             let res = handle_reward(deps.as_mut(), env.clone(), info.clone());
             match res {
@@ -2703,22 +2705,22 @@ mod tests {
                 amount: Uint128(10_000_000),
             }]);
             deps.querier.update_balance(
-                HumanAddr::from("validator1"),
+                Addr::from("validator1"),
                 vec![Coin {
                     denom: "upot".to_string(),
                     amount: Uint128(4_532_004),
                 }],
             );
             default_init(&mut deps);
-            let info = mock_info(HumanAddr::from("validator1"), &[]);
+            let info = mock_info(Addr::from("validator1"), &[]);
             let env = mock_env();
             let res = handle_reward(deps.as_mut(), env.clone(), info.clone()).unwrap();
             assert_eq!(1, res.messages.len());
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-                    to_address: HumanAddr::from("validator1"),
+                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    to_address: Addr::from("validator1"),
                     amount: vec![Coin {
                         denom: "uscrt".to_string(),
                         amount: Uint128(2349)
@@ -2732,7 +2734,7 @@ mod tests {
             assert!(res.claim_reward.contains(
                 &deps
                     .api
-                    .canonical_address(&HumanAddr::from("validator1"))
+                    .canonical_address(&Addr::from("validator1"))
                     .unwrap()
             ));
             // Test reward amount was updated with success
@@ -2767,7 +2769,7 @@ mod tests {
             default_init(&mut deps);
             // Test sender is not sending funds
             let info = mock_info(
-                HumanAddr::from("address2"),
+                Addr::from("address2"),
                 &[Coin {
                     denom: "ujack".to_string(),
                     amount: Uint128(20),
@@ -2797,7 +2799,7 @@ mod tests {
             let mut state = config_read(deps.as_mut().storage).load().unwrap();
             state.jackpot_reward = Uint128(0);
             config(deps.as_mut().storage).save(&state);
-            let info = mock_info(HumanAddr::from("address2"), &[]);
+            let info = mock_info(Addr::from("address2"), &[]);
             let res = handle_jackpot(deps.as_mut(), mock_env(), info.clone());
             match res {
                 Err(ContractError::Unauthorized {}) => {}
@@ -2817,7 +2819,7 @@ mod tests {
                 },
             ]);
             default_init(&mut deps);
-            let info = mock_info(HumanAddr::from("address2"), &[]);
+            let info = mock_info(Addr::from("address2"), &[]);
             let res = handle_jackpot(deps.as_mut(), mock_env(), info.clone());
             match res {
                 Err(ContractError::NoWinners {}) => {}
@@ -2854,7 +2856,7 @@ mod tests {
                         claimed: false,
                         address: deps
                             .api
-                            .canonical_address(&HumanAddr("address1".to_string()))
+                            .canonical_address(&Addr("address1".to_string()))
                             .unwrap(),
                     }],
                 },
@@ -2867,14 +2869,14 @@ mod tests {
                             claimed: false,
                             address: deps
                                 .api
-                                .canonical_address(&HumanAddr("address2".to_string()))
+                                .canonical_address(&Addr("address2".to_string()))
                                 .unwrap(),
                         },
                         WinnerInfoState {
                             claimed: false,
                             address: deps
                                 .api
-                                .canonical_address(&HumanAddr("address1".to_string()))
+                                .canonical_address(&Addr("address1".to_string()))
                                 .unwrap(),
                         },
                     ],
@@ -2882,7 +2884,7 @@ mod tests {
             );
             // Test transaction succeed if not ticket ujack to send
             // in this case the winner only have won tickets but since the balance is empty he will get nothing
-            let info = mock_info(HumanAddr::from("address2"), &[]);
+            let info = mock_info(Addr::from("address2"), &[]);
             let res = handle_jackpot(deps.as_mut(), mock_env(), info.clone()).unwrap();
             assert_eq!(0, res.messages.len());
             assert_eq!(
@@ -2916,7 +2918,7 @@ mod tests {
                         claimed: false,
                         address: deps
                             .api
-                            .canonical_address(&HumanAddr("address1".to_string()))
+                            .canonical_address(&Addr("address1".to_string()))
                             .unwrap(),
                     }],
                 },
@@ -2929,27 +2931,27 @@ mod tests {
                             claimed: false,
                             address: deps
                                 .api
-                                .canonical_address(&HumanAddr("address2".to_string()))
+                                .canonical_address(&Addr("address2".to_string()))
                                 .unwrap(),
                         },
                         WinnerInfoState {
                             claimed: false,
                             address: deps
                                 .api
-                                .canonical_address(&HumanAddr("address1".to_string()))
+                                .canonical_address(&Addr("address1".to_string()))
                                 .unwrap(),
                         },
                     ],
                 },
             );
 
-            let info = mock_info(HumanAddr::from("address1"), &[]);
+            let info = mock_info(Addr::from("address1"), &[]);
             let res = handle_jackpot(deps.as_mut(), mock_env(), info.clone()).unwrap();
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-                    to_address: HumanAddr::from("address1"),
+                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    to_address: Addr::from("address1"),
                     amount: vec![Coin {
                         denom: "uscrt".to_string(),
                         amount: Uint128(6720000)
@@ -2979,7 +2981,7 @@ mod tests {
                         claimed: false,
                         address: deps
                             .api
-                            .canonical_address(&HumanAddr("address1".to_string()))
+                            .canonical_address(&Addr("address1".to_string()))
                             .unwrap(),
                     }],
                 },
@@ -2992,14 +2994,14 @@ mod tests {
                             claimed: false,
                             address: deps
                                 .api
-                                .canonical_address(&HumanAddr("address2".to_string()))
+                                .canonical_address(&Addr("address2".to_string()))
                                 .unwrap(),
                         },
                         WinnerInfoState {
                             claimed: false,
                             address: deps
                                 .api
-                                .canonical_address(&HumanAddr("address1".to_string()))
+                                .canonical_address(&Addr("address1".to_string()))
                                 .unwrap(),
                         },
                     ],
@@ -3007,7 +3009,7 @@ mod tests {
             );
 
             // Test error since the winner won uscrt and is mor important prize than ujack ticket
-            let info = mock_info(HumanAddr::from("address1"), &[]);
+            let info = mock_info(Addr::from("address1"), &[]);
             let res = handle_jackpot(deps.as_mut(), mock_env(), info.clone());
             match res {
                 Err(ContractError::EmptyBalance {}) => {}
@@ -3027,7 +3029,7 @@ mod tests {
                         claimed: false,
                         address: deps
                             .api
-                            .canonical_address(&HumanAddr("address1".to_string()))
+                            .canonical_address(&Addr("address1".to_string()))
                             .unwrap(),
                     }],
                 },
@@ -3040,20 +3042,20 @@ mod tests {
                             claimed: false,
                             address: deps
                                 .api
-                                .canonical_address(&HumanAddr("address2".to_string()))
+                                .canonical_address(&Addr("address2".to_string()))
                                 .unwrap(),
                         },
                         WinnerInfoState {
                             claimed: false,
                             address: deps
                                 .api
-                                .canonical_address(&HumanAddr("address1".to_string()))
+                                .canonical_address(&Addr("address1".to_string()))
                                 .unwrap(),
                         },
                     ],
                 },
             );
-            let info = mock_info(HumanAddr::from("address1"), &[]);
+            let info = mock_info(Addr::from("address1"), &[]);
             let res = handle_jackpot(deps.as_mut(), mock_env(), info.clone());
             match res {
                 Err(ContractError::EmptyBalance {}) => {}
@@ -3082,7 +3084,7 @@ mod tests {
                         claimed: false,
                         address: deps
                             .api
-                            .canonical_address(&HumanAddr("address1".to_string()))
+                            .canonical_address(&Addr("address1".to_string()))
                             .unwrap(),
                     }],
                 },
@@ -3095,27 +3097,27 @@ mod tests {
                             claimed: false,
                             address: deps
                                 .api
-                                .canonical_address(&HumanAddr("address2".to_string()))
+                                .canonical_address(&Addr("address2".to_string()))
                                 .unwrap(),
                         },
                         WinnerInfoState {
                             claimed: false,
                             address: deps
                                 .api
-                                .canonical_address(&HumanAddr("address1".to_string()))
+                                .canonical_address(&Addr("address1".to_string()))
                                 .unwrap(),
                         },
                     ],
                 },
             );
 
-            let info = mock_info(HumanAddr::from("address2"), &[]);
+            let info = mock_info(Addr::from("address2"), &[]);
             let res = handle_jackpot(deps.as_mut(), mock_env(), info.clone()).unwrap();
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-                    to_address: HumanAddr::from("address2"),
+                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    to_address: Addr::from("address2"),
                     amount: vec![Coin {
                         denom: "ujack".to_string(),
                         amount: Uint128(1)
@@ -3147,7 +3149,7 @@ mod tests {
                         claimed: false,
                         address: deps
                             .api
-                            .canonical_address(&HumanAddr("address1".to_string()))
+                            .canonical_address(&Addr("address1".to_string()))
                             .unwrap(),
                     }],
                 },
@@ -3160,14 +3162,14 @@ mod tests {
                             claimed: false,
                             address: deps
                                 .api
-                                .canonical_address(&HumanAddr("address2".to_string()))
+                                .canonical_address(&Addr("address2".to_string()))
                                 .unwrap(),
                         },
                         WinnerInfoState {
                             claimed: false,
                             address: deps
                                 .api
-                                .canonical_address(&HumanAddr("address1".to_string()))
+                                .canonical_address(&Addr("address1".to_string()))
                                 .unwrap(),
                         },
                     ],
@@ -3175,13 +3177,13 @@ mod tests {
             );
 
             // Test success address3 claim jackpot and get 3 ticket since he won 3 times
-            let info = mock_info(HumanAddr::from("address1"), &[]);
+            let info = mock_info(Addr::from("address1"), &[]);
             let res = handle_jackpot(deps.as_mut(), mock_env(), info.clone()).unwrap();
             assert_eq!(
                 res.messages[0],
                 CosmosMsg::Bank(BankMsg::Send {
-                    from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-                    to_address: HumanAddr::from("address1"),
+                    from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                    to_address: Addr::from("address1"),
                     amount: vec![
                         Coin {
                             denom: "uscrt".to_string(),
@@ -3214,8 +3216,8 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
         default_init(&mut deps);
         // Test success proposal HolderFeePercentage
-        let info = mock_info(HumanAddr::from("address2"), &[]);
-        let msg = HandleMsg::Proposal {
+        let info = mock_info(Addr::from("address2"), &[]);
+        let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to a more expensive".to_string(),
             proposal: Proposal::HolderFeePercentage,
             amount: Option::from(Uint128(15)),
@@ -3229,7 +3231,7 @@ mod tests {
         assert_eq!(Uint128(15), storage.amount);
 
         // Test success proposal MinAmountValidator
-        let msg = HandleMsg::Proposal {
+        let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to a more expensive".to_string(),
             proposal: Proposal::MinAmountValidator,
             amount: Option::from(Uint128(15_000)),
@@ -3243,7 +3245,7 @@ mod tests {
         assert_eq!(Uint128(15000), storage.amount);
 
         // Test success proposal prize_per_rank
-        let msg = HandleMsg::Proposal {
+        let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new prize rank".to_string(),
             proposal: Proposal::PrizePerRank,
             amount: None,
@@ -3257,7 +3259,7 @@ mod tests {
         assert_eq!(vec![60, 20, 10, 10], storage.prize_rank);
 
         // Test success proposal MinAmountDelegator
-        let msg = HandleMsg::Proposal {
+        let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new amount delegator".to_string(),
             proposal: Proposal::MinAmountDelegator,
             amount: Option::from(Uint128(10_000)),
@@ -3271,7 +3273,7 @@ mod tests {
         assert_eq!(Uint128(10000), storage.amount);
 
         // Test success proposal JackpotRewardPercentage
-        let msg = HandleMsg::Proposal {
+        let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new jackpot percentage".to_string(),
             proposal: Proposal::JackpotRewardPercentage,
             amount: Option::from(Uint128(10)),
@@ -3285,7 +3287,7 @@ mod tests {
         assert_eq!(Uint128(10), storage.amount);
 
         // Test success proposal DrandWorkerFeePercentage
-        let msg = HandleMsg::Proposal {
+        let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new worker percentage".to_string(),
             proposal: Proposal::DrandWorkerFeePercentage,
             amount: Option::from(Uint128(10)),
@@ -3299,7 +3301,7 @@ mod tests {
         assert_eq!(Uint128(10), storage.amount);
 
         // Test success proposal LotteryEveryBlockTime
-        let msg = HandleMsg::Proposal {
+        let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new block time".to_string(),
             proposal: Proposal::LotteryEveryBlockTime,
             amount: Option::from(Uint128(100000)),
@@ -3313,7 +3315,7 @@ mod tests {
         assert_eq!(Uint128(100000), storage.amount);
 
         // Test success proposal ClaimEveryBlock
-        let msg = HandleMsg::Proposal {
+        let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new block time".to_string(),
             proposal: Proposal::ClaimEveryBlock,
             amount: Option::from(Uint128(100000)),
@@ -3331,7 +3333,7 @@ mod tests {
         assert_eq!(8, res.poll_count);
 
         // Test error description too short
-        let msg = HandleMsg::Proposal {
+        let msg = ExecuteMsg::Proposal {
             description: "I".to_string(),
             proposal: Proposal::DrandWorkerFeePercentage,
             amount: Option::from(Uint128(10)),
@@ -3346,7 +3348,7 @@ mod tests {
         }
 
         // Test error description too long
-        let msg = HandleMsg::Proposal {
+        let msg = ExecuteMsg::Proposal {
             description: "I erweoi oweijr w oweijr woerwe oirjewoi rewoirj ewoirjewr weiorjewoirjwerieworijewewriewo werioj ew".to_string(),
             proposal: Proposal::DrandWorkerFeePercentage,
             amount: Option::from(Uint128(10)),
@@ -3361,7 +3363,7 @@ mod tests {
         }
 
         // Test error description too long
-        let msg = HandleMsg::Proposal {
+        let msg = ExecuteMsg::Proposal {
             description: "Default".to_string(),
             proposal: Proposal::NotExist,
             amount: Option::from(Uint128(10)),
@@ -3375,7 +3377,7 @@ mod tests {
 
         // Test error sending funds with proposal
         let info = mock_info(
-            HumanAddr::from("address2"),
+            Addr::from("address2"),
             &[Coin {
                 denom: "kii".to_string(),
                 amount: Uint128(500),
@@ -3394,9 +3396,9 @@ mod tests {
     fn vote() {
         let mut deps = mock_dependencies(&[]);
         default_init(&mut deps);
-        let info = mock_info(HumanAddr::from("address2"), &[]);
+        let info = mock_info(Addr::from("address2"), &[]);
 
-        let msg = HandleMsg::Vote {
+        let msg = ExecuteMsg::Vote {
             poll_id: 1,
             approve: false,
         };
@@ -3409,7 +3411,7 @@ mod tests {
         }
 
         // Init proposal
-        let msg = HandleMsg::Proposal {
+        let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new block time".to_string(),
             proposal: Proposal::LotteryEveryBlockTime,
             amount: Option::from(Uint128(100000)),
@@ -3418,7 +3420,7 @@ mod tests {
         let res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone());
 
         // Test success proposal HolderFeePercentage
-        let msg = HandleMsg::Vote {
+        let msg = ExecuteMsg::Vote {
             poll_id: 1,
             approve: false,
         };
@@ -3430,14 +3432,14 @@ mod tests {
         assert!(storage.no_voters.contains(
             &deps
                 .api
-                .canonical_address(&HumanAddr::from("address2"))
+                .canonical_address(&Addr::from("address2"))
                 .unwrap()
         ));
         // Test only added 1 time
         assert_eq!(1, storage.no_voters.len());
 
         // Test only can vote one time per proposal
-        let msg = HandleMsg::Vote {
+        let msg = ExecuteMsg::Vote {
             poll_id: 1,
             approve: true,
         };
@@ -3453,7 +3455,7 @@ mod tests {
         assert!(!storage.yes_voters.contains(
             &deps
                 .api
-                .canonical_address(&HumanAddr::from("address2"))
+                .canonical_address(&Addr::from("address2"))
                 .unwrap()
         ));
 
@@ -3478,9 +3480,9 @@ mod tests {
     fn creator_reject_proposal() {
         let mut deps = mock_dependencies(&[]);
         default_init(&mut deps);
-        let info = mock_info(HumanAddr::from("creator"), &[]);
+        let info = mock_info(Addr::from("creator"), &[]);
         // Init proposal
-        let msg = HandleMsg::Proposal {
+        let msg = ExecuteMsg::Proposal {
             description: "I think we need to up to new block time".to_string(),
             proposal: Proposal::LotteryEveryBlockTime,
             amount: Option::from(Uint128(100000)),
@@ -3489,12 +3491,12 @@ mod tests {
         let res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone());
 
         // Init reject proposal
-        let msg = HandleMsg::RejectProposal { poll_id: 1 };
+        let msg = ExecuteMsg::RejectProposal { poll_id: 1 };
         let env = mock_env();
 
         // test error do not send funds with reject proposal
         let info = mock_info(
-            HumanAddr::from("creator"),
+            Addr::from("creator"),
             &[Coin {
                 denom: "xcoin".to_string(),
                 amount: Uint128(19_000),
@@ -3509,7 +3511,7 @@ mod tests {
         }
 
         // Success reject the proposal
-        let info = mock_info(HumanAddr::from("creator"), &[]);
+        let info = mock_info(Addr::from("creator"), &[]);
         let res = handle(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
         assert_eq!(0, res.messages.len());
 
@@ -3520,7 +3522,7 @@ mod tests {
         assert_eq!(PollStatus::RejectedByCreator, store.status);
 
         // Test error since the sender is not the creator
-        let info = mock_info(HumanAddr::from("otherUser"), &[]);
+        let info = mock_info(Addr::from("otherUser"), &[]);
         let res = handle(deps.as_mut(), mock_env(), info.clone(), msg.clone());
         match res {
             Err(ContractError::Unauthorized {}) => {}
@@ -3528,7 +3530,7 @@ mod tests {
         }
 
         // Test error the proposal is not inProgress
-        let info = mock_info(HumanAddr::from("creator"), &[]);
+        let info = mock_info(Addr::from("creator"), &[]);
         poll_storage(deps.as_mut().storage).update::<_, StdError>(&1_u64.to_be_bytes(), |poll| {
             let mut poll_data = poll.unwrap();
             // Update the status to rejected by the creator
@@ -3541,7 +3543,7 @@ mod tests {
             _ => panic!("Unexpected error"),
         }
         // Test error the proposal already expired
-        let info = mock_info(HumanAddr::from("creator"), &[]);
+        let info = mock_info(Addr::from("creator"), &[]);
         poll_storage(deps.as_mut().storage).update::<_, StdError>(&1_u64.to_be_bytes(), |poll| {
             let mut poll_data = poll.unwrap();
             // Update the end eight to now
@@ -3561,8 +3563,8 @@ mod tests {
         use cosmwasm_std::attr;
 
         fn init_proposal(deps: DepsMut, env: &Env) {
-            let info = mock_info(HumanAddr::from("creator"), &[]);
-            let msg = HandleMsg::Proposal {
+            let info = mock_info(Addr::from("creator"), &[]);
+            let msg = ExecuteMsg::Proposal {
                 description: "I think we need to up to new block time".to_string(),
                 proposal: Proposal::LotteryEveryBlockTime,
                 amount: Option::from(Uint128(200_000)),
@@ -3572,8 +3574,8 @@ mod tests {
         }
 
         fn init_voter(address: String, deps: DepsMut, vote: bool, env: &Env) {
-            let info = mock_info(HumanAddr::from(address.clone()), &[]);
-            let msg = HandleMsg::Vote {
+            let info = mock_info(Addr::from(address.clone()), &[]);
+            let msg = ExecuteMsg::Vote {
                 poll_id: 1,
                 approve: vote,
             };
@@ -3584,13 +3586,13 @@ mod tests {
         fn present_proposal_with_empty_voters() {
             let mut deps = mock_dependencies(&[]);
             default_init(&mut deps);
-            let info = mock_info(HumanAddr::from("sender"), &[]);
+            let info = mock_info(Addr::from("sender"), &[]);
             let mut env = mock_env();
             env.block.height = 10_000;
             // Init proposal
             init_proposal(deps.as_mut(), &env);
 
-            let msg = HandleMsg::PresentProposal { poll_id: 1 };
+            let msg = ExecuteMsg::PresentProposal { poll_id: 1 };
             let mut env = mock_env();
             // expire the proposal to allow presentation
             env.block.height = 100_000;
@@ -3610,7 +3612,7 @@ mod tests {
             let mut deps = mock_dependencies(&[]);
             default_init(&mut deps);
             let stateBefore = config_read(deps.as_ref().storage).load().unwrap();
-            let info = mock_info(HumanAddr::from("sender"), &[]);
+            let info = mock_info(Addr::from("sender"), &[]);
             let mut env = mock_env();
             env.block.height = 10_000;
             // Init proposal
@@ -3635,7 +3637,7 @@ mod tests {
             init_voter("address2".to_string(), deps.as_mut(), false, &env);
 
             // Init present proposal
-            let msg = HandleMsg::PresentProposal { poll_id: 1 };
+            let msg = ExecuteMsg::PresentProposal { poll_id: 1 };
             let mut env = mock_env();
             // expire the proposal to allow presentation
             env.block.height = 100_000;
@@ -3660,7 +3662,7 @@ mod tests {
         fn present_proposal_with_voters_yes_weight() {
             let mut deps = mock_dependencies(&[]);
             default_init(&mut deps);
-            let info = mock_info(HumanAddr::from("sender"), &[]);
+            let info = mock_info(Addr::from("sender"), &[]);
             let mut env = mock_env();
             env.block.height = 10_000;
             // Init proposal
@@ -3685,7 +3687,7 @@ mod tests {
             init_voter("address2".to_string(), deps.as_mut(), true, &env);
 
             // Init present proposal
-            let msg = HandleMsg::PresentProposal { poll_id: 1 };
+            let msg = ExecuteMsg::PresentProposal { poll_id: 1 };
             let mut env = mock_env();
             // expire the proposal to allow presentation
             env.block.height = 100_000;
@@ -3704,7 +3706,7 @@ mod tests {
             assert_eq!(200000, state.everyblock_time_play);
 
             // Test can't REpresent the proposal
-            let msg = HandleMsg::PresentProposal { poll_id: 1 };
+            let msg = ExecuteMsg::PresentProposal { poll_id: 1 };
             let mut env = mock_env();
             // expire the proposal to allow presentation
             env.block.height = 100_000;
@@ -3742,9 +3744,9 @@ mod tests {
             init_voter("address1".to_string(), deps.as_mut(), true, &env);
             init_voter("address2".to_string(), deps.as_mut(), true, &env);
 
-            let msg = HandleMsg::PresentProposal { poll_id: 1 };
+            let msg = ExecuteMsg::PresentProposal { poll_id: 1 };
             let info = mock_info(
-                HumanAddr::from("sender"),
+                Addr::from("sender"),
                 &[Coin {
                     denom: "funds".to_string(),
                     amount: Uint128(324),
@@ -3762,8 +3764,8 @@ mod tests {
             }
 
             // proposal not expired
-            let msg = HandleMsg::PresentProposal { poll_id: 1 };
-            let info = mock_info(HumanAddr::from("sender"), &[]);
+            let msg = ExecuteMsg::PresentProposal { poll_id: 1 };
+            let info = mock_info(Addr::from("sender"), &[]);
             let mut env = mock_env();
             env.block.height = 10_000;
             let res = handle(deps.as_mut(), env.clone(), info.clone(), msg.clone());

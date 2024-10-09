@@ -1,19 +1,19 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::state::AIRequest;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
-    pub dsources: Vec<HumanAddr>,
-    pub tcases: Vec<HumanAddr>,
+pub struct InstantiateMsg {
+    pub dsources: Vec<Addr>,
+    pub tcases: Vec<Addr>,
     pub threshold: u8,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     SetState(StateMsg),
     SetValidatorFees {
         fees: u64,
@@ -29,13 +29,13 @@ pub enum HandleMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AIRequestMsg {
-    pub validators: Vec<HumanAddr>,
+    pub validators: Vec<Addr>,
     pub input: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DataSourceResultMsg {
-    pub contract: HumanAddr,
+    pub contract: Addr,
     pub result: String,
     pub status: bool,
     pub test_case_results: Vec<Option<TestCaseResultMsg>>,
@@ -43,16 +43,16 @@ pub struct DataSourceResultMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TestCaseResultMsg {
-    pub contract: HumanAddr,
+    pub contract: Addr,
     pub dsource_status: bool,
     pub tcase_status: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateMsg {
-    pub dsources: Option<Vec<HumanAddr>>,
-    pub tcases: Option<Vec<HumanAddr>>,
-    pub owner: Option<HumanAddr>,
+    pub dsources: Option<Vec<Addr>>,
+    pub tcases: Option<Vec<Addr>>,
+    pub owner: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -76,7 +76,7 @@ pub enum QueryMsg {
         order: Option<u8>,
     },
     GetMinFees {
-        validators: Vec<HumanAddr>,
+        validators: Vec<Addr>,
     },
 }
 

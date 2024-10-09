@@ -1,6 +1,6 @@
 use crate::error::ContractError;
 use crate::msg::{
-    HandleMsg, InfoMsg, InitMsg, OfferingsResponse, PayoutMsg, QueryMsg, QueryOfferingsResult,
+    ExecuteMsg, InfoMsg, InstantiateMsg, OfferingsResponse, PayoutMsg, QueryMsg, QueryOfferingsResult,
     SellNft,
 };
 use crate::state::{
@@ -8,12 +8,12 @@ use crate::state::{
     Offering, CONTRACT_INFO,
 };
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order, StdError, StdResult, Storage,
+    attr, coins, from_binary, to_json_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
+    DepsMut, Env, Response, Response, MessageInfo, Order, StdError, StdResult, Storage,
     Uint128, WasmMsg,
 };
-use cosmwasm_std::{HumanAddr, KV};
-use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
+use cosmwasm_std::{Addr, KV};
+use cw721::{Cw721ExecuteMsg, Cw721ReceiveMsg};
 use cw_storage_plus::Bound;
 use std::convert::TryInto;
 use std::ops::{Mul, Sub};
@@ -36,12 +36,13 @@ fn sanitize_royalty(royalty: u64, limit: u64, name: &str) -> Result<u64, Contrac
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     let info = ContractInfo {
         name: msg.name,
         creator: info.sender.to_string(),
@@ -50,24 +51,25 @@ pub fn init(
         max_royalty: sanitize_royalty(msg.max_royalty, MAX_ROYALTY_PERCENT, "max_royalty")?,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::MintNft { contract, msg } => try_handle_mint(deps, info, contract, msg),
-        HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, offering_id),
-        HandleMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
-        HandleMsg::ReceiveNft(msg) => try_receive_nft(deps, info, msg),
-        HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
-        HandleMsg::UpdateInfo(info_msg) => try_update_info(deps, info, info_msg),
-        HandleMsg::WithdrawAll {} => try_withdraw_all(deps, info),
+        ExecuteMsg::MintNft { contract, msg } => try_handle_mint(deps, info, contract, msg),
+        ExecuteMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, offering_id),
+        ExecuteMsg::BuyNft { offering_id } => try_buy(deps, info, env, offering_id),
+        ExecuteMsg::ReceiveNft(msg) => try_receive_nft(deps, info, msg),
+        ExecuteMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
+        ExecuteMsg::UpdateInfo(info_msg) => try_update_info(deps, info, info_msg),
+        ExecuteMsg::WithdrawAll {} => try_withdraw_all(deps, info),
     }
 }
 
@@ -77,13 +79,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             offset,
             order,
-        } => to_binary(&query_offerings(deps, limit, offset, order)?),
+        } => to_json_binary(&query_offerings(deps, limit, offset, order)?),
         QueryMsg::GetOfferingsBySeller {
             seller,
             limit,
             offset,
             order,
-        } => to_binary(&query_offerings_by_seller(
+        } => to_json_binary(&query_offerings_by_seller(
             deps, seller, limit, offset, order,
         )?),
         QueryMsg::GetOfferingsByContract {
@@ -91,17 +93,17 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             offset,
             order,
-        } => to_binary(&query_offerings_by_contract(
+        } => to_json_binary(&query_offerings_by_contract(
             deps, contract, limit, offset, order,
         )?),
-        QueryMsg::GetOffering { offering_id } => to_binary(&query_offering(deps, offering_id)?),
-        QueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
+        QueryMsg::GetOffering { offering_id } => to_json_binary(&query_offering(deps, offering_id)?),
+        QueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_json_binary(
             &query_offering_by_contract_tokenid(deps, contract, token_id)?,
         ),
-        QueryMsg::GetPayoutsByContractTokenId { contract, token_id } => to_binary(
+        QueryMsg::GetPayoutsByContractTokenId { contract, token_id } => to_json_binary(
             &query_payouts_by_contract_tokenid(deps, contract, token_id)?,
         ),
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        QueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
     }
 }
 
@@ -110,17 +112,17 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 pub fn try_handle_mint(
     _deps: DepsMut,
     info: MessageInfo,
-    contract: HumanAddr,
+    contract: Addr,
     msg: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let mint_msg = WasmMsg::Execute {
         contract_addr: contract.clone(),
         msg: msg.clone(),
-        send: vec![],
+        funds: vec![],
     }
     .into();
 
-    let response = HandleResponse {
+    let response = Response {
         messages: vec![mint_msg],
         attributes: vec![
             attr("action", "mint_nft"),
@@ -138,16 +140,16 @@ pub fn try_withdraw_funds(
     _info: MessageInfo,
     env: Env,
     fund: Coin,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address,
-        to_address: HumanAddr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
+        to_address: Addr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![bank_msg],
         attributes: vec![
             attr("action", "withdraw_funds"),
@@ -163,7 +165,7 @@ pub fn try_update_info(
     deps: DepsMut,
     info: MessageInfo,
     info_msg: InfoMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
         // Unauthorized
         if !info.sender.to_string().eq(&contract_info.creator) {
@@ -185,13 +187,13 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "update_info"),
             attr("info_sender", info.sender),
         ],
-        data: to_binary(&new_contract_info).ok(),
+        data: to_json_binary(&new_contract_info).ok(),
     })
 }
 
@@ -200,7 +202,7 @@ pub fn try_buy(
     info: MessageInfo,
     env: Env,
     offering_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // check if offering exists
     let off = match offerings().load(deps.storage, &offering_id.to_be_bytes()) {
         Ok(v) => v,
@@ -235,7 +237,7 @@ pub fn try_buy(
                     cosmos_msgs.push(
                         BankMsg::Send {
                             from_address: env.contract.address.clone(),
-                            to_address: HumanAddr::from(contract_info.creator),
+                            to_address: Addr::from(contract_info.creator),
                             amount: coins(fee_amount.u128(), &contract_info.denom),
                         }
                         .into(),
@@ -292,7 +294,7 @@ pub fn try_buy(
     }
 
     // create transfer cw721 msg
-    let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+    let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
         recipient: info.sender.clone(),
         token_id: off.token_id.clone(),
     };
@@ -304,13 +306,13 @@ pub fn try_buy(
     cosmos_msgs.push(
         WasmMsg::Execute {
             contract_addr: deps.api.human_address(&off.contract_addr)?,
-            msg: to_binary(&transfer_cw721_msg)?,
-            send: vec![],
+            msg: to_json_binary(&transfer_cw721_msg)?,
+            funds: vec![],
         }
         .into(),
     );
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "buy_nft"),
@@ -328,7 +330,7 @@ pub fn try_receive_nft(
     deps: DepsMut,
     info: MessageInfo,
     rcv_msg: Cw721ReceiveMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let msg: SellNft = match rcv_msg.msg {
         Some(bin) => Ok(from_binary(&bin)?),
         None => Err(ContractError::NoData {}),
@@ -390,7 +392,7 @@ pub fn try_receive_nft(
 
     let price_string = format!("{}", msg.price);
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: Vec::new(),
         attributes: vec![
             attr("action", "sell_nft"),
@@ -404,7 +406,7 @@ pub fn try_receive_nft(
     })
 }
 
-pub fn try_withdraw_all(deps: DepsMut, info: MessageInfo) -> Result<HandleResponse, ContractError> {
+pub fn try_withdraw_all(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let mut msgs = vec![];
     // Unauthorized
@@ -419,15 +421,15 @@ pub fn try_withdraw_all(deps: DepsMut, info: MessageInfo) -> Result<HandleRespon
         let off = offerings().load(storage, &storage_key)?;
         // check if token_id is currently sold by the requesting address
         // transfer token back to original owner
-        let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+        let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
             recipient: deps.api.human_address(&off.seller)?,
             token_id: off.token_id.clone(),
         };
 
         let exec_cw721_transfer = WasmMsg::Execute {
             contract_addr: deps.api.human_address(&off.contract_addr)?,
-            msg: to_binary(&transfer_cw721_msg)?,
-            send: vec![],
+            msg: to_json_binary(&transfer_cw721_msg)?,
+            funds: vec![],
         };
         msgs.push(exec_cw721_transfer.into());
 
@@ -435,7 +437,7 @@ pub fn try_withdraw_all(deps: DepsMut, info: MessageInfo) -> Result<HandleRespon
         offerings().remove(storage, &storage_key)?;
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: msgs,
         attributes: vec![attr("action", "withdraw_all_nfts")],
         data: None,
@@ -446,22 +448,22 @@ pub fn try_withdraw(
     deps: DepsMut,
     info: MessageInfo,
     offering_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // check if token_id is currently sold by the requesting address
     let storage_key = offering_id.to_be_bytes();
     let off = offerings().load(deps.storage, &storage_key)?;
     if off.seller == deps.api.canonical_address(&info.sender)? {
         // check if token_id is currently sold by the requesting address
         // transfer token back to original owner
-        let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+        let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
             recipient: deps.api.human_address(&off.seller)?,
             token_id: off.token_id.clone(),
         };
 
         let exec_cw721_transfer = WasmMsg::Execute {
             contract_addr: deps.api.human_address(&off.contract_addr)?,
-            msg: to_binary(&transfer_cw721_msg)?,
-            send: vec![],
+            msg: to_json_binary(&transfer_cw721_msg)?,
+            funds: vec![],
         };
 
         let cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![exec_cw721_transfer.into()];
@@ -469,7 +471,7 @@ pub fn try_withdraw(
         // remove offering
         offerings().remove(deps.storage, &storage_key)?;
 
-        return Ok(HandleResponse {
+        return Ok(Response {
             messages: cw721_transfer_cosmos_msg,
             attributes: vec![
                 attr("action", "withdraw_nft"),
@@ -539,7 +541,7 @@ pub fn query_offering_ids(deps: Deps) -> StdResult<Vec<u64>> {
 
 pub fn query_offerings_by_seller(
     deps: Deps,
-    seller: HumanAddr,
+    seller: Addr,
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
@@ -559,7 +561,7 @@ pub fn query_offerings_by_seller(
 
 pub fn query_offerings_by_contract(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
@@ -602,7 +604,7 @@ pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<QueryOfferingsR
 
 pub fn query_offering_by_contract_tokenid(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     token_id: String,
 ) -> StdResult<QueryOfferingsResult> {
     let contract_raw = deps.api.canonical_address(&contract)?;
@@ -640,7 +642,7 @@ pub fn query_offering_by_contract_tokenid(
 
 pub fn query_payouts_by_contract_tokenid(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     token_id: String,
 ) -> StdResult<PayoutMsg> {
     let contract_raw = deps.api.canonical_address(&contract)?;

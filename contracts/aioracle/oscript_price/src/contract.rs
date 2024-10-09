@@ -3,25 +3,32 @@ use std::num::ParseIntError;
 use std::ops::Add;
 
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, Input, Output, QueryMsg};
+use crate::msg::{ExecuteMsg, Input, InstantiateMsg, Output, QueryMsg};
 use cosmwasm_std::{
-    from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
+    from_slice, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, Response,
     StdError, StdResult,
 };
 
 // make use of the custom errors
-pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
-    Ok(InitResponse::default())
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {}
 }
 
@@ -95,7 +102,7 @@ fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
         };
         aggregation_result.push(data.clone());
     }
-    let result_bin = to_binary(&aggregation_result).unwrap();
+    let result_bin = to_json_binary(&aggregation_result).unwrap();
     Ok(result_bin)
 }
 
@@ -186,7 +193,7 @@ fn aggregate_prices_str(results: Vec<String>) -> String {
         };
         inputs.push(input);
     }
-    let response_bin = to_binary(&inputs).unwrap();
+    let response_bin = to_json_binary(&inputs).unwrap();
     let response_str = String::from_utf8(response_bin.to_vec()).unwrap();
     return response_str;
 }

@@ -1,4 +1,4 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -13,13 +13,13 @@ pub enum DataHubQueryMsg {
         order: Option<u8>,
     },
     GetOfferingsBySeller {
-        seller: HumanAddr,
+        seller: Addr,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetOfferingsByContract {
-        contract: HumanAddr,
+        contract: Addr,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
@@ -28,16 +28,16 @@ pub enum DataHubQueryMsg {
         offering_id: u64,
     },
     GetOfferingsByContractTokenId {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetUniqueOffering {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
-        owner: HumanAddr,
+        owner: Addr,
     },
     GetAnnotations {
         offset: Option<u64>,
@@ -45,7 +45,7 @@ pub enum DataHubQueryMsg {
         order: Option<u8>,
     },
     GetAnnotationsByContract {
-        contract: HumanAddr,
+        contract: Addr,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
@@ -54,14 +54,14 @@ pub enum DataHubQueryMsg {
         annotation_id: u64,
     },
     GetAnnotationsByContractTokenId {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetAnnotationsByRequester {
-        requester: HumanAddr,
+        requester: Addr,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
@@ -70,18 +70,18 @@ pub enum DataHubQueryMsg {
         annotation_result_id: u64,
     },
     GetAnnotationResultByReviewer {
-        reviewer_address: HumanAddr,
+        reviewer_address: Addr,
     },
     GetAnnotationResultsByAnnotationId {
         annotation_id: u64,
     },
     GetAnnotationResultsByAnnotationIdAndReviewer {
         annotation_id: u64,
-        reviewer_address: HumanAddr,
+        reviewer_address: Addr,
     },
     GetAnnotationReviewerByUniqueKey {
         annotation_id: u64,
-        reviewer_address: HumanAddr,
+        reviewer_address: Addr,
     },
     GetAnnotationReviewerByAnnotationId {
         annotation_id: u64,
@@ -91,7 +91,7 @@ pub enum DataHubQueryMsg {
     },
     GetReviewedUploadByAnnotationIdAndReviewer {
         annotation_id: u64,
-        reviewer_address: HumanAddr,
+        reviewer_address: Addr,
     },
     GetContractInfo {},
 }

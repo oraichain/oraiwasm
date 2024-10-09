@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Coin, HumanAddr, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Binary, Coin, StdResult, Storage, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, U64Key, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -9,17 +9,17 @@ pub const THRESHOLD: Item<u8> = Item::new("report_threhold");
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub owner: HumanAddr,
-    pub dsources: Vec<HumanAddr>,
-    pub tcases: Vec<HumanAddr>,
+    pub owner: Addr,
+    pub dsources: Vec<Addr>,
+    pub tcases: Vec<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AIRequest {
     pub request_id: u64,
-    pub validators: Vec<HumanAddr>,
-    pub data_sources: Vec<HumanAddr>,
-    pub test_cases: Vec<HumanAddr>,
+    pub validators: Vec<Addr>,
+    pub data_sources: Vec<Addr>,
+    pub test_cases: Vec<Addr>,
     pub input: String,
     pub reports: Vec<Report>,
     pub validator_fees: Vec<Fees>,
@@ -31,19 +31,19 @@ pub struct AIRequest {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Fees {
-    pub address: HumanAddr,
+    pub address: Addr,
     pub amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Rewards {
-    pub address: Vec<HumanAddr>,
+    pub address: Vec<Addr>,
     pub amount: Vec<Vec<Coin>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DataSourceResults {
-    pub contract: Vec<HumanAddr>,
+    pub contract: Vec<Addr>,
     pub result_hash: Vec<String>,
     pub status: Vec<bool>,
     pub test_case_results: Vec<Option<TestCaseResults>>,
@@ -51,14 +51,14 @@ pub struct DataSourceResults {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TestCaseResults {
-    pub contract: Vec<HumanAddr>,
+    pub contract: Vec<Addr>,
     pub dsource_status: Vec<bool>,
     pub tcase_status: Vec<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Report {
-    pub validator: HumanAddr,
+    pub validator: Addr,
     pub block_height: u64,
     pub dsources_results: DataSourceResults,
     pub aggregated_result: Binary,

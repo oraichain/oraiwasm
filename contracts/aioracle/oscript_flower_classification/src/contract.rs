@@ -1,28 +1,30 @@
 use crate::error::ContractError;
-use crate::msg::{Data, DataResult, HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{Data, DataResult, ExecuteMsg, InstantiateMsg, QueryMsg};
 use cosmwasm_std::{
-    from_slice, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
+    from_slice, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, Response,
     StdResult,
 };
 
 // make use of the custom errors
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    _msg: InitMsg,
-) -> StdResult<InitResponse> {
-    Ok(InitResponse::default())
+    _msg: InstantiateMsg,
+) -> StdResult<Response> {
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     _deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {}
 }
 
@@ -56,7 +58,7 @@ fn query_aggregation(_deps: Deps, results: Vec<String>) -> StdResult<Binary> {
         }
     }
 
-    let resp = to_binary(&aggregation_result)?;
+    let resp = to_json_binary(&aggregation_result)?;
     Ok(resp)
 }
 
@@ -81,7 +83,7 @@ mod tests {
                 score: 77,
             },
         ];
-        let expected = to_binary(&expected).unwrap();
+        let expected = to_json_binary(&expected).unwrap();
 
         let resp = format!(
         "{{\"data\":[{{\"label\":\"foo\",\"score\":88}},{{\"label\":\"noob\",\"score\":66}}],\"status\":\"success\"}}");

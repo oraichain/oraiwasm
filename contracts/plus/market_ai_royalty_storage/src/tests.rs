@@ -4,7 +4,7 @@ use crate::msg::*;
 use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
-use cosmwasm_std::{coin, coins, from_binary, HumanAddr, OwnedDeps, StdError};
+use cosmwasm_std::{coin, coins, from_binary, Addr, OwnedDeps, StdError};
 use market_ai_royalty::*;
 
 const CREATOR: &str = "marketplace";
@@ -13,8 +13,8 @@ const DENOM: &str = "MGK";
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
-    let msg = InitMsg {
-        governance: HumanAddr::from("market_hub"),
+    let msg = InstantiateMsg {
+        governance: Addr::from("market_hub"),
     };
     let info = mock_info(CREATOR, &[]);
     let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -31,13 +31,13 @@ fn update_ai_royalty() {
     let provider_info = mock_info("provider1", &vec![coin(50, DENOM)]);
     let mut royalties: Vec<RoyaltyMsg> = vec![];
 
-    let pref_msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdatePreference(1));
+    let pref_msg = ExecuteMsg::Msg(AiRoyaltyExecuteMsg::UpdatePreference(1));
     handle(deps.as_mut(), mock_env(), provider_info.clone(), pref_msg).unwrap();
 
     for i in 1u64..3u64 {
         let royalty = RoyaltyMsg {
-            contract_addr: HumanAddr::from("xxx"),
-            creator: HumanAddr::from(format!("provider{}", i)),
+            contract_addr: Addr::from("xxx"),
+            creator: Addr::from(format!("provider{}", i)),
             token_id: i.to_string(),
             creator_type: Some(String::from("sacx")),
             royalty: Some(40),
@@ -52,9 +52,9 @@ fn update_ai_royalty() {
     //         deps.as_mut(),
     //         mock_env(),
     //         invalid_info.clone(),
-    //         HandleMsg::Msg(AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
-    //             contract_addr: HumanAddr::from("xxx"),
-    //             creator: HumanAddr::from("theft"),
+    //         ExecuteMsg::Msg(AiRoyaltyExecuteMsg::UpdateRoyalty(RoyaltyMsg {
+    //             contract_addr: Addr::from("xxx"),
+    //             creator: Addr::from("theft"),
     //             token_id: "1".to_string(),
     //             creator_type: Some(String::from("sacx")),
     //             royalty: None,
@@ -70,7 +70,7 @@ fn update_ai_royalty() {
             deps.as_mut(),
             mock_env(),
             invalid_info.clone(),
-            HandleMsg::Msg(AiRoyaltyHandleMsg::UpdateRoyalty(
+            ExecuteMsg::Msg(AiRoyaltyExecuteMsg::UpdateRoyalty(
                 royalties.iter().last().unwrap().to_owned()
             ))
         ),
@@ -78,7 +78,7 @@ fn update_ai_royalty() {
     ));
 
     for royalty in royalties {
-        let msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdateRoyalty(royalty));
+        let msg = ExecuteMsg::Msg(AiRoyaltyExecuteMsg::UpdateRoyalty(royalty));
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
@@ -88,9 +88,9 @@ fn update_ai_royalty() {
             deps.as_ref(),
             mock_env(),
             QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalty {
-                contract_addr: HumanAddr::from("xxx"),
+                contract_addr: Addr::from("xxx"),
                 token_id: i.to_string(),
-                creator: HumanAddr::from(format!("provider{}", i)),
+                creator: Addr::from(format!("provider{}", i)),
             }),
         )
         .unwrap();
@@ -99,14 +99,14 @@ fn update_ai_royalty() {
     }
 
     let mut royalty_msg = RoyaltyMsg {
-        contract_addr: HumanAddr::from("xxx"),
-        creator: HumanAddr::from(format!("provider{}", "1")),
+        contract_addr: Addr::from("xxx"),
+        creator: Addr::from(format!("provider{}", "1")),
         token_id: "1".to_string(),
         creator_type: Some(String::from("sacx")),
         royalty: None,
     };
-    let mut msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdateRoyalty(royalty_msg.clone()));
-    let pref_msg_sec = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdatePreference(20));
+    let mut msg = ExecuteMsg::Msg(AiRoyaltyExecuteMsg::UpdateRoyalty(royalty_msg.clone()));
+    let pref_msg_sec = ExecuteMsg::Msg(AiRoyaltyExecuteMsg::UpdatePreference(20));
     handle(
         deps.as_mut(),
         mock_env(),
@@ -124,7 +124,7 @@ fn update_ai_royalty() {
 
     // reach above sanitize case
     royalty_msg.royalty = Some(70);
-    msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdateRoyalty(royalty_msg));
+    msg = ExecuteMsg::Msg(AiRoyaltyExecuteMsg::UpdateRoyalty(royalty_msg));
     assert_eq!(
         handle(deps.as_mut(), mock_env(), provider_info.clone(), msg).is_err(),
         true
@@ -156,13 +156,13 @@ fn query_royalties() {
     let provider_info = mock_info("provider1", &vec![coin(50, DENOM)]);
     let mut royalties: Vec<RoyaltyMsg> = vec![];
 
-    let pref_msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdatePreference(1));
+    let pref_msg = ExecuteMsg::Msg(AiRoyaltyExecuteMsg::UpdatePreference(1));
     handle(deps.as_mut(), mock_env(), provider_info.clone(), pref_msg).unwrap();
 
     for i in 1u64..5u64 {
         let royalty = RoyaltyMsg {
-            contract_addr: HumanAddr::from(format!("xxx{}", i)),
-            creator: HumanAddr::from(format!("provider{}", i)),
+            contract_addr: Addr::from(format!("xxx{}", i)),
+            creator: Addr::from(format!("provider{}", i)),
             token_id: "1".to_string(),
             creator_type: Some(String::from("sacx")),
             royalty: None,
@@ -171,15 +171,15 @@ fn query_royalties() {
     }
 
     for royalty in royalties {
-        let msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdateRoyalty(royalty));
+        let msg = ExecuteMsg::Msg(AiRoyaltyExecuteMsg::UpdateRoyalty(royalty));
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
     // query royalties using map
     let mut query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalty {
-        contract_addr: HumanAddr::from("xxx1"),
+        contract_addr: Addr::from("xxx1"),
         token_id: "1".to_string(),
-        creator: HumanAddr::from("provider1"),
+        creator: Addr::from("provider1"),
     });
     let result: Royalty =
         from_binary(&query(deps.as_ref(), mock_env(), query_royalties).unwrap()).unwrap();
@@ -188,9 +188,9 @@ fn query_royalties() {
     query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
         token_id: "1".to_string(),
         offset: Some(OffsetMsg {
-            contract: HumanAddr::from("xxx1"),
+            contract: Addr::from("xxx1"),
             token_id: "1".to_string(),
-            creator: HumanAddr::from("provider1"),
+            creator: Addr::from("provider1"),
         }),
         limit: None,
         order: Some(1),
@@ -202,7 +202,7 @@ fn query_royalties() {
 
     // // query royalties using owner
     query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyaltiesOwner {
-        owner: HumanAddr::from(format!("provider{}", 1)),
+        owner: Addr::from(format!("provider{}", 1)),
         offset: None,
         limit: None,
         order: Some(1),
@@ -214,9 +214,9 @@ fn query_royalties() {
 
     query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalties {
         offset: Some(OffsetMsg {
-            contract: HumanAddr::from("xxx"),
+            contract: Addr::from("xxx"),
             token_id: "1".to_string(),
-            creator: HumanAddr::from("provider1"),
+            creator: Addr::from("provider1"),
         }),
         limit: None,
         order: Some(1),
@@ -227,7 +227,7 @@ fn query_royalties() {
     assert_eq!(result.len(), 1);
 
     query_royalties = QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
-        contract_addr: HumanAddr::from("xxx1"),
+        contract_addr: Addr::from("xxx1"),
         token_id: "1".to_string(),
         offset: None,
         limit: None,
@@ -249,8 +249,8 @@ fn remove_ai_royalty() {
 
     for i in 1u64..3u64 {
         let royalty = RoyaltyMsg {
-            contract_addr: HumanAddr::from("xxx"),
-            creator: HumanAddr::from(format!("provider{}", i)),
+            contract_addr: Addr::from("xxx"),
+            creator: Addr::from(format!("provider{}", i)),
             token_id: i.to_string(),
             creator_type: Some(String::from("sacx")),
             royalty: None,
@@ -265,7 +265,7 @@ fn remove_ai_royalty() {
             deps.as_mut(),
             mock_env(),
             invalid_info.clone(),
-            HandleMsg::Msg(AiRoyaltyHandleMsg::RemoveRoyalty(
+            ExecuteMsg::Msg(AiRoyaltyExecuteMsg::RemoveRoyalty(
                 royalties.iter().last().unwrap().to_owned()
             ))
         ),
@@ -273,7 +273,7 @@ fn remove_ai_royalty() {
     ));
 
     for royalty in royalties {
-        let msg = HandleMsg::Msg(AiRoyaltyHandleMsg::RemoveRoyalty(royalty));
+        let msg = ExecuteMsg::Msg(AiRoyaltyExecuteMsg::RemoveRoyalty(royalty));
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
@@ -283,13 +283,13 @@ fn remove_ai_royalty() {
             deps.as_ref(),
             mock_env(),
             QueryMsg::Msg(AiRoyaltyQueryMsg::GetRoyalty {
-                contract_addr: HumanAddr::from("xxx"),
+                contract_addr: Addr::from("xxx"),
                 token_id: i.to_string(),
-                creator: HumanAddr::from(format!("provider{}", i)),
+                creator: Addr::from(format!("provider{}", i)),
             }),
         );
         let _err: Result<u64, StdError> = Err(cosmwasm_std::StdError::NotFound {
-            kind: "(cosmwasm_std::addresses::HumanAddr, u64)".to_string(),
+            kind: "(cosmwasm_std::addresses::Addr, u64)".to_string(),
         });
         println!("res: {:?}", res);
         assert!(matches!(res, _err));
@@ -302,12 +302,12 @@ fn query_preference() {
 
     let provider_info = mock_info("provider1", &vec![coin(50, DENOM)]);
 
-    let pref_msg = HandleMsg::Msg(AiRoyaltyHandleMsg::UpdatePreference(1));
+    let pref_msg = ExecuteMsg::Msg(AiRoyaltyExecuteMsg::UpdatePreference(1));
     handle(deps.as_mut(), mock_env(), provider_info.clone(), pref_msg).unwrap();
 
     // query pref
     let query_preference_msg = QueryMsg::Msg(AiRoyaltyQueryMsg::GetPreference {
-        creator: HumanAddr::from("provider1"),
+        creator: Addr::from("provider1"),
     });
     let pref: u64 =
         from_binary(&query(deps.as_ref(), mock_env(), query_preference_msg).unwrap()).unwrap();

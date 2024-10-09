@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 pub struct Offering {
     pub id: Option<u64>,
     pub token_id: String,
-    pub contract_addr: HumanAddr,
-    pub seller: HumanAddr,
+    pub contract_addr: Addr,
+    pub seller: Addr,
     pub per_price: Uint128,
     pub amount: Uint128,
 }
@@ -17,15 +17,15 @@ pub struct Offering {
 pub struct AnnotationReviewer {
     pub id: Option<u64>,
     pub annotation_id: u64,
-    pub reviewer_address: HumanAddr,
+    pub reviewer_address: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Annotation {
     pub id: Option<u64>,
     pub token_id: String,
-    pub contract_addr: HumanAddr,
-    pub requester: HumanAddr,
+    pub contract_addr: Addr,
+    pub requester: Addr,
     pub max_annotation_per_task: Uint128,
     pub reward_per_sample: Uint128,
     pub number_of_samples: Uint128,
@@ -39,21 +39,21 @@ pub struct Annotation {
 pub struct AnnotationResult {
     pub id: Option<u64>,
     pub annotation_id: u64,
-    pub reviewer_address: HumanAddr,
+    pub reviewer_address: Addr,
     pub data: Vec<AnnotatorResult>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct AnnotatorResult {
-    pub annotator_address: HumanAddr,
+    pub annotator_address: Addr,
     pub result: Vec<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct MintMsg {
-    pub contract_addr: HumanAddr,
-    pub creator: HumanAddr,
+    pub contract_addr: Addr,
+    pub creator: Addr,
     pub creator_type: String,
     pub royalty: Option<u64>,
     pub mint: MintIntermediate,
@@ -75,7 +75,7 @@ pub struct MintStruct {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum DataHubHandleMsg {
+pub enum DataHubExecuteMsg {
     // this allow implementation contract to update the storage
     UpdateOffering {
         offering: Offering,
@@ -97,11 +97,11 @@ pub enum DataHubHandleMsg {
     },
     AddAnnotationReviewer {
         annotation_id: u64,
-        reviewer_address: HumanAddr,
+        reviewer_address: Addr,
     },
     RemoveAnnotationReviewer {
         annotation_id: u64,
-        reviewer_address: HumanAddr,
+        reviewer_address: Addr,
     },
     RemoveAnnotationResultData {
         annotation_id: u64,

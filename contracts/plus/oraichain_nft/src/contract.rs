@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, to_binary, Api, Binary, BlockInfo, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, Order, StdError, StdResult, KV, MigrateResponse,
+    attr, to_json_binary, Addr, Api, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo,
+    MigrateResponse, Order, Response, Response, StdError, StdResult, KV,
 };
 
 use cw721::{
@@ -10,7 +10,7 @@ use cw721::{
 
 use crate::check_size;
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, MintMsg, MinterResponse, QueryMsg, MigrateMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, MintMsg, MinterResponse, QueryMsg};
 use crate::state::{
     decrement_tokens, increment_tokens, num_tokens, tokens, Approval, TokenInfo, CONTRACT_INFO,
     MINTER, OPERATORS, OWNER,
@@ -24,12 +24,13 @@ const DEFAULT_LIMIT: u32 = 10;
 const MAX_LIMIT: u32 = 30;
 const MAX_CHARS_SIZE: usize = 1024;
 
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     msg_info: MessageInfo,
-    msg: InitMsg,
-) -> StdResult<InitResponse> {
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
     let info = ContractInfoResponse {
         name: msg.name.unwrap_or(CONTRACT_NAME.to_string()),
         symbol: msg.symbol,
@@ -40,55 +41,52 @@ pub fn init(
     let owner = deps.api.canonical_address(&msg_info.sender)?;
     MINTER.save(deps.storage, &minter)?;
     OWNER.save(deps.storage, &owner)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Mint(msg) => handle_mint(deps, env, info, msg),
-        HandleMsg::Approve {
+        ExecuteMsg::Mint(msg) => handle_mint(deps, env, info, msg),
+        ExecuteMsg::Approve {
             spender,
             token_id,
             expires,
         } => handle_approve(deps, env, info, spender, token_id, expires),
-        HandleMsg::Revoke { spender, token_id } => {
+        ExecuteMsg::Revoke { spender, token_id } => {
             handle_revoke(deps, env, info, spender, token_id)
         }
-        HandleMsg::ApproveAll { operator, expires } => {
+        ExecuteMsg::ApproveAll { operator, expires } => {
             handle_approve_all(deps, env, info, operator, expires)
         }
-        HandleMsg::RevokeAll { operator } => handle_revoke_all(deps, env, info, operator),
-        HandleMsg::TransferNft {
+        ExecuteMsg::RevokeAll { operator } => handle_revoke_all(deps, env, info, operator),
+        ExecuteMsg::TransferNft {
             recipient,
             token_id,
         } => handle_transfer_nft(deps, env, info, recipient, token_id),
-        HandleMsg::Burn { token_id } => handle_burn(deps, env, info, token_id),
-        HandleMsg::SendNft {
+        ExecuteMsg::Burn { token_id } => handle_burn(deps, env, info, token_id),
+        ExecuteMsg::SendNft {
             contract,
             token_id,
             msg,
         } => handle_send_nft(deps, env, info, contract, token_id, msg),
-        HandleMsg::UpdateNft {
+        ExecuteMsg::UpdateNft {
             token_id,
             name,
             description,
             image,
         } => handle_update_nft(deps, env, info, token_id, name, description, image),
-        HandleMsg::ChangeMinter { minter } => handle_change_minter(deps, env, info, minter),
+        ExecuteMsg::ChangeMinter { minter } => handle_change_minter(deps, env, info, minter),
     }
 }
 
-pub fn migrate(
-    deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _msg: MigrateMsg,
-) -> StdResult<MigrateResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateResponse> {
     // migrate_v02_to_v03(deps.storage)?;
 
     // // once we have "migrated", set the new version and return success
@@ -107,7 +105,7 @@ pub fn handle_mint(
     _env: Env,
     info: MessageInfo,
     msg: MintMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let minter = MINTER.load(deps.storage)?;
     let sender_raw = deps.api.canonical_address(&info.sender)?;
 
@@ -137,7 +135,7 @@ pub fn handle_mint(
 
     increment_tokens(deps.storage)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "mint_nft"),
@@ -153,7 +151,7 @@ pub fn handle_burn(
     env: Env,
     info: MessageInfo,
     token_id: String,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let token = tokens().load(deps.storage, &token_id)?;
     check_can_send(deps.as_ref(), &env, &info, &token)?;
 
@@ -161,7 +159,7 @@ pub fn handle_burn(
 
     decrement_tokens(deps.storage)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "burn_nft"),
@@ -177,14 +175,14 @@ pub fn handle_transfer_nft(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    recipient: HumanAddr,
+    recipient: Addr,
     token_id: String,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     _transfer_nft(deps, &env, &info, &recipient, &token_id)?;
 
     // need transfer_payout as well
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "transfer_nft"),
@@ -204,7 +202,7 @@ pub fn handle_update_nft(
     name: String,
     description: Option<String>,
     image: Option<String>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let sender_raw = deps.api.canonical_address(&info.sender)?;
 
     // update name and description if existed
@@ -229,17 +227,17 @@ pub fn handle_update_nft(
         None => Err(ContractError::TokenNotFound {}),
     })?;
 
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
 pub fn handle_send_nft(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    contract: HumanAddr,
+    contract: Addr,
     token_id: String,
     msg: Option<Binary>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // Transfer token
     _transfer_nft(deps, &env, &info, &contract, &token_id)?;
 
@@ -250,7 +248,7 @@ pub fn handle_send_nft(
     };
 
     // Send message
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![send.into_cosmos_msg(contract.clone())?],
         attributes: vec![
             attr("action", "send_nft"),
@@ -266,7 +264,7 @@ pub fn _transfer_nft(
     deps: DepsMut,
     env: &Env,
     info: &MessageInfo,
-    recipient: &HumanAddr,
+    recipient: &Addr,
     token_id: &str,
 ) -> Result<TokenInfo, ContractError> {
     let mut token = tokens().load(deps.storage, &token_id)?;
@@ -283,13 +281,13 @@ pub fn handle_approve(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    spender: HumanAddr,
+    spender: Addr,
     token_id: String,
     expires: Option<Expiration>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     _update_approvals(deps, &env, &info, &spender, &token_id, true, expires)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "approve"),
@@ -305,12 +303,12 @@ pub fn handle_revoke(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    spender: HumanAddr,
+    spender: Addr,
     token_id: String,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     _update_approvals(deps, &env, &info, &spender, &token_id, false, None)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "revoke"),
@@ -326,7 +324,7 @@ pub fn _update_approvals(
     deps: DepsMut,
     env: &Env,
     info: &MessageInfo,
-    spender: &HumanAddr,
+    spender: &Addr,
     token_id: &str,
     // if add == false, remove. if add == true, remove then set with this expiration
     add: bool,
@@ -367,9 +365,9 @@ pub fn handle_approve_all(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    operator: HumanAddr,
+    operator: Addr,
     expires: Option<Expiration>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // reject expired data as invalid
     let expires = expires.unwrap_or_default();
     if expires.is_expired(&env.block) {
@@ -381,7 +379,7 @@ pub fn handle_approve_all(
     let operator_raw = deps.api.canonical_address(&operator)?;
     OPERATORS.save(deps.storage, (&sender_raw, &operator_raw), &expires)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "approve_all"),
@@ -396,13 +394,13 @@ pub fn handle_revoke_all(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    operator: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    operator: Addr,
+) -> Result<Response, ContractError> {
     let sender_raw = deps.api.canonical_address(&info.sender)?;
     let operator_raw = deps.api.canonical_address(&operator)?;
     OPERATORS.remove(deps.storage, (&sender_raw, &operator_raw));
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "revoke_all"),
@@ -417,8 +415,8 @@ pub fn handle_change_minter(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    minter: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    minter: Addr,
+) -> Result<Response, ContractError> {
     let owner_raw = deps.api.canonical_address(&info.sender)?;
     let owner = OWNER.load(deps.storage)?;
     if !owner.eq(&owner_raw) {
@@ -426,7 +424,7 @@ pub fn handle_change_minter(
     }
     let minter = deps.api.canonical_address(&minter)?;
     MINTER.save(deps.storage, &minter)?;
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "change_minter"),
@@ -509,13 +507,13 @@ fn check_can_send(
 
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Minter {} => to_binary(&query_minter(deps)?),
-        QueryMsg::ContractInfo {} => to_binary(&query_contract_info(deps)?),
-        QueryMsg::NftInfo { token_id } => to_binary(&query_nft_info(deps, token_id)?),
+        QueryMsg::Minter {} => to_json_binary(&query_minter(deps)?),
+        QueryMsg::ContractInfo {} => to_json_binary(&query_contract_info(deps)?),
+        QueryMsg::NftInfo { token_id } => to_json_binary(&query_nft_info(deps, token_id)?),
         QueryMsg::OwnerOf {
             token_id,
             include_expired,
-        } => to_binary(&query_owner_of(
+        } => to_json_binary(&query_owner_of(
             deps,
             env,
             token_id,
@@ -524,7 +522,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::AllNftInfo {
             token_id,
             include_expired,
-        } => to_binary(&query_all_nft_info(
+        } => to_json_binary(&query_all_nft_info(
             deps,
             env,
             token_id,
@@ -535,7 +533,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             include_expired,
             start_after,
             limit,
-        } => to_binary(&query_all_approvals(
+        } => to_json_binary(&query_all_approvals(
             deps,
             env,
             owner,
@@ -544,16 +542,16 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
         )?),
         // QueryMsg::IsApproveForAll { owner, operator } => {
-        //     to_binary(&try_check_operator_permission(deps, env, operator, owner)?)
+        //     to_json_binary(&try_check_operator_permission(deps, env, operator, owner)?)
         // }
-        QueryMsg::NumTokens {} => to_binary(&query_num_tokens(deps)?),
+        QueryMsg::NumTokens {} => to_json_binary(&query_num_tokens(deps)?),
         QueryMsg::Tokens {
             owner,
             start_after,
             limit,
-        } => to_binary(&query_tokens(deps, owner, start_after, limit)?),
+        } => to_json_binary(&query_tokens(deps, owner, start_after, limit)?),
         QueryMsg::AllTokens { start_after, limit } => {
-            to_binary(&query_all_tokens(deps, start_after, limit)?)
+            to_json_binary(&query_all_tokens(deps, start_after, limit)?)
         }
     }
 }
@@ -598,9 +596,9 @@ fn query_owner_of(
 fn query_all_approvals(
     deps: Deps,
     env: Env,
-    owner: HumanAddr,
+    owner: Addr,
     include_expired: bool,
-    start_after: Option<HumanAddr>,
+    start_after: Option<Addr>,
     limit: Option<u32>,
 ) -> StdResult<ApprovedForAllResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
@@ -630,7 +628,7 @@ fn parse_approval(api: &dyn Api, item: StdResult<KV<Expiration>>) -> StdResult<c
 
 fn query_tokens(
     deps: Deps,
-    owner: HumanAddr,
+    owner: Addr,
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> StdResult<TokensResponse> {

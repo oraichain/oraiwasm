@@ -4,10 +4,9 @@ pub mod msg;
 pub mod state;
 
 pub use crate::error::ContractError;
-pub use crate::msg::{HandleMsg, InitMsg, QueryMsg};
+pub use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg};
 pub use cosmwasm_std::{
-    to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo,
-    StdResult,
+    to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Response, StdResult,
 };
 
 pub use crate::helpers::{handle_testcase, init_testcase, query_testcase};
@@ -16,21 +15,23 @@ pub use crate::helpers::{handle_testcase, init_testcase, query_testcase};
 #[macro_export]
 macro_rules! create_contract_with_assert {
     ($fn:ident) => {
-        pub fn init(
+        #[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
             deps: cosmwasm_std::DepsMut,
             env: cosmwasm_std::Env,
             info: cosmwasm_std::MessageInfo,
-            msg: $crate::InitMsg,
-        ) -> cosmwasm_std::StdResult<cosmwasm_std::InitResponse> {
+            msg: $crate::InstantiateMsg,
+        ) -> cosmwasm_std::StdResult<cosmwasm_std::Response> {
             $crate::init_testcase(deps, env, info, msg)
         }
 
-        pub fn handle(
+        #[cfg_attr(not(feature = "library"), entry_point)]
+        pub fn execute(
             deps: cosmwasm_std::DepsMut,
             env: cosmwasm_std::Env,
             info: cosmwasm_std::MessageInfo,
-            msg: $crate::HandleMsg,
-        ) -> Result<cosmwasm_std::HandleResponse, $crate::ContractError> {
+            msg: $crate::ExecuteMsg,
+        ) -> Result<cosmwasm_std::Response, $crate::ContractError> {
             // Logic implementation in aggregate function
             $crate::handle_testcase(deps, env, info, msg)
         }

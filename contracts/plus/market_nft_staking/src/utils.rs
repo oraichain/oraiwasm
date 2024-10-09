@@ -1,5 +1,5 @@
 use cosmwasm_crypto::secp256k1_verify;
-use cosmwasm_std::{to_binary, Binary, StdResult};
+use cosmwasm_std::{to_json_binary, Binary, StdResult};
 use tiny_keccak::{Hasher, Keccak};
 
 use crate::msg::StakeMsgDetail;
@@ -17,7 +17,7 @@ pub fn verify_stake_msg_signature(
     signature_hash: String,
     pubkey_base64: String,
 ) -> StdResult<bool> {
-    let res = to_binary(stake_msg).unwrap();
+    let res = to_json_binary(stake_msg).unwrap();
     //println!("msg {:?}", stake_msg);
     let mess = keccak_256(res.as_slice());
     //println!("mess {:?}", mess);

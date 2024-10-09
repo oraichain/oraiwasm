@@ -4,7 +4,7 @@ use std::fs::create_dir_all;
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use market_first_lv_royalty::{
-    FirstLvRoyalty, FirstLvRoyaltyHandleMsg, FirstLvRoyaltyQueryMsg, FirstLvsResponse, InfoMsg,
+    FirstLvRoyalty, FirstLvRoyaltyExecuteMsg, FirstLvRoyaltyQueryMsg, FirstLvsResponse, InfoMsg,
     QueryFirstLvResult,
 };
 
@@ -19,5 +19,5 @@ fn main() {
     export_schema(&schema_for!(FirstLvsResponse), &out_dir);
     export_schema(&schema_for!(QueryFirstLvResult), &out_dir);
     export_schema(&schema_for!(InfoMsg), &out_dir);
-    export_schema(&schema_for!(FirstLvRoyaltyHandleMsg), &out_dir);
+    export_schema(&schema_for!(FirstLvRoyaltyExecuteMsg), &out_dir);
 }

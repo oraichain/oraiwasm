@@ -7,10 +7,10 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Decimal;
-use cosmwasm_std::{coin, coins, from_binary, HumanAddr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_binary, Addr, Order, OwnedDeps, Uint128};
 
 use market_royalty::Offering;
-use market_royalty::OfferingHandleMsg;
+use market_royalty::OfferingExecuteMsg;
 use market_royalty::OfferingQueryMsg;
 use market_royalty::OfferingRoyalty;
 use market_royalty::OfferingsResponse;
@@ -22,8 +22,8 @@ const DENOM: &str = "MGK";
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
-    let msg = InitMsg {
-        governance: HumanAddr::from("market_hub"),
+    let msg = InstantiateMsg {
+        governance: Addr::from("market_hub"),
     };
     let info = mock_info(CREATOR, &[]);
     let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -57,13 +57,13 @@ fn sort_offering() {
             contract_addr: deps
                 .as_ref()
                 .api
-                .canonical_address(&HumanAddr::from("xxx"))
+                .canonical_address(&Addr::from("xxx"))
                 .unwrap(),
             token_id: i.to_string(),
             seller: deps
                 .as_ref()
                 .api
-                .canonical_address(&HumanAddr::from("seller"))
+                .canonical_address(&Addr::from("seller"))
                 .unwrap(),
             price: Uint128::from(1u64),
         };
@@ -71,7 +71,7 @@ fn sort_offering() {
     }
 
     for off in offerings {
-        let msg = HandleMsg::Offering(OfferingHandleMsg::UpdateOffering { offering: off });
+        let msg = ExecuteMsg::Offering(OfferingExecuteMsg::UpdateOffering { offering: off });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
@@ -119,18 +119,18 @@ fn sort_offering_royalty() {
 
     for i in 1u64..4u64 {
         let offering = OfferingRoyalty {
-            contract_addr: HumanAddr::from("xxx"),
+            contract_addr: Addr::from("xxx"),
             token_id: i.to_string(),
             previous_owner: None,
             prev_royalty: None,
-            current_owner: HumanAddr::from(format!("{}{}", "seller", i)),
+            current_owner: Addr::from(format!("{}{}", "seller", i)),
             cur_royalty: Some(15u64),
         };
         offerings.push(offering);
     }
 
     for off in offerings {
-        let msg = HandleMsg::Offering(OfferingHandleMsg::UpdateOfferingRoyalty { offering: off });
+        let msg = ExecuteMsg::Offering(OfferingExecuteMsg::UpdateOfferingRoyalty { offering: off });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
@@ -153,10 +153,10 @@ fn sort_offering_royalty() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Offering(OfferingQueryMsg::GetOfferingsRoyaltyByContract {
-            contract: HumanAddr::from("xxx"),
+            contract: Addr::from("xxx"),
             limit: None,
             offset: Some(OffsetMsg {
-                contract: HumanAddr::from("xxx"),
+                contract: Addr::from("xxx"),
                 token_id: String::from("2"),
             }),
             order: None,
@@ -172,7 +172,7 @@ fn sort_offering_royalty() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Offering(OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId {
-            contract: HumanAddr::from("xxx"),
+            contract: Addr::from("xxx"),
             token_id: 2.to_string(),
         }),
     )
@@ -208,13 +208,13 @@ fn withdraw_offering() {
             contract_addr: deps
                 .as_ref()
                 .api
-                .canonical_address(&HumanAddr::from("xxx"))
+                .canonical_address(&Addr::from("xxx"))
                 .unwrap(),
             token_id: i.to_string(),
             seller: deps
                 .as_ref()
                 .api
-                .canonical_address(&HumanAddr::from("seller"))
+                .canonical_address(&Addr::from("seller"))
                 .unwrap(),
             price: Uint128::from(1u64),
         };
@@ -222,11 +222,11 @@ fn withdraw_offering() {
     }
 
     for off in offerings {
-        let msg = HandleMsg::Offering(OfferingHandleMsg::UpdateOffering { offering: off });
+        let msg = ExecuteMsg::Offering(OfferingExecuteMsg::UpdateOffering { offering: off });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
-    let msg = HandleMsg::Offering(OfferingHandleMsg::RemoveOffering { id: 1 });
+    let msg = ExecuteMsg::Offering(OfferingExecuteMsg::RemoveOffering { id: 1 });
     let _ = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let res = query(
@@ -251,10 +251,10 @@ fn update_info_test() {
 
     // update contract to set fees
     let update_info = UpdateContractMsg {
-        governance: Some(HumanAddr::from("asvx")),
+        governance: Some(Addr::from("asvx")),
         creator: None,
     };
-    let update_info_msg = HandleMsg::UpdateInfo(update_info);
+    let update_info_msg = ExecuteMsg::UpdateInfo(update_info);
 
     // random account cannot update info, only creator
     let info_unauthorized = mock_info("anyone", &vec![coin(5, DENOM)]);
@@ -276,5 +276,5 @@ fn update_info_test() {
     let query_info = QueryMsg::GetContractInfo {};
     let res_info: ContractInfo =
         from_binary(&query(deps.as_ref(), mock_env(), query_info).unwrap()).unwrap();
-    assert_eq!(res_info.governance.as_str(), HumanAddr::from("asvx"));
+    assert_eq!(res_info.governance.as_str(), Addr::from("asvx"));
 }

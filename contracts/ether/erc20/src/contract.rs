@@ -1,12 +1,12 @@
 use cosmwasm_std::{
-    attr, to_binary, to_vec, Binary, CanonicalAddr, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, StdResult, Storage, Uint128,
+    attr, to_json_binary, to_vec, Binary, CanonicalAddr, Deps, DepsMut, Env, Response, Addr,
+    Response, MessageInfo, StdResult, Storage, Uint128,
 };
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use std::convert::TryInto;
 
 use crate::error::ContractError;
-use crate::msg::{AllowanceResponse, BalanceResponse, HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{AllowanceResponse, BalanceResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::Constants;
 
 pub const PREFIX_CONFIG: &[u8] = b"config";
@@ -16,12 +16,13 @@ pub const PREFIX_ALLOWANCES: &[u8] = b"allowances";
 pub const KEY_CONSTANTS: &[u8] = b"constants";
 pub const KEY_TOTAL_SUPPLY: &[u8] = b"total_supply";
 
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     let mut total_supply: u128 = 0;
     {
         // Initial balances
@@ -54,26 +55,27 @@ pub fn init(
     config_store.set(KEY_CONSTANTS, &constants);
     config_store.set(KEY_TOTAL_SUPPLY, &total_supply.to_be_bytes());
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Approve { spender, amount } => try_approve(deps, env, info, &spender, &amount),
-        HandleMsg::Transfer { recipient, amount } => {
+        ExecuteMsg::Approve { spender, amount } => try_approve(deps, env, info, &spender, &amount),
+        ExecuteMsg::Transfer { recipient, amount } => {
             try_transfer(deps, env, info, &recipient, &amount)
         }
-        HandleMsg::TransferFrom {
+        ExecuteMsg::TransferFrom {
             owner,
             recipient,
             amount,
         } => try_transfer_from(deps, env, info, &owner, &recipient, &amount),
-        HandleMsg::Burn { amount } => try_burn(deps, env, info, &amount),
+        ExecuteMsg::Burn { amount } => try_burn(deps, env, info, &amount),
     }
 }
 
@@ -82,7 +84,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
         QueryMsg::Balance { address } => {
             let address_key = deps.api.canonical_address(&address)?;
             let balance = read_balance(deps.storage, &address_key)?;
-            let out = to_binary(&BalanceResponse {
+            let out = to_json_binary(&BalanceResponse {
                 balance: Uint128::from(balance),
             })?;
             Ok(out)
@@ -91,7 +93,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractErr
             let owner_key = deps.api.canonical_address(&owner)?;
             let spender_key = deps.api.canonical_address(&spender)?;
             let allowance = read_allowance(deps.storage, &owner_key, &spender_key)?;
-            let out = to_binary(&AllowanceResponse {
+            let out = to_json_binary(&AllowanceResponse {
                 allowance: Uint128::from(allowance),
             })?;
             Ok(out)
@@ -103,9 +105,9 @@ fn try_transfer(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    recipient: &HumanAddr,
+    recipient: &Addr,
     amount: &Uint128,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let sender_address_raw = deps.api.canonical_address(&info.sender)?;
     let recipient_address_raw = deps.api.canonical_address(recipient)?;
     let amount_raw = amount.u128();
@@ -117,7 +119,7 @@ fn try_transfer(
         amount_raw,
     )?;
 
-    let res = HandleResponse {
+    let res = Response {
         messages: vec![],
         attributes: vec![
             attr("action", "transfer"),
@@ -133,10 +135,10 @@ fn try_transfer_from(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    owner: &HumanAddr,
-    recipient: &HumanAddr,
+    owner: &Addr,
+    recipient: &Addr,
     amount: &Uint128,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let spender_address_raw = deps.api.canonical_address(&info.sender)?;
     let owner_address_raw = deps.api.canonical_address(owner)?;
     let recipient_address_raw = deps.api.canonical_address(recipient)?;
@@ -163,7 +165,7 @@ fn try_transfer_from(
         amount_raw,
     )?;
 
-    let res = HandleResponse {
+    let res = Response {
         messages: vec![],
         attributes: vec![
             attr("action", "transfer_from"),
@@ -180,9 +182,9 @@ fn try_approve(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    spender: &HumanAddr,
+    spender: &Addr,
     amount: &Uint128,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let owner_address_raw = deps.api.canonical_address(&info.sender)?;
     let spender_address_raw = deps.api.canonical_address(spender)?;
     write_allowance(
@@ -191,7 +193,7 @@ fn try_approve(
         &spender_address_raw,
         amount.u128(),
     )?;
-    let res = HandleResponse {
+    let res = Response {
         messages: vec![],
         attributes: vec![
             attr("action", "approve"),
@@ -213,7 +215,7 @@ fn try_burn(
     _env: Env,
     info: MessageInfo,
     amount: &Uint128,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let owner_address_raw = &deps.api.canonical_address(&info.sender)?;
     let amount_raw = amount.u128();
 
@@ -240,7 +242,7 @@ fn try_burn(
 
     config_store.set(KEY_TOTAL_SUPPLY, &total_supply.to_be_bytes());
 
-    let res = HandleResponse {
+    let res = Response {
         messages: vec![],
         attributes: vec![
             attr("action", "burn"),
@@ -357,10 +359,10 @@ mod tests {
     use super::*;
     use crate::msg::InitialBalance;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-    use cosmwasm_std::{from_slice, Api, Env, HumanAddr, MessageInfo, Storage, Uint128};
+    use cosmwasm_std::{from_slice, Api, Env, Addr, MessageInfo, Storage, Uint128};
     use cosmwasm_storage::ReadonlyPrefixedStorage;
 
-    fn mock_env_height(signer: &HumanAddr, height: u64, time: u64) -> (Env, MessageInfo) {
+    fn mock_env_height(signer: &Addr, height: u64, time: u64) -> (Env, MessageInfo) {
         let mut env = mock_env();
         let info = mock_info(signer, &[]);
         env.block.height = height;
@@ -384,7 +386,7 @@ mod tests {
         return bytes_to_u128(&data).unwrap();
     }
 
-    fn get_balance(api: &dyn Api, storage: &dyn Storage, address: &HumanAddr) -> u128 {
+    fn get_balance(api: &dyn Api, storage: &dyn Storage, address: &Addr) -> u128 {
         let address_key = api
             .canonical_address(address)
             .expect("canonical_address failed");
@@ -394,8 +396,8 @@ mod tests {
     fn get_allowance(
         api: &dyn Api,
         storage: &dyn Storage,
-        owner: &HumanAddr,
-        spender: &HumanAddr,
+        owner: &Addr,
+        spender: &Addr,
     ) -> u128 {
         let owner_raw_address = api
             .canonical_address(owner)
@@ -418,18 +420,18 @@ mod tests {
             let mut deps = mock_dependencies(&[]);
             let balances = format!("{{\"address\":\"addr0000\",\"amount\":\"11122233\"}}");
             let init_balance: InitialBalance = from_slice(&(balances.as_bytes())).unwrap();
-            let init_msg = InitMsg {
+            let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 9,
                 initial_balances: [init_balance].to_vec(),
             };
             println!("human address: {}", init_msg.initial_balances[0].address);
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             let raw_address = deps
                 .api
-                .canonical_address(&HumanAddr("addr0000".to_string()))
+                .canonical_address(&Addr("addr0000".to_string()))
                 .unwrap();
             println!("raw address: {}", raw_address);
         }
@@ -437,17 +439,17 @@ mod tests {
         #[test]
         fn works() {
             let mut deps = mock_dependencies(&[]);
-            let init_msg = InitMsg {
+            let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 9,
                 initial_balances: [InitialBalance {
-                    address: HumanAddr("addr0000".to_string()),
+                    address: Addr("addr0000".to_string()),
                     amount: Uint128::from(11223344u128),
                 }]
                 .to_vec(),
             };
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             assert_eq!(
@@ -459,7 +461,7 @@ mod tests {
                 }
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 11223344
             );
             assert_eq!(get_total_supply(&deps.storage), 11223344);
@@ -468,13 +470,13 @@ mod tests {
         #[test]
         fn works_with_empty_balance() {
             let mut deps = mock_dependencies(&[]);
-            let init_msg = InitMsg {
+            let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 9,
                 initial_balances: [].to_vec(),
             };
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             assert_eq!(get_total_supply(&deps.storage), 0);
@@ -483,39 +485,39 @@ mod tests {
         #[test]
         fn works_with_multiple_balances() {
             let mut deps = mock_dependencies(&[]);
-            let init_msg = InitMsg {
+            let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 9,
                 initial_balances: [
                     InitialBalance {
-                        address: HumanAddr("addr0000".to_string()),
+                        address: Addr("addr0000".to_string()),
                         amount: Uint128::from(11u128),
                     },
                     InitialBalance {
-                        address: HumanAddr("addr1111".to_string()),
+                        address: Addr("addr1111".to_string()),
                         amount: Uint128::from(22u128),
                     },
                     InitialBalance {
-                        address: HumanAddr("addrbbbb".to_string()),
+                        address: Addr("addrbbbb".to_string()),
                         amount: Uint128::from(33u128),
                     },
                 ]
                 .to_vec(),
             };
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 11
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addrbbbb".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addrbbbb".to_string())),
                 33
             );
             assert_eq!(get_total_supply(&deps.storage), 66);
@@ -528,21 +530,21 @@ mod tests {
             //   node -e "console.attr(9007199254740993)"
             //   echo '{ "value": 9007199254740993 }' | jq
             // return 9007199254740992
-            let init_msg = InitMsg {
+            let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 9,
                 initial_balances: [InitialBalance {
-                    address: HumanAddr("addr0000".to_string()),
+                    address: Addr("addr0000".to_string()),
                     amount: Uint128::from(9007199254740993u128),
                 }]
                 .to_vec(),
             };
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 9007199254740993
             );
             assert_eq!(get_total_supply(&deps.storage), 9007199254740993);
@@ -552,21 +554,21 @@ mod tests {
         // Typical supply like 100 million tokens with 18 decimals exceeds the 64 bit range
         fn works_with_balance_larger_than_64_bit() {
             let mut deps = mock_dependencies(&[]);
-            let init_msg = InitMsg {
+            let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 9,
                 initial_balances: [InitialBalance {
-                    address: HumanAddr("addr0000".to_string()),
+                    address: Addr("addr0000".to_string()),
                     amount: Uint128::from(100000000000000000000000000u128),
                 }]
                 .to_vec(),
             };
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 100000000000000000000000000
             );
             assert_eq!(get_total_supply(&deps.storage), 100000000000000000000000000);
@@ -575,13 +577,13 @@ mod tests {
         #[test]
         fn fails_for_large_decimals() {
             let mut deps = mock_dependencies(&[]);
-            let init_msg = InitMsg {
+            let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 42,
                 initial_balances: [].to_vec(),
             };
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let result = init(deps.as_mut(), env, info, init_msg);
             match result {
                 Ok(_) => panic!("expected error"),
@@ -593,13 +595,13 @@ mod tests {
         #[test]
         fn fails_for_name_too_short() {
             let mut deps = mock_dependencies(&[]);
-            let init_msg = InitMsg {
+            let init_msg = InstantiateMsg {
                 name: "CC".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 9,
                 initial_balances: [].to_vec(),
             };
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let result = init(deps.as_mut(), env, info, init_msg);
             match result {
                 Ok(_) => panic!("expected error"),
@@ -611,13 +613,13 @@ mod tests {
         #[test]
         fn fails_for_name_too_long() {
             let mut deps = mock_dependencies(&[]);
-            let init_msg = InitMsg {
+            let init_msg = InstantiateMsg {
                 name: "Cash coin. Cash coin. Cash coin. Cash coin.".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 9,
                 initial_balances: [].to_vec(),
             };
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let result = init(deps.as_mut(), env, info, init_msg);
             match result {
                 Ok(_) => panic!("expected error"),
@@ -629,13 +631,13 @@ mod tests {
         #[test]
         fn fails_for_symbol_too_short() {
             let mut deps = mock_dependencies(&[]);
-            let init_msg = InitMsg {
+            let init_msg = InstantiateMsg {
                 name: "De De".to_string(),
                 symbol: "DD".to_string(),
                 decimals: 9,
                 initial_balances: [].to_vec(),
             };
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let result = init(deps.as_mut(), env, info, init_msg);
             match result {
                 Ok(_) => panic!("expected error"),
@@ -647,13 +649,13 @@ mod tests {
         #[test]
         fn fails_for_symbol_too_long() {
             let mut deps = mock_dependencies(&[]);
-            let init_msg = InitMsg {
+            let init_msg = InstantiateMsg {
                 name: "Super Coin".to_string(),
                 symbol: "SUPERCOIN".to_string(),
                 decimals: 9,
                 initial_balances: [].to_vec(),
             };
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let result = init(deps.as_mut(), env, info, init_msg);
             match result {
                 Ok(_) => panic!("expected error"),
@@ -665,13 +667,13 @@ mod tests {
         #[test]
         fn fails_for_symbol_lowercase() {
             let mut deps = mock_dependencies(&[]);
-            let init_msg = InitMsg {
+            let init_msg = InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CaSH".to_string(),
                 decimals: 9,
                 initial_balances: [].to_vec(),
             };
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let result = init(deps.as_mut(), env, info, init_msg);
             match result {
                 Ok(_) => panic!("expected error"),
@@ -686,22 +688,22 @@ mod tests {
         use crate::error::ContractError;
         use cosmwasm_std::attr;
 
-        fn make_init_msg() -> InitMsg {
-            InitMsg {
+        fn make_init_msg() -> InstantiateMsg {
+            InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 9,
                 initial_balances: vec![
                     InitialBalance {
-                        address: HumanAddr("addr0000".to_string()),
+                        address: Addr("addr0000".to_string()),
                         amount: Uint128::from(11u128),
                     },
                     InitialBalance {
-                        address: HumanAddr("addr1111".to_string()),
+                        address: Addr("addr1111".to_string()),
                         amount: Uint128::from(22u128),
                     },
                     InitialBalance {
-                        address: HumanAddr("addrbbbb".to_string()),
+                        address: Addr("addrbbbb".to_string()),
                         amount: Uint128::from(33u128),
                     },
                 ],
@@ -712,29 +714,29 @@ mod tests {
         fn can_send_to_existing_recipient() {
             let mut deps = mock_dependencies(&[]);
             let init_msg = make_init_msg();
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 11
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addrbbbb".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addrbbbb".to_string())),
                 33
             );
             assert_eq!(get_total_supply(&deps.storage), 66);
             // Transfer
-            let transfer_msg = HandleMsg::Transfer {
-                recipient: HumanAddr("addr1111".to_string()),
+            let transfer_msg = ExecuteMsg::Transfer {
+                recipient: Addr("addr1111".to_string()),
                 amount: Uint128::from(1u128),
             };
-            let (env, info) = mock_env_height(&HumanAddr("addr0000".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
             let transfer_result = handle(deps.as_mut(), env, info, transfer_msg).unwrap();
             assert_eq!(transfer_result.messages.len(), 0);
             assert_eq!(
@@ -747,15 +749,15 @@ mod tests {
             );
             // New state
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 10
             ); // -1
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 23
             ); // +1
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addrbbbb".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addrbbbb".to_string())),
                 33
             );
             assert_eq!(get_total_supply(&deps.storage), 66);
@@ -765,29 +767,29 @@ mod tests {
         fn can_send_to_non_existent_recipient() {
             let mut deps = mock_dependencies(&[]);
             let init_msg = make_init_msg();
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 11
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addrbbbb".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addrbbbb".to_string())),
                 33
             );
             assert_eq!(get_total_supply(&deps.storage), 66);
             // Transfer
-            let transfer_msg = HandleMsg::Transfer {
-                recipient: HumanAddr("addr2323".to_string()),
+            let transfer_msg = ExecuteMsg::Transfer {
+                recipient: Addr("addr2323".to_string()),
                 amount: Uint128::from(1u128),
             };
-            let (env, info) = mock_env_height(&HumanAddr("addr0000".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
             let transfer_result = handle(deps.as_mut(), env, info, transfer_msg).unwrap();
             assert_eq!(transfer_result.messages.len(), 0);
             assert_eq!(
@@ -800,19 +802,19 @@ mod tests {
             );
             // New state
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 10
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr2323".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr2323".to_string())),
                 1
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addrbbbb".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addrbbbb".to_string())),
                 33
             );
             assert_eq!(get_total_supply(&deps.storage), 66);
@@ -822,29 +824,29 @@ mod tests {
         fn can_send_zero_amount() {
             let mut deps = mock_dependencies(&[]);
             let init_msg = make_init_msg();
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 11
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addrbbbb".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addrbbbb".to_string())),
                 33
             );
             assert_eq!(get_total_supply(&deps.storage), 66);
             // Transfer
-            let transfer_msg = HandleMsg::Transfer {
-                recipient: HumanAddr("addr1111".to_string()),
+            let transfer_msg = ExecuteMsg::Transfer {
+                recipient: Addr("addr1111".to_string()),
                 amount: Uint128::from(0u128),
             };
-            let (env, info) = mock_env_height(&HumanAddr("addr0000".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
             let transfer_result = handle(deps.as_mut(), env, info, transfer_msg).unwrap();
             assert_eq!(transfer_result.messages.len(), 0);
             assert_eq!(
@@ -857,15 +859,15 @@ mod tests {
             );
             // New state (unchanged)
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 11
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addrbbbb".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addrbbbb".to_string())),
                 33
             );
             assert_eq!(get_total_supply(&deps.storage), 66);
@@ -875,14 +877,14 @@ mod tests {
         fn can_send_to_sender() {
             let mut deps = mock_dependencies(&[]);
             let init_msg = make_init_msg();
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
-            let sender = HumanAddr("addr0000".to_string());
+            let sender = Addr("addr0000".to_string());
             // Initial state
             assert_eq!(get_balance(&deps.api, &deps.storage, &sender), 11);
             // Transfer
-            let transfer_msg = HandleMsg::Transfer {
+            let transfer_msg = ExecuteMsg::Transfer {
                 recipient: sender.clone(),
                 amount: Uint128::from(3u128),
             };
@@ -905,29 +907,29 @@ mod tests {
         fn fails_on_insufficient_balance() {
             let mut deps = mock_dependencies(&[]);
             let init_msg = make_init_msg();
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 11
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addrbbbb".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addrbbbb".to_string())),
                 33
             );
             assert_eq!(get_total_supply(&deps.storage), 66);
             // Transfer
-            let transfer_msg = HandleMsg::Transfer {
-                recipient: HumanAddr("addr1111".to_string()),
+            let transfer_msg = ExecuteMsg::Transfer {
+                recipient: Addr("addr1111".to_string()),
                 amount: Uint128::from(12u128),
             };
-            let (env, info) = mock_env_height(&HumanAddr("addr0000".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
             let transfer_result = handle(deps.as_mut(), env, info, transfer_msg);
             match transfer_result {
                 Ok(_) => panic!("expected error"),
@@ -939,15 +941,15 @@ mod tests {
             }
             // New state (unchanged)
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 11
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addrbbbb".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addrbbbb".to_string())),
                 33
             );
             assert_eq!(get_total_supply(&deps.storage), 66);
@@ -958,37 +960,37 @@ mod tests {
         use super::*;
         use cosmwasm_std::attr;
 
-        fn make_init_msg() -> InitMsg {
-            InitMsg {
+        fn make_init_msg() -> InstantiateMsg {
+            InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 9,
                 initial_balances: vec![
                     InitialBalance {
-                        address: HumanAddr("addr0000".to_string()),
+                        address: Addr("addr0000".to_string()),
                         amount: Uint128::from(11u128),
                     },
                     InitialBalance {
-                        address: HumanAddr("addr1111".to_string()),
+                        address: Addr("addr1111".to_string()),
                         amount: Uint128::from(22u128),
                     },
                     InitialBalance {
-                        address: HumanAddr("addrbbbb".to_string()),
+                        address: Addr("addrbbbb".to_string()),
                         amount: Uint128::from(33u128),
                     },
                 ],
             }
         }
 
-        fn make_spender() -> HumanAddr {
-            HumanAddr("dadadadadadadada".to_string())
+        fn make_spender() -> Addr {
+            Addr("dadadadadadadada".to_string())
         }
 
         #[test]
         fn has_zero_allowance_by_default() {
             let mut deps = mock_dependencies(&[]);
             let init_msg = make_init_msg();
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Existing owner
@@ -996,7 +998,7 @@ mod tests {
                 get_allowance(
                     &deps.api,
                     &deps.storage,
-                    &HumanAddr("addr0000".to_string()),
+                    &Addr("addr0000".to_string()),
                     &make_spender()
                 ),
                 0
@@ -1006,7 +1008,7 @@ mod tests {
                 get_allowance(
                     &deps.api,
                     &deps.storage,
-                    &HumanAddr("addr4567".to_string()),
+                    &Addr("addr4567".to_string()),
                     &make_spender()
                 ),
                 0
@@ -1017,22 +1019,22 @@ mod tests {
         fn can_set_allowance() {
             let mut deps = mock_dependencies(&[]);
             let init_msg = make_init_msg();
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             assert_eq!(
                 get_allowance(
                     &deps.api,
                     &deps.storage,
-                    &HumanAddr("addr7654".to_string()),
+                    &Addr("addr7654".to_string()),
                     &make_spender()
                 ),
                 0
             );
             // First approval
-            let owner = HumanAddr("addr7654".to_string());
+            let owner = Addr("addr7654".to_string());
             let spender = make_spender();
-            let approve_msg1 = HandleMsg::Approve {
+            let approve_msg1 = ExecuteMsg::Approve {
                 spender: spender.clone(),
                 amount: Uint128::from(334422u128),
             };
@@ -1052,7 +1054,7 @@ mod tests {
                 334422
             );
             // Updated approval
-            let approve_msg = HandleMsg::Approve {
+            let approve_msg = ExecuteMsg::Approve {
                 spender: spender.clone(),
                 amount: Uint128::from(777888u128),
             };
@@ -1079,44 +1081,44 @@ mod tests {
         use crate::error::ContractError;
         use cosmwasm_std::attr;
 
-        fn make_init_msg() -> InitMsg {
-            InitMsg {
+        fn make_init_msg() -> InstantiateMsg {
+            InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 9,
                 initial_balances: vec![
                     InitialBalance {
-                        address: HumanAddr("addr0000".to_string()),
+                        address: Addr("addr0000".to_string()),
                         amount: Uint128::from(11u128),
                     },
                     InitialBalance {
-                        address: HumanAddr("addr1111".to_string()),
+                        address: Addr("addr1111".to_string()),
                         amount: Uint128::from(22u128),
                     },
                     InitialBalance {
-                        address: HumanAddr("addrbbbb".to_string()),
+                        address: Addr("addrbbbb".to_string()),
                         amount: Uint128::from(33u128),
                     },
                 ],
             }
         }
 
-        fn make_spender() -> HumanAddr {
-            HumanAddr("dadadadadadadada".to_string())
+        fn make_spender() -> Addr {
+            Addr("dadadadadadadada".to_string())
         }
 
         #[test]
         fn works() {
             let mut deps = mock_dependencies(&[]);
             let init_msg = make_init_msg();
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
-            let owner = HumanAddr("addr0000".to_string());
+            let owner = Addr("addr0000".to_string());
             let spender = make_spender();
-            let recipient = HumanAddr("addr1212".to_string());
+            let recipient = Addr("addr1212".to_string());
             // Set approval
-            let approve_msg = HandleMsg::Approve {
+            let approve_msg = ExecuteMsg::Approve {
                 spender: spender.clone(),
                 amount: Uint128::from(4u128),
             };
@@ -1134,7 +1136,7 @@ mod tests {
             assert_eq!(get_balance(&deps.api, &deps.storage, &owner), 11);
             assert_eq!(get_allowance(&deps.api, &deps.storage, &owner, &spender), 4);
             // Transfer less than allowance but more than balance
-            let transfer_from_msg = HandleMsg::TransferFrom {
+            let transfer_from_msg = ExecuteMsg::TransferFrom {
                 owner: owner.clone(),
                 recipient: recipient.clone(),
                 amount: Uint128::from(3u128),
@@ -1160,14 +1162,14 @@ mod tests {
         fn fails_when_allowance_too_low() {
             let mut deps = mock_dependencies(&[]);
             let init_msg = make_init_msg();
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
-            let owner = HumanAddr("addr0000".to_string());
+            let owner = Addr("addr0000".to_string());
             let spender = make_spender();
-            let recipient = HumanAddr("addr1212".to_string());
+            let recipient = Addr("addr1212".to_string());
             // Set approval
-            let approve_msg = HandleMsg::Approve {
+            let approve_msg = ExecuteMsg::Approve {
                 spender: spender.clone(),
                 amount: Uint128::from(2u128),
             };
@@ -1185,7 +1187,7 @@ mod tests {
             assert_eq!(get_balance(&deps.api, &deps.storage, &owner), 11);
             assert_eq!(get_allowance(&deps.api, &deps.storage, &owner, &spender), 2);
             // Transfer less than allowance but more than balance
-            let fransfer_from_msg = HandleMsg::TransferFrom {
+            let fransfer_from_msg = ExecuteMsg::TransferFrom {
                 owner: owner.clone(),
                 recipient: recipient.clone(),
                 amount: Uint128::from(3u128),
@@ -1206,14 +1208,14 @@ mod tests {
         fn fails_when_allowance_is_set_but_balance_too_low() {
             let mut deps = mock_dependencies(&[]);
             let init_msg = make_init_msg();
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
-            let owner = HumanAddr("addr0000".to_string());
+            let owner = Addr("addr0000".to_string());
             let spender = make_spender();
-            let recipient = HumanAddr("addr1212".to_string());
+            let recipient = Addr("addr1212".to_string());
             // Set approval
-            let approve_msg = HandleMsg::Approve {
+            let approve_msg = ExecuteMsg::Approve {
                 spender: spender.clone(),
                 amount: Uint128::from(20u128),
             };
@@ -1234,7 +1236,7 @@ mod tests {
                 20
             );
             // Transfer less than allowance but more than balance
-            let fransfer_from_msg = HandleMsg::TransferFrom {
+            let fransfer_from_msg = ExecuteMsg::TransferFrom {
                 owner: owner.clone(),
                 recipient: recipient.clone(),
                 amount: Uint128::from(15u128),
@@ -1257,18 +1259,18 @@ mod tests {
         use crate::error::ContractError;
         use cosmwasm_std::attr;
 
-        fn make_init_msg() -> InitMsg {
-            InitMsg {
+        fn make_init_msg() -> InstantiateMsg {
+            InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 9,
                 initial_balances: vec![
                     InitialBalance {
-                        address: HumanAddr("addr0000".to_string()),
+                        address: Addr("addr0000".to_string()),
                         amount: Uint128::from(11u128),
                     },
                     InitialBalance {
-                        address: HumanAddr("addr1111".to_string()),
+                        address: Addr("addr1111".to_string()),
                         amount: Uint128::from(22u128),
                     },
                 ],
@@ -1279,24 +1281,24 @@ mod tests {
         fn can_burn_from_existing_account() {
             let mut deps = mock_dependencies(&[]);
             let init_msg = make_init_msg();
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 11
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(get_total_supply(&deps.storage), 33);
             // Burn
-            let burn_msg = HandleMsg::Burn {
+            let burn_msg = ExecuteMsg::Burn {
                 amount: Uint128::from(1u128),
             };
-            let (env, info) = mock_env_height(&HumanAddr("addr0000".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
             let burn_result = handle(deps.as_mut(), env, info, burn_msg).unwrap();
             assert_eq!(burn_result.messages.len(), 0);
             assert_eq!(
@@ -1309,11 +1311,11 @@ mod tests {
             );
             // New state
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 10
             ); // -1
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(get_total_supply(&deps.storage), 32);
@@ -1323,24 +1325,24 @@ mod tests {
         fn can_burn_zero_amount() {
             let mut deps = mock_dependencies(&[]);
             let init_msg = make_init_msg();
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 11
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(get_total_supply(&deps.storage), 33);
             // Burn
-            let burn_msg = HandleMsg::Burn {
+            let burn_msg = ExecuteMsg::Burn {
                 amount: Uint128::from(0u128),
             };
-            let (env, info) = mock_env_height(&HumanAddr("addr0000".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
             let burn_result = handle(deps.as_mut(), env, info, burn_msg).unwrap();
             assert_eq!(burn_result.messages.len(), 0);
             assert_eq!(
@@ -1353,11 +1355,11 @@ mod tests {
             );
             // New state (unchanged)
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 11
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(get_total_supply(&deps.storage), 33);
@@ -1367,24 +1369,24 @@ mod tests {
         fn fails_on_insufficient_balance() {
             let mut deps = mock_dependencies(&[]);
             let init_msg = make_init_msg();
-            let (env, info) = mock_env_height(&HumanAddr("creator".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("creator".to_string()), 450, 550);
             let res = init(deps.as_mut(), env, info, init_msg).unwrap();
             assert_eq!(0, res.messages.len());
             // Initial state
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 11
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(get_total_supply(&deps.storage), 33);
             // Burn
-            let burn_msg = HandleMsg::Burn {
+            let burn_msg = ExecuteMsg::Burn {
                 amount: Uint128::from(12u128),
             };
-            let (env, info) = mock_env_height(&HumanAddr("addr0000".to_string()), 450, 550);
+            let (env, info) = mock_env_height(&Addr("addr0000".to_string()), 450, 550);
             let burn_result = handle(deps.as_mut(), env, info, burn_msg);
             match burn_result {
                 Ok(_) => panic!("expected error"),
@@ -1396,11 +1398,11 @@ mod tests {
             }
             // New state (unchanged)
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr0000".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr0000".to_string())),
                 11
             );
             assert_eq!(
-                get_balance(&deps.api, &deps.storage, &HumanAddr("addr1111".to_string())),
+                get_balance(&deps.api, &deps.storage, &Addr("addr1111".to_string())),
                 22
             );
             assert_eq!(get_total_supply(&deps.storage), 33);
@@ -1411,19 +1413,19 @@ mod tests {
         use super::*;
         use cosmwasm_std::attr;
 
-        fn address(index: u8) -> HumanAddr {
+        fn address(index: u8) -> Addr {
             match index {
-                0 => HumanAddr("addr0000".to_string()), // contract initializer
-                1 => HumanAddr("addr1111".to_string()),
-                2 => HumanAddr("addr4321".to_string()),
-                3 => HumanAddr("addr5432".to_string()),
-                4 => HumanAddr("addr6543".to_string()),
+                0 => Addr("addr0000".to_string()), // contract initializer
+                1 => Addr("addr1111".to_string()),
+                2 => Addr("addr4321".to_string()),
+                3 => Addr("addr5432".to_string()),
+                4 => Addr("addr6543".to_string()),
                 _ => panic!("Unsupported address index"),
             }
         }
 
-        fn make_init_msg() -> InitMsg {
-            InitMsg {
+        fn make_init_msg() -> InstantiateMsg {
+            InstantiateMsg {
                 name: "Cash Token".to_string(),
                 symbol: "CASH".to_string(),
                 decimals: 9,
@@ -1481,7 +1483,7 @@ mod tests {
             assert_eq!(0, res.messages.len());
             let owner = address(2);
             let spender = address(1);
-            let approve_msg = HandleMsg::Approve {
+            let approve_msg = ExecuteMsg::Approve {
                 spender: spender.clone(),
                 amount: Uint128::from(42u128),
             };
@@ -1514,7 +1516,7 @@ mod tests {
             let owner = address(2);
             let spender = address(1);
             let bob = address(3);
-            let approve_msg = HandleMsg::Approve {
+            let approve_msg = ExecuteMsg::Approve {
                 spender: spender.clone(),
                 amount: Uint128::from(42u128),
             };

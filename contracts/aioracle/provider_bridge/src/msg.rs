@@ -1,15 +1,15 @@
 use aioracle_base::GetServiceFeesMsg;
-use cosmwasm_std::{Binary, HumanAddr};
+use cosmwasm_std::{Addr, Binary};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::state::Contracts;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub service: String,
     pub service_contracts: Contracts,
-    pub service_fees_contract: HumanAddr,
+    pub service_fees_contract: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -29,20 +29,20 @@ pub struct Response {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     UpdateServiceContracts {
         service: String,
         contracts: Contracts,
     },
     UpdateServiceInfo {
         service: String,
-        owner: Option<HumanAddr>,
-        service_fees_contract: Option<HumanAddr>,
+        owner: Option<Addr>,
+        service_fees_contract: Option<Addr>,
     },
     AddServiceInfo {
         service: String,
         contracts: Contracts,
-        service_fees_contract: HumanAddr,
+        service_fees_contract: Addr,
     },
 }
 
@@ -56,7 +56,7 @@ pub struct MigrateMsg {}
 pub enum QueryMsg {
     ServiceContractsMsg { service: String },
     ServiceFeeMsg { service: String },
-    GetParticipantFee { addr: HumanAddr },
+    GetParticipantFee { addr: Addr },
     GetBoundExecutorFee {},
     ServiceInfoMsg { service: String },
 }

@@ -1,13 +1,19 @@
 use crate::error::ContractError;
-use crate::msg::{GetServiceFees, HandleMsg, InitMsg, MigrateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, GetServiceFees, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{Contracts, ServiceInfo, BOUND_EXECUTOR_FEE, SERVICE_INFO};
 use aioracle_base::{GetServiceFeesMsg, Reward, ServiceFeesResponse};
 use cosmwasm_std::{
-    attr, to_binary, Binary, Coin, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
-    MessageInfo, MigrateResponse, StdResult, Uint128,
+    attr, to_json_binary, Addr, Binary, Coin, Deps, DepsMut, Env, MessageInfo, MigrateResponse,
+    Response, Response, StdResult, Uint128,
 };
 
-pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
     let service_info = ServiceInfo {
         owner: info.sender,
         contracts: msg.service_contracts,
@@ -21,26 +27,27 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
         },
     )?;
     set_service_info(deps, &msg.service, &service_info);
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::UpdateServiceContracts { service, contracts } => {
+        ExecuteMsg::UpdateServiceContracts { service, contracts } => {
             handle_update_service_contracts(deps, info, service, contracts)
         }
-        HandleMsg::UpdateServiceInfo {
+        ExecuteMsg::UpdateServiceInfo {
             service,
             owner,
             service_fees_contract,
         } => handle_update_service(deps, info, service, owner, service_fees_contract),
-        HandleMsg::AddServiceInfo {
+        ExecuteMsg::AddServiceInfo {
             service,
             contracts,
             service_fees_contract,
@@ -48,12 +55,8 @@ pub fn handle(
     }
 }
 
-pub fn migrate(
-    _deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _msg: MigrateMsg,
-) -> StdResult<MigrateResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateResponse> {
     // // if old_version.version != CONTRACT_VERSION {
     // //     return Err(StdError::generic_err(format!(
     // //         "This is {}, cannot migrate from {}",
@@ -74,9 +77,9 @@ pub fn handle_update_service(
     deps: DepsMut,
     info: MessageInfo,
     service: String,
-    owner: Option<HumanAddr>,
-    service_fees_contract: Option<HumanAddr>,
-) -> Result<HandleResponse, ContractError> {
+    owner: Option<Addr>,
+    service_fees_contract: Option<Addr>,
+) -> Result<Response, ContractError> {
     let mut service_info = get_service_info(deps.as_ref(), service.to_string())?;
     if service_info.owner.ne(&info.sender) {
         return Err(ContractError::Unauthorized {});
@@ -88,9 +91,9 @@ pub fn handle_update_service(
         service_info.fee_contract = service_fees_contract;
     }
     set_service_info(deps, &service, &service_info);
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![attr("action", "update_config")],
-        ..HandleResponse::default()
+        ..Response::default()
     })
 }
 
@@ -99,19 +102,19 @@ pub fn handle_update_service_contracts(
     info: MessageInfo,
     service: String,
     contracts: Contracts,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let mut service_info = get_service_info(deps.as_ref(), service.to_string())?;
     if service_info.owner.ne(&info.sender) {
         return Err(ContractError::Unauthorized {});
     }
     service_info.contracts = contracts;
     set_service_info(deps, &service, &service_info);
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![
             attr("action", "update_service_contracts"),
             attr("service", service),
         ],
-        ..HandleResponse::default()
+        ..Response::default()
     })
 }
 
@@ -120,8 +123,8 @@ pub fn handle_add_service_info(
     info: MessageInfo,
     service: String,
     contracts: Contracts,
-    service_fees_contract: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    service_fees_contract: Addr,
+) -> Result<Response, ContractError> {
     let service_info = get_service_info(deps.as_ref(), service.to_string());
     if service_info.is_ok() {
         return Err(ContractError::ServiceExists {});
@@ -132,21 +135,21 @@ pub fn handle_add_service_info(
         fee_contract: service_fees_contract,
     };
     set_service_info(deps, &service, &service_info_new);
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![attr("action", "add_service_info")],
-        ..HandleResponse::default()
+        ..Response::default()
     })
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::ServiceContractsMsg { service } => {
-            to_binary(&get_service_contracts(deps, service)?)
+            to_json_binary(&get_service_contracts(deps, service)?)
         }
-        QueryMsg::ServiceFeeMsg { service } => to_binary(&get_service_fees(deps, service)?),
-        QueryMsg::GetParticipantFee { addr } => to_binary(&get_participant_fee(deps, addr)?),
-        QueryMsg::GetBoundExecutorFee {} => to_binary(&get_bound_executor_fee(deps)?),
-        QueryMsg::ServiceInfoMsg { service } => to_binary(&get_service_info(deps, service)?),
+        QueryMsg::ServiceFeeMsg { service } => to_json_binary(&get_service_fees(deps, service)?),
+        QueryMsg::GetParticipantFee { addr } => to_json_binary(&get_participant_fee(deps, addr)?),
+        QueryMsg::GetBoundExecutorFee {} => to_json_binary(&get_bound_executor_fee(deps)?),
+        QueryMsg::ServiceInfoMsg { service } => to_json_binary(&get_service_info(deps, service)?),
     }
 }
 
@@ -191,7 +194,7 @@ fn get_service_fees(_deps: Deps, _service: String) -> StdResult<Vec<Reward>> {
     // let bound_executor_fee = MAX_EXECUTOR_FEE.load(deps.storage)?;
     // // add a reward for an executor with maximum rewards required
     // rewards.push((
-    //     HumanAddr::from("placeholder"),
+    //     Addr::from("placeholder"),
     //     bound_executor_fee.denom,
     //     bound_executor_fee.amount,
     // ));
@@ -199,7 +202,7 @@ fn get_service_fees(_deps: Deps, _service: String) -> StdResult<Vec<Reward>> {
     Ok(rewards)
 }
 
-fn get_participant_fee(_deps: Deps, _addr: HumanAddr) -> StdResult<Coin> {
+fn get_participant_fee(_deps: Deps, _addr: Addr) -> StdResult<Coin> {
     // let service_info: ServiceInfo = get_service_info(deps, service)?;
     // let reward_result: ServiceFeesResponse = deps.querier.query_wasm_smart(
     //     service_info.fee_contract,
@@ -221,8 +224,8 @@ fn get_participant_fee(_deps: Deps, _addr: HumanAddr) -> StdResult<Coin> {
 
 fn collect_rewards(
     deps: Deps,
-    addrs: &[HumanAddr],
-    service_fees_contract: &HumanAddr,
+    addrs: &[Addr],
+    service_fees_contract: &Addr,
 ) -> StdResult<Vec<Reward>> {
     let mut rewards = vec![];
     for addr in addrs {
@@ -237,7 +240,7 @@ fn collect_rewards(
         if !reward_result.is_err() {
             let reward = reward_result.unwrap();
             rewards.push((
-                HumanAddr::from(reward.address),
+                Addr::from(reward.address),
                 reward.fees.denom,
                 reward.fees.amount,
             ));

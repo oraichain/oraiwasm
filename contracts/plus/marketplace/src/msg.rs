@@ -1,11 +1,11 @@
-use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, Coin, Addr, Uint128};
 
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub name: String,
     pub fee: u64,
     pub denom: String,
@@ -14,7 +14,7 @@ pub struct InitMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     WithdrawNft {
         offering_id: u64,
     },
@@ -24,7 +24,7 @@ pub enum HandleMsg {
     ReceiveNft(Cw721ReceiveMsg),
     /// Mint a new NFT, can only be called by the contract minter
     MintNft {
-        contract: HumanAddr,
+        contract: Addr,
         msg: Binary,
     },
     WithdrawFunds {
@@ -66,13 +66,13 @@ pub enum QueryMsg {
         order: Option<u8>,
     },
     GetOfferingsBySeller {
-        seller: HumanAddr,
+        seller: Addr,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetOfferingsByContract {
-        contract: HumanAddr,
+        contract: Addr,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
@@ -81,11 +81,11 @@ pub enum QueryMsg {
         offering_id: u64,
     },
     GetPayoutsByContractTokenId {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
     },
     GetOfferingByContractTokenId {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
     },
     GetContractInfo {},
@@ -96,15 +96,15 @@ pub struct QueryOfferingsResult {
     pub id: u64,
     pub token_id: String,
     pub price: Uint128,
-    pub contract_addr: HumanAddr,
-    pub seller: HumanAddr,
+    pub contract_addr: Addr,
+    pub seller: Addr,
     pub royalty_creator: Option<PayoutMsg>,
     pub royalty_owner: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct PayoutMsg {
-    pub creator: HumanAddr,
+    pub creator: Addr,
     pub royalty: u64,
 }
 

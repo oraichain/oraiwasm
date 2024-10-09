@@ -1,4 +1,4 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -38,8 +38,8 @@ pub struct NormalDatasetAttrs {}
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct NormalDataset {
     pub token_id: String,
-    pub contract_addr: HumanAddr,
-    pub owner: HumanAddr,
+    pub contract_addr: Addr,
+    pub owner: Addr,
     pub datasource: Datasource,
 }
 
@@ -51,8 +51,8 @@ pub struct TestcaseAttrs {}
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Testcase {
     pub token_id: String,
-    pub contract_addr: HumanAddr,
-    pub owner: HumanAddr,
+    pub contract_addr: Addr,
+    pub owner: Addr,
     pub attrs: TestcaseAttrs,
     pub datasource: Datasource,
 }
@@ -60,8 +60,8 @@ pub struct Testcase {
 pub trait DatasetFactory<Attrs> {
     fn create(
         token_id: String,
-        contract_addr: HumanAddr,
-        owner: HumanAddr,
+        contract_addr: Addr,
+        owner: Addr,
         datasource: Datasource,
         attrs: Attrs,
     ) -> Self;
@@ -71,8 +71,8 @@ pub trait DatasetFactory<Attrs> {
 impl DatasetFactory<NormalDatasetAttrs> for NormalDataset {
     fn create(
         token_id: String,
-        contract_addr: HumanAddr,
-        owner: HumanAddr,
+        contract_addr: Addr,
+        owner: Addr,
         datasource: Datasource,
         _attrs: NormalDatasetAttrs,
     ) -> NormalDataset {
@@ -91,8 +91,8 @@ impl DatasetFactory<NormalDatasetAttrs> for NormalDataset {
 impl DatasetFactory<TestcaseAttrs> for Testcase {
     fn create(
         token_id: String,
-        contract_addr: HumanAddr,
-        owner: HumanAddr,
+        contract_addr: Addr,
+        owner: Addr,
         datasource: Datasource,
         attrs: TestcaseAttrs,
     ) -> Testcase {

@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, StdResult, Storage, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
     pub name: String,
-    pub creator: HumanAddr,
-    pub governance: HumanAddr,
+    pub creator: Addr,
+    pub governance: Addr,
     pub denom: String,
     pub fee: u64,
 }
@@ -17,9 +17,9 @@ pub struct ContractInfo {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct PackageOffering {
     pub id: u64,
-    pub customer: HumanAddr,
+    pub customer: Addr,
     pub package_id: String,
-    pub seller: HumanAddr,
+    pub seller: Addr,
     pub number_requests: Uint128,
     pub total_amount_paid: Uint128,
     pub success_requests: Uint128,

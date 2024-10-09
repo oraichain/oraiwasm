@@ -1,4 +1,4 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 use cosmwasm_std::{Binary, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -6,12 +6,12 @@ use serde::{Deserialize, Serialize};
 // #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 // #[serde(rename_all = "snake_case")]
 // pub struct Reward {
-//     pub recipient: HumanAddr,
+//     pub recipient: Addr,
 //     pub coin: Coin,
 // }
 
 // 0: recipient, 1: receive denom, 2: receive amount
-pub type Reward = (HumanAddr, String, Uint128);
+pub type Reward = (Addr, String, Uint128);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Executor {

@@ -1,11 +1,11 @@
 use std::convert::TryInto;
 
 use cosmwasm_std::{
-    attr, from_binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse, HumanAddr, MessageInfo,
+    attr, from_binary, CosmosMsg, Deps, DepsMut, Env, Response, Addr, MessageInfo,
     StdError,
 };
 use market_datahub::{
-    AnnotationResult, AnnotationReviewer, AnnotatorResult, DataHubHandleMsg, DataHubQueryMsg,
+    AnnotationResult, AnnotationReviewer, AnnotatorResult, DataHubExecuteMsg, DataHubQueryMsg,
 };
 
 use crate::{
@@ -21,7 +21,7 @@ pub fn try_add_annotation_result(
     _env: Env,
     annotation_id: u64,
     annotator_results: Vec<AnnotatorResult>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
     let annotation = get_annotation(deps.as_ref(), annotation_id)?;
@@ -90,7 +90,7 @@ pub fn try_add_annotation_result(
     msg.push(get_handle_msg(
         governance.as_str(),
         DATAHUB_STORAGE,
-        DataHubHandleMsg::AddAnnotationResult {
+        DataHubExecuteMsg::AddAnnotationResult {
             annotation_result: AnnotationResult {
                 id: if existed_annotation_result_of_reviewer.is_some() {
                     existed_annotation_result_of_reviewer.unwrap().id
@@ -104,7 +104,7 @@ pub fn try_add_annotation_result(
         },
     )?);
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: msg,
         attributes: vec![
             attr("action", "reviewer_commit_result"),
@@ -121,7 +121,7 @@ pub fn try_add_reviewed_upload(
     _env: Env,
     annotation_id: u64,
     reviewed_uploads: Vec<AnnotatorResult>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
     let annotation = get_annotation(deps.as_ref(), annotation_id)?;
@@ -184,7 +184,7 @@ pub fn try_add_reviewed_upload(
     msg.push(get_handle_msg(
         governance.as_str(),
         DATAHUB_STORAGE,
-        DataHubHandleMsg::AddReviewedUpload {
+        DataHubExecuteMsg::AddReviewedUpload {
             reviewed_result: AnnotationResult {
                 id: if old_reviewed_upload_by_reviewer.is_some() {
                     old_reviewed_upload_by_reviewer.unwrap().id
@@ -198,7 +198,7 @@ pub fn try_add_reviewed_upload(
         },
     )?);
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: msg,
         attributes: vec![
             attr("action", "reviewer_commit_reviewed_upload"),
@@ -214,8 +214,8 @@ pub fn try_add_annotation_reviewer(
     info: MessageInfo,
     _env: Env,
     annotation_id: u64,
-    reviewer_address: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    reviewer_address: Addr,
+) -> Result<Response, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
     let annotation = get_annotation(deps.as_ref(), annotation_id)?;
@@ -243,13 +243,13 @@ pub fn try_add_annotation_reviewer(
     cosmos_msg.push(get_handle_msg(
         governance.as_str(),
         DATAHUB_STORAGE,
-        DataHubHandleMsg::AddAnnotationReviewer {
+        DataHubExecuteMsg::AddAnnotationReviewer {
             annotation_id,
             reviewer_address: reviewer_address.clone(),
         },
     )?);
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cosmos_msg,
         attributes: vec![
             attr("action", "add annotation reviewer"),
@@ -265,8 +265,8 @@ pub fn try_remove_annotation_reviewer(
     info: MessageInfo,
     _env: Env,
     annotation_id: u64,
-    reviewer_address: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    reviewer_address: Addr,
+) -> Result<Response, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
 
     let annotation = get_annotation(deps.as_ref(), annotation_id)?;
@@ -294,13 +294,13 @@ pub fn try_remove_annotation_reviewer(
     cosmos_msg.push(get_handle_msg(
         governance.as_str(),
         DATAHUB_STORAGE,
-        DataHubHandleMsg::RemoveAnnotationReviewer {
+        DataHubExecuteMsg::RemoveAnnotationReviewer {
             annotation_id,
             reviewer_address: reviewer_address.clone(),
         },
     )?);
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cosmos_msg,
         attributes: vec![
             attr("action", "remove reviewer from annotation"),
@@ -326,7 +326,7 @@ pub fn get_annotation_results_by_annotation_id(
 pub fn get_annotation_results_by_annotation_id_and_reviewer(
     deps: Deps,
     annotation_id: u64,
-    reviewer_address: HumanAddr,
+    reviewer_address: Addr,
 ) -> Result<Option<AnnotationResult>, ContractError> {
     let result = from_binary(&query_datahub(
         deps,
@@ -347,7 +347,7 @@ pub fn get_annotation_results_by_annotation_id_and_reviewer(
 pub fn get_annotation_reviewer_by_unique_key(
     deps: Deps,
     annotation_id: u64,
-    reviewer_address: HumanAddr,
+    reviewer_address: Addr,
 ) -> Result<Option<AnnotationReviewer>, ContractError> {
     let annotation_reviewer = from_binary(&query_datahub(
         deps,
@@ -383,7 +383,7 @@ pub fn get_reviewed_upload_by_annotation_id(
 pub fn get_reviewed_upload_by_annotation_and_reviewer(
     deps: Deps,
     annotation_id: u64,
-    reviewer_address: HumanAddr,
+    reviewer_address: Addr,
 ) -> Result<Option<AnnotationResult>, ContractError> {
     let item = from_binary(&query_datahub(
         deps,

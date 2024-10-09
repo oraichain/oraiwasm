@@ -6,13 +6,13 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Decimal;
-use cosmwasm_std::{coin, coins, from_binary, HumanAddr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_binary, Addr, Order, OwnedDeps, Uint128};
 
 use market_datahub::Annotation;
 use market_datahub::AnnotationResult;
 use market_datahub::AnnotationReviewer;
 use market_datahub::AnnotatorResult;
-use market_datahub::DataHubHandleMsg;
+use market_datahub::DataHubExecuteMsg;
 use market_datahub::DataHubQueryMsg;
 use market_datahub::Offering;
 
@@ -22,8 +22,8 @@ const DENOM: &str = "MGK";
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
-    let msg = InitMsg {
-        governance: HumanAddr::from("market_hub"),
+    let msg = InstantiateMsg {
+        governance: Addr::from("market_hub"),
     };
     let info = mock_info(CREATOR, &[]);
     let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -54,9 +54,9 @@ fn sort_offering() {
     for i in 1u64..3u64 {
         let offering = Offering {
             id: Some(i),
-            contract_addr: HumanAddr::from("xxx"),
+            contract_addr: Addr::from("xxx"),
             token_id: i.to_string(),
-            seller: HumanAddr::from("seller"),
+            seller: Addr::from("seller"),
             per_price: Uint128::from(1u64),
             amount: Uint128::from(10u64),
         };
@@ -64,7 +64,7 @@ fn sort_offering() {
     }
 
     for off in offerings {
-        let msg = HandleMsg::Msg(DataHubHandleMsg::UpdateOffering { offering: off });
+        let msg = ExecuteMsg::Msg(DataHubExecuteMsg::UpdateOffering { offering: off });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
@@ -117,7 +117,7 @@ fn sort_offering() {
         mock_env(),
         QueryMsg::Msg(DataHubQueryMsg::GetOfferingsByContractTokenId {
             token_id: 1.to_string(),
-            contract: HumanAddr::from("xxx"),
+            contract: Addr::from("xxx"),
             limit: None,
             offset: None,
             order: Some(1),
@@ -133,8 +133,8 @@ fn sort_offering() {
         mock_env(),
         QueryMsg::Msg(DataHubQueryMsg::GetUniqueOffering {
             token_id: 1.to_string(),
-            contract: HumanAddr::from("xxx"),
-            owner: HumanAddr::from("seller"),
+            contract: Addr::from("xxx"),
+            owner: Addr::from("seller"),
         }),
     )
     .unwrap();
@@ -166,9 +166,9 @@ fn withdraw_offering() {
     for i in 1u64..3u64 {
         let offering = Offering {
             id: Some(i),
-            contract_addr: HumanAddr::from("xxx"),
+            contract_addr: Addr::from("xxx"),
             token_id: i.to_string(),
-            seller: HumanAddr::from("seller"),
+            seller: Addr::from("seller"),
             per_price: Uint128::from(1u64),
             amount: Uint128::from(1u64),
         };
@@ -176,11 +176,11 @@ fn withdraw_offering() {
     }
 
     for off in offerings {
-        let msg = HandleMsg::Msg(DataHubHandleMsg::UpdateOffering { offering: off });
+        let msg = ExecuteMsg::Msg(DataHubExecuteMsg::UpdateOffering { offering: off });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
-    let msg = HandleMsg::Msg(DataHubHandleMsg::RemoveOffering { id: 1 });
+    let msg = ExecuteMsg::Msg(DataHubExecuteMsg::RemoveOffering { id: 1 });
     let _ = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let res = query(
@@ -210,9 +210,9 @@ fn sort_annotations() {
     for i in 1u64..3u64 {
         let annotations = Annotation {
             id: Some(i),
-            contract_addr: HumanAddr::from("xxx"),
+            contract_addr: Addr::from("xxx"),
             token_id: i.to_string(),
-            requester: HumanAddr::from(format!("requester{}", i)),
+            requester: Addr::from(format!("requester{}", i)),
             reward_per_sample: Uint128::from(1u64),
             number_of_samples: Uint128::from(10u64),
             max_annotation_per_task: Uint128::from(10u64),
@@ -225,7 +225,7 @@ fn sort_annotations() {
     }
 
     for off in annotationss {
-        let msg = HandleMsg::Msg(DataHubHandleMsg::UpdateAnnotation { annotation: off });
+        let msg = ExecuteMsg::Msg(DataHubExecuteMsg::UpdateAnnotation { annotation: off });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
@@ -266,7 +266,7 @@ fn sort_annotations() {
         mock_env(),
         QueryMsg::Msg(DataHubQueryMsg::GetAnnotationsByContractTokenId {
             token_id: 1.to_string(),
-            contract: HumanAddr::from("xxx"),
+            contract: Addr::from("xxx"),
             limit: None,
             offset: None,
             order: Some(Order::Ascending as u8),
@@ -285,7 +285,7 @@ fn sort_annotations() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Msg(DataHubQueryMsg::GetAnnotationsByRequester {
-            requester: HumanAddr::from("requester1"),
+            requester: Addr::from("requester1"),
             limit: None,
             offset: None,
             order: Some(Order::Ascending as u8),
@@ -321,9 +321,9 @@ fn withdraw_annotations() {
     for i in 1u64..3u64 {
         let annotations = Annotation {
             id: Some(i),
-            contract_addr: HumanAddr::from("xxx"),
+            contract_addr: Addr::from("xxx"),
             token_id: i.to_string(),
-            requester: HumanAddr::from("requester"),
+            requester: Addr::from("requester"),
             reward_per_sample: Uint128::from(1u64),
             number_of_samples: Uint128::from(1u64),
             is_paid: false,
@@ -336,18 +336,18 @@ fn withdraw_annotations() {
     }
 
     for off in annotationss {
-        let msg = HandleMsg::Msg(DataHubHandleMsg::UpdateAnnotation { annotation: off });
+        let msg = ExecuteMsg::Msg(DataHubExecuteMsg::UpdateAnnotation { annotation: off });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
-    let msg = HandleMsg::Msg(DataHubHandleMsg::RemoveAnnotation { id: 1 });
+    let msg = ExecuteMsg::Msg(DataHubExecuteMsg::RemoveAnnotation { id: 1 });
     let _ = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let res = query(
         deps.as_ref(),
         mock_env(),
         QueryMsg::Msg(DataHubQueryMsg::GetAnnotationsByContract {
-            contract: HumanAddr::from("xxx"),
+            contract: Addr::from("xxx"),
             limit: Some(100),
             offset: Some(0),
             order: Some(Order::Ascending as u8),
@@ -369,9 +369,9 @@ fn sort_annotation_reviewer() {
     // Create mock annotation
     let annotation = Annotation {
         id: None,
-        contract_addr: HumanAddr::from("xxx"),
+        contract_addr: Addr::from("xxx"),
         token_id: 1.to_string(),
-        requester: HumanAddr::from("requester"),
+        requester: Addr::from("requester"),
         reward_per_sample: Uint128::from(1u64),
         number_of_samples: Uint128::from(1u64),
         is_paid: false,
@@ -380,19 +380,19 @@ fn sort_annotation_reviewer() {
         max_upload_tasks: Uint128::from(10u128),
         reward_per_upload_task: Uint128::from(1u128),
     };
-    let msg = HandleMsg::Msg(DataHubHandleMsg::UpdateAnnotation { annotation });
+    let msg = ExecuteMsg::Msg(DataHubExecuteMsg::UpdateAnnotation { annotation });
     let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     // Add reviewer for annotation
-    let msg = HandleMsg::Msg(DataHubHandleMsg::AddAnnotationReviewer {
+    let msg = ExecuteMsg::Msg(DataHubExecuteMsg::AddAnnotationReviewer {
         annotation_id: 1,
-        reviewer_address: HumanAddr::from("r1"),
+        reviewer_address: Addr::from("r1"),
     });
     let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
-    let msg = HandleMsg::Msg(DataHubHandleMsg::AddAnnotationReviewer {
+    let msg = ExecuteMsg::Msg(DataHubExecuteMsg::AddAnnotationReviewer {
         annotation_id: 1,
-        reviewer_address: HumanAddr::from("r2"),
+        reviewer_address: Addr::from("r2"),
     });
 
     let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
@@ -413,20 +413,20 @@ fn sort_annotation_reviewer() {
     let result = AnnotationResult {
         id: None,
         annotation_id: 1,
-        reviewer_address: HumanAddr::from("r1"),
+        reviewer_address: Addr::from("r1"),
         data: vec![
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a1"),
+                annotator_address: Addr::from("a1"),
                 result: vec![true, true],
             },
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a2"),
+                annotator_address: Addr::from("a2"),
                 result: vec![true, true, false],
             },
         ],
     };
 
-    let msg = HandleMsg::Msg(DataHubHandleMsg::AddAnnotationResult {
+    let msg = ExecuteMsg::Msg(DataHubExecuteMsg::AddAnnotationResult {
         annotation_result: result,
     });
     let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
@@ -458,7 +458,7 @@ fn sort_annotation_reviewer() {
         mock_env(),
         QueryMsg::Msg(DataHubQueryMsg::GetAnnotationReviewerByUniqueKey {
             annotation_id: 1,
-            reviewer_address: HumanAddr::from("r1"),
+            reviewer_address: Addr::from("r1"),
         }),
     )
     .unwrap();
@@ -472,7 +472,7 @@ fn sort_annotation_reviewer() {
         mock_env(),
         QueryMsg::Msg(DataHubQueryMsg::GetAnnotationReviewerByUniqueKey {
             annotation_id: 2,
-            reviewer_address: HumanAddr::from("r1"),
+            reviewer_address: Addr::from("r1"),
         }),
     )
     .unwrap();
@@ -492,9 +492,9 @@ fn sort_reviewed_upload() {
     // Create mock annotation
     let annotation = Annotation {
         id: None,
-        contract_addr: HumanAddr::from("xxx"),
+        contract_addr: Addr::from("xxx"),
         token_id: 1.to_string(),
-        requester: HumanAddr::from("requester"),
+        requester: Addr::from("requester"),
         reward_per_sample: Uint128::from(1u64),
         number_of_samples: Uint128::from(1u64),
         is_paid: false,
@@ -503,38 +503,38 @@ fn sort_reviewed_upload() {
         max_upload_tasks: Uint128::from(10u128),
         reward_per_upload_task: Uint128::from(1u128),
     };
-    let msg = HandleMsg::Msg(DataHubHandleMsg::UpdateAnnotation { annotation });
+    let msg = ExecuteMsg::Msg(DataHubExecuteMsg::UpdateAnnotation { annotation });
     let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     // Add reviewer for annotation
-    let msg = HandleMsg::Msg(DataHubHandleMsg::AddAnnotationReviewer {
+    let msg = ExecuteMsg::Msg(DataHubExecuteMsg::AddAnnotationReviewer {
         annotation_id: 1,
-        reviewer_address: HumanAddr::from("r1"),
+        reviewer_address: Addr::from("r1"),
     });
     let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
-    let msg = HandleMsg::Msg(DataHubHandleMsg::AddAnnotationReviewer {
+    let msg = ExecuteMsg::Msg(DataHubExecuteMsg::AddAnnotationReviewer {
         annotation_id: 1,
-        reviewer_address: HumanAddr::from("r2"),
+        reviewer_address: Addr::from("r2"),
     });
     let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let result = AnnotationResult {
         id: None,
         annotation_id: 1,
-        reviewer_address: HumanAddr::from("r1"),
+        reviewer_address: Addr::from("r1"),
         data: vec![
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a1"),
+                annotator_address: Addr::from("a1"),
                 result: vec![true, true],
             },
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a2"),
+                annotator_address: Addr::from("a2"),
                 result: vec![true, true, false],
             },
         ],
     };
-    let msg = HandleMsg::Msg(DataHubHandleMsg::AddReviewedUpload {
+    let msg = ExecuteMsg::Msg(DataHubExecuteMsg::AddReviewedUpload {
         reviewed_result: result,
     });
     let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
@@ -558,7 +558,7 @@ fn sort_reviewed_upload() {
         QueryMsg::Msg(
             DataHubQueryMsg::GetReviewedUploadByAnnotationIdAndReviewer {
                 annotation_id: 1,
-                reviewer_address: HumanAddr::from("r1"),
+                reviewer_address: Addr::from("r1"),
             },
         ),
     )

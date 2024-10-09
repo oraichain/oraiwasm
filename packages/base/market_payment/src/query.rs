@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, HumanAddr};
+use cosmwasm_std::{Addr, Binary};
 use market::AssetInfo;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 pub enum PaymentQueryMsg {
     // GetOfferings returns a list of all offerings
     GetOfferingPayment {
-        contract_addr: HumanAddr,
+        contract_addr: Addr,
         token_id: String,
-        sender: Option<HumanAddr>,
+        sender: Option<Addr>,
     },
     GetOfferingPayments {
         offset: Option<Binary>,
@@ -18,9 +18,9 @@ pub enum PaymentQueryMsg {
         order: Option<u8>,
     },
     GetAuctionPayment {
-        contract_addr: HumanAddr,
+        contract_addr: Addr,
         token_id: String,
-        sender: Option<HumanAddr>,
+        sender: Option<Addr>,
     },
     GetAuctionPayments {
         offset: Option<Binary>,
@@ -34,16 +34,16 @@ pub enum PaymentQueryMsg {
 #[serde(rename_all = "snake_case")]
 pub struct PaymentMsg {
     // GetOfferings returns a list of all offerings
-    pub contract_addr: HumanAddr,
+    pub contract_addr: Addr,
     pub token_id: String,
-    pub sender: Option<HumanAddr>,
+    pub sender: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct PaymentResponse {
-    pub contract_addr: HumanAddr,
+    pub contract_addr: Addr,
     pub token_id: String,
-    pub sender: Option<HumanAddr>,
+    pub sender: Option<Addr>,
     pub asset_info: AssetInfo,
 }

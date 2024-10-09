@@ -1,16 +1,16 @@
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
+    attr, to_json_binary, Binary, Deps, DepsMut, Env, Response, Addr, Response,
     MessageInfo, MigrateResponse, Order, StdResult, Uint128, WasmMsg,
 };
-use cw_utils::Expiration;
-use cw20::Cw20HandleMsg;
+use cw20::Cw20ExecuteMsg;
 use cw_storage_plus::{Bound, U8Key};
+use cw_utils::Expiration;
 use sha2::Digest;
 use std::convert::TryInto;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ClaimKeyCountResponse, ClaimKeysResponse, ConfigResponse, HandleMsg, InitMsg,
+    ClaimKeyCountResponse, ClaimKeysResponse, ConfigResponse, ExecuteMsg, InstantiateMsg,
     IsClaimedResponse, LatestStageResponse, MerkleRootResponse, MigrateMsg, QueryMsg,
     TotalClaimedResponse,
 };
@@ -20,7 +20,13 @@ use crate::state::{
     STAGE_EXPIRATION, STAGE_METADATA, STAGE_START,
 };
 
-pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
     // TODO
     // set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     let owner = msg.owner.unwrap_or(info.sender);
@@ -34,18 +40,19 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     let stage = 0;
     LATEST_STAGE.save(deps.storage, &stage)?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::UpdateConfig { new_owner } => execute_update_config(deps, env, info, new_owner),
-        HandleMsg::RegisterMerkleRoot {
+        ExecuteMsg::UpdateConfig { new_owner } => execute_update_config(deps, env, info, new_owner),
+        ExecuteMsg::RegisterMerkleRoot {
             merkle_root,
             expiration,
             start,
@@ -61,15 +68,15 @@ pub fn handle(
             total_amount,
             metadata,
         ),
-        HandleMsg::Claim {
+        ExecuteMsg::Claim {
             stage,
             amount,
             proof,
         } => execute_claim(deps, env, info, stage, amount, proof),
-        HandleMsg::Burn { stage } => execute_burn(deps, env, info, stage),
-        HandleMsg::RemoveMerkleRoot { stage } => execute_remove_merkle_root(deps, env, info, stage),
-        HandleMsg::Withdraw { stage } => execute_withdraw(deps, env, info, stage),
-        HandleMsg::UpdateClaim { claim_keys } => execute_update_claim(deps, env, info, claim_keys),
+        ExecuteMsg::Burn { stage } => execute_burn(deps, env, info, stage),
+        ExecuteMsg::RemoveMerkleRoot { stage } => execute_remove_merkle_root(deps, env, info, stage),
+        ExecuteMsg::Withdraw { stage } => execute_withdraw(deps, env, info, stage),
+        ExecuteMsg::UpdateClaim { claim_keys } => execute_update_claim(deps, env, info, claim_keys),
     }
 }
 
@@ -77,8 +84,8 @@ pub fn execute_update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    new_owner: Option<HumanAddr>,
-) -> Result<HandleResponse, ContractError> {
+    new_owner: Option<Addr>,
+) -> Result<Response, ContractError> {
     // authorize owner
     let cfg = CONFIG.load(deps.storage)?;
     let owner = cfg.owner.ok_or(ContractError::Unauthorized {})?;
@@ -96,7 +103,7 @@ pub fn execute_update_config(
         })?;
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![attr("action", "update_config")],
         messages: vec![],
         data: None,
@@ -108,7 +115,7 @@ pub fn execute_update_claim(
     _env: Env,
     info: MessageInfo,
     claim_keys: Vec<Vec<u8>>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // authorize owner
     let cfg = CONFIG.load(deps.storage)?;
     let owner = cfg.owner.ok_or(ContractError::Unauthorized {})?;
@@ -120,7 +127,7 @@ pub fn execute_update_claim(
         CLAIM.save(deps.storage, &key, &true)?;
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![attr("action", "update_claim")],
         messages: vec![],
         data: None,
@@ -132,7 +139,7 @@ pub fn execute_remove_merkle_root(
     _env: Env,
     info: MessageInfo,
     stage: u8,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // authorize owner
     let cfg = CONFIG.load(deps.storage)?;
     let owner = cfg.owner.ok_or(ContractError::Unauthorized {})?;
@@ -142,7 +149,7 @@ pub fn execute_remove_merkle_root(
 
     MERKLE_ROOT.save(deps.storage, U8Key::from(stage), &"".into())?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![attr("action", "remove_merkle_root"), attr("stage", stage)],
         messages: vec![],
         data: None,
@@ -158,7 +165,7 @@ pub fn execute_register_merkle_root(
     start: Option<Scheduled>,
     total_amount: Option<Uint128>,
     metadata: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
     // if owner set validate, otherwise unauthorized
@@ -192,7 +199,7 @@ pub fn execute_register_merkle_root(
 
     STAGE_METADATA.save(deps.storage, U8Key::from(stage), &metadata)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         data: None,
         messages: vec![],
         attributes: vec![
@@ -212,7 +219,7 @@ pub fn execute_claim(
     stage: u8,
     amount: Uint128,
     proof: Vec<String>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // airdrop begun
     let start = STAGE_START.may_load(deps.storage, U8Key::from(stage))?;
     if let Some(start) = start {
@@ -270,15 +277,15 @@ pub fn execute_claim(
 
     let config = CONFIG.load(deps.storage)?;
 
-    let res = HandleResponse {
+    let res = Response {
         data: None,
         messages: vec![WasmMsg::Execute {
             contract_addr: config.cw20_token_address,
-            msg: to_binary(&Cw20HandleMsg::Transfer {
+            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: info.sender.clone(),
                 amount,
             })?,
-            send: vec![],
+            funds: vec![],
         }
         .into()],
         attributes: vec![
@@ -296,7 +303,7 @@ pub fn execute_burn(
     env: Env,
     info: MessageInfo,
     stage: u8,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // authorize owner
     let cfg = CONFIG.load(deps.storage)?;
     let owner = cfg.owner.ok_or(ContractError::Unauthorized {})?;
@@ -322,11 +329,11 @@ pub fn execute_burn(
     // Get balance
     let balance_to_burn = (total_amount - claimed_amount)?;
 
-    let res = HandleResponse {
+    let res = Response {
         messages: vec![WasmMsg::Execute {
             contract_addr: cfg.cw20_token_address,
-            send: vec![],
-            msg: to_binary(&Cw20HandleMsg::Burn {
+            funds: vec![],
+            msg: to_json_binary(&Cw20ExecuteMsg::Burn {
                 amount: balance_to_burn,
             })?,
         }
@@ -347,7 +354,7 @@ pub fn execute_withdraw(
     env: Env,
     info: MessageInfo,
     stage: u8,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // authorize owner
     let cfg = CONFIG.load(deps.storage)?;
     let owner = cfg.owner.ok_or(ContractError::Unauthorized {})?;
@@ -374,11 +381,11 @@ pub fn execute_withdraw(
     let balance_to_withdraw = (total_amount - claimed_amount)?;
 
     // Withdraw the tokens and response
-    let res = HandleResponse {
+    let res = Response {
         messages: vec![WasmMsg::Execute {
             contract_addr: cfg.cw20_token_address,
-            send: vec![],
-            msg: to_binary(&Cw20HandleMsg::Transfer {
+            funds: vec![],
+            msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: owner.clone(),
                 amount: balance_to_withdraw,
             })?,
@@ -399,15 +406,15 @@ pub fn execute_withdraw(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::MerkleRoot { stage } => to_binary(&query_merkle_root(deps, stage)?),
-        QueryMsg::LatestStage {} => to_binary(&query_latest_stage(deps)?),
+        QueryMsg::Config {} => to_json_binary(&query_config(deps)?),
+        QueryMsg::MerkleRoot { stage } => to_json_binary(&query_merkle_root(deps, stage)?),
+        QueryMsg::LatestStage {} => to_json_binary(&query_latest_stage(deps)?),
         QueryMsg::IsClaimed { stage, address } => {
-            to_binary(&query_is_claimed(deps, stage, address)?)
+            to_json_binary(&query_is_claimed(deps, stage, address)?)
         }
-        QueryMsg::TotalClaimed { stage } => to_binary(&query_total_claimed(deps, stage)?),
-        QueryMsg::ClaimKeys { offset, limit } => to_binary(&query_claim_keys(deps, offset, limit)?),
-        QueryMsg::ClaimKeyCount {} => to_binary(&query_claim_key_count(deps)?),
+        QueryMsg::TotalClaimed { stage } => to_json_binary(&query_total_claimed(deps, stage)?),
+        QueryMsg::ClaimKeys { offset, limit } => to_json_binary(&query_claim_keys(deps, offset, limit)?),
+        QueryMsg::ClaimKeyCount {} => to_json_binary(&query_claim_key_count(deps)?),
     }
 }
 
@@ -445,7 +452,7 @@ pub fn query_latest_stage(deps: Deps) -> StdResult<LatestStageResponse> {
     Ok(resp)
 }
 
-pub fn query_is_claimed(deps: Deps, stage: u8, address: HumanAddr) -> StdResult<IsClaimedResponse> {
+pub fn query_is_claimed(deps: Deps, stage: u8, address: Addr) -> StdResult<IsClaimedResponse> {
     let mut key = deps.api.canonical_address(&address)?.to_vec();
     key.push(stage);
     let is_claimed = CLAIM.may_load(deps.storage, &key)?.unwrap_or(false);
@@ -511,10 +518,10 @@ pub fn query_claim_key_count(deps: Deps) -> StdResult<ClaimKeyCountResponse> {
     Ok(resp)
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
     _deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
     _msg: MigrateMsg,
 ) -> Result<MigrateResponse, ContractError> {
     Ok(MigrateResponse::default())

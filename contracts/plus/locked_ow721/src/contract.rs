@@ -1,7 +1,7 @@
 use crate::{
     error::ContractError,
     msg::{
-        HandleMsg, InitMsg, LockNft, NftQueryMsg, NonceResponse, OwnerOfResponse, PubKey,
+        ExecuteMsg, InstantiateMsg, LockNft, NftQueryMsg, NonceResponse, OwnerOfResponse, PubKey,
         PubKeyResponse, QueryMsg, UnlockNft, UnlockRaw,
     },
     state::{
@@ -10,8 +10,8 @@ use crate::{
     },
 };
 use cosmwasm_std::{
-    attr, from_binary, to_binary, to_vec, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult, WasmMsg, KV,
+    attr, from_binary, to_json_binary, to_vec, Api, Binary, CosmosMsg, Deps, DepsMut, Env,
+    Response, Addr, Response, MessageInfo, Order, StdError, StdResult, WasmMsg, KV,
 };
 
 // ******************************** TODO: ADD change allowed pub key **************************
@@ -19,7 +19,7 @@ use cosmwasm_std::{
 use cosmwasm_crypto::ed25519_verify;
 use cw_storage_plus::Bound;
 
-use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
+use cw721::{Cw721ExecuteMsg, Cw721ReceiveMsg};
 
 use sha2::{Digest, Sha256};
 
@@ -29,7 +29,8 @@ const DELIMITER: &'static str = "&";
 const DEFAULT_LIMIT: u8 = 100;
 
 // make use of the custom errors
-pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(deps: DepsMut, _env: Env, info: MessageInfo, msg: InstantiateMsg) -> StdResult<Response> {
     let state = Owner {
         owner: info.sender.to_string(),
     };
@@ -40,29 +41,30 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     }
     nonce(deps.storage).save(&Nonce(0))?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::ReceiveNft(msg) => try_lock(deps, info, msg),
-        HandleMsg::Unlock { unlock_msg } => try_unlock(deps, env, info, unlock_msg),
-        HandleMsg::EmergencyUnlock {
+        ExecuteMsg::ReceiveNft(msg) => try_lock(deps, info, msg),
+        ExecuteMsg::Unlock { unlock_msg } => try_unlock(deps, env, info, unlock_msg),
+        ExecuteMsg::EmergencyUnlock {
             token_id,
             nft_addr,
             nonce,
         } => try_emergency_unlock(deps, env, info, token_id, nft_addr, nonce),
-        HandleMsg::ChangeOwner { new_owner } => change_owner(deps, info, new_owner),
-        HandleMsg::AddPubKey { pub_key } => add_pubkey(deps, info, pub_key),
-        HandleMsg::RemovePubKey { pub_key } => remove_pubkey(deps, info, pub_key),
-        HandleMsg::DisablePubKey { pub_key } => disable_pubkey(deps, info, pub_key),
-        HandleMsg::EnablePubKey { pub_key } => enable_pubkey(deps, info, pub_key),
+        ExecuteMsg::ChangeOwner { new_owner } => change_owner(deps, info, new_owner),
+        ExecuteMsg::AddPubKey { pub_key } => add_pubkey(deps, info, pub_key),
+        ExecuteMsg::RemovePubKey { pub_key } => remove_pubkey(deps, info, pub_key),
+        ExecuteMsg::DisablePubKey { pub_key } => disable_pubkey(deps, info, pub_key),
+        ExecuteMsg::EnablePubKey { pub_key } => enable_pubkey(deps, info, pub_key),
     }
 }
 
@@ -70,7 +72,7 @@ pub fn change_owner(
     deps: DepsMut,
     info: MessageInfo,
     new_owner: String,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let mut owner_read = owner_read(deps.storage).load()?;
     // if the invoker is not the owner then return error
     if !owner_read.owner.eq(&info.sender.to_string()) {
@@ -80,7 +82,7 @@ pub fn change_owner(
     owner_read.owner = new_owner;
     owner(deps.storage).save(&owner_read)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: Vec::new(),
         attributes: vec![
             attr("old_owner", old_owner),
@@ -94,13 +96,13 @@ pub fn try_lock(
     deps: DepsMut,
     info: MessageInfo,
     rcv_msg: Cw721ReceiveMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let msg: LockNft = match rcv_msg.msg {
         Some(bin) => Ok(from_binary(&bin)?),
         None => Err(ContractError::NoData {}),
     }?;
     // check authorization
-    if !info.sender.eq(&HumanAddr::from(msg.nft_addr.as_str())) {
+    if !info.sender.eq(&Addr::from(msg.nft_addr.as_str())) {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -127,7 +129,7 @@ pub fn try_lock(
     let new_nonce: Nonce = Nonce(nonce_u64 + 1);
     nonce(deps.storage).save(&new_nonce)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: Vec::new(),
         attributes: vec![
             attr("action", "lock"),
@@ -145,7 +147,7 @@ pub fn try_unlock(
     env: Env,
     info: MessageInfo,
     unlock_msg: UnlockNft,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // check if the nft id can be unlocked
     let can_unlock = check_can_unlock(
         &deps.as_ref(),
@@ -207,15 +209,15 @@ pub fn try_unlock(
     OTHER_CHAIN_NONCES.save(deps.storage, unlock_msg.nonce.to_string().as_str(), &true)?;
 
     // transfer token back to original owner
-    let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
-        recipient: HumanAddr::from(&unlock_msg.orai_addr),
+    let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
+        recipient: Addr::from(&unlock_msg.orai_addr),
         token_id: String::from(&unlock_msg.token_id),
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: HumanAddr::from(&unlock_msg.nft_addr),
-        msg: to_binary(&transfer_cw721_msg)?,
-        send: vec![],
+        contract_addr: Addr::from(&unlock_msg.nft_addr),
+        msg: to_json_binary(&transfer_cw721_msg)?,
+        funds: vec![],
     };
 
     let cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![exec_cw721_transfer.into()];
@@ -229,7 +231,7 @@ pub fn try_unlock(
         &locked,
     )?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: cw721_transfer_cosmos_msg,
         attributes: vec![
             attr("action", "unlock"),
@@ -250,7 +252,7 @@ pub fn try_emergency_unlock(
     token_id: String,
     nft_addr: String,
     nonce: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let can_unlock = check_can_unlock(&deps.as_ref(), &env, token_id.as_str(), nft_addr.as_str());
     if can_unlock.is_err() {
         return Err(can_unlock.err().unwrap());
@@ -270,15 +272,15 @@ pub fn try_emergency_unlock(
     LOCKED.save(deps.storage, &get_locked_key(&token_id, &nft_addr), &locked)?;
 
     // transfer token back to original owner
-    let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
-        recipient: HumanAddr::from(locked.orai_addr.as_str()),
+    let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
+        recipient: Addr::from(locked.orai_addr.as_str()),
         token_id: token_id.to_owned(),
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
-        contract_addr: HumanAddr::from(locked.nft_addr.as_str()),
-        msg: to_binary(&transfer_cw721_msg)?,
-        send: vec![],
+        contract_addr: Addr::from(locked.nft_addr.as_str()),
+        msg: to_json_binary(&transfer_cw721_msg)?,
+        funds: vec![],
     };
 
     let cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![exec_cw721_transfer.into()];
@@ -289,7 +291,7 @@ pub fn try_emergency_unlock(
     // // remove locked tokens
     // LOCKED.remove(deps.storage, &token_id);
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: cw721_transfer_cosmos_msg,
         attributes: vec![
             attr("action", "emergency_unlock"),
@@ -342,7 +344,7 @@ pub fn add_pubkey(
     deps: DepsMut,
     info: MessageInfo,
     pub_key: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let pub_key_result = ALLOWED.load(deps.storage, &pub_key);
     if !pub_key_result.is_err() {
         return Err(ContractError::PubKeyExists {});
@@ -353,7 +355,7 @@ pub fn add_pubkey(
         return Err(ContractError::Unauthorized {});
     }
     ALLOWED.save(deps.storage, &pub_key.as_slice(), &true)?;
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![],
         data: None,
@@ -364,13 +366,13 @@ pub fn remove_pubkey(
     deps: DepsMut,
     info: MessageInfo,
     pub_key: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let check_result = check_pubkey(&deps, &info, &pub_key);
     if check_result.is_err() {
         return Err(check_result.err().unwrap());
     }
     ALLOWED.remove(deps.storage, &pub_key.as_slice());
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![],
         data: None,
@@ -381,13 +383,13 @@ pub fn disable_pubkey(
     deps: DepsMut,
     info: MessageInfo,
     pub_key: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let check_result = check_pubkey(&deps, &info, &pub_key);
     if check_result.is_err() {
         return Err(check_result.err().unwrap());
     }
     ALLOWED.save(deps.storage, &pub_key.as_slice(), &false)?;
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![],
         data: None,
@@ -398,13 +400,13 @@ pub fn enable_pubkey(
     deps: DepsMut,
     info: MessageInfo,
     pub_key: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let check_result = check_pubkey(&deps, &info, &pub_key);
     if check_result.is_err() {
         return Err(check_result.err().unwrap());
     }
     ALLOWED.save(deps.storage, &pub_key.as_slice(), &true)?;
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![],
         data: None,
@@ -436,7 +438,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             offset,
             order,
-        } => to_binary(&query_pubkeys(deps, limit, offset, order)?),
+        } => to_json_binary(&query_pubkeys(deps, limit, offset, order)?),
         QueryMsg::LatestNonce {} => query_nonce(deps),
         QueryMsg::NonceVal { nonce } => query_nonce_val(deps, nonce),
     }
@@ -479,7 +481,7 @@ pub fn query_nonce(deps: Deps) -> StdResult<Binary> {
     if nonce_res_result.is_err() {
         return Err(nonce_res_result.err().unwrap());
     }
-    let nonce_bin = to_binary(&nonce_res_result.unwrap())?;
+    let nonce_bin = to_json_binary(&nonce_res_result.unwrap())?;
     Ok(nonce_bin)
 }
 
@@ -488,13 +490,13 @@ pub fn query_nonce_val(deps: Deps, nonce: u64) -> StdResult<Binary> {
     if nonce_res_result.is_err() {
         return Err(nonce_res_result.err().unwrap());
     }
-    let nonce_bin = to_binary(&nonce_res_result.unwrap())?;
+    let nonce_bin = to_json_binary(&nonce_res_result.unwrap())?;
     Ok(nonce_bin)
 }
 
 fn query_owner(deps: Deps) -> StdResult<Binary> {
     let owner = owner_read(deps.storage).load()?;
-    let owner_bin = to_binary(&owner.owner)?;
+    let owner_bin = to_json_binary(&owner.owner)?;
     Ok(owner_bin)
 }
 
@@ -504,7 +506,7 @@ fn query_lock(deps: Deps, token_id: String, nft_addr: String) -> StdResult<Binar
     if locked_result.is_err() {
         return Err(locked_result.err().unwrap());
     }
-    let locked_binary = to_binary(&locked_result.unwrap()).unwrap();
+    let locked_binary = to_json_binary(&locked_result.unwrap()).unwrap();
     // let pub_key = base64::decode("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
     // let result = ed25519_verify("Hello World".as_bytes(), &test.as_slice(), &pub_key).unwrap();
     Ok(locked_binary)
@@ -569,7 +571,7 @@ mod tests {
         let mut pub_keys: Vec<Binary> = Vec::new();
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
         pub_keys.push(pub_key.clone());
-        let msg = InitMsg { pub_keys };
+        let msg = InstantiateMsg { pub_keys };
         let info = mock_info("fake_sender_addr", &[]);
 
         // we can just call .unwrap() to assert this was a success
@@ -600,7 +602,7 @@ mod tests {
         deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
 
-        let msg = HandleMsg::ChangeOwner {
+        let msg = ExecuteMsg::ChangeOwner {
             new_owner: String::from("hello there"),
         };
 
@@ -628,7 +630,7 @@ mod tests {
         deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgs1QU=").unwrap();
-        let msg = HandleMsg::AddPubKey {
+        let msg = ExecuteMsg::AddPubKey {
             pub_key: pub_key.clone(),
         };
 
@@ -655,7 +657,7 @@ mod tests {
         deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
-        let msg = HandleMsg::RemovePubKey {
+        let msg = ExecuteMsg::RemovePubKey {
             pub_key: pub_key.clone(),
         };
 
@@ -682,7 +684,7 @@ mod tests {
         deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
-        let msg = HandleMsg::DisablePubKey {
+        let msg = ExecuteMsg::DisablePubKey {
             pub_key: pub_key.clone(),
         };
 
@@ -709,7 +711,7 @@ mod tests {
         deps.api.canonical_length = 54;
         setup_contract(deps.as_mut());
         let pub_key = Binary::from_base64("dXavRpz6s4pys3q/eRA7/+dTS4inMlcOQoHoBHgY1QU=").unwrap();
-        let msg = HandleMsg::EnablePubKey {
+        let msg = ExecuteMsg::EnablePubKey {
             pub_key: pub_key.clone(),
         };
 

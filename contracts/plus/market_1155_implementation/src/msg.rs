@@ -1,19 +1,19 @@
 use std::fmt;
 
-use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
+use cosmwasm_std::{Coin, Empty, Addr, Uint128};
 use cw20::Cw20ReceiveMsg;
-use market::{StorageHandleMsg, StorageQueryMsg};
+use market::{StorageExecuteMsg, StorageQueryMsg};
 use market_1155::{MarketQueryMsg, MintMsg};
 use market_ai_royalty::AiRoyaltyQueryMsg;
 use market_auction_extend::AuctionQueryMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub name: String,
     pub fee: u64,
     pub denom: String,
-    pub governance: HumanAddr,
+    pub governance: Addr,
     pub auction_duration: Uint128,
     pub step_price: u64,
 }
@@ -23,7 +23,7 @@ pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     Receive(Cw20ReceiveMsg),
     // Ask an NFT for a minimum price, must pay fee for auction maketplace
     SellNft(SellNft),
@@ -43,12 +43,12 @@ pub enum HandleMsg {
     /// Mint a new NFT, can only be called by the contract minter
     MintNft(MintMsg),
     BurnNft {
-        contract_addr: HumanAddr,
+        contract_addr: Addr,
         token_id: String,
         value: Uint128,
     },
     ChangeCreator {
-        contract_addr: HumanAddr,
+        contract_addr: Addr,
         token_id: String,
         to: String,
     },
@@ -73,7 +73,7 @@ pub enum HandleMsg {
 pub struct AskNftMsg {
     pub per_price: Uint128,
     pub amount: Uint128,
-    pub contract_addr: HumanAddr,
+    pub contract_addr: Addr,
     pub token_id: String,
     // in permille
     pub cancel_fee: Option<u64>,
@@ -83,26 +83,26 @@ pub struct AskNftMsg {
     pub end_timestamp: Option<Uint128>,
     pub buyout_per_price: Option<Uint128>,
     pub step_price: Option<u64>,
-    pub asker: Option<HumanAddr>,
+    pub asker: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct SellNft {
     pub per_price: Uint128,
-    pub contract_addr: HumanAddr,
+    pub contract_addr: Addr,
     pub token_id: String,
     pub amount: Uint128,
-    pub seller: Option<HumanAddr>,
+    pub seller: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct TransferNftDirectlyMsg {
-    pub contract_addr: HumanAddr,
+    pub contract_addr: Addr,
     pub token_id: String,
     pub amount: Uint128,
-    pub to: HumanAddr,
+    pub to: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -111,7 +111,7 @@ pub struct UpdateContractMsg {
     pub creator: Option<String>,
     pub fee: Option<u64>,
     pub denom: Option<String>,
-    pub governance: Option<HumanAddr>,
+    pub governance: Option<Addr>,
     pub expired_block: Option<u64>,
     pub decimal_point: Option<u64>,
 }
@@ -139,11 +139,11 @@ where
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ProxyHandleMsg<T = Empty>
+pub enum ProxyExecuteMsg<T = Empty>
 where
     T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
 {
     // GetOfferings returns a list of all offerings
     Msg(T),
-    Storage(StorageHandleMsg),
+    Storage(StorageExecuteMsg),
 }

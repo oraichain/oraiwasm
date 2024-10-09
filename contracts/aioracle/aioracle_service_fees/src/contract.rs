@@ -1,10 +1,10 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, PagingFeesOptions, QueryMsg, UpdateContractMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, PagingFeesOptions, QueryMsg, UpdateContractMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO, SERVICE_FEES};
 
 use aioracle_base::ServiceFeesResponse;
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order,
+    attr, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, Response,
     StdError, StdResult,
 };
 use cosmwasm_std::{Coin, KV};
@@ -18,31 +18,33 @@ const DEFAULT_LIMIT: u8 = 20;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    _msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    _msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     // first time deploy, it will not know about the implementation
     let info = ContractInfo {
         creator: info.sender,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::UpdateServiceFees { fees } => try_update_service_fees(deps, info, env, fees),
-        HandleMsg::RemoveServiceFees() => try_remove_service_fees(deps, info, env),
-        HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
+        ExecuteMsg::UpdateServiceFees { fees } => try_update_service_fees(deps, info, env, fees),
+        ExecuteMsg::RemoveServiceFees() => try_remove_service_fees(deps, info, env),
+        ExecuteMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
 }
 
@@ -51,9 +53,9 @@ pub fn try_update_service_fees(
     info: MessageInfo,
     _env: Env,
     fees: Coin,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     SERVICE_FEES.save(deps.storage, info.sender.as_str(), &fees)?;
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "update_service_fees"),
@@ -61,6 +63,7 @@ pub fn try_update_service_fees(
             attr("fees amount", fees.amount),
             attr("fee denom", fees.denom),
         ],
+        events: vec![],
         data: None,
     })
 }
@@ -69,14 +72,15 @@ pub fn try_remove_service_fees(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     SERVICE_FEES.remove(deps.storage, &info.sender.as_str());
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "remove_service_fees"),
             attr("caller", info.sender),
         ],
+        events: vec![],
         data: None,
     })
 }
@@ -86,7 +90,7 @@ pub fn try_update_info(
     info: MessageInfo,
     _env: Env,
     msg: UpdateContractMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
         // Unauthorized
         if !info.sender.eq(&contract_info.creator) {
@@ -100,10 +104,11 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
+        events: vec![],
         attributes: vec![attr("action", "update_info")],
-        data: to_binary(&new_contract_info).ok(),
+        data: to_json_binary(&new_contract_info).ok(),
     })
 }
 
@@ -111,12 +116,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         // implement Query AiRequest from market base
         QueryMsg::GetListServiceFees(options) => {
-            to_binary(&query_list_service_fees(deps, &options)?)
+            to_json_binary(&query_list_service_fees(deps, &options)?)
         }
         QueryMsg::GetServiceFees { addr: address } => {
-            to_binary(&query_service_fees(deps, address)?)
+            to_json_binary(&query_service_fees(deps, address)?)
         }
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        QueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
     }
 }
 

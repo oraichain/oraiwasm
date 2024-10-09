@@ -3,16 +3,16 @@ use crate::state::{
     get_contract_token_id, get_key_royalty, royalties_map, ContractInfo, CONTRACT_INFO, PREFERENCES,
 };
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
+    attr, to_json_binary, Binary, Deps, DepsMut, Env, Response, Response, MessageInfo,
     StdError, StdResult, KV,
 };
-use cosmwasm_std::{HumanAddr, Order};
+use cosmwasm_std::{Addr, Order};
 use cw_storage_plus::{Bound, PkOwned};
 use market_ai_royalty::{
-    sanitize_royalty, AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, OffsetMsg, Royalty, RoyaltyMsg,
+    sanitize_royalty, AiRoyaltyExecuteMsg, AiRoyaltyQueryMsg, OffsetMsg, Royalty, RoyaltyMsg,
 };
 
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, UpdateContractMsg};
 
 pub const MAX_ROYALTY_PERCENT: u64 = 50;
 pub const DEFAULT_ROYALTY_PERCENT: u64 = 10;
@@ -22,12 +22,13 @@ const DEFAULT_LIMIT: u8 = 20;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     // first time deploy, it will not know about the implementation
     let info = ContractInfo {
         governance: msg.governance,
@@ -36,23 +37,24 @@ pub fn init(
         max_royalty: MAX_ROYALTY_PERCENT,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Msg(royalty_handle) => match royalty_handle {
-            AiRoyaltyHandleMsg::UpdateRoyalty(royalty) => try_update_royalty(deps, info, royalty),
-            AiRoyaltyHandleMsg::RemoveRoyalty(royalty) => try_remove_royalty(deps, info, royalty),
-            AiRoyaltyHandleMsg::UpdatePreference(pref) => try_update_preference(deps, info, pref),
+        ExecuteMsg::Msg(royalty_handle) => match royalty_handle {
+            AiRoyaltyExecuteMsg::UpdateRoyalty(royalty) => try_update_royalty(deps, info, royalty),
+            AiRoyaltyExecuteMsg::RemoveRoyalty(royalty) => try_remove_royalty(deps, info, royalty),
+            AiRoyaltyExecuteMsg::UpdatePreference(pref) => try_update_preference(deps, info, pref),
         },
-        HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
+        ExecuteMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
 }
 
@@ -63,21 +65,21 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 contract_addr,
                 token_id,
                 creator,
-            } => to_binary(&query_royalty(deps, contract_addr, token_id, creator)?),
+            } => to_json_binary(&query_royalty(deps, contract_addr, token_id, creator)?),
             AiRoyaltyQueryMsg::GetPreference { creator } => {
-                to_binary(&query_preference(deps, creator)?)
+                to_json_binary(&query_preference(deps, creator)?)
             }
             AiRoyaltyQueryMsg::GetRoyalties {
                 offset,
                 limit,
                 order,
-            } => to_binary(&query_royalties(deps, offset, limit, order)?),
+            } => to_json_binary(&query_royalties(deps, offset, limit, order)?),
             AiRoyaltyQueryMsg::GetRoyaltiesTokenId {
                 token_id,
                 offset,
                 limit,
                 order,
-            } => to_binary(&query_royalties_by_token_id(
+            } => to_json_binary(&query_royalties_by_token_id(
                 deps, token_id, offset, limit, order,
             )?),
             AiRoyaltyQueryMsg::GetRoyaltiesOwner {
@@ -85,7 +87,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 offset,
                 limit,
                 order,
-            } => to_binary(&query_royalties_by_creator(
+            } => to_json_binary(&query_royalties_by_creator(
                 deps, owner, offset, limit, order,
             )?),
             AiRoyaltyQueryMsg::GetRoyaltiesContract {
@@ -93,7 +95,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 offset,
                 limit,
                 order,
-            } => to_binary(&query_royalties_map_by_contract(
+            } => to_json_binary(&query_royalties_map_by_contract(
                 deps,
                 contract_addr,
                 offset,
@@ -106,7 +108,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 offset,
                 limit,
                 order,
-            } => to_binary(&query_royalties_map_by_contract_token_id(
+            } => to_json_binary(&query_royalties_map_by_contract_token_id(
                 deps,
                 contract_addr,
                 token_id,
@@ -114,9 +116,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 limit,
                 order,
             )?),
-            AiRoyaltyQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+            AiRoyaltyQueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
         },
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        QueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
     }
 }
 
@@ -124,17 +126,17 @@ pub fn try_update_preference(
     deps: DepsMut,
     info: MessageInfo,
     pref: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo { max_royalty, .. } = CONTRACT_INFO.load(deps.storage)?;
     let pref_royalty = sanitize_royalty(pref, max_royalty, "ai_royalty_preference")?;
     PREFERENCES.save(deps.storage, info.sender.as_bytes(), &pref_royalty)?;
-    return Ok(HandleResponse {
+    return Ok(Response {
         attributes: vec![
             attr("action", "update_preference"),
             attr("caller", info.sender),
             attr("preference", pref_royalty),
         ],
-        ..HandleResponse::default()
+        ..Response::default()
     });
 }
 
@@ -142,7 +144,7 @@ pub fn try_update_royalty(
     deps: DepsMut,
     info: MessageInfo,
     royalty: RoyaltyMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // must check the sender is implementation contract
     let ContractInfo {
         governance,
@@ -195,7 +197,7 @@ pub fn try_update_royalty(
         },
     )?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         attributes: vec![
             attr("action", "update_ai_royalty"),
             attr("contract_addr", royalty.contract_addr),
@@ -203,7 +205,7 @@ pub fn try_update_royalty(
             attr("creator", royalty.creator),
             attr("new_royalty", final_royalty),
         ],
-        ..HandleResponse::default()
+        ..Response::default()
     });
 }
 
@@ -211,7 +213,7 @@ pub fn try_remove_royalty(
     deps: DepsMut,
     info: MessageInfo,
     royalty: RoyaltyMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // must check the sender is implementation contract
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
@@ -229,14 +231,14 @@ pub fn try_remove_royalty(
         ),
     )?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         attributes: vec![
             attr("action", "remove_ai_royalty"),
             attr("contract_addr", royalty.contract_addr),
             attr("token_id", royalty.token_id),
             attr("creator", royalty.creator),
         ],
-        ..HandleResponse::default()
+        ..Response::default()
     });
 }
 
@@ -245,7 +247,7 @@ pub fn try_update_info(
     info: MessageInfo,
     _env: Env,
     msg: UpdateContractMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
         // Unauthorized
         if !info.sender.eq(&contract_info.creator) {
@@ -268,10 +270,10 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "update_info")],
-        data: to_binary(&new_contract_info).ok(),
+        data: to_json_binary(&new_contract_info).ok(),
     })
 }
 
@@ -279,15 +281,15 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
 }
 
-pub fn query_preference(deps: Deps, creator: HumanAddr) -> StdResult<u64> {
+pub fn query_preference(deps: Deps, creator: Addr) -> StdResult<u64> {
     PREFERENCES.load(deps.storage, creator.as_bytes())
 }
 
 pub fn query_royalty(
     deps: Deps,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     token_id: String,
-    creator: HumanAddr,
+    creator: Addr,
 ) -> StdResult<Royalty> {
     if let Some(kv_item) = royalties_map()
         .idx
@@ -376,7 +378,7 @@ pub fn query_royalties_by_token_id(
 
 pub fn query_royalties_by_creator(
     deps: Deps,
-    creator: HumanAddr,
+    creator: Addr,
     offset: Option<OffsetMsg>,
     limit: Option<u8>,
     order: Option<u8>,
@@ -395,7 +397,7 @@ pub fn query_royalties_by_creator(
 
 pub fn query_royalties_map_by_contract(
     deps: Deps,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     offset: Option<OffsetMsg>,
     limit: Option<u8>,
     order: Option<u8>,
@@ -414,7 +416,7 @@ pub fn query_royalties_map_by_contract(
 
 pub fn query_royalties_map_by_contract_token_id(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     token_id: String,
     offset: Option<OffsetMsg>,
     limit: Option<u8>,

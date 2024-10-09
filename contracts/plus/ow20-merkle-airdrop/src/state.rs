@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, Addr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -9,8 +9,8 @@ use cw_storage_plus::{Item, Map, U8Key};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     /// Owner If None set, contract is frozen.
-    pub owner: Option<HumanAddr>,
-    pub cw20_token_address: HumanAddr,
+    pub owner: Option<Addr>,
+    pub cw20_token_address: Addr,
 }
 
 pub const CONFIG_KEY: &str = "config";

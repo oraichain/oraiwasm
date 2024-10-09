@@ -1,7 +1,7 @@
 use crate::error::ContractError;
-use crate::msg::{DataSourceQueryMsg, HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{DataSourceQueryMsg, ExecuteMsg, InstantiateMsg, QueryMsg};
 use cosmwasm_std::{
-    to_binary, Api, Binary, Env, Extern, HandleResponse, HumanAddr, InitResponse, MessageInfo,
+    to_json_binary, Api, Binary, Env, Extern, Response, Addr, Response, MessageInfo,
     Querier, StdResult, Storage,
 };
 
@@ -11,9 +11,9 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     _deps: &mut Extern<S, A, Q>,
     _env: Env,
     _info: MessageInfo,
-    _: InitMsg,
-) -> StdResult<InitResponse> {
-    Ok(InitResponse::default())
+    _: InstantiateMsg,
+) -> StdResult<Response> {
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
@@ -21,9 +21,9 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     _: &mut Extern<S, A, Q>,
     _env: Env,
     _: MessageInfo,
-    _: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
-    Ok(HandleResponse::default())
+    _: ExecuteMsg,
+) -> Result<Response, ContractError> {
+    Ok(Response::default())
 }
 
 pub fn query<S: Storage, A: Api, Q: Querier>(
@@ -36,13 +36,13 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
             input,
             output,
             contract,
-        } => to_binary(&test_datasource(deps, &contract, input, output)?),
+        } => to_json_binary(&test_datasource(deps, &contract, input, output)?),
     }
 }
 
 fn test_datasource<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>,
-    contract: &HumanAddr,
+    contract: &Addr,
     input: String,
     output: String,
 ) -> StdResult<String> {

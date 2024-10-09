@@ -1,7 +1,7 @@
 use crate::error::ContractError;
 use crate::msg::{
-    AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, DataSourceResultMsg, HandleMsg, InitMsg,
-    QueryMsg, StateMsg,
+    AIRequestMsg, AIRequestsResponse, DataSourceQueryMsg, DataSourceResultMsg, ExecuteMsg,
+    InstantiateMsg, QueryMsg, StateMsg,
 };
 use crate::state::{
     ai_requests, increment_requests, num_requests, query_state, save_state, AIRequest,
@@ -10,9 +10,8 @@ use crate::state::{
 use crate::{Rewards, TestCaseResultMsg};
 use bech32;
 use cosmwasm_std::{
-    attr, from_binary, from_slice, to_binary, to_vec, BankMsg, Binary, Coin, CosmosMsg, Deps,
-    DepsMut, Env, HandleResponse, HumanAddr, InitResponse, MessageInfo, Order, StdError, StdResult,
-    Uint128,
+    attr, from_binary, from_slice, to_json_binary, to_vec, Addr, BankMsg, Binary, Coin, CosmosMsg,
+    Deps, DepsMut, Env, MessageInfo, Order, Response, Response, StdError, StdResult, Uint128,
 };
 use std::u64;
 
@@ -25,7 +24,7 @@ const DEFAULT_LIMIT: u8 = 10;
 const MAX_LIMIT: u8 = 30;
 type AggregateHandler = fn(&mut DepsMut, &Env, &MessageInfo, &[String]) -> StdResult<Binary>;
 
-pub fn init_aioracle(deps: DepsMut, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+pub fn init_aioracle(deps: DepsMut, info: MessageInfo, msg: InstantiateMsg) -> StdResult<Response> {
     let state = State {
         owner: info.sender.clone(),
         dsources: msg.dsources,
@@ -35,27 +34,27 @@ pub fn init_aioracle(deps: DepsMut, info: MessageInfo, msg: InitMsg) -> StdResul
     // save owner
     save_state(deps.storage, &state)?;
     THRESHOLD.save(deps.storage, &msg.threshold)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 pub fn handle_aioracle(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
+    msg: ExecuteMsg,
     aggregate: AggregateHandler,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::SetState(state) => try_update_state(deps, info, state),
-        HandleMsg::SetValidatorFees { fees } => try_set_validator_fees(deps, info, fees),
-        HandleMsg::CreateAiRequest(ai_request_msg) => {
+        ExecuteMsg::SetState(state) => try_update_state(deps, info, state),
+        ExecuteMsg::SetValidatorFees { fees } => try_set_validator_fees(deps, info, fees),
+        ExecuteMsg::CreateAiRequest(ai_request_msg) => {
             try_create_airequest(deps, info, ai_request_msg)
         }
-        HandleMsg::Aggregate {
+        ExecuteMsg::Aggregate {
             request_id,
             dsource_results,
         } => try_aggregate(deps, env, info, request_id, dsource_results, aggregate),
-        HandleMsg::SetThreshold(value) => try_set_threshold(deps, info, value),
+        ExecuteMsg::SetThreshold(value) => try_set_threshold(deps, info, value),
     }
 }
 
@@ -68,13 +67,15 @@ pub fn query_aioracle(deps: Deps, msg: QueryMsg) -> StdResult<Binary> {
         }
         QueryMsg::GetTestCasesRequest { request_id } => query_testcases_request(deps, request_id),
         QueryMsg::GetThreshold {} => query_threshold(deps),
-        QueryMsg::GetRequest { request_id } => to_binary(&query_airequest(deps, request_id)?),
+        QueryMsg::GetRequest { request_id } => to_json_binary(&query_airequest(deps, request_id)?),
         QueryMsg::GetRequests {
             limit,
             offset,
             order,
-        } => to_binary(&query_airequests(deps, limit, offset, order)?),
-        QueryMsg::GetMinFees { validators } => to_binary(&query_min_fees_simple(deps, validators)?),
+        } => to_json_binary(&query_airequests(deps, limit, offset, order)?),
+        QueryMsg::GetMinFees { validators } => {
+            to_json_binary(&query_min_fees_simple(deps, validators)?)
+        }
     }
 }
 
@@ -82,7 +83,7 @@ fn try_update_state(
     deps: DepsMut,
     info: MessageInfo,
     state_msg: StateMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let mut state = query_state(deps.storage)?;
     if info.sender != state.owner {
         return Err(ContractError::Unauthorized(format!(
@@ -102,7 +103,7 @@ fn try_update_state(
     }
     save_state(deps.storage, &state)?;
 
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
 fn search_validator(deps: Deps, validator: &str) -> bool {
@@ -127,7 +128,7 @@ fn search_validator(deps: Deps, validator: &str) -> bool {
     return false;
 }
 
-fn convert_to_validator(address: &str) -> Result<HumanAddr, ContractError> {
+fn convert_to_validator(address: &str) -> Result<Addr, ContractError> {
     let decode_result = bech32::decode(address);
     if decode_result.is_err() {
         return Err(ContractError::CannotDecode(format!(
@@ -145,10 +146,10 @@ fn convert_to_validator(address: &str) -> Result<HumanAddr, ContractError> {
             validator_result.err()
         )));
     }
-    return Ok(HumanAddr(validator_result.unwrap()));
+    return Ok(Addr(validator_result.unwrap()));
 }
 
-fn validate_validators(deps: Deps, validators: Vec<HumanAddr>) -> bool {
+fn validate_validators(deps: Deps, validators: Vec<Addr>) -> bool {
     // if any validator in the list of validators does not match => invalid
     for validator in validators {
         // convert to search validator
@@ -163,7 +164,7 @@ fn try_create_airequest(
     deps: DepsMut,
     info: MessageInfo,
     ai_request_msg: AIRequestMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // validate list validators
     if !validate_validators(deps.as_ref(), ai_request_msg.validators.clone()) {
         return Err(ContractError::InvalidValidators());
@@ -202,8 +203,8 @@ fn try_create_airequest(
     // set request after verifying the fees
     let request_id = increment_requests(deps.storage)?;
 
-    let data_sources: Vec<HumanAddr> = from_binary(&query_datasources(deps.as_ref())?)?;
-    let test_cases: Vec<HumanAddr> = from_binary(&query_testcases(deps.as_ref())?)?;
+    let data_sources: Vec<Addr> = from_binary(&query_datasources(deps.as_ref())?)?;
+    let test_cases: Vec<Addr> = from_binary(&query_testcases(deps.as_ref())?)?;
 
     let ai_request = AIRequest {
         request_id,
@@ -238,7 +239,7 @@ fn try_create_airequest(
         attrs.push(attr("validator", validator));
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: attrs,
         data: None,
@@ -285,7 +286,7 @@ fn process_test_cases(
 fn process_data_sources(
     dsource_results: Vec<String>,
     ai_request: &AIRequest,
-    contract_addr: &HumanAddr,
+    contract_addr: &Addr,
 ) -> Result<(DataSourceResults, Vec<String>, Vec<CosmosMsg>), ContractError> {
     let mut dsources_results = DataSourceResults {
         contract: vec![],
@@ -341,7 +342,7 @@ fn process_data_sources(
     Ok((dsources_results, results, cosmos_msgs))
 }
 
-fn validate_ai_request(ai_request: &AIRequest, sender: &HumanAddr) -> Option<ContractError> {
+fn validate_ai_request(ai_request: &AIRequest, sender: &Addr) -> Option<ContractError> {
     if ai_request
         .validators
         .iter()
@@ -398,7 +399,7 @@ fn try_aggregate(
     request_id: u64,
     dsource_results: Vec<String>,
     aggregate: AggregateHandler,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ai_requests = ai_requests();
     let mut ai_request = ai_requests.load(deps.storage, &request_id.to_be_bytes())?;
     let validator = info.sender.clone();
@@ -468,7 +469,7 @@ fn try_aggregate(
         &ai_request,
     )?;
 
-    let res = HandleResponse {
+    let res = Response {
         messages: cosmos_msgs,
         attributes: vec![
             attr("aggregated_result", aggregated_result),
@@ -488,7 +489,7 @@ fn try_set_validator_fees(
     deps: DepsMut,
     info: MessageInfo,
     fees: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let validator = convert_to_validator(info.sender.as_str())?;
     if !search_validator(deps.as_ref(), validator.as_str()) {
         return Err(ContractError::ValidatorNotFound(format!(
@@ -497,14 +498,14 @@ fn try_set_validator_fees(
         )));
     }
     VALIDATOR_FEES.save(deps.storage, info.sender.as_str(), &fees)?;
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
 fn try_set_threshold(
     deps: DepsMut,
     info: MessageInfo,
     value: u8,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let state = query_state(deps.storage)?;
     if info.sender != state.owner {
         return Err(ContractError::Unauthorized(format!(
@@ -513,43 +514,43 @@ fn try_set_threshold(
         )));
     }
     THRESHOLD.save(deps.storage, &value)?;
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
 pub fn query_datasources(deps: Deps) -> StdResult<Binary> {
     let state = query_state(deps.storage)?;
-    to_binary(&state.dsources)
+    to_json_binary(&state.dsources)
 }
 
 pub fn query_testcases(deps: Deps) -> StdResult<Binary> {
     let state = query_state(deps.storage)?;
-    to_binary(&state.tcases)
+    to_json_binary(&state.tcases)
 }
 
 pub fn query_datasources_request(deps: Deps, request_id: u64) -> StdResult<Binary> {
     let request = ai_requests().load(deps.storage, &request_id.to_be_bytes())?;
-    to_binary(&request.data_sources)
+    to_json_binary(&request.data_sources)
 }
 
 pub fn query_testcases_request(deps: Deps, request_id: u64) -> StdResult<Binary> {
     let request = ai_requests().load(deps.storage, &request_id.to_be_bytes())?;
-    to_binary(&request.test_cases)
+    to_json_binary(&request.test_cases)
 }
 
 pub fn query_threshold(deps: Deps) -> StdResult<Binary> {
     let threshold = THRESHOLD.load(deps.storage)?;
-    to_binary(&threshold)
+    to_json_binary(&threshold)
 }
 
 pub fn query_airequest(deps: Deps, request_id: u64) -> StdResult<AIRequest> {
     ai_requests().load(deps.storage, &request_id.to_be_bytes())
 }
 
-pub fn query_info(deps: Deps, dsource: HumanAddr, msg: &DataSourceQueryMsg) -> StdResult<String> {
+pub fn query_info(deps: Deps, dsource: Addr, msg: &DataSourceQueryMsg) -> StdResult<String> {
     deps.querier.query_wasm_smart(dsource, msg)
 }
 
-pub fn query_min_fees_simple(deps: Deps, validators: Vec<HumanAddr>) -> StdResult<Uint128> {
+pub fn query_min_fees_simple(deps: Deps, validators: Vec<Addr>) -> StdResult<Uint128> {
     let dsources = query_state(deps.storage)?.dsources;
     let mut total: u64 = 0u64;
 
@@ -559,7 +560,7 @@ pub fn query_min_fees_simple(deps: Deps, validators: Vec<HumanAddr>) -> StdResul
     return Ok(Uint128::from(total));
 }
 
-fn query_dsources_fees(deps: Deps, dsources: Vec<HumanAddr>) -> (u64, Vec<Fees>) {
+fn query_dsources_fees(deps: Deps, dsources: Vec<Addr>) -> (u64, Vec<Fees>) {
     let mut total: u64 = 0u64;
     let mut list_fees: Vec<Fees> = vec![];
 
@@ -583,7 +584,7 @@ fn query_dsources_fees(deps: Deps, dsources: Vec<HumanAddr>) -> (u64, Vec<Fees>)
     return (total, list_fees);
 }
 
-fn query_validator_fees(deps: Deps, validators: Vec<HumanAddr>) -> (u64, Vec<Fees>) {
+fn query_validator_fees(deps: Deps, validators: Vec<Addr>) -> (u64, Vec<Fees>) {
     let mut total: u64 = 0u64;
     let mut list_fees: Vec<Fees> = vec![];
 

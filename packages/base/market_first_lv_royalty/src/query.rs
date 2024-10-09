@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -13,19 +13,19 @@ pub enum FirstLvRoyaltyQueryMsg {
         order: Option<u8>,
     },
     GetFirstLvRoyaltiesByCurrentOwner {
-        current_owner: HumanAddr,
+        current_owner: Addr,
         offset: Option<OffsetMsg>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetFirstLvRoyaltiesByContract {
-        contract: HumanAddr,
+        contract: Addr,
         offset: Option<OffsetMsg>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetFirstLvRoyalty {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
     },
     GetContractInfo {},
@@ -36,8 +36,8 @@ pub struct QueryFirstLvResult {
     pub id: u64,
     pub token_id: String,
     pub price: Uint128,
-    pub contract_addr: HumanAddr,
-    pub seller: HumanAddr,
+    pub contract_addr: Addr,
+    pub seller: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -47,6 +47,6 @@ pub struct FirstLvsResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OffsetMsg {
-    pub contract: HumanAddr,
+    pub contract: Addr,
     pub token_id: String,
 }

@@ -15,18 +15,18 @@ use crate::offering::{
 
 use crate::error::ContractError;
 use crate::msg::{
-    GiftNft, HandleMsg, InitMsg, MigrateMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg,
+    ExecuteMsg, GiftNft, InstantiateMsg, MigrateMsg, ProxyExecuteMsg, ProxyQueryMsg, QueryMsg,
     UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
-    InitResponse, MessageInfo, MigrateResponse, StdError, StdResult, Uint128, WasmMsg,
+    attr, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo,
+    MigrateResponse, Response, Response, StdError, StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{from_binary, HumanAddr};
+use cosmwasm_std::{from_binary, Addr};
 use cw20::Cw20ReceiveMsg;
-use cw721::{Cw721HandleMsg, Cw721QueryMsg, OwnerOfResponse};
-use market::{parse_token_id, AssetInfo, Funds, StorageHandleMsg, StorageQueryMsg, TokenInfo};
+use cw721::{Cw721ExecuteMsg, Cw721QueryMsg, OwnerOfResponse};
+use market::{parse_token_id, AssetInfo, Funds, StorageExecuteMsg, StorageQueryMsg, TokenInfo};
 use market_ai_royalty::sanitize_royalty;
 use market_auction::{AuctionQueryMsg, QueryAuctionsResult};
 use market_payment::PaymentQueryMsg;
@@ -54,12 +54,13 @@ fn sanitize_fee(fee: u64, limit: u64, name: &str) -> Result<u64, ContractError> 
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     let info = ContractInfo {
         name: msg.name,
         creator: info.sender.to_string(),
@@ -73,20 +74,21 @@ pub fn init(
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Receive(msg) => try_receive_cw20(deps, info, env, msg),
+        ExecuteMsg::Receive(msg) => try_receive_cw20(deps, info, env, msg),
         // auction
-        HandleMsg::BidNft { auction_id } => try_bid_nft(
+        ExecuteMsg::BidNft { auction_id } => try_bid_nft(
             deps,
             info.sender,
             env,
@@ -96,12 +98,12 @@ pub fn handle(
             },
             // Some(info.sent_funds),
         ),
-        HandleMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
-        // HandleMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
-        HandleMsg::EmergencyCancelAuction { auction_id } => {
+        ExecuteMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
+        // ExecuteMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
+        ExecuteMsg::EmergencyCancelAuction { auction_id } => {
             try_emergency_cancel_auction(deps, info, env, auction_id)
         }
-        HandleMsg::AskNft {
+        ExecuteMsg::AskNft {
             token_id,
             contract_addr,
             price,
@@ -129,19 +131,19 @@ pub fn handle(
             step_price,
             royalty,
         ),
-        HandleMsg::SellNft {
+        ExecuteMsg::SellNft {
             contract_addr,
             token_id,
             royalty,
             off_price,
         } => try_handle_sell_nft(deps, env, info, contract_addr, token_id, off_price, royalty),
-        HandleMsg::CancelBid { auction_id } => try_cancel_bid(deps, info, env, auction_id),
-        HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
-        HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
+        ExecuteMsg::CancelBid { auction_id } => try_cancel_bid(deps, info, env, auction_id),
+        ExecuteMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
+        ExecuteMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
         // royalty
-        HandleMsg::MintNft(msg) => try_handle_mint(deps, info, msg),
-        HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, env, offering_id),
-        HandleMsg::BuyNft { offering_id } => try_buy(
+        ExecuteMsg::MintNft(msg) => try_handle_mint(deps, info, msg),
+        ExecuteMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, env, offering_id),
+        ExecuteMsg::BuyNft { offering_id } => try_buy(
             deps,
             info.sender,
             env,
@@ -151,7 +153,7 @@ pub fn handle(
             },
             // Some(info.sent_funds),
         ),
-        HandleMsg::MigrateVersion {
+        ExecuteMsg::MigrateVersion {
             nft_contract_addr,
             token_ids,
             new_marketplace,
@@ -163,15 +165,15 @@ pub fn handle(
             nft_contract_addr,
             new_marketplace,
         ),
-        HandleMsg::UpdateCreatorRoyalty(royalty_msg) => {
+        ExecuteMsg::UpdateCreatorRoyalty(royalty_msg) => {
             try_update_royalty_creator(deps, info, royalty_msg)
         }
-        HandleMsg::UpdateRoyalties { royalty } => try_update_royalties(deps, info, env, royalty),
-        HandleMsg::ApproveAll {
+        ExecuteMsg::UpdateRoyalties { royalty } => try_update_royalties(deps, info, env, royalty),
+        ExecuteMsg::ApproveAll {
             contract_addr,
             operator,
         } => try_approve_all(deps, info, contract_addr, operator),
-        HandleMsg::TransferNftDirectly(gift_msg) => handle_transfer_nft(deps, info, gift_msg),
+        ExecuteMsg::TransferNftDirectly(gift_msg) => handle_transfer_nft(deps, info, gift_msg),
     }
 }
 
@@ -179,8 +181,8 @@ pub fn handle(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
-        QueryMsg::GetMarketFees {} => to_binary(&query_market_fees(deps)?),
+        QueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
+        QueryMsg::GetMarketFees {} => to_json_binary(&query_market_fees(deps)?),
         QueryMsg::Auction(auction_msg) => query_auction(deps, auction_msg),
         QueryMsg::Offering(offering_msg) => query_offering(deps, offering_msg),
         QueryMsg::AiRoyalty(ai_royalty_msg) => query_ai_royalty(deps, ai_royalty_msg),
@@ -188,12 +190,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-pub fn migrate(
-    deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _msg: MigrateMsg,
-) -> StdResult<MigrateResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateResponse> {
     // MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
     Ok(MigrateResponse::default())
 }
@@ -205,7 +203,7 @@ pub fn try_receive_cw20(
     _info: MessageInfo,
     env: Env,
     cw20_msg: Cw20ReceiveMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     match from_binary(&cw20_msg.msg.unwrap_or(Binary::default())) {
         Ok(Cw20HookMsg::BuyNft { offering_id }) => try_buy(
             deps,
@@ -238,16 +236,16 @@ pub fn try_withdraw_funds(
     _info: MessageInfo,
     env: Env,
     fund: Coin,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address,
-        to_address: HumanAddr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
+        to_address: Addr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![bank_msg],
         attributes: vec![
             attr("action", "withdraw_funds"),
@@ -264,7 +262,7 @@ pub fn try_update_info(
     info: MessageInfo,
     _env: Env,
     msg: UpdateContractMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
         // Unauthorized
         if !info.sender.to_string().eq(&contract_info.creator) {
@@ -299,10 +297,10 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "update_info")],
-        data: to_binary(&new_contract_info).ok(),
+        data: to_json_binary(&new_contract_info).ok(),
     })
 }
 
@@ -312,7 +310,7 @@ pub fn try_update_info(
 //     info: MessageInfo,
 //     env: Env,
 //     rcv_msg: Cw721ReceiveMsg,
-// ) -> Result<HandleResponse, ContractError> {
+// ) -> Result<Response, ContractError> {
 //     if let Some(msg) = rcv_msg.msg.clone() {
 //         if let Ok(ask_msg) = from_binary::<AskNftMsg>(&msg) {
 //             return handle_ask_auction(deps, info, env, ask_msg, rcv_msg);
@@ -332,11 +330,11 @@ pub fn try_migrate(
     info: MessageInfo,
     _env: Env,
     token_ids: Vec<String>,
-    nft_contract_addr: HumanAddr,
-    new_marketplace: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    nft_contract_addr: Addr,
+    new_marketplace: Addr,
+) -> Result<Response, ContractError> {
     let ContractInfo { creator, .. } = CONTRACT_INFO.load(deps.storage)?;
-    if info.sender.ne(&HumanAddr(creator.clone())) {
+    if info.sender.ne(&Addr(creator.clone())) {
         return Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
         });
@@ -345,20 +343,20 @@ pub fn try_migrate(
     for token_id in token_ids.clone() {
         // check if token_id is currently sold by the requesting address
         // transfer token back to original owner
-        let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+        let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
             recipient: new_marketplace.clone(),
             token_id,
         };
 
         let exec_cw721_transfer = WasmMsg::Execute {
             contract_addr: nft_contract_addr.clone(),
-            msg: to_binary(&transfer_cw721_msg)?,
-            send: vec![],
+            msg: to_json_binary(&transfer_cw721_msg)?,
+            funds: vec![],
         }
         .into();
         cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
     }
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cw721_transfer_cosmos_msg,
         attributes: vec![
             attr("action", "migrate_marketplace"),
@@ -374,7 +372,7 @@ pub fn handle_transfer_nft(
     deps: DepsMut,
     info: MessageInfo,
     gift_msg: GiftNft,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let GiftNft {
         contract_addr,
         token_id,
@@ -382,20 +380,16 @@ pub fn handle_transfer_nft(
         ..
     } = gift_msg;
 
-    
     // verify owner. Wont allow to transfer if it's not the owner of the nft
     // verify_owner(
-        //     deps.as_ref(),
-        //     contract_addr.as_str(),
-        //     token_id.as_str(),
-        //     info.sender.as_str(),
-        // )?;
-        
-    let ContractInfo {
-            governance,
-            ..
-    } = CONTRACT_INFO.load(deps.storage)?;
-    
+    //     deps.as_ref(),
+    //     contract_addr.as_str(),
+    //     token_id.as_str(),
+    //     info.sender.as_str(),
+    // )?;
+
+    let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
+
     verify_nft(
         deps.as_ref(),
         &governance,
@@ -405,19 +399,19 @@ pub fn handle_transfer_nft(
     )?;
 
     let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
-    let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+    let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
         recipient: recipient.clone(),
         token_id: token_id.clone(),
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
         contract_addr: contract_addr.clone(),
-        msg: to_binary(&transfer_cw721_msg)?,
-        send: vec![],
+        msg: to_json_binary(&transfer_cw721_msg)?,
+        funds: vec![],
     }
     .into();
     cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cw721_transfer_cosmos_msg,
         attributes: vec![
             attr("action", "transfer_nft_directly"),
@@ -432,9 +426,9 @@ pub fn handle_transfer_nft(
 pub fn try_approve_all(
     deps: DepsMut,
     info: MessageInfo,
-    contract_addr: HumanAddr,
-    operator: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    contract_addr: Addr,
+    operator: Addr,
+) -> Result<Response, ContractError> {
     let ContractInfo { creator, .. } = CONTRACT_INFO.load(deps.storage)?;
     if creator.ne(&info.sender.to_string()) {
         return Err(ContractError::Unauthorized {
@@ -443,19 +437,19 @@ pub fn try_approve_all(
     }
 
     let mut cw721_transfer_cosmos_msg: Vec<CosmosMsg> = vec![];
-    let transfer_cw721_msg = Cw721HandleMsg::ApproveAll {
+    let transfer_cw721_msg = Cw721ExecuteMsg::ApproveAll {
         operator: operator.clone(),
         expires: None,
     };
 
     let exec_cw721_transfer = WasmMsg::Execute {
         contract_addr: contract_addr.clone(),
-        msg: to_binary(&transfer_cw721_msg)?,
-        send: vec![],
+        msg: to_json_binary(&transfer_cw721_msg)?,
+        funds: vec![],
     }
     .into();
     cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cw721_transfer_cosmos_msg,
         attributes: vec![
             attr("action", "approve_all"),
@@ -484,7 +478,7 @@ pub fn verify_owner(
         .ok();
 
     if let Some(nft_owners) = nft_owners {
-        if nft_owners.owner.ne(&HumanAddr::from(sender)) {
+        if nft_owners.owner.ne(&Addr::from(sender)) {
             return Err(ContractError::Unauthorized {
                 sender: sender.to_string(),
             });
@@ -509,7 +503,7 @@ pub fn verify_nft(
 
     // verify if the nft contract address is whitelisted. If not => reject
     let is_approved: IsApprovedForAllResponse = deps.querier.query_wasm_smart(
-        get_storage_addr(deps, HumanAddr::from(governance), WHITELIST_STORAGE)?,
+        get_storage_addr(deps, Addr::from(governance), WHITELIST_STORAGE)?,
         &ProxyQueryMsg::Msg(MarketWhiteListdQueryMsg::IsApprovedForAll {
             nft_addr: contract_addr.to_string(),
         }),
@@ -523,9 +517,9 @@ pub fn verify_nft(
     let offering_result: Result<QueryOfferingsResult, ContractError> = deps
         .querier
         .query_wasm_smart(
-            get_storage_addr(deps, HumanAddr::from(governance), OFFERING_STORAGE)?,
+            get_storage_addr(deps, Addr::from(governance), OFFERING_STORAGE)?,
             &ProxyQueryMsg::Offering(OfferingQueryMsg::GetOfferingByContractTokenId {
-                contract: HumanAddr::from(contract_addr),
+                contract: Addr::from(contract_addr),
                 token_id: token_id.to_string(),
             }) as &ProxyQueryMsg,
         )
@@ -539,9 +533,9 @@ pub fn verify_nft(
     let auction: Option<QueryAuctionsResult> = deps
         .querier
         .query_wasm_smart(
-            get_storage_addr(deps, HumanAddr::from(governance), AUCTION_STORAGE)?,
+            get_storage_addr(deps, Addr::from(governance), AUCTION_STORAGE)?,
             &ProxyQueryMsg::Auction(AuctionQueryMsg::GetAuctionByContractTokenId {
-                contract: HumanAddr::from(contract_addr),
+                contract: Addr::from(contract_addr),
                 token_id: token_id.to_string(),
             }) as &ProxyQueryMsg,
         )
@@ -644,7 +638,7 @@ pub fn query_market_fees(deps: Deps) -> StdResult<Uint128> {
 pub fn query_offering_payment_asset_info(
     deps: Deps,
     governance: &str,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     token_id: &str,
 ) -> StdResult<AssetInfo> {
     // collect payment type
@@ -661,7 +655,7 @@ pub fn query_offering_payment_asset_info(
 pub fn query_auction_payment_asset_info(
     deps: Deps,
     governance: &str,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     token_id: &str,
 ) -> StdResult<AssetInfo> {
     // collect payment type
@@ -676,7 +670,7 @@ pub fn query_auction_payment_asset_info(
 }
 
 // remove recursive by query storage_addr first, then call query_proxy
-pub fn get_storage_addr(deps: Deps, contract: HumanAddr, name: &str) -> StdResult<HumanAddr> {
+pub fn get_storage_addr(deps: Deps, contract: Addr, name: &str) -> StdResult<Addr> {
     deps.querier.query_wasm_smart(
         contract,
         &ProxyQueryMsg::Storage(StorageQueryMsg::QueryStorageAddr {
@@ -689,17 +683,17 @@ pub fn get_handle_msg<T>(addr: &str, name: &str, msg: T) -> StdResult<CosmosMsg>
 where
     T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
 {
-    let msg = to_binary(&ProxyHandleMsg::Msg(msg))?;
-    let proxy_msg: ProxyHandleMsg<Empty> =
-        ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
+    let msg = to_json_binary(&ProxyExecuteMsg::Msg(msg))?;
+    let proxy_msg: ProxyExecuteMsg<Empty> =
+        ProxyExecuteMsg::Storage(StorageExecuteMsg::UpdateStorageData {
             name: name.to_string(),
             msg,
         });
 
     Ok(WasmMsg::Execute {
-        contract_addr: HumanAddr::from(addr),
-        msg: to_binary(&proxy_msg)?,
-        send: vec![],
+        contract_addr: Addr::from(addr),
+        msg: to_json_binary(&proxy_msg)?,
+        funds: vec![],
     }
     .into())
 }

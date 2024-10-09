@@ -1,5 +1,5 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
     annotation_results, annotation_reviewers, annotations, get_contract_token_id,
     get_unique_annotation_reviewer_key, get_unique_key, increment_annotation_result,
@@ -7,14 +7,14 @@ use crate::state::{
     increment_reviewed_upload, offerings, reviewed_uploads, ContractInfo, CONTRACT_INFO,
 };
 use market_datahub::{
-    Annotation, AnnotationResult, AnnotationReviewer, DataHubHandleMsg, DataHubQueryMsg, Offering,
+    Annotation, AnnotationResult, AnnotationReviewer, DataHubExecuteMsg, DataHubQueryMsg, Offering,
 };
 
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order,
+    attr, to_json_binary, Binary, Deps, DepsMut, Env, Response, Response, MessageInfo, Order,
     StdError, StdResult,
 };
-use cosmwasm_std::{HumanAddr, KV};
+use cosmwasm_std::{Addr, KV};
 use cw_storage_plus::Bound;
 use std::convert::TryInto;
 use std::usize;
@@ -25,57 +25,59 @@ const DEFAULT_LIMIT: u8 = 20;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     // first time deploy, it will not know about the implementation
     let info = ContractInfo {
         governance: msg.governance,
         creator: info.sender,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Msg(offering_handle) => match offering_handle {
-            DataHubHandleMsg::UpdateOffering { offering } => {
+        ExecuteMsg::Msg(offering_handle) => match offering_handle {
+            DataHubExecuteMsg::UpdateOffering { offering } => {
                 try_update_offering(deps, info, env, offering)
             }
-            DataHubHandleMsg::RemoveOffering { id } => try_withdraw_offering(deps, info, env, id),
-            DataHubHandleMsg::UpdateAnnotation { annotation } => {
+            DataHubExecuteMsg::RemoveOffering { id } => try_withdraw_offering(deps, info, env, id),
+            DataHubExecuteMsg::UpdateAnnotation { annotation } => {
                 try_update_annotation(deps, info, env, annotation)
             }
-            DataHubHandleMsg::RemoveAnnotation { id } => try_withdraw_annotation(deps, info, id),
-            DataHubHandleMsg::AddAnnotationResult { annotation_result } => {
+            DataHubExecuteMsg::RemoveAnnotation { id } => try_withdraw_annotation(deps, info, id),
+            DataHubExecuteMsg::AddAnnotationResult { annotation_result } => {
                 try_update_annotation_results(deps, info, env, annotation_result)
             }
-            DataHubHandleMsg::AddAnnotationReviewer {
+            DataHubExecuteMsg::AddAnnotationReviewer {
                 annotation_id,
                 reviewer_address,
             } => try_add_annotation_reviewer(deps, info, env, annotation_id, reviewer_address),
-            DataHubHandleMsg::RemoveAnnotationReviewer {
+            DataHubExecuteMsg::RemoveAnnotationReviewer {
                 annotation_id,
                 reviewer_address,
             } => try_remove_annotation_reviewer(deps, info, env, annotation_id, reviewer_address),
-            DataHubHandleMsg::RemoveAnnotationResultData { annotation_id } => {
+            DataHubExecuteMsg::RemoveAnnotationResultData { annotation_id } => {
                 try_remove_annotation_result_data(deps, info, env, annotation_id)
             }
-            DataHubHandleMsg::AddReviewedUpload { reviewed_result } => {
+            DataHubExecuteMsg::AddReviewedUpload { reviewed_result } => {
                 try_add_reviewed_upload(deps, info, env, reviewed_result)
             }
         },
-        HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
+        ExecuteMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
 }
 
@@ -86,13 +88,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_offerings(deps, limit, offset, order)?),
+            } => to_json_binary(&query_offerings(deps, limit, offset, order)?),
             DataHubQueryMsg::GetOfferingsBySeller {
                 seller,
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_offerings_by_seller(
+            } => to_json_binary(&query_offerings_by_seller(
                 deps, seller, limit, offset, order,
             )?),
             DataHubQueryMsg::GetOfferingsByContract {
@@ -100,11 +102,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_offerings_by_contract(
+            } => to_json_binary(&query_offerings_by_contract(
                 deps, contract, limit, offset, order,
             )?),
             DataHubQueryMsg::GetOffering { offering_id } => {
-                to_binary(&query_offering(deps, offering_id)?)
+                to_json_binary(&query_offering(deps, offering_id)?)
             }
             DataHubQueryMsg::GetOfferingsByContractTokenId {
                 contract,
@@ -112,29 +114,29 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_offerings_by_contract_token_id(
+            } => to_json_binary(&query_offerings_by_contract_token_id(
                 deps, contract, token_id, limit, offset, order,
             )?),
             DataHubQueryMsg::GetUniqueOffering {
                 contract,
                 token_id,
                 owner,
-            } => to_binary(&query_unique_offering(deps, contract, token_id, owner)?),
+            } => to_json_binary(&query_unique_offering(deps, contract, token_id, owner)?),
             DataHubQueryMsg::GetAnnotations {
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_annotations(deps, limit, offset, order)?),
+            } => to_json_binary(&query_annotations(deps, limit, offset, order)?),
             DataHubQueryMsg::GetAnnotationsByContract {
                 contract,
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_annotations_by_contract(
+            } => to_json_binary(&query_annotations_by_contract(
                 deps, contract, limit, offset, order,
             )?),
             DataHubQueryMsg::GetAnnotation { annotation_id } => {
-                to_binary(&query_annotation(deps, annotation_id)?)
+                to_json_binary(&query_annotation(deps, annotation_id)?)
             }
             DataHubQueryMsg::GetAnnotationsByContractTokenId {
                 contract,
@@ -142,7 +144,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_annotations_by_contract_tokenid(
+            } => to_json_binary(&query_annotations_by_contract_tokenid(
                 deps, contract, token_id, limit, offset, order,
             )?),
             DataHubQueryMsg::GetAnnotationsByRequester {
@@ -150,54 +152,54 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_annotations_by_requester(
+            } => to_json_binary(&query_annotations_by_requester(
                 deps, requester, limit, offset, order,
             )?),
             DataHubQueryMsg::GetAnnotationResult {
                 annotation_result_id,
-            } => to_binary(&query_annotation_result(deps, annotation_result_id)?),
+            } => to_json_binary(&query_annotation_result(deps, annotation_result_id)?),
 
-            DataHubQueryMsg::GetAnnotationResultsByAnnotationId { annotation_id } => to_binary(
+            DataHubQueryMsg::GetAnnotationResultsByAnnotationId { annotation_id } => to_json_binary(
                 &query_annotation_results_by_annotation_id(deps, annotation_id)?,
             ),
-            DataHubQueryMsg::GetAnnotationResultByReviewer { reviewer_address } => to_binary(
+            DataHubQueryMsg::GetAnnotationResultByReviewer { reviewer_address } => to_json_binary(
                 &query_annotation_results_by_reviewer(deps, reviewer_address)?,
             ),
             DataHubQueryMsg::GetAnnotationResultsByAnnotationIdAndReviewer {
                 annotation_id,
                 reviewer_address,
-            } => to_binary(&query_annotation_result_by_annotation_and_reviewer(
+            } => to_json_binary(&query_annotation_result_by_annotation_and_reviewer(
                 deps,
                 annotation_id,
                 reviewer_address,
             )?),
-            DataHubQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+            DataHubQueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
 
             DataHubQueryMsg::GetAnnotationReviewerByUniqueKey {
                 annotation_id,
                 reviewer_address,
-            } => to_binary(&query_annotation_reviewer_by_unique_key(
+            } => to_json_binary(&query_annotation_reviewer_by_unique_key(
                 deps,
                 annotation_id,
                 reviewer_address,
             )?),
 
-            DataHubQueryMsg::GetAnnotationReviewerByAnnotationId { annotation_id } => to_binary(
+            DataHubQueryMsg::GetAnnotationReviewerByAnnotationId { annotation_id } => to_json_binary(
                 &query_annotation_reviewer_by_annotation_id(deps, annotation_id)?,
             ),
-            DataHubQueryMsg::GetReviewedUploadByAnnotationId { annotation_id } => to_binary(
+            DataHubQueryMsg::GetReviewedUploadByAnnotationId { annotation_id } => to_json_binary(
                 &query_reviewed_upload_by_annotation_id(deps, annotation_id)?,
             ),
             DataHubQueryMsg::GetReviewedUploadByAnnotationIdAndReviewer {
                 annotation_id,
                 reviewer_address,
-            } => to_binary(&query_reviewed_upload_by_annotation_and_reviewer(
+            } => to_json_binary(&query_reviewed_upload_by_annotation_and_reviewer(
                 deps,
                 annotation_id,
                 reviewer_address,
             )?),
         },
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        QueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
     }
 }
 
@@ -213,7 +215,7 @@ pub fn try_update_offering(
     info: MessageInfo,
     _env: Env,
     mut offering: Offering,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // must check the sender is implementation contract
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
@@ -229,7 +231,7 @@ pub fn try_update_offering(
 
     offerings().save(deps.storage, &offering.id.unwrap().to_be_bytes(), &offering)?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "update_offering"),
@@ -244,7 +246,7 @@ pub fn try_withdraw_offering(
     info: MessageInfo,
     _env: Env,
     id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if contract_info.governance.ne(&info.sender) {
         return Err(ContractError::Unauthorized {
@@ -255,7 +257,7 @@ pub fn try_withdraw_offering(
     // remove offering
     offerings().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "remove_offering"), attr("offering_id", id)],
         data: None,
@@ -267,7 +269,7 @@ pub fn try_update_annotation(
     info: MessageInfo,
     _env: Env,
     mut annotation: Annotation,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // must check the sender is implementation contract
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
@@ -287,7 +289,7 @@ pub fn try_update_annotation(
         &annotation,
     )?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "update_annotation"),
@@ -301,7 +303,7 @@ pub fn try_withdraw_annotation(
     deps: DepsMut,
     info: MessageInfo,
     id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if contract_info.governance.ne(&info.sender) {
         return Err(ContractError::Unauthorized {
@@ -312,7 +314,7 @@ pub fn try_withdraw_annotation(
     // remove offering
     annotations().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "remove_annotation"),
@@ -327,7 +329,7 @@ pub fn try_update_annotation_results(
     info: MessageInfo,
     _env: Env,
     mut data: AnnotationResult,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     if contract_info.governance.ne(&info.sender) {
@@ -342,7 +344,7 @@ pub fn try_update_annotation_results(
 
     annotation_results().save(deps.storage, &data.id.unwrap().to_be_bytes(), &data)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "update_annotation_result"),
@@ -357,8 +359,8 @@ pub fn try_add_annotation_reviewer(
     info: MessageInfo,
     _env: Env,
     annotation_id: u64,
-    reviewer_address: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    reviewer_address: Addr,
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     if contract_info.governance.ne(&info.sender) {
@@ -386,7 +388,7 @@ pub fn try_add_annotation_reviewer(
             &annotation_reviewer,
         )?;
 
-        Ok(HandleResponse {
+        Ok(Response {
             messages: vec![],
             data: None,
             attributes: vec![
@@ -403,8 +405,8 @@ pub fn try_remove_annotation_reviewer(
     info: MessageInfo,
     _env: Env,
     annotation_id: u64,
-    reviewer_address: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    reviewer_address: Addr,
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     if contract_info.governance.ne(&info.sender) {
@@ -426,7 +428,7 @@ pub fn try_remove_annotation_reviewer(
             &old.as_ref().unwrap().1.id.unwrap().to_be_bytes().to_vec(),
         )?;
 
-        Ok(HandleResponse {
+        Ok(Response {
             messages: vec![],
             attributes: vec![
                 attr("action", "remove_annotation_reviewer"),
@@ -443,7 +445,7 @@ pub fn try_remove_annotation_result_data(
     info: MessageInfo,
     _env: Env,
     annotation_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     if contract_info.governance.ne(&info.sender) {
@@ -464,7 +466,7 @@ pub fn try_remove_annotation_result_data(
         annotation_reviewers().remove(deps.storage, &item.id.unwrap().to_be_bytes().to_vec())?;
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "remove annotation result")],
         data: None,
@@ -476,7 +478,7 @@ pub fn try_add_reviewed_upload(
     info: MessageInfo,
     _env: Env,
     mut reviewed_upload: AnnotationResult,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     if contract_info.governance.ne(&info.sender) {
@@ -495,7 +497,7 @@ pub fn try_add_reviewed_upload(
         &reviewed_upload,
     )?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "add_reviewed_count"),
@@ -510,7 +512,7 @@ pub fn try_update_info(
     info: MessageInfo,
     _env: Env,
     msg: UpdateContractMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
         // Unauthorized
         if !info.sender.eq(&contract_info.creator) {
@@ -527,10 +529,10 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "update_info")],
-        data: to_binary(&new_contract_info).ok(),
+        data: to_json_binary(&new_contract_info).ok(),
     })
 }
 
@@ -589,7 +591,7 @@ pub fn query_offering_ids(deps: Deps) -> StdResult<Vec<u64>> {
 
 pub fn query_offerings_by_seller(
     deps: Deps,
-    seller: HumanAddr,
+    seller: Addr,
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
@@ -608,7 +610,7 @@ pub fn query_offerings_by_seller(
 
 pub fn query_offerings_by_contract(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
@@ -627,7 +629,7 @@ pub fn query_offerings_by_contract(
 
 pub fn query_offerings_by_contract_token_id(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     token_id: String,
     limit: Option<u8>,
     offset: Option<u64>,
@@ -658,9 +660,9 @@ pub fn query_offering(deps: Deps, offering_id: u64) -> StdResult<Offering> {
 
 pub fn query_unique_offering(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     token_id: String,
-    owner: HumanAddr,
+    owner: Addr,
 ) -> StdResult<Offering> {
     let offering = offerings()
         .idx
@@ -720,7 +722,7 @@ pub fn query_annotation_ids(deps: Deps) -> StdResult<Vec<u64>> {
 
 pub fn query_annotations_by_contract(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
@@ -744,7 +746,7 @@ pub fn query_annotation(deps: Deps, annotation_id: u64) -> StdResult<Annotation>
 
 pub fn query_annotations_by_contract_tokenid(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     token_id: String,
     limit: Option<u8>,
     offset: Option<u64>,
@@ -770,7 +772,7 @@ pub fn query_annotations_by_contract_tokenid(
 
 pub fn query_annotations_by_requester(
     deps: Deps,
-    requester: HumanAddr,
+    requester: Addr,
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
@@ -832,7 +834,7 @@ pub fn query_annotation_results_by_annotation_id(
 
 pub fn query_annotation_results_by_reviewer(
     deps: Deps,
-    reviewer_address: HumanAddr,
+    reviewer_address: Addr,
 ) -> StdResult<Vec<AnnotationResult>> {
     let results: StdResult<Vec<AnnotationResult>> = annotation_results()
         .idx
@@ -853,7 +855,7 @@ pub fn query_annotation_results_by_reviewer(
 pub fn query_annotation_result_by_annotation_and_reviewer(
     deps: Deps,
     annotation_id: u64,
-    reviewer_address: HumanAddr,
+    reviewer_address: Addr,
 ) -> StdResult<Option<AnnotationResult>> {
     let item = annotation_results()
         .idx
@@ -908,7 +910,7 @@ pub fn query_annotation_reviewer_by_annotation_id(
 pub fn query_annotation_reviewer_by_unique_key(
     deps: Deps,
     annotation_id: u64,
-    reviewer_address: HumanAddr,
+    reviewer_address: Addr,
 ) -> StdResult<Option<AnnotationReviewer>> {
     let item = annotation_reviewers()
         .idx
@@ -964,7 +966,7 @@ pub fn query_reviewed_upload_by_annotation_id(
 pub fn query_reviewed_upload_by_annotation_and_reviewer(
     deps: Deps,
     annotation_id: u64,
-    reviewer_address: HumanAddr,
+    reviewer_address: Addr,
 ) -> StdResult<Option<AnnotationResult>> {
     let item = reviewed_uploads()
         .idx

@@ -6,7 +6,7 @@ use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, s
 
 use cosmwasm_std::Coin;
 use provider_bridge::{
-    msg::{HandleMsg, InitMsg, QueryMsg},
+    msg::{ExecuteMsg, InstantiateMsg, QueryMsg},
     state::Contracts,
 };
 
@@ -16,8 +16,8 @@ fn main() {
     create_dir_all(&out_dir).unwrap();
     remove_schemas(&out_dir).unwrap();
 
-    export_schema_with_title(&mut schema_for!(InitMsg), &out_dir, "InstantiateMsg");
-    export_schema_with_title(&mut schema_for!(HandleMsg), &out_dir, "ExecuteMsg");
+    export_schema_with_title(&mut schema_for!(InstantiateMsg), &out_dir, "InstantiateMsg");
+    export_schema_with_title(&mut schema_for!(ExecuteMsg), &out_dir, "ExecuteMsg");
     export_schema(&schema_for!(QueryMsg), &out_dir);
 
     // types export

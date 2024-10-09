@@ -5,9 +5,9 @@ use crate::msg::*;
 use crate::state::ContractInfo;
 use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
-    coin, coins, from_binary, from_slice, to_binary, Binary, ContractResult, CosmosMsg, Decimal,
-    HandleResponse, HumanAddr, MessageInfo, OwnedDeps, QuerierResult, StdError, StdResult,
-    SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
+    coin, coins, from_binary, from_slice, to_json_binary, Addr, Binary, ContractResult, CosmosMsg,
+    Decimal, MessageInfo, OwnedDeps, QuerierResult, Response, StdError, StdResult, SystemError,
+    SystemResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw1155::{BalanceResponse, Cw1155ExecuteMsg, Cw1155QueryMsg, Cw1155ReceiveMsg};
 use market::mock::{mock_dependencies, mock_env, MockQuerier};
@@ -58,38 +58,35 @@ impl DepsManager {
 
     fn new() -> Self {
         let info = mock_info(CREATOR, &[]);
-        let mut hub = mock_dependencies(HumanAddr::from(HUB_ADDR), &[], Self::query_wasm);
+        let mut hub = mock_dependencies(Addr::from(HUB_ADDR), &[], Self::query_wasm);
         let _res = market_hub::contract::init(
             hub.as_mut(),
             mock_env(HUB_ADDR),
             info.clone(),
-            market_hub::msg::InitMsg {
-                admins: vec![HumanAddr::from(CREATOR)],
+            market_hub::msg::InstantiateMsg {
+                admins: vec![Addr::from(CREATOR)],
                 mutable: true,
                 storages: vec![
-                    (DATAHUB_STORAGE.to_string(), HumanAddr::from(OFFERING_ADDR)),
-                    (
-                        AI_ROYALTY_STORAGE.to_string(),
-                        HumanAddr::from(AI_ROYALTY_ADDR),
-                    ),
+                    (DATAHUB_STORAGE.to_string(), Addr::from(OFFERING_ADDR)),
+                    (AI_ROYALTY_STORAGE.to_string(), Addr::from(AI_ROYALTY_ADDR)),
                 ],
-                implementations: vec![HumanAddr::from(MARKET_ADDR)],
+                implementations: vec![Addr::from(MARKET_ADDR)],
             },
         )
         .unwrap();
 
-        let mut offering = mock_dependencies(HumanAddr::from(OFFERING_ADDR), &[], Self::query_wasm);
+        let mut offering = mock_dependencies(Addr::from(OFFERING_ADDR), &[], Self::query_wasm);
         let _res = market_datahub_storage::contract::init(
             offering.as_mut(),
             mock_env(OFFERING_ADDR),
             info.clone(),
-            market_datahub_storage::msg::InitMsg {
-                governance: HumanAddr::from(HUB_ADDR),
+            market_datahub_storage::msg::InstantiateMsg {
+                governance: Addr::from(HUB_ADDR),
             },
         )
         .unwrap();
 
-        let mut ow1155 = mock_dependencies(HumanAddr::from(OW_1155_ADDR), &[], Self::query_wasm);
+        let mut ow1155 = mock_dependencies(Addr::from(OW_1155_ADDR), &[], Self::query_wasm);
         let _res = ow1155::contract::init(
             ow1155.as_mut(),
             mock_env(OW_1155_ADDR),
@@ -100,30 +97,29 @@ impl DepsManager {
         )
         .unwrap();
 
-        let mut ai_royalty =
-            mock_dependencies(HumanAddr::from(AI_ROYALTY_ADDR), &[], Self::query_wasm);
+        let mut ai_royalty = mock_dependencies(Addr::from(AI_ROYALTY_ADDR), &[], Self::query_wasm);
         let _res = market_ai_royalty_storage::contract::init(
             ai_royalty.as_mut(),
             mock_env(AI_ROYALTY_ADDR),
             info.clone(),
-            market_ai_royalty_storage::msg::InitMsg {
-                governance: HumanAddr::from(HUB_ADDR),
+            market_ai_royalty_storage::msg::InstantiateMsg {
+                governance: Addr::from(HUB_ADDR),
             },
         )
         .unwrap();
 
         let mut deps = mock_dependencies(
-            HumanAddr::from(MARKET_ADDR),
+            Addr::from(MARKET_ADDR),
             &coins(100000, DENOM),
             Self::query_wasm,
         );
 
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             name: String::from(CONTRACT_NAME),
             denom: DENOM.into(),
             fee: 1, // 0.1%
             // creator can update storage contract
-            governance: HumanAddr::from(HUB_ADDR),
+            governance: Addr::from(HUB_ADDR),
             max_royalty: 20,
         };
 
@@ -139,7 +135,7 @@ impl DepsManager {
         }
     }
 
-    fn handle_wasm(&mut self, res: &mut Vec<HandleResponse>, ret: HandleResponse) {
+    fn handle_wasm(&mut self, res: &mut Vec<Response>, ret: Response) {
         for msg in &ret.messages {
             // only clone required properties
             if let CosmosMsg::Wasm(WasmMsg::Execute {
@@ -185,13 +181,14 @@ impl DepsManager {
         res.push(ret);
     }
 
-    pub fn handle(
+    #[cfg_attr(not(feature = "library"), entry_point)]
+    pub fn execute(
         &mut self,
         info: MessageInfo,
-        msg: HandleMsg,
-    ) -> Result<Vec<HandleResponse>, ContractError> {
+        msg: ExecuteMsg,
+    ) -> Result<Vec<Response>, ContractError> {
         let first_res = handle(self.deps.as_mut(), mock_env(MARKET_ADDR), info, msg)?;
-        let mut res: Vec<HandleResponse> = vec![];
+        let mut res: Vec<Response> = vec![];
         self.handle_wasm(&mut res, first_res);
         Ok(res)
     }
@@ -263,7 +260,7 @@ fn update_info_test() {
             expired_block: None,
             decimal_point: None,
         };
-        let update_info_msg = HandleMsg::UpdateInfo(update_info);
+        let update_info_msg = ExecuteMsg::UpdateInfo(update_info);
 
         // random account cannot update info, only creator
         let info_unauthorized = mock_info("anyone", &vec![coin(5, DENOM)]);
@@ -291,9 +288,9 @@ fn test_royalties() {
         let manager = DepsManager::get_new();
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
-        let mint_msg = HandleMsg::MintNft(MintMsg {
-            contract_addr: HumanAddr::from("offering"),
-            creator: HumanAddr::from("provider"),
+        let mint_msg = ExecuteMsg::MintNft(MintMsg {
+            contract_addr: Addr::from("offering"),
+            creator: Addr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -309,12 +306,12 @@ fn test_royalties() {
 
         // beneficiary can release it
         let info_sell = mock_info(OW_1155_ADDR, &vec![coin(50, DENOM)]);
-        let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
+        let msg = ExecuteMsg::Receive(Cw1155ReceiveMsg {
             operator: "creator".to_string(),
             token_id: String::from("SellableNFT"),
             from: None,
             amount: Uint128::from(10u64),
-            msg: to_binary(&SellRoyalty {
+            msg: to_json_binary(&SellRoyalty {
                 per_price: Uint128(50),
                 royalty: Some(10),
             })
@@ -344,18 +341,18 @@ fn test_royalties() {
         .unwrap();
         println!("result {:?}", result);
 
-        let buy_msg = HandleMsg::BuyNft { offering_id: 1 };
+        let buy_msg = ExecuteMsg::BuyNft { offering_id: 1 };
         let info_buy = mock_info("seller", &coins(500, DENOM));
 
         manager.handle(info_buy, buy_msg).unwrap();
 
         let info_sell = mock_info(OW_1155_ADDR, &vec![coin(50, DENOM)]);
-        let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
+        let msg = ExecuteMsg::Receive(Cw1155ReceiveMsg {
             operator: "seller".to_string(),
             token_id: String::from("SellableNFT"),
             from: None,
             amount: Uint128::from(10u64),
-            msg: to_binary(&SellRoyalty {
+            msg: to_json_binary(&SellRoyalty {
                 per_price: Uint128(50),
                 royalty: None,
             })
@@ -374,7 +371,7 @@ fn test_royalties() {
         println!("offering 2nd sell: {:?}", offering);
 
         // buy again to let seller != creator
-        let buy_msg = HandleMsg::BuyNft { offering_id: 2 };
+        let buy_msg = ExecuteMsg::BuyNft { offering_id: 2 };
         let info_buy = mock_info("buyer1", &coins(500, DENOM));
 
         let results = manager.handle(info_buy, buy_msg).unwrap();
@@ -399,7 +396,7 @@ fn test_royalties() {
         assert_eq!(royalties.len(), 2);
 
         // placeholders to verify royalties
-        let mut to_addrs: Vec<HumanAddr> = vec![];
+        let mut to_addrs: Vec<Addr> = vec![];
         let mut amounts: Vec<Uint128> = vec![];
 
         for result in results {
@@ -452,7 +449,7 @@ fn withdraw_offering() {
         let manager = DepsManager::get_new();
         let withdraw_info = mock_info("seller", &coins(2, DENOM));
         // no offering to withdraw case
-        let withdraw_no_offering = HandleMsg::WithdrawNft { offering_id: 1 };
+        let withdraw_no_offering = ExecuteMsg::WithdrawNft { offering_id: 1 };
 
         assert!(matches!(
             manager.handle(withdraw_info.clone(), withdraw_no_offering.clone()),
@@ -462,12 +459,12 @@ fn withdraw_offering() {
         // beneficiary can release it
         let info = mock_info("offering", &coins(2, DENOM));
 
-        let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
+        let msg = ExecuteMsg::Receive(Cw1155ReceiveMsg {
             operator: "seller".to_string(),
             token_id: String::from("SellableNFT"),
             from: None,
             amount: Uint128::from(10u64),
-            msg: to_binary(&SellRoyalty {
+            msg: to_json_binary(&SellRoyalty {
                 per_price: Uint128(90),
                 royalty: Some(10),
             })
@@ -490,7 +487,7 @@ fn withdraw_offering() {
 
         // withdraw offering
         let withdraw_info_unauthorized = mock_info("sellerr", &coins(2, DENOM));
-        let withdraw_msg = HandleMsg::WithdrawNft {
+        let withdraw_msg = ExecuteMsg::WithdrawNft {
             offering_id: res[0].id.clone().unwrap(),
         };
 
@@ -525,12 +522,12 @@ fn test_sell_nft_unhappy() {
 
         // beneficiary can release it
         let info = mock_info("offering", &coins(2, DENOM));
-        let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
+        let msg = ExecuteMsg::Receive(Cw1155ReceiveMsg {
             operator: "seller".to_string(),
             token_id: String::from("SellableNFT"),
             from: None,
             amount: Uint128::from(10u64),
-            msg: to_binary(&SellRoyalty {
+            msg: to_json_binary(&SellRoyalty {
                 per_price: Uint128(90),
                 royalty: Some(10),
             })
@@ -550,7 +547,7 @@ fn test_sell_nft_unhappy() {
 fn test_buy_nft() {
     unsafe {
         let manager = DepsManager::get_new();
-        let buy_msg = HandleMsg::BuyNft { offering_id: 1 };
+        let buy_msg = ExecuteMsg::BuyNft { offering_id: 1 };
         let info_buy = mock_info("buyer", &coins(10, DENOM));
 
         // offering not found
@@ -561,9 +558,9 @@ fn test_buy_nft() {
 
         // beneficiary can release it
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
-        let mint_msg = HandleMsg::MintNft(MintMsg {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
-            creator: HumanAddr::from("provider"),
+        let mint_msg = ExecuteMsg::MintNft(MintMsg {
+            contract_addr: Addr::from(OW_1155_ADDR),
+            creator: Addr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -577,10 +574,10 @@ fn test_buy_nft() {
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 
-        let sell_msg = HandleMsg::SellNft {
+        let sell_msg = ExecuteMsg::SellNft {
             token_id: String::from("SellableNFT"),
             amount: Uint128::from(2u64),
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            contract_addr: Addr::from(OW_1155_ADDR),
             royalty_msg: SellRoyalty {
                 per_price: Uint128(90),
                 royalty: Some(10),
@@ -636,10 +633,10 @@ fn test_sell() {
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
 
         //let info_sell = mock_info("creator", &coins(2, DENOM));
-        let msg = HandleMsg::SellNft {
+        let msg = ExecuteMsg::SellNft {
             token_id: String::from("SellableNFT"),
             amount: Uint128::from(10u64),
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
+            contract_addr: Addr::from(OW_1155_ADDR),
             royalty_msg: SellRoyalty {
                 per_price: Uint128(90),
                 royalty: Some(10),
@@ -653,9 +650,9 @@ fn test_sell() {
         ));
 
         // mint before sell
-        let mint_msg = HandleMsg::MintNft(MintMsg {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
-            creator: HumanAddr::from("provider"),
+        let mint_msg = ExecuteMsg::MintNft(MintMsg {
+            contract_addr: Addr::from(OW_1155_ADDR),
+            creator: Addr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -686,9 +683,9 @@ fn test_request_annotations() {
         let manager = DepsManager::get_new();
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
-        let mint_msg = HandleMsg::MintNft(MintMsg {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
-            creator: HumanAddr::from("provider"),
+        let mint_msg = ExecuteMsg::MintNft(MintMsg {
+            contract_addr: Addr::from(OW_1155_ADDR),
+            creator: Addr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("creator"),
@@ -702,7 +699,7 @@ fn test_request_annotations() {
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 
-        let request_msg = HandleMsg::RequestAnnotation {
+        let request_msg = ExecuteMsg::RequestAnnotation {
             token_id: String::from("SellableNFT"),
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(5u64),
@@ -733,7 +730,7 @@ fn test_request_annotations() {
 
         // query by contract
         annotation_msg = QueryMsg::DataHub(DataHubQueryMsg::GetAnnotationsByContract {
-            contract: HumanAddr::from(MARKET_ADDR),
+            contract: Addr::from(MARKET_ADDR),
             offset: None,
             limit: None,
             order: Some(1),
@@ -743,7 +740,7 @@ fn test_request_annotations() {
 
         // query by contract
         annotation_msg = QueryMsg::DataHub(DataHubQueryMsg::GetAnnotationsByContractTokenId {
-            contract: HumanAddr::from(MARKET_ADDR),
+            contract: Addr::from(MARKET_ADDR),
             token_id: String::from("SellableNFTSecond"),
             offset: None,
             limit: None,
@@ -760,9 +757,9 @@ fn test_request_annotations_unhappy_path() {
         let manager = DepsManager::get_new();
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
-        let mint_msg = HandleMsg::MintNft(MintMsg {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
-            creator: HumanAddr::from("provider"),
+        let mint_msg = ExecuteMsg::MintNft(MintMsg {
+            contract_addr: Addr::from(OW_1155_ADDR),
+            creator: Addr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("creator"),
@@ -776,7 +773,7 @@ fn test_request_annotations_unhappy_path() {
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 
-        let request_msg = HandleMsg::RequestAnnotation {
+        let request_msg = ExecuteMsg::RequestAnnotation {
             token_id: String::from("SellableNFT"),
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(50u64),
@@ -793,7 +790,7 @@ fn test_request_annotations_unhappy_path() {
         ));
 
         // Invalid zero amount
-        let request_msg = HandleMsg::RequestAnnotation {
+        let request_msg = ExecuteMsg::RequestAnnotation {
             token_id: String::from("SellableNFT"),
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(0u64),
@@ -829,9 +826,9 @@ fn test_payout_annotations() {
     unsafe {
         let manager = DepsManager::get_new();
         let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
-        let mint_msg = HandleMsg::MintNft(MintMsg {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
-            creator: HumanAddr::from("provider"),
+        let mint_msg = ExecuteMsg::MintNft(MintMsg {
+            contract_addr: Addr::from(OW_1155_ADDR),
+            creator: Addr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("requester"),
@@ -845,7 +842,7 @@ fn test_payout_annotations() {
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 
-        let request_msg = HandleMsg::RequestAnnotation {
+        let request_msg = ExecuteMsg::RequestAnnotation {
             token_id: String::from("SellableNFT"),
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(5u64),
@@ -858,7 +855,7 @@ fn test_payout_annotations() {
         let info = mock_info("requester", &coins(900, DENOM));
         let _res = manager.handle(info.clone(), request_msg.clone()).unwrap();
 
-        let payout_msg = HandleMsg::Payout { annotation_id: 1 };
+        let payout_msg = ExecuteMsg::Payout { annotation_id: 1 };
 
         // Unauthorized request
         assert!(matches!(
@@ -867,45 +864,45 @@ fn test_payout_annotations() {
         ));
 
         // Add reviewer 1
-        let msg = HandleMsg::AddAnnotationReviewer {
+        let msg = ExecuteMsg::AddAnnotationReviewer {
             annotation_id: 1,
-            reviewer_address: HumanAddr::from("r1"),
+            reviewer_address: Addr::from("r1"),
         };
         let _res = manager.handle(info.clone(), msg).unwrap();
 
         // Add reviewer 2
-        let msg = HandleMsg::AddAnnotationReviewer {
+        let msg = ExecuteMsg::AddAnnotationReviewer {
             annotation_id: 1,
-            reviewer_address: HumanAddr::from("r2"),
+            reviewer_address: Addr::from("r2"),
         };
         let _res = manager.handle(info.clone(), msg).unwrap();
 
         // add annotation result for reviewer 1
         let annotator_results = vec![
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a1"),
+                annotator_address: Addr::from("a1"),
                 result: vec![true, true, true],
             },
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a2"),
+                annotator_address: Addr::from("a2"),
                 result: vec![true, false, true, true, false],
             },
         ];
 
-        let msg = HandleMsg::AddAnnotationResult {
+        let msg = ExecuteMsg::AddAnnotationResult {
             annotation_id: 1,
             annotator_results: annotator_results.clone(),
         };
         let _res = manager.handle(mock_info("r1", &vec![]), msg).unwrap();
 
-        let msg = HandleMsg::AddReviewedUpload {
+        let msg = ExecuteMsg::AddReviewedUpload {
             annotation_id: 1,
             reviewed_upload: annotator_results,
         };
         let _res = manager.handle(mock_info("r1", &vec![]), msg).unwrap();
 
         // Early payout error
-        let payout_msg = HandleMsg::Payout { annotation_id: 1 };
+        let payout_msg = ExecuteMsg::Payout { annotation_id: 1 };
         assert!(matches!(
             manager.handle(mock_info("requester", &vec![]), payout_msg),
             Err(ContractError::EarlyPayoutError {})
@@ -914,16 +911,16 @@ fn test_payout_annotations() {
         // Add annotation result for reviewer 2
         let annotator_results = vec![
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a1"),
+                annotator_address: Addr::from("a1"),
                 result: vec![true, true, true],
             },
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a2"),
+                annotator_address: Addr::from("a2"),
                 result: vec![true, true, true, true, false],
             },
         ];
 
-        let msg = HandleMsg::AddAnnotationResult {
+        let msg = ExecuteMsg::AddAnnotationResult {
             annotation_id: 1,
             annotator_results: annotator_results.clone(),
         };
@@ -931,25 +928,25 @@ fn test_payout_annotations() {
             .handle(mock_info("r2", &vec![]), msg.clone())
             .unwrap();
 
-        let msg = HandleMsg::AddReviewedUpload {
+        let msg = ExecuteMsg::AddReviewedUpload {
             annotation_id: 1,
             reviewed_upload: annotator_results,
         };
         let _res = manager.handle(mock_info("r2", &vec![]), msg).unwrap();
 
         // Success
-        let payout_msg = HandleMsg::Payout { annotation_id: 1 };
+        let payout_msg = ExecuteMsg::Payout { annotation_id: 1 };
         let _res = manager.handle(info.clone(), payout_msg).unwrap();
         //print!("payout result: {:?}", res);
 
         // Error: Can not payout again
-        let payout_msg = HandleMsg::Payout { annotation_id: 1 };
+        let payout_msg = ExecuteMsg::Payout { annotation_id: 1 };
         assert!(matches!(
             manager.handle(info.clone(), payout_msg),
             Err(ContractError::InvalidPayout {})
         ));
 
-        let withdraw_msg = HandleMsg::WithdrawAnnotation { annotation_id: 1 };
+        let withdraw_msg = ExecuteMsg::WithdrawAnnotation { annotation_id: 1 };
 
         assert!(matches!(
             manager.handle(info.clone(), withdraw_msg),
@@ -963,9 +960,9 @@ fn test_withdraw_annotation() {
     unsafe {
         let manager = DepsManager::get_new();
         let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
-        let mint_msg = HandleMsg::MintNft(MintMsg {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
-            creator: HumanAddr::from("provider"),
+        let mint_msg = ExecuteMsg::MintNft(MintMsg {
+            contract_addr: Addr::from(OW_1155_ADDR),
+            creator: Addr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("requester"),
@@ -979,7 +976,7 @@ fn test_withdraw_annotation() {
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 
-        let request_msg = HandleMsg::RequestAnnotation {
+        let request_msg = ExecuteMsg::RequestAnnotation {
             token_id: String::from("SellableNFT"),
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(5u64),
@@ -993,7 +990,7 @@ fn test_withdraw_annotation() {
         let _res = manager.handle(info.clone(), request_msg.clone()).unwrap();
 
         // Unauthorize withdraw
-        let withdraw_msg = HandleMsg::WithdrawAnnotation { annotation_id: 1 };
+        let withdraw_msg = ExecuteMsg::WithdrawAnnotation { annotation_id: 1 };
 
         assert!(matches!(
             manager.handle(mock_info("aaa", &vec![]), withdraw_msg.clone()),
@@ -1007,9 +1004,9 @@ fn test_add_annotation_reviewer() {
     unsafe {
         let manager = DepsManager::get_new();
         let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
-        let mint_msg = HandleMsg::MintNft(MintMsg {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
-            creator: HumanAddr::from("provider"),
+        let mint_msg = ExecuteMsg::MintNft(MintMsg {
+            contract_addr: Addr::from(OW_1155_ADDR),
+            creator: Addr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("requester"),
@@ -1023,7 +1020,7 @@ fn test_add_annotation_reviewer() {
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 
-        let request_msg = HandleMsg::RequestAnnotation {
+        let request_msg = ExecuteMsg::RequestAnnotation {
             token_id: String::from("SellableNFT"),
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(5u64),
@@ -1037,9 +1034,9 @@ fn test_add_annotation_reviewer() {
         let _res = manager.handle(info.clone(), request_msg.clone()).unwrap();
 
         // Add reviewer 1
-        let msg = HandleMsg::AddAnnotationReviewer {
+        let msg = ExecuteMsg::AddAnnotationReviewer {
             annotation_id: 1,
-            reviewer_address: HumanAddr::from("r1"),
+            reviewer_address: Addr::from("r1"),
         };
 
         let _res = manager.handle(info.clone(), msg).unwrap();
@@ -1047,7 +1044,7 @@ fn test_add_annotation_reviewer() {
         let query_reviewer_msg =
             QueryMsg::DataHub(DataHubQueryMsg::GetAnnotationReviewerByUniqueKey {
                 annotation_id: 1,
-                reviewer_address: HumanAddr::from("r1"),
+                reviewer_address: Addr::from("r1"),
             });
 
         let res = manager.query(query_reviewer_msg).unwrap();
@@ -1057,9 +1054,9 @@ fn test_add_annotation_reviewer() {
         println!("Reviewer 1 {:?}", reviewer);
 
         // Add reviewer 2
-        let msg = HandleMsg::AddAnnotationReviewer {
+        let msg = ExecuteMsg::AddAnnotationReviewer {
             annotation_id: 1,
-            reviewer_address: HumanAddr::from("r2"),
+            reviewer_address: Addr::from("r2"),
         };
 
         let _res = manager.handle(info.clone(), msg).unwrap();
@@ -1075,16 +1072,16 @@ fn test_add_annotation_reviewer() {
 
         let annotator_results = vec![
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a1"),
+                annotator_address: Addr::from("a1"),
                 result: vec![true, true, true],
             },
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a2"),
+                annotator_address: Addr::from("a2"),
                 result: vec![true, false, true, true, false, true],
             },
         ];
 
-        let msg = HandleMsg::AddAnnotationResult {
+        let msg = ExecuteMsg::AddAnnotationResult {
             annotation_id: 1,
             annotator_results,
         };
@@ -1094,15 +1091,15 @@ fn test_add_annotation_reviewer() {
         // add result for reviewer 2
         let annotator_results = vec![
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a2"),
+                annotator_address: Addr::from("a2"),
                 result: vec![true, false, true, true, false, false],
             },
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a1"),
+                annotator_address: Addr::from("a1"),
                 result: vec![true, true, true],
             },
         ];
-        let msg = HandleMsg::AddAnnotationResult {
+        let msg = ExecuteMsg::AddAnnotationResult {
             annotation_id: 1,
             annotator_results,
         };
@@ -1117,7 +1114,7 @@ fn test_add_annotation_reviewer() {
             Err(ContractError::AddResultError {})
         ));
 
-        let withdraw_msg = HandleMsg::WithdrawAnnotation { annotation_id: 1 };
+        let withdraw_msg = ExecuteMsg::WithdrawAnnotation { annotation_id: 1 };
         // Error: try to withdraw a annotation that had reviewer committed results
         let res = manager.handle(info.clone(), withdraw_msg);
         assert!(matches!(res, Err(ContractError::Std { .. })));
@@ -1130,9 +1127,9 @@ fn test_reviewed_upload() {
     unsafe {
         let manager = DepsManager::get_new();
         let provider_info = mock_info("requester", &vec![coin(50, DENOM)]);
-        let mint_msg = HandleMsg::MintNft(MintMsg {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
-            creator: HumanAddr::from("provider"),
+        let mint_msg = ExecuteMsg::MintNft(MintMsg {
+            contract_addr: Addr::from(OW_1155_ADDR),
+            creator: Addr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("requester"),
@@ -1146,7 +1143,7 @@ fn test_reviewed_upload() {
 
         manager.handle(provider_info.clone(), mint_msg).unwrap();
 
-        let request_msg = HandleMsg::RequestAnnotation {
+        let request_msg = ExecuteMsg::RequestAnnotation {
             token_id: String::from("SellableNFT"),
             number_of_samples: Uint128::from(5u64),
             reward_per_sample: Uint128::from(5u64),
@@ -1160,25 +1157,25 @@ fn test_reviewed_upload() {
         let _res = manager.handle(info.clone(), request_msg.clone()).unwrap();
 
         // Add reviewer 1
-        let msg = HandleMsg::AddAnnotationReviewer {
+        let msg = ExecuteMsg::AddAnnotationReviewer {
             annotation_id: 1,
-            reviewer_address: HumanAddr::from("r1"),
+            reviewer_address: Addr::from("r1"),
         };
 
         let _res = manager.handle(info.clone(), msg).unwrap();
 
         let reviewed_upload = vec![
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a1"),
+                annotator_address: Addr::from("a1"),
                 result: vec![true, true, true],
             },
             AnnotatorResult {
-                annotator_address: HumanAddr::from("a2"),
+                annotator_address: Addr::from("a2"),
                 result: vec![true, false, true, true, false, true],
             },
         ];
 
-        let msg = HandleMsg::AddReviewedUpload {
+        let msg = ExecuteMsg::AddReviewedUpload {
             annotation_id: 1,
             reviewed_upload,
         };
@@ -1191,7 +1188,7 @@ fn test_reviewed_upload() {
             .query(QueryMsg::DataHub(
                 DataHubQueryMsg::GetReviewedUploadByAnnotationIdAndReviewer {
                     annotation_id: 1,
-                    reviewer_address: HumanAddr::from("r1"),
+                    reviewer_address: Addr::from("r1"),
                 },
             ))
             .unwrap();
@@ -1207,9 +1204,9 @@ fn test_migrate() {
 
         // try mint nft to get royalty for provider
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
-        let mint_msg = HandleMsg::MintNft(MintMsg {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
-            creator: HumanAddr::from("provider"),
+        let mint_msg = ExecuteMsg::MintNft(MintMsg {
+            contract_addr: Addr::from(OW_1155_ADDR),
+            creator: Addr::from("provider"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("creator"),
@@ -1225,12 +1222,12 @@ fn test_migrate() {
 
         // beneficiary can release it
         let info_sell = mock_info(OW_1155_ADDR, &vec![coin(50, DENOM)]);
-        let msg = HandleMsg::Receive(Cw1155ReceiveMsg {
+        let msg = ExecuteMsg::Receive(Cw1155ReceiveMsg {
             operator: "creator".to_string(),
             token_id: String::from("SellableNFT"),
             from: None,
             amount: Uint128::from(10u64),
-            msg: to_binary(&SellRoyalty {
+            msg: to_json_binary(&SellRoyalty {
                 per_price: Uint128(50),
                 royalty: Some(10),
             })
@@ -1241,10 +1238,10 @@ fn test_migrate() {
         // try migrate
         let token_infos = vec![(String::from("SellableNFT"), Uint128::from(500u64))];
         // unauthorized case
-        let migrate_msg = HandleMsg::MigrateVersion {
-            nft_contract_addr: HumanAddr::from("offering"),
+        let migrate_msg = ExecuteMsg::MigrateVersion {
+            nft_contract_addr: Addr::from("offering"),
             token_infos: token_infos.clone(),
-            new_marketplace: HumanAddr::from("new_market_datahub"),
+            new_marketplace: Addr::from("new_market_datahub"),
         };
         assert!(matches!(
             manager.handle(
@@ -1269,7 +1266,7 @@ fn test_migrate() {
                     } = msg
                     {
                         println!("in wasm msg execute");
-                        assert_eq!(contract_addr, HumanAddr::from("offering"));
+                        assert_eq!(contract_addr, Addr::from("offering"));
                         let transfer_msg: Cw1155ExecuteMsg = from_binary(&msg).unwrap();
                         if let Cw1155ExecuteMsg::SendFrom {
                             from,
@@ -1299,8 +1296,8 @@ fn test_mint() {
 
         let provider_info = mock_info("creator", &vec![coin(50, DENOM)]);
         let mut mint = MintMsg {
-            contract_addr: HumanAddr::from(OW_1155_ADDR),
-            creator: HumanAddr::from("creator"),
+            contract_addr: Addr::from(OW_1155_ADDR),
+            creator: Addr::from("creator"),
             mint: MintIntermediate {
                 mint: MintStruct {
                     to: String::from("provider"),
@@ -1311,7 +1308,7 @@ fn test_mint() {
             creator_type: String::from("cxacx"),
             royalty: None,
         };
-        let mut mint_msg = HandleMsg::MintNft(mint.clone());
+        let mut mint_msg = ExecuteMsg::MintNft(mint.clone());
         manager
             .handle(provider_info.clone(), mint_msg.clone())
             .unwrap();
@@ -1320,7 +1317,7 @@ fn test_mint() {
         let err = StdError::GenericErr { msg };
         let _contract_err = ContractError::Std(err);
         mint.mint.mint.to = String::from("someone");
-        mint_msg = HandleMsg::MintNft(mint.clone());
+        mint_msg = ExecuteMsg::MintNft(mint.clone());
 
         // mint again with different creator and we shall get an error
         assert!(matches!(
@@ -1333,7 +1330,7 @@ fn test_mint() {
 
         // correct mint
         mint.mint.mint.to = String::from("creator");
-        mint_msg = HandleMsg::MintNft(mint.clone());
+        mint_msg = ExecuteMsg::MintNft(mint.clone());
         manager
             .handle(provider_info.clone(), mint_msg.clone())
             .unwrap();
@@ -1355,7 +1352,7 @@ fn test_mint() {
         assert_eq!(balance.balance, Uint128::from(100u64));
 
         // mint with co owners
-        mint_msg = HandleMsg::MintNft(mint.clone());
+        mint_msg = ExecuteMsg::MintNft(mint.clone());
         manager
             .handle(provider_info.clone(), mint_msg.clone())
             .unwrap();

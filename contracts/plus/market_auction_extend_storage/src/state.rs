@@ -1,15 +1,15 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, HumanAddr, StdResult, Storage};
+use cosmwasm_std::{CanonicalAddr, Addr, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
 use market_auction_extend::Auction;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
     /// the contract that has permission to update the implementation
-    pub governance: HumanAddr,
-    pub creator: HumanAddr,
+    pub governance: Addr,
+    pub creator: Addr,
 }
 
 pub const AUCTIONS_COUNT: Item<u64> = Item::new("num_auctions");

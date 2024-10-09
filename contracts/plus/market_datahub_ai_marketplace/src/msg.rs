@@ -1,20 +1,20 @@
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub name: String,
-    pub creator: HumanAddr,
-    pub governance: HumanAddr,
+    pub creator: Addr,
+    pub governance: Addr,
     pub denom: String,
     pub fee: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateClaimInfoMsg {
-    pub owner: HumanAddr,
-    pub customer: HumanAddr,
+    pub owner: Addr,
+    pub customer: Addr,
     pub package_id: String,
     pub number_requests: Uint128,
     pub success_requests: Uint128,
@@ -26,9 +26,9 @@ pub struct UpdateClaimInfoMsg {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     Buy {
-        owner: HumanAddr,
+        owner: Addr,
         package_id: String,
     },
 

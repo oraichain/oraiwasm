@@ -1,6 +1,6 @@
 use cosmwasm_std::{
-    attr, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
-    HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError, StdResult, Uint128, KV,
+    attr, from_binary, to_json_binary, Addr, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, MigrateResponse, Order, Response, Response, StdError, StdResult, Uint128, KV,
 };
 use cw_storage_plus::Bound;
 
@@ -18,16 +18,17 @@ use crate::state::{APPROVES, BALANCES, MINTER, OWNER, TOKENS};
 const DEFAULT_LIMIT: u32 = 10;
 const MAX_LIMIT: u32 = 30;
 
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
     msg: InstantiateMsg,
-) -> StdResult<InitResponse> {
-    let minter = HumanAddr(msg.minter);
+) -> StdResult<Response> {
+    let minter = Addr(msg.minter);
     MINTER.save(deps.storage, &minter)?;
     OWNER.save(deps.storage, &info.sender)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 /// To mitigate clippy::too_many_arguments warning
@@ -37,21 +38,18 @@ pub struct ExecuteEnv<'a> {
     info: MessageInfo,
 }
 
-pub fn migrate(
-    deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _msg: MigrateMsg,
-) -> StdResult<MigrateResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateResponse> {
     Ok(MigrateResponse::default())
 }
 
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     msg: Cw1155ExecuteMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let env = ExecuteEnv { deps, env, info };
     match msg {
         Cw1155ExecuteMsg::SendFrom {
@@ -114,14 +112,14 @@ pub fn checked_div(this: Uint128, other: Uint128) -> StdResult<Uint128> {
         .ok_or_else(|| StdError::generic_err(DivideByZeroError::new(this).to_string()))
 }
 
-fn change_minter(env: ExecuteEnv, minter: String) -> Result<HandleResponse, ContractError> {
+fn change_minter(env: ExecuteEnv, minter: String) -> Result<Response, ContractError> {
     let owner = OWNER.load(env.deps.storage)?;
     if !owner.eq(&env.info.sender) {
         return Err(ContractError::Unauthorized {});
     }
-    let minter = HumanAddr(minter);
+    let minter = Addr(minter);
     MINTER.save(env.deps.storage, &minter)?;
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "change_minter"),
@@ -132,13 +130,13 @@ fn change_minter(env: ExecuteEnv, minter: String) -> Result<HandleResponse, Cont
     })
 }
 
-fn change_owner(env: ExecuteEnv, new_owner: String) -> Result<HandleResponse, ContractError> {
+fn change_owner(env: ExecuteEnv, new_owner: String) -> Result<Response, ContractError> {
     let owner = OWNER.load(env.deps.storage)?;
     if !owner.eq(&env.info.sender) {
         return Err(ContractError::Unauthorized {});
     }
-    OWNER.save(env.deps.storage, &HumanAddr::from(new_owner.clone()))?;
-    Ok(HandleResponse {
+    OWNER.save(env.deps.storage, &Addr::from(new_owner.clone()))?;
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "change_owner"),
@@ -156,8 +154,8 @@ fn change_owner(env: ExecuteEnv, new_owner: String) -> Result<HandleResponse, Co
 /// Make sure permissions are checked before calling this.
 fn execute_transfer_inner<'a>(
     deps: &'a mut DepsMut,
-    from: Option<&'a HumanAddr>,
-    to: Option<&'a HumanAddr>,
+    from: Option<&'a Addr>,
+    to: Option<&'a Addr>,
     token_id: &'a str,
     amount: Uint128,
 ) -> Result<TransferEvent<'a>, ContractError> {
@@ -190,12 +188,7 @@ fn execute_transfer_inner<'a>(
 }
 
 /// returns true iff the sender can execute approve or reject on the contract
-fn check_can_approve(
-    deps: Deps,
-    env: &Env,
-    owner: &HumanAddr,
-    operator: &HumanAddr,
-) -> StdResult<bool> {
+fn check_can_approve(deps: Deps, env: &Env, owner: &Addr, operator: &Addr) -> StdResult<bool> {
     // owner can approve
     if owner == operator {
         return Ok(true);
@@ -215,8 +208,8 @@ fn check_can_approve(
 fn guard_can_approve(
     deps: Deps,
     env: &Env,
-    owner: &HumanAddr,
-    operator: &HumanAddr,
+    owner: &Addr,
+    operator: &Addr,
 ) -> Result<(), ContractError> {
     if !check_can_approve(deps, env, owner, operator)? {
         Err(ContractError::Unauthorized {})
@@ -232,9 +225,9 @@ pub fn execute_send_from(
     token_id: TokenId,
     amount: Uint128,
     msg: Option<Binary>,
-) -> Result<HandleResponse, ContractError> {
-    let from_addr = HumanAddr(from.clone());
-    let to_addr = HumanAddr(to.clone());
+) -> Result<Response, ContractError> {
+    let from_addr = Addr(from.clone());
+    let to_addr = Addr(to.clone());
 
     let ExecuteEnv {
         mut deps,
@@ -244,7 +237,7 @@ pub fn execute_send_from(
 
     guard_can_approve(deps.as_ref(), &env, &from_addr, &info.sender)?;
 
-    let mut rsp = HandleResponse::default();
+    let mut rsp = Response::default();
 
     let event = execute_transfer_inner(
         &mut deps,
@@ -258,7 +251,7 @@ pub fn execute_send_from(
     // send funds to market implementation
     let cosmos_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address.clone(),
-        to_address: HumanAddr(to.clone()),
+        to_address: Addr(to.clone()),
         amount: info.sent_funds.clone(),
     }
     .into();
@@ -303,16 +296,16 @@ pub fn execute_mint(
     token_id: TokenId,
     amount: Uint128,
     msg: Option<Binary>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ExecuteEnv { mut deps, info, .. } = env;
 
-    let to_addr = HumanAddr(to.clone());
+    let to_addr = Addr(to.clone());
 
     if info.sender != MINTER.load(deps.storage)? {
         return Err(ContractError::Unauthorized {});
     }
 
-    let mut rsp = HandleResponse::default();
+    let mut rsp = Response::default();
 
     let event = execute_transfer_inner(&mut deps, None, Some(&to_addr), &token_id, amount)?;
     event.add_attributes(&mut rsp);
@@ -342,18 +335,18 @@ pub fn execute_burn(
     from: String,
     token_id: TokenId,
     amount: Uint128,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ExecuteEnv {
         mut deps,
         info,
         env,
     } = env;
 
-    let from_addr = HumanAddr(from);
+    let from_addr = Addr(from);
     // whoever can transfer these tokens can burn
     guard_can_approve(deps.as_ref(), &env, &from_addr, &info.sender)?;
 
-    let mut rsp = HandleResponse::default();
+    let mut rsp = Response::default();
     let event = execute_transfer_inner(&mut deps, Some(&from_addr), None, &token_id, amount)?;
     event.add_attributes(&mut rsp);
     Ok(rsp)
@@ -365,19 +358,19 @@ pub fn execute_batch_send_from(
     to: String,
     batch: Vec<(TokenId, Uint128)>,
     msg: Option<Binary>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ExecuteEnv {
         mut deps,
         env,
         info,
     } = env;
 
-    let from_addr = HumanAddr(from.clone());
-    let to_addr = HumanAddr(to.clone());
+    let from_addr = Addr(from.clone());
+    let to_addr = Addr(to.clone());
 
     guard_can_approve(deps.as_ref(), &env, &from_addr, &info.sender)?;
 
-    let mut rsp = HandleResponse::default();
+    let mut rsp = Response::default();
     for (token_id, amount) in batch.iter() {
         let event = execute_transfer_inner(
             &mut deps,
@@ -407,15 +400,15 @@ pub fn execute_batch_mint(
     to: String,
     batch: Vec<(TokenId, Uint128)>,
     msg: Option<Binary>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ExecuteEnv { mut deps, info, .. } = env;
     if info.sender != MINTER.load(deps.storage)? {
         return Err(ContractError::Unauthorized {});
     }
 
-    let to_addr = HumanAddr(to.clone());
+    let to_addr = Addr(to.clone());
 
-    let mut rsp = HandleResponse::default();
+    let mut rsp = Response::default();
 
     for (token_id, amount) in batch.iter() {
         let event = execute_transfer_inner(&mut deps, None, Some(&to_addr), &token_id, *amount)?;
@@ -446,18 +439,18 @@ pub fn execute_batch_burn(
     env: ExecuteEnv,
     from: String,
     batch: Vec<(TokenId, Uint128)>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ExecuteEnv {
         mut deps,
         info,
         env,
     } = env;
 
-    let from_addr = HumanAddr(from);
+    let from_addr = Addr(from);
 
     guard_can_approve(deps.as_ref(), &env, &from_addr, &info.sender)?;
 
-    let mut rsp = HandleResponse::default();
+    let mut rsp = Response::default();
     for (token_id, amount) in batch.into_iter() {
         let event = execute_transfer_inner(&mut deps, Some(&from_addr), None, &token_id, amount)?;
         event.add_attributes(&mut rsp);
@@ -469,7 +462,7 @@ pub fn execute_approve_all(
     env: ExecuteEnv,
     operator: String,
     expires: Option<Expiration>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ExecuteEnv { deps, info, env } = env;
 
     // reject expired data as invalid
@@ -479,14 +472,14 @@ pub fn execute_approve_all(
     }
 
     // set the operator for us
-    let operator_addr = HumanAddr(operator.clone());
+    let operator_addr = Addr(operator.clone());
     APPROVES.save(
         deps.storage,
         (info.sender.as_bytes(), operator_addr.as_bytes()),
         &expires,
     )?;
 
-    let mut rsp = HandleResponse::default();
+    let mut rsp = Response::default();
     ApproveAllEvent {
         sender: info.sender.as_ref(),
         operator: &operator,
@@ -496,18 +489,15 @@ pub fn execute_approve_all(
     Ok(rsp)
 }
 
-pub fn execute_revoke_all(
-    env: ExecuteEnv,
-    operator: String,
-) -> Result<HandleResponse, ContractError> {
+pub fn execute_revoke_all(env: ExecuteEnv, operator: String) -> Result<Response, ContractError> {
     let ExecuteEnv { deps, info, .. } = env;
-    let operator_addr = HumanAddr(operator.clone());
+    let operator_addr = Addr(operator.clone());
     APPROVES.remove(
         deps.storage,
         (info.sender.as_bytes(), operator_addr.as_bytes()),
     );
 
-    let mut rsp = HandleResponse::default();
+    let mut rsp = Response::default();
     ApproveAllEvent {
         sender: info.sender.as_ref(),
         operator: &operator,
@@ -520,14 +510,14 @@ pub fn execute_revoke_all(
 pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
     match msg {
         Cw1155QueryMsg::Balance { owner, token_id } => {
-            let owner_addr = HumanAddr(owner);
+            let owner_addr = Addr(owner);
             let balance = BALANCES
                 .may_load(deps.storage, (owner_addr.as_bytes(), token_id.as_bytes()))?
                 .unwrap_or_default();
-            to_binary(&BalanceResponse { balance })
+            to_json_binary(&BalanceResponse { balance })
         }
         Cw1155QueryMsg::BatchBalance { owner, token_ids } => {
-            let owner_addr = HumanAddr(owner);
+            let owner_addr = Addr(owner);
             let balances = token_ids
                 .into_iter()
                 .map(|token_id| -> StdResult<_> {
@@ -536,13 +526,13 @@ pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
                         .unwrap_or_default())
                 })
                 .collect::<StdResult<_>>()?;
-            to_binary(&BatchBalanceResponse { balances })
+            to_json_binary(&BatchBalanceResponse { balances })
         }
         Cw1155QueryMsg::IsApprovedForAll { owner, operator } => {
-            let owner_addr = HumanAddr(owner);
-            let operator_addr = HumanAddr(operator);
+            let owner_addr = Addr(owner);
+            let operator_addr = Addr(operator);
             let approved = check_can_approve(deps, &env, &owner_addr, &operator_addr)?;
-            to_binary(&IsApprovedForAllResponse { approved })
+            to_json_binary(&IsApprovedForAllResponse { approved })
         }
         Cw1155QueryMsg::ApprovedForAll {
             owner,
@@ -550,9 +540,9 @@ pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
             start_after,
             limit,
         } => {
-            let owner_addr = HumanAddr(owner);
-            let start_addr = start_after.map(HumanAddr);
-            to_binary(&query_all_approvals(
+            let owner_addr = Addr(owner);
+            let start_addr = start_after.map(Addr);
+            to_json_binary(&query_all_approvals(
                 deps,
                 env,
                 owner_addr,
@@ -563,20 +553,20 @@ pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
         }
         Cw1155QueryMsg::TokenInfo { token_id } => {
             let url = TOKENS.load(deps.storage, token_id.as_bytes())?;
-            to_binary(&TokenInfoResponse { url })
+            to_json_binary(&TokenInfoResponse { url })
         }
-        Cw1155QueryMsg::Minter {} => to_binary(&query_minter(deps)?),
-        Cw1155QueryMsg::Owner {} => to_binary(&query_owner(deps)?),
+        Cw1155QueryMsg::Minter {} => to_json_binary(&query_minter(deps)?),
+        Cw1155QueryMsg::Owner {} => to_json_binary(&query_owner(deps)?),
         Cw1155QueryMsg::Tokens {
             owner,
             start_after,
             limit,
         } => {
-            let owner_addr = HumanAddr(owner);
-            to_binary(&query_tokens(deps, owner_addr, start_after, limit)?)
+            let owner_addr = Addr(owner);
+            to_json_binary(&query_tokens(deps, owner_addr, start_after, limit)?)
         }
         Cw1155QueryMsg::AllTokens { start_after, limit } => {
-            to_binary(&query_all_tokens(deps, start_after, limit)?)
+            to_json_binary(&query_all_tokens(deps, start_after, limit)?)
         }
     }
 }
@@ -591,9 +581,9 @@ fn parse_approval(item: StdResult<KV<Expiration>>) -> StdResult<cw1155::Approval
 fn query_all_approvals(
     deps: Deps,
     env: Env,
-    owner: HumanAddr,
+    owner: Addr,
     include_expired: bool,
-    start_after: Option<HumanAddr>,
+    start_after: Option<Addr>,
     limit: Option<u32>,
 ) -> StdResult<ApprovedForAllResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
@@ -609,19 +599,19 @@ fn query_all_approvals(
     Ok(ApprovedForAllResponse { operators })
 }
 
-fn query_minter(deps: Deps) -> StdResult<HumanAddr> {
+fn query_minter(deps: Deps) -> StdResult<Addr> {
     let minter = MINTER.load(deps.storage)?;
     Ok(minter)
 }
 
-fn query_owner(deps: Deps) -> StdResult<HumanAddr> {
+fn query_owner(deps: Deps) -> StdResult<Addr> {
     let owner = OWNER.load(deps.storage)?;
     Ok(owner)
 }
 
 fn query_tokens(
     deps: Deps,
-    owner: HumanAddr,
+    owner: Addr,
     start_after: Option<String>,
     limit: Option<u32>,
 ) -> StdResult<TokensResponse> {

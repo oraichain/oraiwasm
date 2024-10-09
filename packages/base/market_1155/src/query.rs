@@ -1,4 +1,4 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -13,19 +13,19 @@ pub enum MarketQueryMsg {
         order: Option<u8>,
     },
     GetOfferingsBySeller {
-        seller: HumanAddr,
+        seller: Addr,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetOfferingsByContract {
-        contract: HumanAddr,
+        contract: Addr,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetOfferingsByContractTokenId {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
         offset: Option<u64>,
         limit: Option<u8>,
@@ -35,9 +35,9 @@ pub enum MarketQueryMsg {
         offering_id: u64,
     },
     GetUniqueOffering {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
-        seller: HumanAddr,
+        seller: Addr,
     },
     GetContractInfo {},
 }

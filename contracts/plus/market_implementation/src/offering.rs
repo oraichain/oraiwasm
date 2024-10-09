@@ -4,18 +4,18 @@ use crate::contract::{
     verify_funds, verify_nft, verify_owner, PAYMENT_STORAGE,
 };
 use crate::error::ContractError;
-use crate::msg::{ProxyHandleMsg, ProxyQueryMsg};
+use crate::msg::{ProxyExecuteMsg, ProxyQueryMsg};
 use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse,
-    MessageInfo, StdResult, Uint128, WasmMsg,
+    attr, from_binary, to_json_binary, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{Coin, HumanAddr};
-use cw721::Cw721HandleMsg;
-use market::{query_proxy, AssetInfo, Funds, StorageHandleMsg};
+use cosmwasm_std::{Addr, Coin};
+use cw721::Cw721ExecuteMsg;
+use market::{query_proxy, AssetInfo, Funds, StorageExecuteMsg};
 use market_ai_royalty::{parse_transfer_msg, pay_royalties, sanitize_royalty, Royalty, RoyaltyMsg};
-use market_payment::{Payment, PaymentHandleMsg};
-use market_royalty::{MintMsg, Offering, OfferingHandleMsg, OfferingQueryMsg, OfferingRoyalty};
+use market_payment::{Payment, PaymentExecuteMsg};
+use market_royalty::{MintMsg, Offering, OfferingExecuteMsg, OfferingQueryMsg, OfferingRoyalty};
 use std::ops::{Add, Mul, Sub};
 
 pub const OFFERING_STORAGE: &str = "offering_v1.1";
@@ -25,12 +25,12 @@ pub fn try_handle_mint(
     deps: DepsMut,
     info: MessageInfo,
     msg: MintMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     let mint_msg = WasmMsg::Execute {
         contract_addr: msg.contract_addr.clone(),
-        msg: to_binary(&msg.mint)?,
-        send: vec![],
+        msg: to_json_binary(&msg.mint)?,
+        funds: vec![],
     }
     .into();
 
@@ -48,7 +48,7 @@ pub fn try_handle_mint(
 
     cosmos_msgs.push(mint_msg);
 
-    let response = HandleResponse {
+    let response = Response {
         messages: cosmos_msgs,
         attributes: vec![attr("action", "mint_nft"), attr("caller", info.sender)],
         data: None,
@@ -59,13 +59,13 @@ pub fn try_handle_mint(
 
 pub fn try_buy(
     deps: DepsMut,
-    sender: HumanAddr,
+    sender: Addr,
     env: Env,
     offering_id: u64,
     // token_funds: Option<Uint128>,
     // native_funds: Option<Vec<Coin>>,
     funds: Funds,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo {
         governance,
         decimal_point,
@@ -73,7 +73,7 @@ pub fn try_buy(
     } = CONTRACT_INFO.load(deps.storage)?;
 
     // get royalties
-    let mut rsp = HandleResponse::default();
+    let mut rsp = Response::default();
     rsp.attributes.extend(vec![attr("action", "buy_nft")]);
 
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
@@ -152,7 +152,7 @@ pub fn try_buy(
                 &mut cosmos_msgs,
                 &mut rsp,
                 env.contract.address.as_str(),
-                &to_binary(&asset_info)?.to_base64(),
+                &to_json_binary(&asset_info)?.to_base64(),
                 asset_info.clone(),
             )?;
         }
@@ -164,7 +164,7 @@ pub fn try_buy(
         cosmos_msgs.push(get_offering_handle_msg(
             governance.clone(),
             OFFERING_STORAGE,
-            OfferingHandleMsg::UpdateOfferingRoyalty {
+            OfferingExecuteMsg::UpdateOfferingRoyalty {
                 offering: offering_royalty_result.clone(),
             },
         )?);
@@ -181,7 +181,7 @@ pub fn try_buy(
     }
 
     // create transfer cw721 msg
-    let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+    let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
         recipient: sender.clone(),
         token_id: token_id.clone(),
     };
@@ -190,8 +190,8 @@ pub fn try_buy(
     cosmos_msgs.push(
         WasmMsg::Execute {
             contract_addr: deps.api.human_address(&off.contract_addr)?,
-            msg: to_binary(&transfer_cw721_msg)?,
-            send: vec![],
+            msg: to_json_binary(&transfer_cw721_msg)?,
+            funds: vec![],
         }
         .into(),
     );
@@ -200,7 +200,7 @@ pub fn try_buy(
     cosmos_msgs.push(get_offering_handle_msg(
         governance,
         OFFERING_STORAGE,
-        OfferingHandleMsg::RemoveOffering { id: offering_id },
+        OfferingExecuteMsg::RemoveOffering { id: offering_id },
     )?);
 
     rsp.messages = cosmos_msgs;
@@ -213,7 +213,7 @@ pub fn try_buy(
         attr("royalty", true),
     ]);
 
-    // let mut handle_response = HandleResponse {
+    // let mut handle_response = Response {
     //     messages: cosmos_msgs,
     //     attributes: vec![
     //         attr("action", "buy_nft"),
@@ -244,7 +244,7 @@ pub fn try_withdraw(
     info: MessageInfo,
     env: Env,
     offering_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo {
         creator,
         governance,
@@ -253,7 +253,7 @@ pub fn try_withdraw(
     // check if token_id is currently sold by the requesting address
     // check if offering exists, when return StdError => it will show EOF while parsing a JSON value.
     let off: Offering = get_offering(deps.as_ref(), offering_id)?;
-    if info.sender.ne(&HumanAddr(creator.clone()))
+    if info.sender.ne(&Addr(creator.clone()))
         && off.seller.ne(&deps.api.canonical_address(&info.sender)?)
     {
         return Err(ContractError::Unauthorized {
@@ -273,15 +273,15 @@ pub fn try_withdraw(
     )
     .is_ok()
     {
-        let transfer_cw721_msg = Cw721HandleMsg::TransferNft {
+        let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
             recipient: deps.api.human_address(&off.seller)?,
             token_id: off.token_id.clone(),
         };
 
         let exec_cw721_transfer = WasmMsg::Execute {
             contract_addr: deps.api.human_address(&off.contract_addr)?,
-            msg: to_binary(&transfer_cw721_msg)?,
-            send: vec![],
+            msg: to_json_binary(&transfer_cw721_msg)?,
+            funds: vec![],
         };
         cosmos_msg.push(exec_cw721_transfer.into())
     }
@@ -290,10 +290,10 @@ pub fn try_withdraw(
     cosmos_msg.push(get_offering_handle_msg(
         governance,
         OFFERING_STORAGE,
-        OfferingHandleMsg::RemoveOffering { id: offering_id },
+        OfferingExecuteMsg::RemoveOffering { id: offering_id },
     )?);
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cosmos_msg,
         attributes: vec![
             attr("action", "withdraw_nft"),
@@ -309,11 +309,11 @@ pub fn try_handle_sell_nft(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     initial_token_id: String,
     off_price: Uint128,
     royalty: Option<u64>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo {
         governance,
         max_royalty,
@@ -369,7 +369,7 @@ pub fn try_handle_sell_nft(
     cosmos_msgs.push(get_offering_handle_msg(
         governance.clone(),
         OFFERING_STORAGE,
-        OfferingHandleMsg::UpdateOffering {
+        OfferingExecuteMsg::UpdateOffering {
             offering: offering.clone(),
         },
     )?);
@@ -378,7 +378,7 @@ pub fn try_handle_sell_nft(
     cosmos_msgs.push(get_handle_msg(
         governance.as_str(),
         PAYMENT_STORAGE,
-        PaymentHandleMsg::UpdateOfferingPayment(Payment {
+        PaymentExecuteMsg::UpdateOfferingPayment(Payment {
             contract_addr,
             token_id: token_id.clone(),
             sender: None, // for 721, contract & token id combined is already unique
@@ -390,7 +390,7 @@ pub fn try_handle_sell_nft(
     cosmos_msgs.push(get_offering_handle_msg(
         governance.clone(),
         OFFERING_STORAGE,
-        OfferingHandleMsg::UpdateOfferingRoyalty {
+        OfferingExecuteMsg::UpdateOfferingRoyalty {
             offering: offering_royalty_result.clone(),
         },
     )?);
@@ -403,7 +403,7 @@ pub fn try_handle_sell_nft(
     //         cosmos_msgs.push(get_handle_msg(
     //             governance.as_str(),
     //             AI_ROYALTY_STORAGE,
-    //             AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+    //             AiRoyaltyExecuteMsg::UpdateRoyalty(RoyaltyMsg {
     //                 contract_addr: contract_addr.clone(),
     //                 token_id,
     //                 creator: info.sender.clone(),
@@ -430,7 +430,7 @@ pub fn try_handle_sell_nft(
         attributes.push(attr("previous_owner", prev_owner));
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cosmos_msgs,
         attributes,
         data: None,
@@ -442,7 +442,7 @@ pub fn query_offering(deps: Deps, msg: OfferingQueryMsg) -> StdResult<Binary> {
     query_proxy(
         deps,
         get_storage_addr(deps, contract_info.governance, OFFERING_STORAGE)?,
-        to_binary(&ProxyQueryMsg::Offering(msg) as &ProxyQueryMsg)?,
+        to_json_binary(&ProxyQueryMsg::Offering(msg) as &ProxyQueryMsg)?,
     )
 }
 
@@ -456,22 +456,22 @@ fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError>
 }
 
 pub fn get_offering_handle_msg(
-    addr: HumanAddr,
+    addr: Addr,
     name: &str,
-    msg: OfferingHandleMsg,
+    msg: OfferingExecuteMsg,
 ) -> StdResult<CosmosMsg> {
-    let msg_offering: ProxyHandleMsg<OfferingHandleMsg> = ProxyHandleMsg::Offering(msg);
-    let auction_msg = to_binary(&msg_offering)?;
-    let proxy_msg: ProxyHandleMsg<StorageHandleMsg> =
-        ProxyHandleMsg::Storage(StorageHandleMsg::UpdateStorageData {
+    let msg_offering: ProxyExecuteMsg<OfferingExecuteMsg> = ProxyExecuteMsg::Offering(msg);
+    let auction_msg = to_json_binary(&msg_offering)?;
+    let proxy_msg: ProxyExecuteMsg<StorageExecuteMsg> =
+        ProxyExecuteMsg::Storage(StorageExecuteMsg::UpdateStorageData {
             name: name.to_string(),
             msg: auction_msg,
         });
 
     Ok(WasmMsg::Execute {
         contract_addr: addr,
-        msg: to_binary(&proxy_msg)?,
-        send: vec![],
+        msg: to_json_binary(&proxy_msg)?,
+        funds: vec![],
     }
     .into())
 }
@@ -481,13 +481,13 @@ pub fn get_offering_handle_msg(
 //     info: MessageInfo,
 //     _env: Env,
 //     royalties: Vec<OfferingRoyalty>,
-// ) -> Result<HandleResponse, ContractError> {
+// ) -> Result<Response, ContractError> {
 //     let ContractInfo {
 //         creator,
 //         governance,
 //         ..
 //     } = CONTRACT_INFO.load(deps.storage)?;
-//     if info.sender.ne(&HumanAddr(creator.clone())) {
+//     if info.sender.ne(&Addr(creator.clone())) {
 //         return Err(ContractError::Unauthorized {
 //             sender: info.sender.to_string(),
 //         });
@@ -498,12 +498,12 @@ pub fn get_offering_handle_msg(
 //         cosmos_msgs.push(get_offering_handle_msg(
 //             governance.clone(),
 //             OFFERING_STORAGE_TEMP,
-//             OfferingHandleMsg::UpdateOfferingRoyalty {
+//             OfferingExecuteMsg::UpdateOfferingRoyalty {
 //                 offering: royalty.clone(),
 //             },
 //         )?);
 //     }
-//     Ok(HandleResponse {
+//     Ok(Response {
 //         messages: cosmos_msgs,
 //         attributes: vec![attr("action", "update_offering_royalties")],
 //         data: None,

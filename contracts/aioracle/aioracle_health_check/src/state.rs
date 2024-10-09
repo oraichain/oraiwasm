@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, HumanAddr, Storage, Uint128};
+use cosmwasm_std::{Addr, Coin, Storage, Uint128};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 use cw_storage_plus::{Item, Map};
 use schemars::JsonSchema;
@@ -8,9 +8,9 @@ pub static CONFIG_KEY: &[u8] = b"config";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
-    pub owner: HumanAddr,
+    pub owner: Addr,
     pub ping_jump: u64,
-    pub aioracle_addr: HumanAddr,
+    pub aioracle_addr: Addr,
     pub base_reward: Coin,
     pub ping_jump_interval: u64,
     pub max_reward_claim: Uint128,

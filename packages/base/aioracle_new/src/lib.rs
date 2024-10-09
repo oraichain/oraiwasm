@@ -21,8 +21,8 @@ macro_rules! create_contract_with_aggregate {
             deps: cosmwasm_std::DepsMut,
             _env: cosmwasm_std::Env,
             info: cosmwasm_std::MessageInfo,
-            msg: $crate::InitMsg,
-        ) -> cosmwasm_std::StdResult<cosmwasm_std::InitResponse> {
+            msg: $crate::InstantiateMsg,
+        ) -> cosmwasm_std::StdResult<cosmwasm_std::Response> {
             $crate::init_aioracle(deps, info, msg)
         }
 
@@ -30,8 +30,8 @@ macro_rules! create_contract_with_aggregate {
             deps: cosmwasm_std::DepsMut,
             env: cosmwasm_std::Env,
             info: cosmwasm_std::MessageInfo,
-            msg: $crate::HandleMsg,
-        ) -> Result<cosmwasm_std::HandleResponse, $crate::ContractError> {
+            msg: $crate::ExecuteMsg,
+        ) -> Result<cosmwasm_std::Response, $crate::ContractError> {
             // Logic implementation in aggregate function
             $crate::handle_aioracle(deps, env, info, msg, $fn)
         }

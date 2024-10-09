@@ -3,7 +3,7 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Binary, Coin, HumanAddr, Order, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Binary, Coin, Order, StdResult, Storage, Uint128};
 
 use crate::{
     msg::{MigrateMsg, TrustingPoolResponse},
@@ -13,20 +13,20 @@ use crate::{
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OldConfig {
     /// Owner If None set, contract is frozen.
-    pub owner: HumanAddr,
-    pub service_addr: HumanAddr,
+    pub owner: Addr,
+    pub service_addr: Addr,
     pub contract_fee: Coin,
     /// this threshold is to update the checkpoint stage when current previous checkpoint +
     pub checkpoint_threshold: u64,
     pub max_req_threshold: u64,
-    pub ping_contract: HumanAddr,
+    pub ping_contract: Addr,
     pub trusting_period: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OldRequest {
     /// Owner If None set, contract is frozen.
-    pub requester: HumanAddr,
+    pub requester: Addr,
     pub request_height: u64,
     pub submit_merkle_height: u64,
     pub merkle_root: String,
@@ -183,8 +183,8 @@ mod test {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
+    use cosmwasm_std::Addr;
     use cosmwasm_std::Binary;
-    use cosmwasm_std::HumanAddr;
     use cosmwasm_std::{coins, from_binary, Coin, OwnedDeps, Uint128};
     use cw_storage_plus::Item;
 
@@ -215,15 +215,15 @@ mod test {
             .save(
                 &mut deps.storage,
                 &OldConfig {
-                    owner: HumanAddr::from("foobar"),
-                    service_addr: HumanAddr::from("foobar"),
+                    owner: Addr::from("foobar"),
+                    service_addr: Addr::from("foobar"),
                     contract_fee: Coin {
                         amount: Uint128::from(0u64),
                         denom: String::from("foobar"),
                     },
                     checkpoint_threshold: 100,
                     max_req_threshold: 100,
-                    ping_contract: HumanAddr::from("foobar"),
+                    ping_contract: Addr::from("foobar"),
                     trusting_period: 100,
                 },
             )
@@ -241,7 +241,7 @@ mod test {
                     rewards: vec![],
                     submit_merkle_height: 0u64,
                     request_height: 0u64,
-                    requester: HumanAddr::from("hello"),
+                    requester: Addr::from("hello"),
                 },
             )
             .unwrap();
@@ -252,7 +252,7 @@ mod test {
     // #[test]
     // fn test_migrate() {
     //     let mut deps = setup_old_contract();
-    //     let info = mock_info(HumanAddr::from("foobar"), &[]);
+    //     let info = mock_info(Addr::from("foobar"), &[]);
     //     migrate(
     //         deps.as_mut(),
     //         mock_env(),

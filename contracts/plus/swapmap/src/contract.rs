@@ -1,14 +1,20 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, MigrateMsg, QueryMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{config, config_read, State, MAPPED_TXS};
 use cosmwasm_std::{
-    to_binary, Attribute, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
+    to_json_binary, Attribute, Binary, Deps, DepsMut, Env, Response, Addr, Response,
     MessageInfo, MigrateResponse, StdResult,
 };
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, _: InitMsg) -> StdResult<InitResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    _: InstantiateMsg,
+) -> StdResult<Response> {
     let state = State {
         owner: info.sender.clone(),
     };
@@ -16,22 +22,23 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, _: InitMsg) -> StdResul
     // save owner
     config(deps.storage).save(&state)?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::ChangeOwner { owner } => change_owner(deps, info, owner),
-        HandleMsg::AddTx { hash, value } => add_tx(deps, info, hash, value),
-        HandleMsg::Ping {} => {
-            let response = HandleResponse {
+        ExecuteMsg::ChangeOwner { owner } => change_owner(deps, info, owner),
+        ExecuteMsg::AddTx { hash, value } => add_tx(deps, info, hash, value),
+        ExecuteMsg::Ping {} => {
+            let response = Response {
                 messages: vec![],
                 attributes: vec![Attribute {
                     key: "action".to_string(),
@@ -47,8 +54,8 @@ pub fn handle(
 pub fn change_owner(
     deps: DepsMut,
     info: MessageInfo,
-    owner: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    owner: Addr,
+) -> Result<Response, ContractError> {
     let mut state = config(deps.storage).load()?;
     if info.sender != state.owner {
         return Err(ContractError::Unauthorized {});
@@ -58,7 +65,7 @@ pub fn change_owner(
     state.owner = owner;
     config(deps.storage).save(&state)?;
 
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
 pub fn add_tx(
@@ -66,13 +73,13 @@ pub fn add_tx(
     info: MessageInfo,
     hash: Binary,
     value: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let state = config_read(deps.storage).load()?;
     if info.sender != state.owner {
         return Err(ContractError::Unauthorized {});
     }
     MAPPED_TXS.save(deps.storage, hash.as_slice(), &value.to_vec())?;
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -84,14 +91,10 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 fn query_tx(deps: Deps, hash: Binary) -> StdResult<Binary> {
     // same StdErr can use ?
     let hash = MAPPED_TXS.load(deps.storage, hash.as_slice())?;
-    to_binary(&hash)
+    to_json_binary(&hash)
 }
 
-pub fn migrate(
-    _deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _msg: MigrateMsg,
-) -> StdResult<MigrateResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateResponse> {
     Ok(MigrateResponse::default())
 }

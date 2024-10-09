@@ -2,13 +2,13 @@ use market_rejected::Expiration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 use cw_storage_plus::{Item, Map};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
-    pub governance: HumanAddr,
-    pub creator: HumanAddr,
+    pub governance: Addr,
+    pub creator: Addr,
 }
 
 // contract nft + token id => unique id

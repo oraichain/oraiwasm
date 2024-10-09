@@ -1,5 +1,5 @@
 use cosmwasm_std::from_slice;
-use cosmwasm_std::to_binary;
+use cosmwasm_std::to_json_binary;
 use cosmwasm_std::Binary;
 use cosmwasm_std::{StdError, StdResult};
 use test_case::create_contract_with_assert;
@@ -36,8 +36,8 @@ pub fn assert(assert_inputs: &[String]) -> StdResult<Binary> {
     //     difference = difference.abs();
     //     if difference > 10000 {
     //         result.dsource_status = false;
-    //         return Ok(to_binary(&result)?);
+    //         return Ok(to_json_binary(&result)?);
     //     }
     // }
-    Ok(to_binary(&result)?)
+    Ok(to_json_binary(&result)?)
 }

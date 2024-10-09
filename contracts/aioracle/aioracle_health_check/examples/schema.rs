@@ -5,7 +5,7 @@ use aioracle_health_check::state::{ReadPingInfo, State};
 use cosmwasm_schema::{export_schema, export_schema_with_title, remove_schemas, schema_for};
 
 use aioracle_health_check::msg::{
-    HandleMsg, InitMsg, MigrateMsg, QueryMsg, QueryPingInfoResponse, QueryPingInfosResponse,
+    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, QueryPingInfoResponse, QueryPingInfosResponse,
 };
 
 fn main() {
@@ -19,8 +19,8 @@ fn main() {
 
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(MigrateMsg), &out_dir);
-    export_schema_with_title(&mut schema_for!(InitMsg), &out_dir, "InstantiateMsg");
-    export_schema_with_title(&mut schema_for!(HandleMsg), &out_dir, "ExecuteMsg");
+    export_schema_with_title(&mut schema_for!(InstantiateMsg), &out_dir, "InstantiateMsg");
+    export_schema_with_title(&mut schema_for!(ExecuteMsg), &out_dir, "ExecuteMsg");
 
     // export types
 

@@ -10,14 +10,15 @@ use std::fmt;
 
 use crate::error::ContractError;
 use crate::msg::{
-    HandleMsg, InitMsg, MigrateMsg, ProxyHandleMsg, ProxyQueryMsg, QueryMsg, UpdateContractMsg,
+    ExecuteMsg, InstantiateMsg, MigrateMsg, ProxyExecuteMsg, ProxyQueryMsg, QueryMsg,
+    UpdateContractMsg,
 };
 use crate::state::{ContractInfo, CONTRACT_INFO, MARKET_FEES};
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, HandleResponse,
-    InitResponse, MessageInfo, MigrateResponse, StdError, StdResult, Uint128,
+    attr, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env, MessageInfo,
+    MigrateResponse, Response, Response, StdError, StdResult, Uint128,
 };
-use cosmwasm_std::{from_binary, HumanAddr};
+use cosmwasm_std::{from_binary, Addr};
 use cw1155::{BalanceResponse, Cw1155QueryMsg, IsApprovedForAllResponse};
 use cw20::Cw20ReceiveMsg;
 use market::{
@@ -56,12 +57,13 @@ fn sanitize_fee(fee: u64, name: &str) -> Result<u64, ContractError> {
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     let info = ContractInfo {
         name: msg.name,
         creator: info.sender.to_string(),
@@ -75,25 +77,26 @@ pub fn init(
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
     MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Receive(msg) => try_receive_cw20(deps, info, env, msg),
-        HandleMsg::SellNft(msg) => try_sell_nft(deps, info, env, msg),
-        HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
-        HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
+        ExecuteMsg::Receive(msg) => try_receive_cw20(deps, info, env, msg),
+        ExecuteMsg::SellNft(msg) => try_sell_nft(deps, info, env, msg),
+        ExecuteMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
+        ExecuteMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
         // royalty
-        HandleMsg::MintNft(msg) => try_handle_mint(deps, info, msg),
-        HandleMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, env, offering_id),
-        HandleMsg::BuyNft {
+        ExecuteMsg::MintNft(msg) => try_handle_mint(deps, info, msg),
+        ExecuteMsg::WithdrawNft { offering_id } => try_withdraw(deps, info, env, offering_id),
+        ExecuteMsg::BuyNft {
             offering_id,
             amount,
         } => try_buy(
@@ -108,12 +111,12 @@ pub fn handle(
             // None,
             // Some(info.sent_funds),
         ),
-        HandleMsg::BurnNft {
+        ExecuteMsg::BurnNft {
             contract_addr,
             token_id,
             value,
         } => try_burn(deps, info, env, contract_addr, token_id, value),
-        HandleMsg::BidNft {
+        ExecuteMsg::BidNft {
             auction_id,
             per_price,
         } => try_bid_nft(
@@ -128,28 +131,24 @@ pub fn handle(
             // None,
             // Some(info.sent_funds),
         ),
-        HandleMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
-        // HandleMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
-        HandleMsg::EmergencyCancelAuction { auction_id } => {
+        ExecuteMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
+        // ExecuteMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
+        ExecuteMsg::EmergencyCancelAuction { auction_id } => {
             try_emergency_cancel_auction(deps, info, env, auction_id)
         }
-        HandleMsg::AskAuctionNft(msg) => handle_ask_auction(deps, info, env, msg),
-        HandleMsg::CancelBid { auction_id } => try_cancel_bid(deps, info, env, auction_id),
-        HandleMsg::ChangeCreator {
+        ExecuteMsg::AskAuctionNft(msg) => handle_ask_auction(deps, info, env, msg),
+        ExecuteMsg::CancelBid { auction_id } => try_cancel_bid(deps, info, env, auction_id),
+        ExecuteMsg::ChangeCreator {
             contract_addr,
             token_id,
             to,
         } => try_change_creator(deps, info, env, contract_addr, token_id, to),
-        HandleMsg::TransferNftDirectly(msg) => try_handle_transfer_directly(deps, info, env, msg),
+        ExecuteMsg::TransferNftDirectly(msg) => try_handle_transfer_directly(deps, info, env, msg),
     }
 }
 
-pub fn migrate(
-    deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    _msg: MigrateMsg,
-) -> StdResult<MigrateResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<MigrateResponse> {
     // MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
     Ok(MigrateResponse::default())
 }
@@ -158,8 +157,8 @@ pub fn migrate(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
-        QueryMsg::GetMarketFees {} => to_binary(&query_market_fees(deps)?),
+        QueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
+        QueryMsg::GetMarketFees {} => to_json_binary(&query_market_fees(deps)?),
         QueryMsg::Offering(msg) => query_storage_binary(deps, STORAGE_1155, msg),
         QueryMsg::AiRoyalty(ai_royalty_msg) => {
             query_storage_binary(deps, AI_ROYALTY_STORAGE, ai_royalty_msg)
@@ -175,7 +174,7 @@ pub fn try_receive_cw20(
     _info: MessageInfo,
     env: Env,
     cw20_msg: Cw20ReceiveMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     match from_binary(&cw20_msg.msg.unwrap_or(Binary::default())) {
         Ok(Cw20HookMsg::BuyNft {
             offering_id,
@@ -218,16 +217,16 @@ pub fn try_withdraw_funds(
     _info: MessageInfo,
     env: Env,
     fund: Coin,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address,
-        to_address: HumanAddr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
+        to_address: Addr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![bank_msg],
         attributes: vec![
             attr("action", "withdraw_funds"),
@@ -244,7 +243,7 @@ pub fn try_update_info(
     info: MessageInfo,
     _env: Env,
     msg: UpdateContractMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
         // Unauthorized
         if !info.sender.to_string().eq(&contract_info.creator) {
@@ -276,10 +275,10 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "update_info")],
-        data: to_binary(&new_contract_info).ok(),
+        data: to_json_binary(&new_contract_info).ok(),
     })
 }
 
@@ -373,7 +372,7 @@ pub fn query_market_fees(deps: Deps) -> StdResult<Uint128> {
 }
 
 // remove recursive by query storage_addr first, then call query_proxy
-pub fn get_storage_addr(deps: Deps, contract: HumanAddr, name: &str) -> StdResult<HumanAddr> {
+pub fn get_storage_addr(deps: Deps, contract: Addr, name: &str) -> StdResult<Addr> {
     deps.querier.query_wasm_smart(
         contract,
         &ProxyQueryMsg::<Empty>::Storage(StorageQueryMsg::QueryStorageAddr {
@@ -386,7 +385,7 @@ pub fn get_handle_msg<T>(addr: &MarketHubContract, name: &str, msg: T) -> StdRes
 where
     T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
 {
-    let binary_msg = to_binary(&ProxyHandleMsg::Msg(msg))?;
+    let binary_msg = to_json_binary(&ProxyExecuteMsg::Msg(msg))?;
     addr.update_storage(name.to_string(), binary_msg)
 }
 
@@ -401,7 +400,7 @@ pub fn query_storage<
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     governance.query_storage(
         storage_name.to_string(),
-        to_binary(&ProxyQueryMsg::Msg(msg))?,
+        to_json_binary(&ProxyQueryMsg::Msg(msg))?,
         &deps.querier,
     )
 }
@@ -415,7 +414,7 @@ pub fn query_storage_binary<T: Clone + fmt::Debug + PartialEq + JsonSchema + Ser
     query_proxy(
         deps,
         get_storage_addr(deps, governance.addr(), name)?,
-        to_binary(&ProxyQueryMsg::Msg(msg))?,
+        to_json_binary(&ProxyQueryMsg::Msg(msg))?,
     )
 }
 
@@ -428,7 +427,7 @@ pub fn get_royalties(
         deps,
         AI_ROYALTY_STORAGE,
         AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
-            contract_addr: HumanAddr::from(contract_addr),
+            contract_addr: Addr::from(contract_addr),
             token_id: token_id.to_string(),
             offset: None,
             limit: Some(30),
@@ -451,9 +450,9 @@ pub fn get_royalty(
         deps,
         AI_ROYALTY_STORAGE,
         AiRoyaltyQueryMsg::GetRoyalty {
-            contract_addr: HumanAddr::from(contract_addr),
+            contract_addr: Addr::from(contract_addr),
             token_id: token_id.to_string(),
-            creator: HumanAddr::from(creator),
+            creator: Addr::from(creator),
         },
     )
     .map_err(|_| ContractError::Std(StdError::generic_err("Invalid get unique royalty")))?;
@@ -466,7 +465,7 @@ pub fn verify_nft(
     contract_addr: &str,
     token_id: &str,
     owner: &str,
-    seller: Option<HumanAddr>,
+    seller: Option<Addr>,
     amount: Option<Uint128>,
 ) -> Result<String, ContractError> {
     // get unique offering. Dont allow a seller to sell when he's already selling
@@ -542,9 +541,9 @@ pub fn verify_nft(
         deps,
         STORAGE_1155,
         MarketQueryMsg::GetUniqueOffering {
-            contract: HumanAddr::from(contract_addr),
+            contract: Addr::from(contract_addr),
             token_id: token_id.to_string(),
-            seller: HumanAddr::from(final_seller.as_str()),
+            seller: Addr::from(final_seller.as_str()),
         },
     )
     .ok();
@@ -561,9 +560,9 @@ pub fn verify_nft(
         deps,
         AUCTION_STORAGE,
         AuctionQueryMsg::GetUniqueAuction {
-            contract: HumanAddr::from(contract_addr),
+            contract: Addr::from(contract_addr),
             token_id: token_id.to_string(),
-            asker: HumanAddr::from(final_seller.as_str()),
+            asker: Addr::from(final_seller.as_str()),
         },
     )
     .ok();
@@ -598,7 +597,7 @@ pub fn verify_nft(
 pub fn query_payment_auction_asset_info(
     deps: Deps,
     governance: &str,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     token_id: &str,
     asker: &str,
 ) -> StdResult<AssetInfo> {
@@ -608,7 +607,7 @@ pub fn query_payment_auction_asset_info(
         &ProxyQueryMsg::Msg(PaymentQueryMsg::GetAuctionPayment {
             contract_addr,
             token_id: token_id.into(),
-            sender: Some(HumanAddr::from(asker)),
+            sender: Some(Addr::from(asker)),
         }),
     )?)
 }
@@ -616,7 +615,7 @@ pub fn query_payment_auction_asset_info(
 pub fn query_payment_offering_asset_info(
     deps: Deps,
     governance: &str,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     token_id: &str,
     seller: &str,
 ) -> StdResult<AssetInfo> {
@@ -626,7 +625,7 @@ pub fn query_payment_offering_asset_info(
         &ProxyQueryMsg::Msg(PaymentQueryMsg::GetOfferingPayment {
             contract_addr,
             token_id: token_id.into(),
-            sender: Some(HumanAddr::from(seller)),
+            sender: Some(Addr::from(seller)),
         }),
     )?)
 }

@@ -1,8 +1,8 @@
-use cosmwasm_std::{attr, HandleResponse, Uint128};
+use cosmwasm_std::{attr, Response, Uint128};
 
 pub trait Event {
     /// Append attributes to response
-    fn add_attributes(&self, response: &mut HandleResponse);
+    fn add_attributes(&self, response: &mut Response);
 }
 
 /// Tracks token transfer/mint/burn actions
@@ -14,7 +14,7 @@ pub struct TransferEvent<'a> {
 }
 
 impl<'a> Event for TransferEvent<'a> {
-    fn add_attributes(&self, rsp: &mut HandleResponse) {
+    fn add_attributes(&self, rsp: &mut Response) {
         rsp.attributes.push(attr("action", "transfer"));
         rsp.attributes.push(attr("token_id", self.token_id));
         rsp.attributes.push(attr("amount", self.amount));
@@ -34,7 +34,7 @@ pub struct MetadataEvent<'a> {
 }
 
 impl<'a> Event for MetadataEvent<'a> {
-    fn add_attributes(&self, rsp: &mut HandleResponse) {
+    fn add_attributes(&self, rsp: &mut Response) {
         rsp.attributes.push(attr("action", "set_metadata"));
         rsp.attributes.push(attr("url", self.url));
         rsp.attributes.push(attr("token_id", self.token_id));
@@ -49,7 +49,7 @@ pub struct ApproveAllEvent<'a> {
 }
 
 impl<'a> Event for ApproveAllEvent<'a> {
-    fn add_attributes(&self, rsp: &mut HandleResponse) {
+    fn add_attributes(&self, rsp: &mut Response) {
         rsp.attributes.push(attr("action", "approve_all"));
         rsp.attributes.push(attr("sender", self.sender.to_string()));
         rsp.attributes

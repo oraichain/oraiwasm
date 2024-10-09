@@ -4,7 +4,7 @@ use std::fs::create_dir_all;
 use aioracle_base::{Executor, Reward};
 use aioracle_v2::{
     msg::{
-        HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse, MigrateMsg, QueryMsg,
+        ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse, MigrateMsg, QueryMsg,
         RequestResponse, StageInfo, TrustingPoolResponse,
     },
     state::{Config, Contracts},
@@ -20,8 +20,8 @@ fn main() {
 
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(MigrateMsg), &out_dir);
-    export_schema_with_title(&mut schema_for!(InitMsg), &out_dir, "InstantiateMsg");
-    export_schema_with_title(&mut schema_for!(HandleMsg), &out_dir, "ExecuteMsg");
+    export_schema_with_title(&mut schema_for!(InstantiateMsg), &out_dir, "InstantiateMsg");
+    export_schema_with_title(&mut schema_for!(ExecuteMsg), &out_dir, "ExecuteMsg");
 
     // export query types
     export_schema(&schema_for!(IsClaimedResponse), &out_dir);

@@ -2,13 +2,13 @@ use market_datahub::{Annotation, AnnotationResult, AnnotationReviewer, Offering}
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{HumanAddr, StdResult, Storage};
+use cosmwasm_std::{Addr, StdResult, Storage};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
-    pub governance: HumanAddr,
-    pub creator: HumanAddr,
+    pub governance: Addr,
+    pub creator: Addr,
 }
 
 /// OFFERINGS is a map which maps the offering_id to an offering. Offering_id is derived from OFFERINGS_COUNT.
@@ -54,14 +54,14 @@ impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
 }
 
 // contract nft + token id + owner => unique id
-pub fn get_unique_key(contract: &HumanAddr, token_id: &str, owner: &str) -> PkOwned {
+pub fn get_unique_key(contract: &Addr, token_id: &str, owner: &str) -> PkOwned {
     let mut vec = contract.as_bytes().to_vec();
     vec.extend(token_id.as_bytes());
     vec.extend(owner.as_bytes());
     PkOwned(vec)
 }
 
-pub fn get_contract_token_id(contract: &HumanAddr, token_id: &str) -> Vec<u8> {
+pub fn get_contract_token_id(contract: &Addr, token_id: &str) -> Vec<u8> {
     let mut vec = contract.as_bytes().to_vec();
     vec.extend(token_id.as_bytes());
     vec
@@ -166,7 +166,7 @@ impl<'a> IndexList<AnnotationResult> for AnnotationResultIndexes<'a> {
     }
 }
 
-fn get_annotation_reviewer_id(annotation_id: u64, reviewer_address: &HumanAddr) -> PkOwned {
+fn get_annotation_reviewer_id(annotation_id: u64, reviewer_address: &Addr) -> PkOwned {
     let mut vec = annotation_id.to_be_bytes().to_vec();
     vec.extend(reviewer_address.as_bytes());
     PkOwned(vec)
@@ -210,7 +210,7 @@ pub fn increment_annotation_reviewer(storage: &mut dyn Storage) -> StdResult<u64
 
 pub fn get_unique_annotation_reviewer_key(
     annotation_id: &u64,
-    reviewer_address: &HumanAddr,
+    reviewer_address: &Addr,
 ) -> PkOwned {
     let mut vec = annotation_id.to_be_bytes().to_vec();
     vec.extend(reviewer_address.as_bytes());

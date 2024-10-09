@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Empty, HumanAddr};
+use cosmwasm_std::{Addr, Binary, Empty};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -26,7 +26,7 @@ pub enum AiOracleQueryMsg {
         order: Option<u8>,
     },
     GetMinFees {
-        validators: Vec<HumanAddr>,
+        validators: Vec<Addr>,
     },
 }
 
@@ -51,7 +51,7 @@ pub enum AiOracleStorageQuery {
         options: PagingOptions,
     },
     GetAiRequestsByImplementations {
-        implementation: HumanAddr,
+        implementation: Addr,
         options: PagingOptions,
     },
     GetAiRequest {

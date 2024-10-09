@@ -1,8 +1,8 @@
-use cosmwasm_std::{attr, HandleResponse, Uint128};
+use cosmwasm_std::{attr, Response, Uint128};
 
 pub trait Event {
     /// Append attributes to response
-    fn add_attributes(&self, response: &mut HandleResponse);
+    fn add_attributes(&self, response: &mut Response);
 }
 
 pub struct RoyaltyEvent<'a> {
@@ -19,7 +19,7 @@ pub struct RoyaltiesEvent<'a> {
 }
 
 impl<'a> Event for RoyaltiesEvent<'a> {
-    fn add_attributes(&self, rsp: &mut HandleResponse) {
+    fn add_attributes(&self, rsp: &mut Response) {
         rsp.attributes.push(attr("nft_addr", self.nft_addr));
         rsp.attributes.push(attr("token_id", self.token_id));
         rsp.attributes.push(attr("action", "pay_royalty"));

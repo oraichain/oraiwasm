@@ -10,7 +10,7 @@ fn main() {
     remove_schemas(&out_dir).unwrap();
 
     export_schema(
-        &schema_for!(market_rejected::MarketRejectedHandleMsg),
+        &schema_for!(market_rejected::MarketRejectedExecuteMsg),
         &out_dir,
     );
     export_schema(

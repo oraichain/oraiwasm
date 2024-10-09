@@ -1,26 +1,26 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use market_auction::{AuctionHandleMsg, AuctionQueryMsg};
+use market_auction::{AuctionExecuteMsg, AuctionQueryMsg};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
-    pub governance: HumanAddr,
+pub struct InstantiateMsg {
+    pub governance: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
-    Auction(AuctionHandleMsg),
+pub enum ExecuteMsg {
+    Auction(AuctionExecuteMsg),
     // other implementation
     UpdateInfo(UpdateContractMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateContractMsg {
-    pub governance: Option<HumanAddr>,
-    pub creator: Option<HumanAddr>,
+    pub governance: Option<Addr>,
+    pub creator: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

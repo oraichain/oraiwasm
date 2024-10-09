@@ -1,9 +1,12 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use std::collections::BTreeMap;
 
 use blsdkg::poly::{Commitment, Poly};
 use cosmwasm_std::{
-    attr, coins, entry_point, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Order, Response, StdError, StdResult, Storage,
+    attr, coins, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Order, Response, StdError, StdResult, Storage,
 };
 
 use blsdkg::{
@@ -27,7 +30,7 @@ use cosmwasm_crypto::secp256k1_verify;
 const MAX_LIMIT: u8 = 30;
 const DEFAULT_LIMIT: u8 = 5;
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
     _env: Env,
@@ -75,7 +78,7 @@ pub fn instantiate(
     Ok(Response::default())
 }
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
     env: Env,
@@ -93,7 +96,7 @@ pub fn execute(
     }
 }
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, ContractError> {
     let response = match msg {
         QueryMsg::ContractInfo {} => to_json_binary(&query_contract_info(deps)?)?,
@@ -715,7 +718,7 @@ pub fn to_hex_string(bytes: Vec<u8>) -> String {
     strs.join("")
 }
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     Ok(Response::default())
 }

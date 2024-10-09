@@ -1,18 +1,19 @@
 use cosmwasm_std::{
-    to_binary, BankMsg, Binary, Context, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, StdResult,
+    to_json_binary, BankMsg, Binary, Context, Deps, DepsMut, Env, Response, Addr,
+    Response, MessageInfo, StdResult,
 };
 
 use crate::error::ContractError;
-use crate::msg::{ConfigResponse, HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{ConfigResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{config, config_read, State};
 
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     if msg.expires <= env.block.height {
         return Err(ContractError::OptionExpired {
             expired: msg.expires,
@@ -29,19 +30,20 @@ pub fn init(
 
     config(deps.storage).save(&state)?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Transfer { recipient } => handle_transfer(deps, env, info, recipient),
-        HandleMsg::Execute {} => handle_execute(deps, env, info),
-        HandleMsg::Burn {} => handle_burn(deps, env, info),
+        ExecuteMsg::Transfer { recipient } => handle_transfer(deps, env, info, recipient),
+        ExecuteMsg::Execute {} => handle_execute(deps, env, info),
+        ExecuteMsg::Burn {} => handle_burn(deps, env, info),
     }
 }
 
@@ -49,8 +51,8 @@ pub fn handle_transfer(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    recipient: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    recipient: Addr,
+) -> Result<Response, ContractError> {
     // ensure msg sender is the owner
     let mut state = config(deps.storage).load()?;
     if info.sender != state.owner {
@@ -71,7 +73,7 @@ pub fn handle_execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // ensure msg sender is the owner
     let state = config(deps.storage).load()?;
     if info.sender != state.owner {
@@ -119,7 +121,7 @@ pub fn handle_burn(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // ensure is expired
     let state = config(deps.storage).load()?;
     if env.block.height < state.expires {
@@ -150,7 +152,7 @@ pub fn handle_burn(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
+        QueryMsg::Config {} => to_json_binary(&query_config(deps)?),
     }
 }
 
@@ -169,7 +171,7 @@ mod tests {
     fn proper_initialization() {
         let mut deps = mock_dependencies(&[]);
 
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             counter_offer: coins(40, "ETH"),
             expires: 100_000,
         };
@@ -192,7 +194,7 @@ mod tests {
     fn transfer() {
         let mut deps = mock_dependencies(&[]);
 
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             counter_offer: coins(40, "ETH"),
             expires: 100_000,
         };
@@ -204,7 +206,7 @@ mod tests {
 
         // random cannot transfer
         let info = mock_info("anyone", &[]);
-        let err = handle_transfer(deps.as_mut(), mock_env(), info, HumanAddr::from("anyone"))
+        let err = handle_transfer(deps.as_mut(), mock_env(), info, Addr::from("anyone"))
             .unwrap_err();
         match err {
             ContractError::Unauthorized {} => {}
@@ -214,7 +216,7 @@ mod tests {
         // owner can transfer
         let info = mock_info("creator", &[]);
         let res =
-            handle_transfer(deps.as_mut(), mock_env(), info, HumanAddr::from("someone")).unwrap();
+            handle_transfer(deps.as_mut(), mock_env(), info, Addr::from("someone")).unwrap();
         assert_eq!(res.attributes.len(), 2);
         assert_eq!(res.attributes[0], attr("action", "transfer"));
 
@@ -231,7 +233,7 @@ mod tests {
         let amount = coins(40, "ETH");
         let collateral = coins(1, "BTC");
         let expires = 100_000;
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             counter_offer: amount.clone(),
             expires: expires,
         };
@@ -242,7 +244,7 @@ mod tests {
 
         // set new owner
         let info = mock_info("creator", &[]);
-        let _ = handle_transfer(deps.as_mut(), mock_env(), info, HumanAddr::from("owner")).unwrap();
+        let _ = handle_transfer(deps.as_mut(), mock_env(), info, Addr::from("owner")).unwrap();
 
         // random cannot execute
         let info = mock_info("creator", &amount);
@@ -309,7 +311,7 @@ mod tests {
         let counter_offer = coins(40, "ETH");
         let collateral = coins(1, "BTC");
         let msg_expires = 100_000;
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             counter_offer: counter_offer.clone(),
             expires: msg_expires,
         };
@@ -320,7 +322,7 @@ mod tests {
 
         // set new owner
         let info = mock_info("creator", &[]);
-        let _ = handle_transfer(deps.as_mut(), mock_env(), info, HumanAddr::from("owner")).unwrap();
+        let _ = handle_transfer(deps.as_mut(), mock_env(), info, Addr::from("owner")).unwrap();
 
         // non-expired cannot execute
         let info = mock_info("anyone", &[]);

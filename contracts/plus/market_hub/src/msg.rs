@@ -1,29 +1,29 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 
-use market::{StorageHandleMsg, StorageItem, StorageQueryMsg};
+use market::{StorageExecuteMsg, StorageItem, StorageQueryMsg};
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InitMsg {
-    pub admins: Vec<HumanAddr>,
+pub struct InstantiateMsg {
+    pub admins: Vec<Addr>,
     pub mutable: bool,
     pub storages: Vec<StorageItem>,
-    pub implementations: Vec<HumanAddr>,
+    pub implementations: Vec<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     /// Execute requests the contract to re-dispatch all these messages with the
     /// contract's address as sender. Every implementation has it's own logic to
     /// determine in
     UpdateImplementation {
-        implementation: HumanAddr,
+        implementation: Addr,
     },
     RemoveImplementation {
-        implementation: HumanAddr,
+        implementation: Addr,
     },
 
     UpdateStorages {
@@ -35,9 +35,9 @@ pub enum HandleMsg {
     /// UpdateAdmins will change the admin set of the contract, must be called by an existing admin,
     /// and only works if the contract is mutable
     UpdateAdmins {
-        admins: Vec<HumanAddr>,
+        admins: Vec<Addr>,
     },
-    Storage(StorageHandleMsg),
+    Storage(StorageExecuteMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -49,7 +49,7 @@ pub enum QueryMsg {
     /// If CanExecute returns true then a call to `Execute` with the same message,
     /// before any further state changes, should also succeed.
     CanExecute {
-        sender: HumanAddr,
+        sender: Addr,
     },
 
     Registry {},
@@ -58,9 +58,9 @@ pub enum QueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct AdminListResponse {
-    pub admins: Vec<HumanAddr>,
+    pub admins: Vec<Addr>,
     pub mutable: bool,
-    pub owner: HumanAddr,
+    pub owner: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

@@ -2,15 +2,16 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::error::ContractError;
-use cosmwasm_std::{CosmosMsg, Decimal, Empty, HumanAddr};
-use cw3::{ThresholdResponse, Vote};
+use cosmwasm_std::{Addr, CosmosMsg, Decimal, Empty};
+use cw3::Vote;
 use cw4::MemberChangedHookMsg;
+use cw_utils::ThresholdResponse;
 use cw_utils::{Duration, Expiration};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     // this is the group contract that contains the member list
-    pub group_addr: HumanAddr,
+    pub group_addr: Addr,
     pub threshold: Threshold,
     pub max_voting_period: Duration,
 }
@@ -105,7 +106,7 @@ fn valid_percentage(percent: &Decimal) -> Result<(), ContractError> {
 // TODO: add some T variants? Maybe good enough as fixed Empty for now
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     Propose {
         title: String,
         description: String,
@@ -126,7 +127,7 @@ pub enum HandleMsg {
     EditState {
         threshold: Option<Threshold>,
         max_period: Option<Duration>,
-        group_addr: Option<HumanAddr>,
+        group_addr: Option<Addr>,
     },
     /// Handles update hook messages from the group contract
     MemberChangedHook(MemberChangedHookMsg),
@@ -151,18 +152,18 @@ pub enum QueryMsg {
         limit: Option<u32>,
     },
     /// Returns VoteResponse
-    Vote { proposal_id: u64, voter: HumanAddr },
+    Vote { proposal_id: u64, voter: Addr },
     /// Returns VoteListResponse
     ListVotes {
         proposal_id: u64,
-        start_after: Option<HumanAddr>,
+        start_after: Option<Addr>,
         limit: Option<u32>,
     },
     /// Returns VoterInfo
-    Voter { address: HumanAddr },
+    Voter { address: Addr },
     /// Returns VoterListResponse
     ListVoters {
-        start_after: Option<HumanAddr>,
+        start_after: Option<Addr>,
         limit: Option<u32>,
     },
 }

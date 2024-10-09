@@ -3,12 +3,12 @@ use crate::error::ContractError;
 use crate::msg::ProxyQueryMsg;
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, from_binary, to_binary, Binary, CosmosMsg, DepsMut, Env, HandleResponse, MessageInfo,
+    attr, from_binary, to_json_binary, Binary, CosmosMsg, DepsMut, Env, Response, MessageInfo,
     StdResult,
 };
-use cosmwasm_std::{Deps, HumanAddr};
+use cosmwasm_std::{Deps, Addr};
 use market::query_proxy;
-use market_ai_royalty::{AiRoyaltyHandleMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
+use market_ai_royalty::{AiRoyaltyExecuteMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_first_lv_royalty::{FirstLvRoyalty, FirstLvRoyaltyQueryMsg};
 
 pub const AI_ROYALTY_STORAGE: &str = "ai_royalty";
@@ -24,7 +24,7 @@ pub fn add_msg_royalty(
     cosmos_msgs.push(get_handle_msg(
         governance,
         AI_ROYALTY_STORAGE,
-        AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+        AiRoyaltyExecuteMsg::UpdateRoyalty(RoyaltyMsg {
             royalty: None,
             ..msg.clone()
         }),
@@ -34,8 +34,8 @@ pub fn add_msg_royalty(
     cosmos_msgs.push(get_handle_msg(
         governance,
         AI_ROYALTY_STORAGE,
-        AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
-            creator: HumanAddr(sender.to_string()),
+        AiRoyaltyExecuteMsg::UpdateRoyalty(RoyaltyMsg {
+            creator: Addr(sender.to_string()),
             creator_type: Some(String::from(CREATOR_NAME)),
             ..msg
         }),
@@ -48,7 +48,7 @@ pub fn query_ai_royalty(deps: Deps, msg: AiRoyaltyQueryMsg) -> StdResult<Binary>
     query_proxy(
         deps,
         get_storage_addr(deps, contract_info.governance, AI_ROYALTY_STORAGE)?,
-        to_binary(&ProxyQueryMsg::Msg(msg))?,
+        to_json_binary(&ProxyQueryMsg::Msg(msg))?,
     )
 }
 
@@ -57,7 +57,7 @@ pub fn query_first_level_royalty(deps: Deps, msg: FirstLvRoyaltyQueryMsg) -> Std
     query_proxy(
         deps,
         get_storage_addr(deps, contract_info.governance, FIRST_LV_ROYALTY_STORAGE)?,
-        to_binary(&ProxyQueryMsg::Msg(msg))?,
+        to_json_binary(&ProxyQueryMsg::Msg(msg))?,
     )
 }
 
@@ -69,7 +69,7 @@ pub fn get_royalties(
     let royalties: Vec<Royalty> = from_binary(&query_ai_royalty(
         deps,
         AiRoyaltyQueryMsg::GetRoyaltiesContractTokenId {
-            contract_addr: HumanAddr::from(contract_addr),
+            contract_addr: Addr::from(contract_addr),
             token_id: token_id.to_string(),
             offset: None,
             limit: None,
@@ -86,16 +86,16 @@ pub fn try_update_preference(
     deps: DepsMut,
     info: MessageInfo,
     pref: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     // check if token_id is currently sold by the requesting address
     let cosmos_msg = get_handle_msg(
         governance.as_str(),
         AI_ROYALTY_STORAGE,
-        AiRoyaltyHandleMsg::UpdatePreference(pref),
+        AiRoyaltyExecuteMsg::UpdatePreference(pref),
     )?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![cosmos_msg],
         attributes: vec![
             attr("action", "update_preference"),
@@ -110,7 +110,7 @@ pub fn try_update_royalty_creator(
     deps: DepsMut,
     info: MessageInfo,
     royalty_msg: RoyaltyMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo { governance, .. } = CONTRACT_INFO.load(deps.storage)?;
     let royalty: Royalty = from_binary(&query_ai_royalty(
         deps.as_ref(),
@@ -126,14 +126,14 @@ pub fn try_update_royalty_creator(
     let cosmos_msg = get_handle_msg(
         governance.as_str(),
         AI_ROYALTY_STORAGE,
-        AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+        AiRoyaltyExecuteMsg::UpdateRoyalty(RoyaltyMsg {
             royalty: final_new_royalty,
             creator: info.sender.clone(), // force creator to be info sender instead of specifying the creator
             ..royalty_msg
         }),
     )?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![cosmos_msg],
         attributes: vec![
             attr("action", "update_royalty_creator"),
@@ -153,9 +153,9 @@ pub fn query_first_lv_royalty(
     let first_lv_royalty: FirstLvRoyalty = deps
         .querier
         .query_wasm_smart(
-            get_storage_addr(deps, HumanAddr::from(governance), FIRST_LV_ROYALTY_STORAGE)?,
+            get_storage_addr(deps, Addr::from(governance), FIRST_LV_ROYALTY_STORAGE)?,
             &ProxyQueryMsg::Msg(FirstLvRoyaltyQueryMsg::GetFirstLvRoyalty {
-                contract: HumanAddr::from(contract),
+                contract: Addr::from(contract),
                 token_id: token_id.to_string(),
             }) as &ProxyQueryMsg<FirstLvRoyaltyQueryMsg>,
         )
@@ -170,13 +170,13 @@ pub fn try_update_royalties(
     info: MessageInfo,
     _env: Env,
     royalties: Vec<Royalty>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo {
         creator,
         governance,
         ..
     } = CONTRACT_INFO.load(deps.storage)?;
-    if info.sender.ne(&HumanAddr(creator.clone())) {
+    if info.sender.ne(&Addr(creator.clone())) {
         return Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
         });
@@ -187,7 +187,7 @@ pub fn try_update_royalties(
         cosmos_msgs.push(get_handle_msg(
             governance.as_str(),
             AI_ROYALTY_STORAGE_TEMP,
-            AiRoyaltyHandleMsg::UpdateRoyalty(RoyaltyMsg {
+            AiRoyaltyExecuteMsg::UpdateRoyalty(RoyaltyMsg {
                 contract_addr: royalty.contract_addr,
                 token_id: royalty.token_id,
                 creator: royalty.creator,
@@ -196,7 +196,7 @@ pub fn try_update_royalties(
             }),
         )?);
     }
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cosmos_msgs,
         attributes: vec![attr("action", "update_creator_royalties")],
         data: None,

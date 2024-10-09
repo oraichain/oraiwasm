@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
+use cosmwasm_std::{Addr, Binary, Coin, Uint128};
 use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -8,8 +8,8 @@ use crate::{AiOracleHubContract, AiOracleProviderContract, AiOracleTestCaseContr
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AiRequest {
     pub request_id: Option<u64>,
-    pub request_implementation: HumanAddr,
-    pub validators: Vec<HumanAddr>,
+    pub request_implementation: Addr,
+    pub validators: Vec<Addr>,
     pub data_sources: Vec<AiOracleProviderContract>,
     pub test_cases: Vec<AiOracleTestCaseContract>,
     pub input: String,
@@ -21,13 +21,13 @@ pub struct AiRequest {
     pub rewards: Vec<Reward>,
 }
 
-pub type Fees = (HumanAddr, Uint128);
+pub type Fees = (Addr, Uint128);
 
-pub type Reward = (HumanAddr, Vec<Coin>);
+pub type Reward = (Addr, Vec<Coin>);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DataSourceResults {
-    pub contract: Vec<HumanAddr>,
+    pub contract: Vec<Addr>,
     pub result_hash: Vec<String>,
     pub status: Vec<bool>,
     pub test_case_results: Vec<Option<TestCaseResults>>,
@@ -35,14 +35,14 @@ pub struct DataSourceResults {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TestCaseResults {
-    pub contract: Vec<HumanAddr>,
+    pub contract: Vec<Addr>,
     pub dsource_status: Vec<bool>,
     pub tcase_status: Vec<bool>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Report {
-    pub validator: HumanAddr,
+    pub validator: Addr,
     pub block_height: u64,
     pub dsources_results: DataSourceResults,
     pub aggregated_result: Binary,
@@ -61,8 +61,8 @@ pub struct ContractInfo {
     pub denom: String,
     /// this defines the number of blocks until the end of auction
     pub governance: AiOracleHubContract,
-    pub dsources: Vec<HumanAddr>,
-    pub tcases: Vec<HumanAddr>,
+    pub dsources: Vec<Addr>,
+    pub tcases: Vec<Addr>,
 }
 
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("contract_info");

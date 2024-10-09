@@ -1,25 +1,25 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Binary, HumanAddr, Uint128};
+use cosmwasm_std::{Binary, Addr, Uint128};
 use cw_utils::Expiration;
 
 use crate::scheduled::Scheduled;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     /// Owner if none set to info.sender.
-    pub owner: Option<HumanAddr>,
-    pub cw20_token_address: HumanAddr,
+    pub owner: Option<Addr>,
+    pub cw20_token_address: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     UpdateConfig {
         /// NewOwner if non sent, contract gets locked. Recipients can receive airdrops
         /// but owner cannot register new stages.
-        new_owner: Option<HumanAddr>,
+        new_owner: Option<Addr>,
     },
     RegisterMerkleRoot {
         /// MerkleRoot is hex-encoded merkle root.
@@ -63,7 +63,7 @@ pub enum QueryMsg {
     LatestStage {},
     IsClaimed {
         stage: u8,
-        address: HumanAddr,
+        address: Addr,
     },
     TotalClaimed {
         stage: u8,
@@ -79,7 +79,7 @@ pub enum QueryMsg {
 #[serde(rename_all = "snake_case")]
 pub struct ConfigResponse {
     pub owner: Option<String>,
-    pub cw20_token_address: HumanAddr,
+    pub cw20_token_address: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

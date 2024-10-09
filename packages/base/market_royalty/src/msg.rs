@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, CanonicalAddr, HumanAddr, Uint128};
+use cosmwasm_std::{Addr, Binary, CanonicalAddr, Uint128};
 
 use market::AssetInfo;
 use schemars::JsonSchema;
@@ -20,8 +20,8 @@ pub enum ExtraData {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct MintMsg {
-    pub contract_addr: HumanAddr,
-    pub creator: HumanAddr,
+    pub contract_addr: Addr,
+    pub creator: Addr,
     pub creator_type: String,
     pub royalty: Option<u64>,
     pub mint: MintIntermediate,
@@ -38,7 +38,7 @@ pub struct MintIntermediate {
 pub struct MintStruct {
     pub token_id: String,
     /// The owner of the newly minter NFT
-    pub owner: HumanAddr,
+    pub owner: Addr,
     /// Identifies the asset to which this NFT represents
     pub name: String,
     /// Describes the asset to which this NFT represents (may be empty)
@@ -60,16 +60,16 @@ pub struct Offering {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct OfferingRoyalty {
     pub token_id: String,
-    pub contract_addr: HumanAddr,
-    pub previous_owner: Option<HumanAddr>,
-    pub current_owner: HumanAddr,
+    pub contract_addr: Addr,
+    pub previous_owner: Option<Addr>,
+    pub current_owner: Addr,
     pub prev_royalty: Option<u64>,
     pub cur_royalty: Option<u64>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum OfferingHandleMsg {
+pub enum OfferingExecuteMsg {
     // this allow implementation contract to update the storage
     UpdateOffering { offering: Offering },
     UpdateOfferingRoyalty { offering: OfferingRoyalty },

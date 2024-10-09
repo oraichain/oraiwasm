@@ -1,12 +1,13 @@
 use cosmwasm_std::{
-    from_binary, to_binary, to_vec, Binary, CanonicalAddr, ContractResult, CosmosMsg, Deps, Empty,
-    HumanAddr, QuerierWrapper, QueryRequest, StdError, StdResult, SystemResult, WasmMsg, WasmQuery,
+    from_binary, to_json_binary, to_vec, Addr, Binary, CanonicalAddr, ContractResult, CosmosMsg,
+    Deps, Empty, QuerierWrapper, QueryRequest, StdError, StdResult, SystemResult, WasmMsg,
+    WasmQuery,
 };
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
-    MarketHubHandleMsg, MarketHubQueryMsg, StorageHandleMsg, StorageQueryMsg, TokenIdInfo,
+    MarketHubExecuteMsg, MarketHubQueryMsg, StorageExecuteMsg, StorageQueryMsg, TokenIdInfo,
     TokenInfo,
 };
 
@@ -37,14 +38,14 @@ impl AdminList {
 }
 
 /// Storage Item, tupple in json format is like: ["royalties","royalties_addr"]
-pub type StorageItem = (String, HumanAddr);
+pub type StorageItem = (String, Addr);
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
 
 // support few implementation, only add, not remove, so that old implement can work well with old storage
 pub struct Registry {
     // storages should be map with name to help other implementations work well with mapped name storage
     pub storages: Vec<StorageItem>,
-    pub implementations: Vec<HumanAddr>,
+    pub implementations: Vec<Addr>,
 }
 
 impl Registry {
@@ -53,7 +54,7 @@ impl Registry {
         self.storages.iter().find(|x| x.0.eq(item_key))
     }
 
-    pub fn add_storage(&mut self, item_key: &str, addr: HumanAddr) {
+    pub fn add_storage(&mut self, item_key: &str, addr: Addr) {
         if let Some(old) = self.storages.iter_mut().find(|x| x.0.eq(item_key)) {
             old.1 = addr;
         } else {
@@ -70,7 +71,7 @@ impl Registry {
     }
 }
 
-fn get_raw_request(addr: HumanAddr, msg: Binary) -> StdResult<Vec<u8>> {
+fn get_raw_request(addr: Addr, msg: Binary) -> StdResult<Vec<u8>> {
     let request: QueryRequest<Empty> = WasmQuery::Smart {
         contract_addr: addr,
         msg,
@@ -85,7 +86,7 @@ fn get_raw_request(addr: HumanAddr, msg: Binary) -> StdResult<Vec<u8>> {
 
 pub fn query_proxy_generic<T: DeserializeOwned>(
     deps: Deps,
-    addr: HumanAddr,
+    addr: Addr,
     msg: Binary,
 ) -> StdResult<T> {
     let raw = get_raw_request(addr, msg)?;
@@ -103,7 +104,7 @@ pub fn query_proxy_generic<T: DeserializeOwned>(
     }
 }
 
-pub fn query_proxy(deps: Deps, addr: HumanAddr, msg: Binary) -> StdResult<Binary> {
+pub fn query_proxy(deps: Deps, addr: Addr, msg: Binary) -> StdResult<Binary> {
     let raw = get_raw_request(addr, msg)?;
 
     match deps.querier.raw_query(&raw) {
@@ -144,35 +145,35 @@ pub fn parse_token_id(token_id: &str) -> TokenInfo {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MarketHubContract(pub HumanAddr);
+pub struct MarketHubContract(pub Addr);
 
 impl MarketHubContract {
-    pub fn new(addr: HumanAddr) -> Self {
+    pub fn new(addr: Addr) -> Self {
         MarketHubContract(addr)
     }
 
-    pub fn addr(&self) -> HumanAddr {
+    pub fn addr(&self) -> Addr {
         self.0.clone()
     }
 
-    fn encode_msg(&self, msg: MarketHubHandleMsg) -> StdResult<CosmosMsg> {
+    fn encode_msg(&self, msg: MarketHubExecuteMsg) -> StdResult<CosmosMsg> {
         Ok(WasmMsg::Execute {
             contract_addr: self.addr(),
-            msg: to_binary(&msg)?,
-            send: vec![],
+            msg: to_json_binary(&msg)?,
+            funds: vec![],
         }
         .into())
     }
 
     pub fn update_storage(&self, name: String, msg: Binary) -> StdResult<CosmosMsg> {
-        let msg = MarketHubHandleMsg::Storage(StorageHandleMsg::UpdateStorageData { name, msg });
+        let msg = MarketHubExecuteMsg::Storage(StorageExecuteMsg::UpdateStorageData { name, msg });
         self.encode_msg(msg)
     }
 
     fn encode_smart_query(&self, msg: MarketHubQueryMsg) -> StdResult<QueryRequest<Empty>> {
         Ok(WasmQuery::Smart {
             contract_addr: self.addr(),
-            msg: to_binary(&msg)?,
+            msg: to_json_binary(&msg)?,
         }
         .into())
     }
@@ -196,14 +197,14 @@ impl MarketHubContract {
 mod tests {
     use super::*;
     use cosmwasm_std::testing::MockApi;
-    use cosmwasm_std::{Api, HumanAddr};
+    use cosmwasm_std::{Addr, Api};
 
     #[test]
     fn is_admin() {
         let api = MockApi::default();
         let admins: Vec<_> = vec!["bob", "paul", "john"]
             .into_iter()
-            .map(|name| api.canonical_address(&HumanAddr::from(name)).unwrap())
+            .map(|name| api.canonical_address(&Addr::from(name)).unwrap())
             .collect();
         let owner = api.canonical_address(&"tupt".into()).unwrap();
         let config = AdminList {
@@ -214,16 +215,16 @@ mod tests {
         assert!(config.is_admin(&owner));
         assert!(config.is_admin(&admins[0]));
         assert!(config.is_admin(&admins[2]));
-        let other = api.canonical_address(&HumanAddr::from("other")).unwrap();
+        let other = api.canonical_address(&Addr::from("other")).unwrap();
         assert!(!config.is_admin(&other));
     }
 
     #[test]
     fn can_modify() {
         let api = MockApi::default();
-        let alice = api.canonical_address(&HumanAddr::from("alice")).unwrap();
-        let bob = api.canonical_address(&HumanAddr::from("bob")).unwrap();
-        let owner = api.canonical_address(&HumanAddr::from("tupt")).unwrap();
+        let alice = api.canonical_address(&Addr::from("alice")).unwrap();
+        let bob = api.canonical_address(&Addr::from("bob")).unwrap();
+        let owner = api.canonical_address(&Addr::from("tupt")).unwrap();
 
         // admin can modify mutable contract
         let config = AdminList {
@@ -246,12 +247,12 @@ mod tests {
 
     #[test]
     fn add_storage() {
-        let royalties = HumanAddr::from("royalties");
+        let royalties = Addr::from("royalties");
 
-        let auctions = HumanAddr::from("auctions");
-        let offerings = HumanAddr::from("offerings");
+        let auctions = Addr::from("auctions");
+        let offerings = Addr::from("offerings");
 
-        let implementation = HumanAddr::from("implementation");
+        let implementation = Addr::from("implementation");
 
         // admin can modify mutable contract
         let mut registry = Registry {
@@ -268,10 +269,10 @@ mod tests {
 
     #[test]
     fn remove_storage() {
-        let royalties = HumanAddr::from("royalties");
-        let auctions = HumanAddr::from("auctions");
-        let offerings = HumanAddr::from("offerings");
-        let implementation = HumanAddr::from("implementation");
+        let royalties = Addr::from("royalties");
+        let auctions = Addr::from("auctions");
+        let offerings = Addr::from("offerings");
+        let implementation = Addr::from("implementation");
 
         // admin can modify mutable contract
         let mut registry = Registry {

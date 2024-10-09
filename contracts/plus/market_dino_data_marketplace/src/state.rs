@@ -1,4 +1,4 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -10,7 +10,7 @@ pub struct ContractInfo {
     pub creator: String,
     pub fee: u64,
     pub denom: String,
-    pub governannce: HumanAddr,
+    pub governannce: Addr,
 }
 
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("contract_info");

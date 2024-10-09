@@ -6,9 +6,9 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Decimal;
-use cosmwasm_std::{coin, coins, from_binary, HumanAddr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_binary, Addr, Order, OwnedDeps, Uint128};
 
-use market_1155::MarketHandleMsg;
+use market_1155::MarketExecuteMsg;
 use market_1155::MarketQueryMsg;
 use market_1155::Offering;
 
@@ -18,8 +18,8 @@ const DENOM: &str = "MGK";
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
-    let msg = InitMsg {
-        governance: HumanAddr::from("market_hub"),
+    let msg = InstantiateMsg {
+        governance: Addr::from("market_hub"),
     };
     let info = mock_info(CREATOR, &[]);
     let res = init(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -50,9 +50,9 @@ fn sort_offering() {
     for i in 1u64..3u64 {
         let offering = Offering {
             id: Some(i),
-            contract_addr: HumanAddr::from("xxx"),
+            contract_addr: Addr::from("xxx"),
             token_id: i.to_string(),
-            seller: HumanAddr::from("seller"),
+            seller: Addr::from("seller"),
             per_price: Uint128::from(1u64),
             amount: Uint128::from(10u64),
         };
@@ -60,7 +60,7 @@ fn sort_offering() {
     }
 
     for off in offerings {
-        let msg = HandleMsg::Msg(MarketHandleMsg::UpdateOffering { offering: off });
+        let msg = ExecuteMsg::Msg(MarketExecuteMsg::UpdateOffering { offering: off });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
@@ -113,7 +113,7 @@ fn sort_offering() {
         mock_env(),
         QueryMsg::Msg(MarketQueryMsg::GetUniqueOffering {
             token_id: 1.to_string(),
-            contract: HumanAddr::from("xxx"),
+            contract: Addr::from("xxx"),
             seller: "seller".into(),
         }),
     )
@@ -146,9 +146,9 @@ fn withdraw_offering() {
     for i in 1u64..3u64 {
         let offering = Offering {
             id: Some(i),
-            contract_addr: HumanAddr::from("xxx"),
+            contract_addr: Addr::from("xxx"),
             token_id: i.to_string(),
-            seller: HumanAddr::from("seller"),
+            seller: Addr::from("seller"),
             per_price: Uint128::from(1u64),
             amount: Uint128::from(1u64),
         };
@@ -156,11 +156,11 @@ fn withdraw_offering() {
     }
 
     for off in offerings {
-        let msg = HandleMsg::Msg(MarketHandleMsg::UpdateOffering { offering: off });
+        let msg = ExecuteMsg::Msg(MarketExecuteMsg::UpdateOffering { offering: off });
         let _res = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
-    let msg = HandleMsg::Msg(MarketHandleMsg::RemoveOffering { id: 1 });
+    let msg = ExecuteMsg::Msg(MarketExecuteMsg::RemoveOffering { id: 1 });
     let _ = handle(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
     let res = query(

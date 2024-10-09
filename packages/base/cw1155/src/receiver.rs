@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{to_binary, Binary, CosmosMsg, HumanAddr, StdResult, Uint128, WasmMsg};
+use cosmwasm_std::{to_json_binary, Addr, Binary, CosmosMsg, StdResult, Uint128, WasmMsg};
 
 use crate::msg::TokenId;
 
@@ -20,18 +20,18 @@ pub struct Cw1155ReceiveMsg {
 
 impl Cw1155ReceiveMsg {
     /// serializes the message
-    pub fn into_binary(self) -> StdResult<Binary> {
+    pub fn into_json_binary(self) -> StdResult<Binary> {
         let msg = ReceiverExecuteMsg::Receive(self);
-        to_binary(&msg)
+        to_json_binary(&msg)
     }
 
     /// creates a cosmos_msg sending this struct to the named contract
     pub fn into_cosmos_msg<T: Into<String>>(self, contract_addr: T) -> StdResult<CosmosMsg> {
-        let msg = self.into_binary()?;
+        let msg = self.into_json_binary()?;
         let execute = WasmMsg::Execute {
-            contract_addr: HumanAddr(contract_addr.into()),
+            contract_addr: Addr(contract_addr.into()),
             msg,
-            send: vec![],
+            funds: vec![],
         };
         Ok(execute.into())
     }
@@ -49,18 +49,18 @@ pub struct Cw1155BatchReceiveMsg {
 
 impl Cw1155BatchReceiveMsg {
     /// serializes the message
-    pub fn into_binary(self) -> StdResult<Binary> {
+    pub fn into_json_binary(self) -> StdResult<Binary> {
         let msg = ReceiverExecuteMsg::BatchReceive(self);
-        to_binary(&msg)
+        to_json_binary(&msg)
     }
 
     /// creates a cosmos_msg sending this struct to the named contract
     pub fn into_cosmos_msg<T: Into<String>>(self, contract_addr: T) -> StdResult<CosmosMsg> {
-        let msg = self.into_binary()?;
+        let msg = self.into_json_binary()?;
         let execute = WasmMsg::Execute {
-            contract_addr: HumanAddr(contract_addr.into()),
+            contract_addr: Addr(contract_addr.into()),
             msg,
-            send: vec![],
+            funds: vec![],
         };
         Ok(execute.into())
     }

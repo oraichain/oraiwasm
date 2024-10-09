@@ -5,7 +5,7 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{
-    attr, coins, from_binary, from_slice, to_binary, Api, CosmosMsg, HandleResponse, HumanAddr,
+    attr, coins, from_binary, from_slice, to_json_binary, Api, CosmosMsg, Response, Addr,
     OwnedDeps, WasmMsg,
 };
 
@@ -23,7 +23,7 @@ const SYMBOL: &str = "MGK";
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies(&coins(100000, "orai"));
     deps.api.canonical_length = 54;
-    let msg = InitMsg {
+    let msg = InstantiateMsg {
         name: Some(CONTRACT_NAME.to_string()),
         symbol: SYMBOL.to_string(),
         minter: MINTER.into(),
@@ -95,7 +95,7 @@ fn minting() {
         deps.api.canonical_address(&mint_msg.owner).unwrap()
     );
 
-    let mint_msg = HandleMsg::Mint(mint_msg);
+    let mint_msg = ExecuteMsg::Mint(mint_msg);
 
     // random cannot mint
     let random = mock_info("random", &[]);
@@ -146,7 +146,7 @@ fn minting() {
     );
 
     // Cannot mint same token_id again
-    let mint_msg2 = HandleMsg::Mint(MintMsg {
+    let mint_msg2 = ExecuteMsg::Mint(MintMsg {
         token_id: token_id.clone(),
         owner: "hercules".into(),
         name: "copy cat".into(),
@@ -187,7 +187,7 @@ fn transferring_nft() {
     let name = "Melting power".to_string();
     let description = "Allows the owner to melt anyone looking at him or her".to_string();
 
-    let mint_msg = HandleMsg::Mint(MintMsg {
+    let mint_msg = ExecuteMsg::Mint(MintMsg {
         token_id: token_id.clone(),
         owner: "venus".into(),
         name: name.clone(),
@@ -200,7 +200,7 @@ fn transferring_nft() {
 
     // random cannot transfer
     let random = mock_info("random", &[]);
-    let transfer_msg = HandleMsg::TransferNft {
+    let transfer_msg = ExecuteMsg::TransferNft {
         recipient: "random".into(),
         token_id: token_id.clone(),
     };
@@ -214,7 +214,7 @@ fn transferring_nft() {
 
     // owner can
     let random = mock_info("venus", &[]);
-    let transfer_msg = HandleMsg::TransferNft {
+    let transfer_msg = ExecuteMsg::TransferNft {
         recipient: "random".into(),
         token_id: token_id.clone(),
     };
@@ -223,7 +223,7 @@ fn transferring_nft() {
 
     assert_eq!(
         res,
-        HandleResponse {
+        Response {
             messages: vec![],
             attributes: vec![
                 attr("action", "transfer_nft"),
@@ -245,7 +245,7 @@ fn test_owner_rights() {
     let name = "Melting power".to_string();
     let description = "Allows the owner to melt anyone looking at him or her".to_string();
 
-    let mint_msg = HandleMsg::Mint(MintMsg {
+    let mint_msg = ExecuteMsg::Mint(MintMsg {
         token_id: token_id.clone(),
         owner: "venus".into(),
         name: name.clone(),
@@ -258,7 +258,7 @@ fn test_owner_rights() {
 
     // owner of the smart contract can transfer
     let random = mock_info(OWNER, &[]);
-    let transfer_msg = HandleMsg::TransferNft {
+    let transfer_msg = ExecuteMsg::TransferNft {
         recipient: "random".into(),
         token_id: token_id.clone(),
     };
@@ -272,8 +272,8 @@ fn test_owner_rights() {
     .unwrap();
 
     // owner can also approve the nft
-    let approve_msg = HandleMsg::Approve {
-        spender: HumanAddr::from("some random guy"),
+    let approve_msg = ExecuteMsg::Approve {
+        spender: Addr::from("some random guy"),
         token_id: "melt".to_string(),
         expires: None,
     };
@@ -286,8 +286,8 @@ fn test_owner_rights() {
     .unwrap();
 
     // can also revoke the nft
-    let revoke_msg = HandleMsg::Revoke {
-        spender: HumanAddr::from("some random guy"),
+    let revoke_msg = ExecuteMsg::Revoke {
+        spender: Addr::from("some random guy"),
         token_id: "melt".to_string(),
     };
     handle(
@@ -299,7 +299,7 @@ fn test_owner_rights() {
     .unwrap();
 
     // burn the nft
-    let burn_msg = HandleMsg::Burn {
+    let burn_msg = ExecuteMsg::Burn {
         token_id: "melt".to_string(),
     };
 
@@ -338,7 +338,7 @@ fn sending_nft() {
     let name = "Melting power".to_string();
     let description = "Allows the owner to melt anyone looking at him or her".to_string();
 
-    let mint_msg = HandleMsg::Mint(MintMsg {
+    let mint_msg = ExecuteMsg::Mint(MintMsg {
         token_id: token_id.clone(),
         owner: "venus".into(),
         name: name.clone(),
@@ -349,9 +349,9 @@ fn sending_nft() {
     let minter = mock_info(MINTER, &[]);
     handle(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
 
-    let msg = to_binary("You now have the melting power").unwrap();
-    let target = HumanAddr::from("another_contract");
-    let send_msg = HandleMsg::SendNft {
+    let msg = to_json_binary("You now have the melting power").unwrap();
+    let target = Addr::from("another_contract");
+    let send_msg = ExecuteMsg::SendNft {
         contract: target.clone(),
         token_id: token_id.clone(),
         msg: Some(msg.clone()),
@@ -384,7 +384,7 @@ fn sending_nft() {
     // and make sure this is the request sent by the contract
     assert_eq!(
         res,
-        HandleResponse {
+        Response {
             messages: vec![expected],
             attributes: vec![
                 attr("action", "send_nft"),
@@ -406,7 +406,7 @@ fn approving_revoking() {
     let name = "Growing power".to_string();
     let description = "Allows the owner to grow anything".to_string();
 
-    let mint_msg = HandleMsg::Mint(MintMsg {
+    let mint_msg = ExecuteMsg::Mint(MintMsg {
         token_id: token_id.clone(),
         owner: "demeter".into(),
         name: name.clone(),
@@ -418,7 +418,7 @@ fn approving_revoking() {
     handle(deps.as_mut(), mock_env(), minter, mint_msg).unwrap();
 
     // Give random transferring power
-    let approve_msg = HandleMsg::Approve {
+    let approve_msg = ExecuteMsg::Approve {
         spender: "random".into(),
         token_id: token_id.clone(),
         expires: None,
@@ -427,7 +427,7 @@ fn approving_revoking() {
     let res = handle(deps.as_mut(), mock_env(), owner, approve_msg).unwrap();
     assert_eq!(
         res,
-        HandleResponse {
+        Response {
             messages: vec![],
             attributes: vec![
                 attr("action", "approve"),
@@ -441,7 +441,7 @@ fn approving_revoking() {
 
     // random can now transfer
     let random = mock_info("random", &[]);
-    let transfer_msg = HandleMsg::TransferNft {
+    let transfer_msg = ExecuteMsg::TransferNft {
         recipient: "person".into(),
         token_id: token_id.clone(),
     };
@@ -463,7 +463,7 @@ fn approving_revoking() {
     );
 
     // Approve, revoke, and check for empty, to test revoke
-    let approve_msg = HandleMsg::Approve {
+    let approve_msg = ExecuteMsg::Approve {
         spender: "random".into(),
         token_id: token_id.clone(),
         expires: None,
@@ -471,7 +471,7 @@ fn approving_revoking() {
     let owner = mock_info("person", &[]);
     handle(deps.as_mut(), mock_env(), owner.clone(), approve_msg).unwrap();
 
-    let revoke_msg = HandleMsg::Revoke {
+    let revoke_msg = ExecuteMsg::Revoke {
         spender: "random".into(),
         token_id: token_id.clone(),
     };
@@ -501,7 +501,7 @@ fn approving_all_revoking_all() {
     let name2 = "More growing power".to_string();
     let description2 = "Allows the owner the power to grow anything even faster".to_string();
 
-    let mint_msg1 = HandleMsg::Mint(MintMsg {
+    let mint_msg1 = ExecuteMsg::Mint(MintMsg {
         token_id: token_id1.clone(),
         owner: "demeter".into(),
         name: name1.clone(),
@@ -512,7 +512,7 @@ fn approving_all_revoking_all() {
     let minter = mock_info(MINTER, &[]);
     handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg1).unwrap();
 
-    let mint_msg2 = HandleMsg::Mint(MintMsg {
+    let mint_msg2 = ExecuteMsg::Mint(MintMsg {
         token_id: token_id2.clone(),
         owner: "demeter".into(),
         name: name2.clone(),
@@ -553,7 +553,7 @@ fn approving_all_revoking_all() {
     assert_eq!(vec![token_id2.clone()], tokens.tokens);
 
     // demeter gives random full (operator) power over her tokens
-    let approve_all_msg = HandleMsg::ApproveAll {
+    let approve_all_msg = ExecuteMsg::ApproveAll {
         operator: "random".into(),
         expires: None,
     };
@@ -561,7 +561,7 @@ fn approving_all_revoking_all() {
     let res = handle(deps.as_mut(), mock_env(), owner, approve_all_msg).unwrap();
     assert_eq!(
         res,
-        HandleResponse {
+        Response {
             messages: vec![],
             attributes: vec![
                 attr("action", "approve_all"),
@@ -577,7 +577,7 @@ fn approving_all_revoking_all() {
             deps.as_ref(),
             mock_env(),
             QueryMsg::ApprovedForAll {
-                owner: HumanAddr::from("demeter"),
+                owner: Addr::from("demeter"),
                 include_expired: Some(false),
                 start_after: None,
                 limit: None,
@@ -590,14 +590,14 @@ fn approving_all_revoking_all() {
     let filter_result = result
         .operators
         .iter()
-        .find(|operator| operator.spender.eq(&HumanAddr::from("random")));
+        .find(|operator| operator.spender.eq(&Addr::from("random")));
 
     println!("is Aprrove all {:?}", filter_result);
     assert_eq!(filter_result.is_some(), true);
 
     // random can now transfer
     let random = mock_info("random", &[]);
-    let transfer_msg = HandleMsg::TransferNft {
+    let transfer_msg = ExecuteMsg::TransferNft {
         recipient: "person".into(),
         token_id: token_id1.clone(),
     };
@@ -606,20 +606,20 @@ fn approving_all_revoking_all() {
     // random can now send
     let inner_msg = WasmMsg::Execute {
         contract_addr: "another_contract".into(),
-        msg: to_binary("You now also have the growing power").unwrap(),
-        send: vec![],
+        msg: to_json_binary("You now also have the growing power").unwrap(),
+        funds: vec![],
     };
     let msg: CosmosMsg = CosmosMsg::Wasm(inner_msg);
 
-    let send_msg = HandleMsg::SendNft {
+    let send_msg = ExecuteMsg::SendNft {
         contract: "another_contract".into(),
         token_id: token_id2.clone(),
-        msg: Some(to_binary(&msg).unwrap()),
+        msg: Some(to_json_binary(&msg).unwrap()),
     };
     handle(deps.as_mut(), mock_env(), random, send_msg).unwrap();
 
     // Approve_all, revoke_all, and check for empty, to test revoke_all
-    let approve_all_msg = HandleMsg::ApproveAll {
+    let approve_all_msg = ExecuteMsg::ApproveAll {
         operator: "operator".into(),
         expires: None,
     };
@@ -654,7 +654,7 @@ fn approving_all_revoking_all() {
 
     // second approval
     let buddy_expires = Expiration::AtHeight(1234567);
-    let approve_all_msg = HandleMsg::ApproveAll {
+    let approve_all_msg = ExecuteMsg::ApproveAll {
         operator: "buddy".into(),
         expires: Some(buddy_expires),
     };
@@ -718,7 +718,7 @@ fn approving_all_revoking_all() {
         }
     );
 
-    let revoke_all_msg = HandleMsg::RevokeAll {
+    let revoke_all_msg = ExecuteMsg::RevokeAll {
         operator: "operator".into(),
     };
     handle(deps.as_mut(), mock_env(), owner, revoke_all_msg).unwrap();
@@ -777,12 +777,12 @@ fn query_tokens_by_owner() {
 
     // Mint a couple tokens (from the same owner)
     let token_id1 = "grow1".to_string();
-    let demeter = HumanAddr::from("Demeter");
+    let demeter = Addr::from("Demeter");
     let token_id2 = "grow2".to_string();
-    let ceres = HumanAddr::from("Ceres");
+    let ceres = Addr::from("Ceres");
     let token_id3 = "sing".to_string();
 
-    let mint_msg = HandleMsg::Mint(MintMsg {
+    let mint_msg = ExecuteMsg::Mint(MintMsg {
         token_id: token_id1.clone(),
         owner: demeter.clone(),
         name: "Growing power".to_string(),
@@ -791,7 +791,7 @@ fn query_tokens_by_owner() {
     });
     handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
 
-    let mint_msg = HandleMsg::Mint(MintMsg {
+    let mint_msg = ExecuteMsg::Mint(MintMsg {
         token_id: token_id2.clone(),
         owner: ceres.clone(),
         name: "More growing power".to_string(),
@@ -800,7 +800,7 @@ fn query_tokens_by_owner() {
     });
     handle(deps.as_mut(), mock_env(), minter.clone(), mint_msg).unwrap();
 
-    let mint_msg = HandleMsg::Mint(MintMsg {
+    let mint_msg = ExecuteMsg::Mint(MintMsg {
         token_id: token_id3.clone(),
         owner: demeter.clone(),
         name: "Sing a lullaby".to_string(),
@@ -935,7 +935,7 @@ fn mint_nft_invalid_args() {
     println!("length count: {}", owner.len());
     let mint_msg: MintMsg = from_slice(mint_str.as_bytes()).unwrap();
 
-    let mint_msg = HandleMsg::Mint(mint_msg);
+    let mint_msg = ExecuteMsg::Mint(mint_msg);
     let allowed = mock_info(MINTER, &[]);
     let err = handle(deps.as_mut(), mock_env(), allowed.clone(), mint_msg).unwrap_err();
 
@@ -964,7 +964,7 @@ fn update_nft() {
     println!("length count: {}", owner.len());
     let mint_msg: MintMsg = from_slice(mint_str.as_bytes()).unwrap();
 
-    let mint_msg = HandleMsg::Mint(mint_msg);
+    let mint_msg = ExecuteMsg::Mint(mint_msg);
     let allowed = mock_info(MINTER, &[]);
     handle(deps.as_mut(), mock_env(), allowed.clone(), mint_msg).unwrap();
 
@@ -973,7 +973,7 @@ fn update_nft() {
         deps.as_mut(),
         mock_env(),
         mock_info(owner, &[]),
-        HandleMsg::UpdateNft {
+        ExecuteMsg::UpdateNft {
             token_id: token_id.clone(),
             name: "new name".to_string(),
             description: None,

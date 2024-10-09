@@ -1,24 +1,24 @@
 use std::fmt;
 
-use cosmwasm_std::{Coin, Empty, HumanAddr, Uint128};
+use cosmwasm_std::{Coin, Empty, Addr, Uint128};
 use cw1155::Cw1155ReceiveMsg;
-use market::{StorageHandleMsg, StorageQueryMsg};
+use market::{StorageExecuteMsg, StorageQueryMsg};
 use market_ai_royalty::AiRoyaltyQueryMsg;
 use market_datahub::{AnnotatorResult, DataHubQueryMsg, MintMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub name: String,
     pub fee: u64,
     pub denom: String,
-    pub governance: HumanAddr,
+    pub governance: Addr,
     pub max_royalty: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     // Ask an NFT for a minimum price, must pay fee for auction maketplace
     Receive(Cw1155ReceiveMsg),
 
@@ -31,7 +31,7 @@ pub enum HandleMsg {
         offering_id: u64,
     },
     SellNft {
-        contract_addr: HumanAddr,
+        contract_addr: Addr,
         token_id: String,
         amount: Uint128,
         royalty_msg: SellRoyalty,
@@ -52,11 +52,11 @@ pub enum HandleMsg {
     },
     AddAnnotationReviewer {
         annotation_id: u64,
-        reviewer_address: HumanAddr,
+        reviewer_address: Addr,
     },
     RemoveAnnotationReviewer {
         annotation_id: u64,
-        reviewer_address: HumanAddr,
+        reviewer_address: Addr,
     },
     WithdrawAnnotation {
         annotation_id: u64,
@@ -80,22 +80,22 @@ pub enum HandleMsg {
     // },
     // UpdateAnnotationAnnotators {
     //     annotation_id: u64,
-    //     annotators: Vec<HumanAddr>,
+    //     annotators: Vec<Addr>,
     // },
     // ApproveAnnotation {
     //     annotation_id: u64,
-    //     annotator: HumanAddr,
+    //     annotator: Addr,
     // },
     MigrateVersion {
-        nft_contract_addr: HumanAddr,
+        nft_contract_addr: Addr,
         token_infos: Vec<(String, Uint128)>,
-        new_marketplace: HumanAddr,
+        new_marketplace: Addr,
     },
 }
 
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // pub struct AnnotatorResult {
-//     pub annotator_address: HumanAddr,
+//     pub annotator_address: Addr,
 //     pub result: Vec<bool>,
 // }
 
@@ -125,7 +125,7 @@ pub struct UpdateContractMsg {
     pub creator: Option<String>,
     pub fee: Option<u64>,
     pub denom: Option<String>,
-    pub governance: Option<HumanAddr>,
+    pub governance: Option<Addr>,
     pub max_royalty: Option<u64>,
     pub expired_block: Option<u64>,
     pub decimal_point: Option<u64>,
@@ -152,13 +152,13 @@ where
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ProxyHandleMsg<T = Empty>
+pub enum ProxyExecuteMsg<T = Empty>
 where
     T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
 {
     // GetOfferings returns a list of all offerings
     Msg(T),
-    Storage(StorageHandleMsg),
+    Storage(StorageExecuteMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

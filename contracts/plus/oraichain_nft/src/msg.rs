@@ -1,10 +1,10 @@
-use cosmwasm_std::{Binary, HumanAddr};
+use cosmwasm_std::{Binary, Addr};
 use cw721::Expiration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     /// name of the NFT contract, can use default
     pub name: Option<String>,
     pub version: Option<String>,
@@ -14,7 +14,7 @@ pub struct InitMsg {
     /// The minter is the only one who can create new NFTs.
     /// This is designed for a base NFT that is controlled by an external program
     /// or contract. You will likely replace this with custom logic in custom NFTs
-    pub minter: HumanAddr,
+    pub minter: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -22,15 +22,15 @@ pub struct MigrateMsg {
     pub test_field: String,
 }
 
-/// This is like Cw721HandleMsg but we add a Mint command for an owner
+/// This is like Cw721ExecuteMsg but we add a Mint command for an owner
 /// to make this stand-alone. You will likely want to remove mint and
 /// use other control logic in any contract that inherits this.
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     /// Transfer is a base message to move a token to another account without triggering actions
     TransferNft {
-        recipient: HumanAddr,
+        recipient: Addr,
         token_id: String,
     },
     Burn {
@@ -38,12 +38,12 @@ pub enum HandleMsg {
     },
     // ChangeMinter is a base message for the OW721 owner to change the minter
     ChangeMinter {
-        minter: HumanAddr,
+        minter: Addr,
     },
     /// Send is a base message to transfer a token to a contract and trigger an action
     /// on the receiving contract.
     SendNft {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
         msg: Option<Binary>,
     },
@@ -58,24 +58,24 @@ pub enum HandleMsg {
     /// Allows operator to transfer / send the token from the owner's account.
     /// If expiration is set, then this allowance has a time/height limit
     Approve {
-        spender: HumanAddr,
+        spender: Addr,
         token_id: String,
         expires: Option<Expiration>,
     },
     /// Remove previously granted Approval
     Revoke {
-        spender: HumanAddr,
+        spender: Addr,
         token_id: String,
     },
     /// Allows operator to transfer / send any token from the owner's account.
     /// If expiration is set, then this allowance has a time/height limit
     ApproveAll {
-        operator: HumanAddr,
+        operator: Addr,
         expires: Option<Expiration>,
     },
     /// Remove previously granted ApproveAll permission
     RevokeAll {
-        operator: HumanAddr,
+        operator: Addr,
     },
 
     /// Mint a new NFT, can only be called by the contract minter
@@ -87,7 +87,7 @@ pub struct MintMsg {
     /// Unique ID of the NFT
     pub token_id: String,
     /// The owner of the newly minter NFT
-    pub owner: HumanAddr,
+    pub owner: Addr,
     /// Identifies the asset to which this NFT represents
     pub name: String,
     /// Describes the asset to which this NFT represents (may be empty)
@@ -111,16 +111,16 @@ pub enum QueryMsg {
     /// List all operators that can access all of the owner's tokens
     /// Return type: `ApprovedForAllResponse`
     ApprovedForAll {
-        owner: HumanAddr,
+        owner: Addr,
         /// unset or false will filter out expired items, you must set to true to see them
         include_expired: Option<bool>,
-        start_after: Option<HumanAddr>,
+        start_after: Option<Addr>,
         limit: Option<u32>,
     },
 
     // IsApproveForAll {
-    //     owner: HumanAddr,
-    //     operator: HumanAddr,
+    //     owner: Addr,
+    //     operator: Addr,
     // },
     /// Total number of tokens issued
     NumTokens {},
@@ -147,7 +147,7 @@ pub enum QueryMsg {
     /// Returns all tokens owned by the given address, [] if unset.
     /// Return type: TokensResponse.
     Tokens {
-        owner: HumanAddr,
+        owner: Addr,
         start_after: Option<String>,
         limit: Option<u32>,
     },
@@ -166,5 +166,5 @@ pub enum QueryMsg {
 /// Shows who can mint these tokens
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct MinterResponse {
-    pub minter: HumanAddr,
+    pub minter: Addr,
 }

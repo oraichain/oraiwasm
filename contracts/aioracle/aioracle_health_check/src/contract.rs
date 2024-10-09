@@ -1,9 +1,11 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use std::ops::{Add, Div, Mul, Sub};
 
 use crate::error::ContractError;
 use crate::migrations::migrate_v01_to_v02;
 use crate::msg::{
-    HandleMsg, InitMsg, MigrateMsg, QueryExecutor, QueryExecutorMsg, QueryMsg,
+    ExecuteMsg, InstantiateMsg, MigrateMsg, QueryExecutor, QueryExecutorMsg, QueryMsg,
     QueryPingInfoResponse, QueryPingInfosResponse,
 };
 use crate::state::{
@@ -11,8 +13,8 @@ use crate::state::{
 };
 use aioracle_base::Executor;
 use cosmwasm_std::{
-    attr, to_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
-    HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError, StdResult, Uint128,
+    attr, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    MigrateResponse, Order, Response, Response, StdError, StdResult, Uint128,
 };
 use cw_storage_plus::Bound;
 
@@ -26,7 +28,13 @@ pub const PING_JUMP_INTERVAL: u64 = 438291; // 1 month in blocks, assuming 6 sec
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(deps: DepsMut, env: Env, info: MessageInfo, init: InitMsg) -> StdResult<InitResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    init: InstantiateMsg,
+) -> StdResult<Response> {
     let state = State {
         owner: info.sender.clone(),
         aioracle_addr: init.aioracle_addr,
@@ -39,18 +47,19 @@ pub fn init(deps: DepsMut, env: Env, info: MessageInfo, init: InitMsg) -> StdRes
     // save owner
     config(deps.storage).save(&state)?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::ChangeState {
+        ExecuteMsg::ChangeState {
             owner,
             base_reward,
             aioracle_addr,
@@ -67,17 +76,13 @@ pub fn handle(
             ping_jump_interval,
             max_reward_claim,
         ),
-        HandleMsg::Ping { pubkey } => add_ping(deps, info, env, pubkey),
-        HandleMsg::ClaimReward { pubkey } => claim_reward(deps, info, env, pubkey),
+        ExecuteMsg::Ping { pubkey } => add_ping(deps, info, env, pubkey),
+        ExecuteMsg::ClaimReward { pubkey } => claim_reward(deps, info, env, pubkey),
     }
 }
 
-pub fn migrate(
-    deps: DepsMut,
-    _env: Env,
-    _info: MessageInfo,
-    msg: MigrateMsg,
-) -> StdResult<MigrateResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(deps: DepsMut, _env: Env, msg: MigrateMsg) -> StdResult<MigrateResponse> {
     // // if old_version.version != CONTRACT_VERSION {
     // //     return Err(StdError::generic_err(format!(
     // //         "This is {}, cannot migrate from {}",
@@ -95,13 +100,13 @@ pub fn migrate(
 pub fn change_state(
     deps: DepsMut,
     info: MessageInfo,
-    owner: Option<HumanAddr>,
-    aioracle_addr: Option<HumanAddr>,
+    owner: Option<Addr>,
+    aioracle_addr: Option<Addr>,
     base_reward: Option<Coin>,
     ping_jump: Option<u64>,
     ping_jump_interval: Option<u64>,
     max_reward_claim: Option<Uint128>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let mut state = query_state(deps.as_ref())?;
     if info.sender != state.owner {
         return Err(ContractError::Unauthorized {});
@@ -133,9 +138,9 @@ pub fn change_state(
     config(deps.storage).save(&state)?;
     let info_sender = info.sender.clone();
 
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![attr("action", "change_state"), attr("caller", info_sender)],
-        ..HandleResponse::default()
+        ..Response::default()
     })
 }
 
@@ -144,7 +149,7 @@ pub fn add_ping(
     info: MessageInfo,
     env: Env,
     pubkey: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let addr = pubkey_to_address(&pubkey)?;
     if addr.ne(&info.sender) {
         return Err(ContractError::Unauthorized {});
@@ -195,9 +200,9 @@ pub fn add_ping(
 
     MAPPED_COUNT.save(deps.storage, pubkey.as_slice(), &ping_info)?;
     READ_ONLY_MAPPED_COUNT.save(deps.storage, pubkey.as_slice(), &read_ping_info)?;
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![attr("action", "add_ping"), attr("executor", info.sender)],
-        ..HandleResponse::default()
+        ..Response::default()
     })
 }
 
@@ -206,7 +211,7 @@ pub fn claim_reward(
     info: MessageInfo,
     env: Env,
     pubkey: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let addr = pubkey_to_address(&pubkey)?;
     if addr.ne(&info.sender) {
         return Err(ContractError::Unauthorized {});
@@ -271,7 +276,6 @@ pub fn claim_reward(
     if !total_reward.amount.is_zero() {
         cosmos_msgs.push(
             BankMsg::Send {
-                from_address: env.contract.address.clone(),
                 to_address: info.sender.clone(),
                 amount: vec![Coin {
                     denom: total_reward.denom.clone(),
@@ -282,7 +286,7 @@ pub fn claim_reward(
         );
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![
             attr("action", "claim_reward"),
             attr("executor", info.sender),
@@ -290,22 +294,22 @@ pub fn claim_reward(
             attr("amount", total_reward.amount),
         ],
         messages: cosmos_msgs,
-        ..HandleResponse::default()
+        ..Response::default()
     })
 }
 
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetPingInfo(executor) => to_binary(&query_ping_info(deps, &env, &executor)?),
+        QueryMsg::GetPingInfo(executor) => to_json_binary(&query_ping_info(deps, &env, &executor)?),
         QueryMsg::GetReadPingInfo(executor) => {
-            to_binary(&query_read_ping_info(deps, &env, &executor)?)
+            to_json_binary(&query_read_ping_info(deps, &env, &executor)?)
         }
-        QueryMsg::GetState {} => to_binary(&query_state(deps)?),
+        QueryMsg::GetState {} => to_json_binary(&query_state(deps)?),
         QueryMsg::GetPingInfos {
             offset,
             limit,
             order,
-        } => to_binary(&query_round_infos(deps, limit, offset, order)?),
+        } => to_json_binary(&query_round_infos(deps, limit, offset, order)?),
     }
 }
 
@@ -392,7 +396,7 @@ fn query_round_infos(
     Ok(counts?)
 }
 
-pub fn pubkey_to_address(pubkey: &Binary) -> Result<HumanAddr, ContractError> {
+pub fn pubkey_to_address(pubkey: &Binary) -> Result<Addr, ContractError> {
     let msg_hash_generic = sha2::Sha256::digest(pubkey.as_slice());
     let msg_hash = msg_hash_generic.as_slice();
     let mut hasher = Ripemd160::new();
@@ -401,5 +405,5 @@ pub fn pubkey_to_address(pubkey: &Binary) -> Result<HumanAddr, ContractError> {
     let result_slice = result.as_slice();
     let encoded = bech32::encode("orai", result_slice.to_base32(), Variant::Bech32)
         .map_err(|err| ContractError::Std(StdError::generic_err(err.to_string())))?;
-    Ok(HumanAddr::from(encoded))
+    Ok(Addr::from(encoded))
 }

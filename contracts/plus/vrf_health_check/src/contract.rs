@@ -1,10 +1,10 @@
 use std::ops::Sub;
 
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, QueryRoundResponse, QuerySingleRoundResponse};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, QueryRoundResponse, QuerySingleRoundResponse};
 use crate::state::{config, config_read, Member, RoundInfo, State, MAPPED_COUNT};
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
+    attr, to_json_binary, Binary, Deps, DepsMut, Env, Response, Addr, Response,
     MessageInfo, Order, StdResult,
 };
 use cw_storage_plus::Bound;
@@ -15,7 +15,8 @@ const DEFAULT_ROUND_JUMP: u64 = 300;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(deps: DepsMut, env: Env, info: MessageInfo, init: InitMsg) -> StdResult<InitResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(deps: DepsMut, env: Env, info: MessageInfo, init: InstantiateMsg) -> StdResult<Response> {
     let state = State {
         owner: info.sender.clone(),
         round_jump: DEFAULT_ROUND_JUMP,
@@ -27,18 +28,19 @@ pub fn init(deps: DepsMut, env: Env, info: MessageInfo, init: InitMsg) -> StdRes
     // save owner
     config(deps.storage).save(&state)?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::ChangeState {
+        ExecuteMsg::ChangeState {
             owner,
             round_jump,
             members,
@@ -53,20 +55,20 @@ pub fn handle(
             cur_checkpoint,
             members,
         ),
-        HandleMsg::Ping {} => add_ping(deps, info, env),
-        HandleMsg::ResetCount {} => reset_count(deps, info),
+        ExecuteMsg::Ping {} => add_ping(deps, info, env),
+        ExecuteMsg::ResetCount {} => reset_count(deps, info),
     }
 }
 
 pub fn change_state(
     deps: DepsMut,
     info: MessageInfo,
-    owner: Option<HumanAddr>,
+    owner: Option<Addr>,
     round_jump: Option<u64>,
     prev_checkpoint: Option<u64>,
     cur_checkpoint: Option<u64>,
     members: Option<Vec<Member>>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let mut state = query_state(deps.as_ref())?;
     if info.sender != state.owner {
         return Err(ContractError::Unauthorized {});
@@ -97,19 +99,19 @@ pub fn change_state(
         reset_count(deps, info)?;
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![attr("action", "change_state"), attr("caller", info_sender)],
-        ..HandleResponse::default()
+        ..Response::default()
     })
 }
 
-pub fn reset_count(deps: DepsMut, info: MessageInfo) -> Result<HandleResponse, ContractError> {
+pub fn reset_count(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let state = query_state(deps.as_ref())?;
     if info.sender != state.owner {
         return Err(ContractError::Unauthorized {});
     }
 
-    let mut offset = Some(HumanAddr::from(""));
+    let mut offset = Some(Addr::from(""));
     while query_rounds(deps.as_ref(), None, offset.clone(), None)?.len() > 0 {
         let temp_round = query_rounds(deps.as_ref(), None, offset.clone(), None)?;
         for round in temp_round.clone() {
@@ -120,9 +122,9 @@ pub fn reset_count(deps: DepsMut, info: MessageInfo) -> Result<HandleResponse, C
         }
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![attr("action", "reset_count"), attr("caller", info.sender)],
-        ..HandleResponse::default()
+        ..Response::default()
     })
 }
 
@@ -130,7 +132,7 @@ pub fn add_ping(
     deps: DepsMut,
     info: MessageInfo,
     env: Env,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let QuerySingleRoundResponse {
         mut round_info,
         round_jump,
@@ -156,25 +158,25 @@ pub fn add_ping(
     round_info.round = round_info.round + 1;
     round_info.height = env.block.height;
     MAPPED_COUNT.save(deps.storage, info.sender.as_bytes(), &round_info)?;
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![attr("action", "add_ping"), attr("executor", info.sender)],
-        ..HandleResponse::default()
+        ..Response::default()
     })
 }
 
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetRound(executor) => to_binary(&query_round(deps, &env, &executor)?),
-        QueryMsg::GetState {} => to_binary(&query_state(deps)?),
+        QueryMsg::GetRound(executor) => to_json_binary(&query_round(deps, &env, &executor)?),
+        QueryMsg::GetState {} => to_json_binary(&query_state(deps)?),
         QueryMsg::GetRounds {
             offset,
             limit,
             order,
-        } => to_binary(&query_rounds(deps, limit, offset, order)?),
+        } => to_json_binary(&query_rounds(deps, limit, offset, order)?),
     }
 }
 
-fn query_round(deps: Deps, env: &Env, executor: &HumanAddr) -> StdResult<QuerySingleRoundResponse> {
+fn query_round(deps: Deps, env: &Env, executor: &Addr) -> StdResult<QuerySingleRoundResponse> {
     // same StdErr can use ?
     let State { round_jump, .. } = query_state(deps)?;
     let round_opt = MAPPED_COUNT.may_load(deps.storage, &executor.as_bytes())?;
@@ -203,7 +205,7 @@ fn query_state(deps: Deps) -> StdResult<State> {
 fn query_rounds(
     deps: Deps,
     limit: Option<u8>,
-    offset: Option<HumanAddr>,
+    offset: Option<Addr>,
     order: Option<u8>,
 ) -> StdResult<Vec<QueryRoundResponse>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
@@ -232,7 +234,7 @@ fn query_rounds(
         .map(|kv_item| {
             kv_item.and_then(|(k, v)| {
                 Ok(QueryRoundResponse {
-                    executor: HumanAddr::from(String::from_utf8(k)?),
+                    executor: Addr::from(String::from_utf8(k)?),
                     round_info: v,
                 })
             })

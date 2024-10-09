@@ -1,19 +1,19 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::state::{Member, RoundInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub members: Vec<Member>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     ChangeState {
-        owner: Option<HumanAddr>,
+        owner: Option<Addr>,
         round_jump: Option<u64>,
         members: Option<Vec<Member>>,
         prev_checkpoint: Option<u64>,
@@ -26,9 +26,9 @@ pub enum HandleMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    GetRound(HumanAddr),
+    GetRound(Addr),
     GetRounds {
-        offset: Option<HumanAddr>,
+        offset: Option<Addr>,
         limit: Option<u8>,
         order: Option<u8>,
     },
@@ -38,7 +38,7 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct QueryRoundResponse {
-    pub executor: HumanAddr,
+    pub executor: Addr,
     pub round_info: RoundInfo,
 }
 
@@ -53,6 +53,6 @@ pub struct QuerySingleRoundResponse {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct PercentageResponse {
-    pub executor: HumanAddr,
+    pub executor: Addr,
     pub percent: u8,
 }

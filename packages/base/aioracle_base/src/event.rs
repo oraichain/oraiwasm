@@ -1,8 +1,8 @@
-use cosmwasm_std::{attr, HandleResponse};
+use cosmwasm_std::{attr, Response};
 
 pub trait Event {
     /// Append attributes to response
-    fn add_attributes(&self, response: &mut HandleResponse);
+    fn add_attributes(&self, response: &mut Response);
 }
 
 /// Tracks approve_all status changes
@@ -13,7 +13,7 @@ pub struct ApproveAllEvent<'a> {
 }
 
 impl<'a> Event for ApproveAllEvent<'a> {
-    fn add_attributes(&self, rsp: &mut HandleResponse) {
+    fn add_attributes(&self, rsp: &mut Response) {
         rsp.attributes.push(attr("action", "approve_all"));
         rsp.attributes.push(attr("sender", self.sender.to_string()));
         rsp.attributes

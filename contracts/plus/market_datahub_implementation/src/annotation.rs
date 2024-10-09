@@ -5,11 +5,11 @@ use crate::contract::{get_handle_msg, query_datahub, DATAHUB_STORAGE};
 use crate::error::ContractError;
 use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, coins, from_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env, HandleResponse,
-    MessageInfo, Uint128,
+    attr, coins, from_binary, BankMsg, CosmosMsg, Decimal, Deps, DepsMut, Env, MessageInfo,
+    Response, Uint128,
 };
-use cosmwasm_std::{HumanAddr, StdError};
-use market_datahub::{Annotation, AnnotationReviewer, DataHubHandleMsg, DataHubQueryMsg};
+use cosmwasm_std::{Addr, StdError};
+use market_datahub::{Annotation, AnnotationReviewer, DataHubExecuteMsg, DataHubQueryMsg};
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::ops::{AddAssign, Mul};
@@ -24,7 +24,7 @@ pub fn try_withdraw(
     info: MessageInfo,
     env: Env,
     annotation_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo {
         governance,
         creator,
@@ -59,7 +59,7 @@ pub fn try_withdraw(
             cosmos_msgs.push(
                 BankMsg::Send {
                     from_address: env.contract.address.clone(),
-                    to_address: HumanAddr::from(off.requester),
+                    to_address: Addr::from(off.requester),
                     amount: coins(annotation_price.clone().u128(), &denom),
                 }
                 .into(),
@@ -70,10 +70,10 @@ pub fn try_withdraw(
         cosmos_msgs.push(get_handle_msg(
             governance.as_str(),
             DATAHUB_STORAGE,
-            DataHubHandleMsg::RemoveAnnotation { id: annotation_id },
+            DataHubExecuteMsg::RemoveAnnotation { id: annotation_id },
         )?);
 
-        return Ok(HandleResponse {
+        return Ok(Response {
             messages: cosmos_msgs,
             attributes: vec![
                 attr("action", "withdraw_annotation_request"),
@@ -101,7 +101,7 @@ pub fn try_execute_request_annotation(
     max_upload_tasks: Uint128,
     reward_per_upload_task: Uint128,
     expired_after: Option<u64>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // Check sendt funds
     let ContractInfo {
         denom,
@@ -159,12 +159,12 @@ pub fn try_execute_request_annotation(
     cosmos_msg.push(get_handle_msg(
         governance.as_str(),
         DATAHUB_STORAGE,
-        DataHubHandleMsg::UpdateAnnotation {
+        DataHubExecuteMsg::UpdateAnnotation {
             annotation: annotation.clone(),
         },
     )?);
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cosmos_msg,
         attributes: vec![
             attr("action", "request_annotation"),
@@ -187,7 +187,7 @@ pub fn try_payout(
     env: Env,
     info: MessageInfo,
     annotation_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo {
         creator,
         governance,
@@ -234,7 +234,7 @@ pub fn try_payout(
 
     let first = annotation_reviewed_results.first().unwrap();
 
-    let mut annotator_valid_results_map = HashMap::<HumanAddr, AnnotatorValidResults>::new();
+    let mut annotator_valid_results_map = HashMap::<Addr, AnnotatorValidResults>::new();
 
     // Traverse all reviewer result, 1 reviewer - many annotator's results
     for (annotator_index, result) in first.data.iter().enumerate() {
@@ -341,7 +341,6 @@ pub fn try_payout(
     if payback_amount.gt(&0u128) {
         cosmos_msg.push(
             BankMsg::Send {
-                from_address: env.contract.address.clone(),
                 to_address: annotation.clone().requester,
                 amount: coins(payback_amount, denom.clone()),
             }
@@ -356,12 +355,12 @@ pub fn try_payout(
     cosmos_msg.push(get_handle_msg(
         governance.as_str(),
         DATAHUB_STORAGE,
-        DataHubHandleMsg::UpdateAnnotation {
+        DataHubExecuteMsg::UpdateAnnotation {
             annotation: annotation.clone(),
         },
     )?);
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cosmos_msg,
         attributes,
         data: None,

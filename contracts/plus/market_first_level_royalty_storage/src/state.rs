@@ -3,13 +3,13 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
-    pub governance: HumanAddr,
-    pub creator: HumanAddr,
+    pub governance: Addr,
+    pub creator: Addr,
 }
 
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("marketplace_info");

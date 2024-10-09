@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr, InitResponse,
+    attr, to_json_binary, Binary, Deps, DepsMut, Env, Response, Addr, Response,
     MessageInfo, StdResult,
 };
 
@@ -9,12 +9,13 @@ use std::convert::TryInto;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ConfigResponse, HandleMsg, InitMsg, IsClaimedResponse, LatestStageResponse, MerkleRootResponse,
+    ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse, MerkleRootResponse,
     QueryMsg,
 };
 use crate::state::{Config, CLAIM, CONFIG, LATEST_STAGE, MERKLE_ROOT};
 
-pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(deps: DepsMut, _env: Env, info: MessageInfo, msg: InstantiateMsg) -> StdResult<Response> {
     let owner = msg.owner.unwrap_or(info.sender);
 
     let config = Config { owner: Some(owner) };
@@ -23,21 +24,22 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
     let stage = 0;
     LATEST_STAGE.save(deps.storage, &stage)?;
 
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::UpdateConfig { new_owner } => execute_update_config(deps, env, info, new_owner),
-        HandleMsg::RegisterMerkleRoot { merkle_root } => {
+        ExecuteMsg::UpdateConfig { new_owner } => execute_update_config(deps, env, info, new_owner),
+        ExecuteMsg::RegisterMerkleRoot { merkle_root } => {
             execute_register_merkle_root(deps, env, info, merkle_root)
         }
-        HandleMsg::Claim { stage, data, proof } => {
+        ExecuteMsg::Claim { stage, data, proof } => {
             execute_claim(deps, env, info, stage, data, proof)
         }
     }
@@ -47,8 +49,8 @@ pub fn execute_update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    new_owner: Option<HumanAddr>,
-) -> Result<HandleResponse, ContractError> {
+    new_owner: Option<Addr>,
+) -> Result<Response, ContractError> {
     // authorize owner
     let cfg = CONFIG.load(deps.storage)?;
     let owner = cfg.owner.ok_or(ContractError::Unauthorized {})?;
@@ -62,7 +64,7 @@ pub fn execute_update_config(
         Ok(exists)
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![attr("action", "update_config")],
         messages: vec![],
         data: None,
@@ -74,7 +76,7 @@ pub fn execute_register_merkle_root(
     _env: Env,
     info: MessageInfo,
     merkle_root: String,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let cfg = CONFIG.load(deps.storage)?;
 
     // if owner set validate, otherwise unauthorized
@@ -91,7 +93,7 @@ pub fn execute_register_merkle_root(
 
     MERKLE_ROOT.save(deps.storage, U8Key::from(stage), &merkle_root)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         data: None,
         messages: vec![],
         attributes: vec![
@@ -109,7 +111,7 @@ pub fn execute_claim(
     stage: u8,
     data: String,
     proof: Vec<String>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // verify not claimed
     let mut key = deps.api.canonical_address(&info.sender)?.to_vec();
     key.push(stage);
@@ -146,7 +148,7 @@ pub fn execute_claim(
     // Update claim index to the current stage
     CLAIM.save(deps.storage, &key, &true)?;
 
-    let res = HandleResponse {
+    let res = Response {
         data: None,
         messages: vec![],
         attributes: vec![
@@ -161,11 +163,11 @@ pub fn execute_claim(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Config {} => to_binary(&query_config(deps)?),
-        QueryMsg::MerkleRoot { stage } => to_binary(&query_merkle_root(deps, stage)?),
-        QueryMsg::LatestStage {} => to_binary(&query_latest_stage(deps)?),
+        QueryMsg::Config {} => to_json_binary(&query_config(deps)?),
+        QueryMsg::MerkleRoot { stage } => to_json_binary(&query_merkle_root(deps, stage)?),
+        QueryMsg::LatestStage {} => to_json_binary(&query_latest_stage(deps)?),
         QueryMsg::IsClaimed { stage, address } => {
-            to_binary(&query_is_claimed(deps, stage, address)?)
+            to_json_binary(&query_is_claimed(deps, stage, address)?)
         }
     }
 }
@@ -191,7 +193,7 @@ pub fn query_latest_stage(deps: Deps) -> StdResult<LatestStageResponse> {
     Ok(resp)
 }
 
-pub fn query_is_claimed(deps: Deps, stage: u8, address: HumanAddr) -> StdResult<IsClaimedResponse> {
+pub fn query_is_claimed(deps: Deps, stage: u8, address: Addr) -> StdResult<IsClaimedResponse> {
     let mut key = deps.api.canonical_address(&address)?.to_vec();
     key.push(stage);
     let is_claimed = CLAIM.may_load(deps.storage, &key)?.unwrap_or(false);

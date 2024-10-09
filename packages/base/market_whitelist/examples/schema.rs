@@ -10,7 +10,7 @@ fn main() {
     remove_schemas(&out_dir).unwrap();
 
     export_schema(
-        &schema_for!(market_whitelist::MarketWhiteListHandleMsg),
+        &schema_for!(market_whitelist::MarketWhiteListExecuteMsg),
         &out_dir,
     );
     export_schema(

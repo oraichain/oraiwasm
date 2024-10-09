@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -13,13 +13,13 @@ pub enum OfferingQueryMsg {
         order: Option<u8>,
     },
     GetOfferingsBySeller {
-        seller: HumanAddr,
+        seller: Addr,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetOfferingsByContract {
-        contract: HumanAddr,
+        contract: Addr,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
@@ -31,7 +31,7 @@ pub enum OfferingQueryMsg {
         offering_id: u64,
     },
     GetOfferingByContractTokenId {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
     },
     GetOfferingsRoyalty {
@@ -40,13 +40,13 @@ pub enum OfferingQueryMsg {
         order: Option<u8>,
     },
     GetOfferingsRoyaltyByCurrentOwner {
-        current_owner: HumanAddr,
+        current_owner: Addr,
         offset: Option<OffsetMsg>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetOfferingsRoyaltyByContract {
-        contract: HumanAddr,
+        contract: Addr,
         offset: Option<OffsetMsg>,
         limit: Option<u8>,
         order: Option<u8>,
@@ -55,7 +55,7 @@ pub enum OfferingQueryMsg {
         offering_id: u64,
     },
     GetOfferingRoyaltyByContractTokenId {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
     },
     GetContractInfo {},
@@ -66,8 +66,8 @@ pub struct QueryOfferingsResult {
     pub id: u64,
     pub token_id: String,
     pub price: Uint128,
-    pub contract_addr: HumanAddr,
-    pub seller: HumanAddr,
+    pub contract_addr: Addr,
+    pub seller: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -77,6 +77,6 @@ pub struct OfferingsResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OffsetMsg {
-    pub contract: HumanAddr,
+    pub contract: Addr,
     pub token_id: String,
 }

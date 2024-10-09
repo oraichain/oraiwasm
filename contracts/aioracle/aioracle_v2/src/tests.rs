@@ -1,17 +1,19 @@
 use crate::contract::{init, query, verify_request_fees};
 use crate::error::ContractError;
 use crate::msg::{
-    HandleMsg, InitMsg, QueryMsg, RequestResponse, StageInfo, TrustingPoolResponse, UpdateConfigMsg,
+    ExecuteMsg, InstantiateMsg, QueryMsg, RequestResponse, StageInfo, TrustingPoolResponse,
+    UpdateConfigMsg,
 };
 use crate::state::{Config, Request};
 
 use aioracle_base::{Executor, Reward};
 use bech32::{self, ToBase32, Variant};
 use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    mock_dependencies, mock_dependencies_with_balance, mock_env, mock_info, MockApi, MockQuerier,
+    MockStorage,
 };
 use cosmwasm_std::{
-    coin, coins, from_binary, from_slice, Binary, BlockInfo, Coin, ContractInfo, Env, HumanAddr,
+    coin, coins, from_binary, from_slice, Addr, Binary, BlockInfo, Coin, ContractInfo, Env,
     OwnedDeps, StdError, Uint128,
 };
 use cw_multi_test::{next_block, App, Contract, ContractWrapper, SimpleBank};
@@ -43,7 +45,7 @@ fn test_bech32() {
 }
 
 fn init_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
-    let mut deps = mock_dependencies(&coins(100000, DENOM));
+    let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
     let info = mock_info("addr0000", &[]);
     // init provider demo
     let _res = provider_bridge::contract::init(
@@ -52,26 +54,22 @@ fn init_deps() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
             block: BlockInfo {
                 height: 12_345,
                 time: 1_571_797_419,
-                time_nanos: 879305533,
                 chain_id: "cosmos-testnet-14002".to_string(),
             },
+            transaction: None,
             contract: ContractInfo {
-                address: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
+                address: Addr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
             },
         },
         info,
-        provider_bridge::msg::InitMsg {
+        provider_bridge::msg::InstantiateMsg {
             service: String::from("something"),
             service_contracts: Contracts {
-                dsources: vec![HumanAddr::from(
-                    "orai188efpndge9hqayll4cp9gzv0dw6rvj25e4slkp",
-                )],
-                tcases: vec![HumanAddr::from(
-                    "orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt",
-                )],
-                oscript: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
+                dsources: vec![Addr::from("orai188efpndge9hqayll4cp9gzv0dw6rvj25e4slkp")],
+                tcases: vec![Addr::from("orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt")],
+                oscript: Addr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
             },
-            service_fees_contract: HumanAddr::from("orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt"),
+            service_fees_contract: Addr::from("orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt"),
         },
     )
     .unwrap();
@@ -107,22 +105,18 @@ pub fn contract_service_fees() -> Box<dyn Contract> {
 }
 
 fn mock_app() -> App {
-    let env = mock_env();
-    let api = Box::new(MockApi::default());
-    let bank = SimpleBank {};
-
-    App::new(api, env.block, bank, || Box::new(MockStorage::new()))
+    App::new(|router, _, storage| {})
 }
 
 // uploads code and returns address of group contract
 fn init_aioracle(
     app: &mut App,
-    service_addr: HumanAddr,
+    service_addr: Addr,
     contract_fee: Coin,
     executors: Vec<Binary>,
-) -> HumanAddr {
+) -> Addr {
     let group_id = app.store_code(contract_aioracle_v2());
-    let msg = InitMsg {
+    let msg = InstantiateMsg {
         owner: None,
         service_addr,
         contract_fee,
@@ -138,10 +132,10 @@ fn init_provider(
     app: &mut App,
     service: String,
     service_contracts: Contracts,
-    service_fees_contract: HumanAddr,
-) -> HumanAddr {
+    service_fees_contract: Addr,
+) -> Addr {
     let group_id = app.store_code(contract_provider());
-    let msg = provider_bridge::msg::InitMsg {
+    let msg = provider_bridge::msg::InstantiateMsg {
         service,
         service_contracts,
         service_fees_contract,
@@ -152,9 +146,9 @@ fn init_provider(
 }
 
 // uploads code and returns address of group contract
-fn init_service_fees(app: &mut App) -> HumanAddr {
+fn init_service_fees(app: &mut App) -> Addr {
     let group_id = app.store_code(contract_service_fees());
-    let msg = aioracle_service_fees::msg::InitMsg {};
+    let msg = aioracle_service_fees::msg::InstantiateMsg {};
 
     app.instantiate_contract(
         group_id,
@@ -166,20 +160,16 @@ fn init_service_fees(app: &mut App) -> HumanAddr {
     .unwrap()
 }
 
-fn setup_test_case(app: &mut App) -> (HumanAddr, HumanAddr, HumanAddr) {
+fn setup_test_case(app: &mut App) -> (Addr, Addr, Addr) {
     // 2. Set up Multisig backed by this group
     let service_fees_addr = init_service_fees(app);
     let provider_addr = init_provider(
         app,
         "price".to_string(),
         Contracts {
-            dsources: vec![HumanAddr::from(
-                "orai188efpndge9hqayll4cp9gzv0dw6rvj25e4slkp",
-            )],
-            tcases: vec![HumanAddr::from(
-                "orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt",
-            )],
-            oscript: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
+            dsources: vec![Addr::from("orai188efpndge9hqayll4cp9gzv0dw6rvj25e4slkp")],
+            tcases: vec![Addr::from("orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt")],
+            oscript: Addr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
         },
         service_fees_addr.clone(),
     );
@@ -199,14 +189,14 @@ fn setup_test_case(app: &mut App) -> (HumanAddr, HumanAddr, HumanAddr) {
     app.update_block(next_block);
 
     // init balance for client
-    app.set_bank_balance(HumanAddr::from(CLIENT), coins(10000000000, "orai"))
+    app.set_bank_balance(Addr::from(CLIENT), coins(10000000000, "orai"))
         .unwrap();
     app.update_block(next_block);
 
     app.execute_contract(
-        HumanAddr::from("orai188efpndge9hqayll4cp9gzv0dw6rvj25e4slkp"),
+        Addr::from("orai188efpndge9hqayll4cp9gzv0dw6rvj25e4slkp"),
         service_fees_addr.clone(),
-        &aioracle_service_fees::msg::HandleMsg::UpdateServiceFees {
+        &aioracle_service_fees::msg::ExecuteMsg::UpdateServiceFees {
             fees: coin(1u128, "orai"),
         },
         &[],
@@ -214,9 +204,9 @@ fn setup_test_case(app: &mut App) -> (HumanAddr, HumanAddr, HumanAddr) {
     .unwrap();
 
     app.execute_contract(
-        HumanAddr::from("orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt"),
+        Addr::from("orai18hr8jggl3xnrutfujy2jwpeu0l76azprlvgrwt"),
         service_fees_addr.clone(),
-        &aioracle_service_fees::msg::HandleMsg::UpdateServiceFees {
+        &aioracle_service_fees::msg::ExecuteMsg::UpdateServiceFees {
             fees: coin(2u128, "orai"),
         },
         &[],
@@ -224,9 +214,9 @@ fn setup_test_case(app: &mut App) -> (HumanAddr, HumanAddr, HumanAddr) {
     .unwrap();
 
     app.execute_contract(
-        HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
+        Addr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
         service_fees_addr.clone(),
-        &aioracle_service_fees::msg::HandleMsg::UpdateServiceFees {
+        &aioracle_service_fees::msg::ExecuteMsg::UpdateServiceFees {
             fees: coin(1u128, "orai"),
         },
         &[],
@@ -234,9 +224,9 @@ fn setup_test_case(app: &mut App) -> (HumanAddr, HumanAddr, HumanAddr) {
     .unwrap();
 
     app.execute_contract(
-        HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+        Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
         service_fees_addr.clone(),
-        &aioracle_service_fees::msg::HandleMsg::UpdateServiceFees {
+        &aioracle_service_fees::msg::ExecuteMsg::UpdateServiceFees {
             fees: coin(1u128, "orai"),
         },
         &[],
@@ -253,9 +243,9 @@ fn proper_instantiation() {
 
     // create a new request
     app.execute_contract(
-        &HumanAddr::from("client"),
+        &Addr::from("client"),
         &aioracle_addr,
-        &HandleMsg::Request {
+        &ExecuteMsg::Request {
             threshold: 1,
             input: None,
             service: "price".to_string(),
@@ -274,7 +264,7 @@ fn proper_instantiation() {
     println!("res: {:?}", res);
     assert_eq!(
         res.oscript,
-        HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj")
+        Addr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj")
     );
 }
 
@@ -285,13 +275,13 @@ fn update_config() {
 
     // update owner
     let info = mock_info(AIORACLE_OWNER, &[]);
-    let msg = HandleMsg::UpdateConfig {
+    let msg = ExecuteMsg::UpdateConfig {
         update_config_msg: UpdateConfigMsg {
             new_owner: Some("owner0001".into()),
             new_contract_fee: Some(coin(10u128, "foobar")),
             new_executors: Some(vec![]),
             old_executors: Some(vec![]),
-            new_service_addr: Some(HumanAddr::from("yolo")),
+            new_service_addr: Some(Addr::from("yolo")),
             new_checkpoint: None,
             new_checkpoint_threshold: None,
             new_max_req_threshold: None,
@@ -318,11 +308,11 @@ fn update_config() {
         },
         config.contract_fee
     );
-    assert_eq!(config.service_addr, HumanAddr::from("yolo"));
+    assert_eq!(config.service_addr, Addr::from("yolo"));
 
     // Unauthorized err
     let info = mock_info("owner0000", &[]);
-    let msg = HandleMsg::UpdateConfig {
+    let msg = ExecuteMsg::UpdateConfig {
         update_config_msg: UpdateConfigMsg {
             new_owner: None,
             new_contract_fee: None,
@@ -345,7 +335,7 @@ fn update_config() {
     assert_eq!(res, ContractError::Unauthorized {}.to_string());
 
     // try adding new executors
-    let msg = HandleMsg::UpdateConfig {
+    let msg = ExecuteMsg::UpdateConfig {
         update_config_msg: UpdateConfigMsg {
             new_owner: None,
             new_contract_fee: None,
@@ -389,9 +379,9 @@ fn test_request() {
 
     // create a new request
     app.execute_contract(
-        &HumanAddr::from("client"),
+        &Addr::from("client"),
         &aioracle_addr,
-        &HandleMsg::Request {
+        &ExecuteMsg::Request {
             threshold: 1,
             input: None,
             service: "price".to_string(),
@@ -402,9 +392,9 @@ fn test_request() {
     .unwrap();
 
     app.execute_contract(
-        &HumanAddr::from("client"),
+        &Addr::from("client"),
         &aioracle_addr,
-        &HandleMsg::Request {
+        &ExecuteMsg::Request {
             threshold: 1,
             input: None,
             service: "price".to_string(),
@@ -425,9 +415,9 @@ fn test_request() {
     // fail when threshold reach above 2/3 executors
     assert_eq!(
         app.execute_contract(
-            &HumanAddr::from("client"),
+            &Addr::from("client"),
             &aioracle_addr,
-            &HandleMsg::Request {
+            &ExecuteMsg::Request {
                 threshold: 3,
                 input: None,
                 service: "price".to_string(),
@@ -441,9 +431,9 @@ fn test_request() {
 
     // for i in 0..4 {
     //     app.execute_contract(
-    //         &HumanAddr::from("client"),
+    //         &Addr::from("client"),
     //         &aioracle_addr,
-    //         &HandleMsg::Request {
+    //         &ExecuteMsg::Request {
     //             threshold: 1,
     //             service: "price".to_string(),
     //         },
@@ -468,9 +458,9 @@ fn register_merkle_root() {
 
     // create a new request
     app.execute_contract(
-        &HumanAddr::from("client"),
+        &Addr::from("client"),
         &aioracle_addr,
-        &HandleMsg::Request {
+        &ExecuteMsg::Request {
             threshold: 1,
             input: None,
             service: "price".to_string(),
@@ -481,7 +471,7 @@ fn register_merkle_root() {
     .unwrap();
 
     // register new merkle root
-    let msg = HandleMsg::RegisterMerkleRoot {
+    let msg = ExecuteMsg::RegisterMerkleRoot {
         stage: 1,
         merkle_root: "4a2e27a2befb41a0655b8fe98d9c1a9f18ece280dc78b442734ead617e6bf3fc".to_string(),
         executors: vec![
@@ -489,13 +479,8 @@ fn register_merkle_root() {
         ],
     };
 
-    app.execute_contract(
-        HumanAddr::from(AIORACLE_OWNER),
-        aioracle_addr.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
+    app.execute_contract(Addr::from(AIORACLE_OWNER), aioracle_addr.clone(), &msg, &[])
+        .unwrap();
 
     let merkle_root: Request = app
         .wrap()
@@ -529,9 +514,9 @@ fn verify_data() {
 
     // create a new request
     app.execute_contract(
-        &HumanAddr::from("client"),
+        &Addr::from("client"),
         &aioracle_addr,
-        &HandleMsg::Request {
+        &ExecuteMsg::Request {
             threshold: 1,
             input: None,
             service: "price".to_string(),
@@ -542,7 +527,7 @@ fn verify_data() {
     .unwrap();
 
     // register new merkle root
-    let msg = HandleMsg::RegisterMerkleRoot {
+    let msg = ExecuteMsg::RegisterMerkleRoot {
         stage: 1,
         merkle_root: test_data.root,
         executors: vec![
@@ -550,13 +535,8 @@ fn verify_data() {
         ],
     };
 
-    app.execute_contract(
-        HumanAddr::from(AIORACLE_OWNER),
-        aioracle_addr.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
+    app.execute_contract(Addr::from(AIORACLE_OWNER), aioracle_addr.clone(), &msg, &[])
+        .unwrap();
 
     let verified: bool = app
         .wrap()
@@ -585,9 +565,9 @@ fn test_checkpoint() {
         println!("request: {:?}", i);
         // create a new request
         app.execute_contract(
-            &HumanAddr::from("client"),
+            &Addr::from("client"),
             &aioracle_addr,
-            &HandleMsg::Request {
+            &ExecuteMsg::Request {
                 threshold: 1,
                 input: None,
                 service: "price".to_string(),
@@ -601,7 +581,7 @@ fn test_checkpoint() {
         }
 
         // register new merkle root
-        let msg = HandleMsg::RegisterMerkleRoot {
+        let msg = ExecuteMsg::RegisterMerkleRoot {
             stage: i as u64,
             merkle_root: test_data.root.clone(),
             executors: vec![
@@ -609,13 +589,8 @@ fn test_checkpoint() {
             ],
         };
 
-        app.execute_contract(
-            HumanAddr::from(AIORACLE_OWNER),
-            aioracle_addr.clone(),
-            &msg,
-            &[],
-        )
-        .unwrap();
+        app.execute_contract(Addr::from(AIORACLE_OWNER), aioracle_addr.clone(), &msg, &[])
+            .unwrap();
     }
 
     // query requests
@@ -649,9 +624,9 @@ fn test_checkpoint() {
 
     // finish stage 2
     app.execute_contract(
-        HumanAddr::from(AIORACLE_OWNER),
+        Addr::from(AIORACLE_OWNER),
         aioracle_addr.clone(),
-        &HandleMsg::RegisterMerkleRoot {
+        &ExecuteMsg::RegisterMerkleRoot {
             stage: 2u64,
             merkle_root: test_data.root.clone(),
             executors: vec![
@@ -664,9 +639,9 @@ fn test_checkpoint() {
 
     // must finish stage 7 to trigger update checkpoint
     app.execute_contract(
-        HumanAddr::from(AIORACLE_OWNER),
+        Addr::from(AIORACLE_OWNER),
         aioracle_addr.clone(),
-        &HandleMsg::RegisterMerkleRoot {
+        &ExecuteMsg::RegisterMerkleRoot {
             stage: 7u64,
             merkle_root: test_data.root.clone(),
             executors: vec![
@@ -717,9 +692,9 @@ fn test_checkpoint_no_new_request() {
 
     // create a new request
     app.execute_contract(
-        &HumanAddr::from("client"),
+        &Addr::from("client"),
         &aioracle_addr,
-        &HandleMsg::Request {
+        &ExecuteMsg::Request {
             threshold: 1,
             input: None,
             service: "price".to_string(),
@@ -730,7 +705,7 @@ fn test_checkpoint_no_new_request() {
     .unwrap();
 
     // register new merkle root
-    let msg = HandleMsg::RegisterMerkleRoot {
+    let msg = ExecuteMsg::RegisterMerkleRoot {
         stage: 1,
         merkle_root: test_data.root.clone(),
         executors: vec![
@@ -738,13 +713,8 @@ fn test_checkpoint_no_new_request() {
         ],
     };
 
-    app.execute_contract(
-        HumanAddr::from(AIORACLE_OWNER),
-        aioracle_addr.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
+    app.execute_contract(Addr::from(AIORACLE_OWNER), aioracle_addr.clone(), &msg, &[])
+        .unwrap();
 
     // check stage info. Checkpoint must be 2
     // query stage info again
@@ -766,9 +736,9 @@ fn test_checkpoint_no_new_request() {
 
 //     // create a new request
 //     app.execute_contract(
-//         &HumanAddr::from("client"),
+//         &Addr::from("client"),
 //         &aioracle_addr,
-//         &HandleMsg::Request {
+//         &ExecuteMsg::Request {
 //             threshold: 1,
 //             input: None,
 //             service: "price".to_string(),
@@ -781,9 +751,9 @@ fn test_checkpoint_no_new_request() {
 //     // error because no merkle root yet
 //     assert_eq!(
 //         app.execute_contract(
-//             HumanAddr::from(CLIENT),
+//             Addr::from(CLIENT),
 //             aioracle_addr.clone(),
-//             &HandleMsg::ClaimReward {
+//             &ExecuteMsg::ClaimReward {
 //                 stage: 1,
 //                 report: test_data.data.clone(),
 //                 proof: Some(test_data.proofs.clone()),
@@ -798,7 +768,7 @@ fn test_checkpoint_no_new_request() {
 //     );
 
 //     // register new merkle root
-//     let msg = HandleMsg::RegisterMerkleRoot {
+//     let msg = ExecuteMsg::RegisterMerkleRoot {
 //         stage: 1,
 //         merkle_root: test_data.root,
 //         executors: vec![
@@ -807,7 +777,7 @@ fn test_checkpoint_no_new_request() {
 //     };
 
 //     app.execute_contract(
-//         HumanAddr::from(AIORACLE_OWNER),
+//         Addr::from(AIORACLE_OWNER),
 //         aioracle_addr.clone(),
 //         &msg,
 //         &[],
@@ -816,9 +786,9 @@ fn test_checkpoint_no_new_request() {
 
 //     // successfully claim
 //     app.execute_contract(
-//         HumanAddr::from(CLIENT),
+//         Addr::from(CLIENT),
 //         aioracle_addr.clone(),
-//         &HandleMsg::ClaimReward {
+//         &ExecuteMsg::ClaimReward {
 //             stage: 1,
 //             report: test_data.data,
 //             proof: Some(test_data.proofs),
@@ -832,16 +802,8 @@ fn test_checkpoint_no_new_request() {
 fn verify_fees() {
     let sent_funds = coins(4, "orai");
     let rewards = vec![
-        (
-            HumanAddr::from("foo"),
-            "orai".to_string(),
-            Uint128::from(1u64),
-        ),
-        (
-            HumanAddr::from("foo"),
-            "orai".to_string(),
-            Uint128::from(1u64),
-        ),
+        (Addr::from("foo"), "orai".to_string(), Uint128::from(1u64)),
+        (Addr::from("foo"), "orai".to_string(), Uint128::from(1u64)),
     ];
     assert_eq!(
         verify_request_fees(
@@ -870,21 +832,9 @@ fn verify_fees() {
     );
 
     let rewards = vec![
-        (
-            HumanAddr::from("foo"),
-            "orai".to_string(),
-            Uint128::from(1u64),
-        ),
-        (
-            HumanAddr::from("foo"),
-            "orai".to_string(),
-            Uint128::from(1u64),
-        ),
-        (
-            HumanAddr::from("foo"),
-            "foobar".to_string(),
-            Uint128::from(1u64),
-        ),
+        (Addr::from("foo"), "orai".to_string(), Uint128::from(1u64)),
+        (Addr::from("foo"), "orai".to_string(), Uint128::from(1u64)),
+        (Addr::from("foo"), "foobar".to_string(), Uint128::from(1u64)),
     ];
 
     assert_eq!(
@@ -938,9 +888,9 @@ fn query_executors() {
     let info = mock_info("addr0000", &[]);
 
     // init merkle root
-    let msg = InitMsg {
+    let msg = InstantiateMsg {
         owner: Some("owner0000".into()),
-        service_addr: HumanAddr::from("foobar"),
+        service_addr: Addr::from("foobar"),
         contract_fee: coin(1u128, "orai"),
         executors: vec![
             Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t").unwrap(),
@@ -1015,14 +965,14 @@ fn query_executors() {
 //     for i in 1..10 {
 //         // intentional to get identical service & merkle root
 //         app.execute_contract(
-//             &HumanAddr::from(PROVIDER_OWNER),
+//             &Addr::from(PROVIDER_OWNER),
 //             &provider_addr,
-//             &provider_bridge::msg::HandleMsg::UpdateServiceContracts {
+//             &provider_bridge::msg::ExecuteMsg::UpdateServiceContracts {
 //                 service: format!("price{:?}", i),
 //                 contracts: provider_bridge::state::Contracts {
 //                     dsources: vec![],
 //                     tcases: vec![],
-//                     oscript: HumanAddr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
+//                     oscript: Addr::from("orai1nc6eqvnczmtqq8keplyrha9z7vnd5v9vvsxxgj"),
 //                 },
 //             },
 //             &[],
@@ -1037,9 +987,9 @@ fn query_executors() {
 //             msg = format!("{:?}", 8);
 //         }
 //         app.execute_contract(
-//             &HumanAddr::from("client"),
+//             &Addr::from("client"),
 //             &aioracle_addr,
-//             &HandleMsg::Request {
+//             &ExecuteMsg::Request {
 //                 threshold: 1,
 //                 input: None,
 //                 service,
@@ -1053,7 +1003,7 @@ fn query_executors() {
 //         let msg_hash_generic = sha2::Sha256::digest(msg.as_bytes());
 //         let msg_hash = msg_hash_generic.as_slice();
 
-//         let msg = HandleMsg::RegisterMerkleRoot {
+//         let msg = ExecuteMsg::RegisterMerkleRoot {
 //             stage: i as u64,
 //             merkle_root: hex::encode(msg_hash),
 //             executors: vec![
@@ -1062,7 +1012,7 @@ fn query_executors() {
 //         };
 
 //         app.execute_contract(
-//             HumanAddr::from(AIORACLE_OWNER),
+//             Addr::from(AIORACLE_OWNER),
 //             aioracle_addr.clone(),
 //             &msg,
 //             &[],
@@ -1160,7 +1110,7 @@ fn test_query_executor() {
     // inactive path
 
     let info = mock_info(AIORACLE_OWNER, &[]);
-    let msg = HandleMsg::UpdateConfig {
+    let msg = ExecuteMsg::UpdateConfig {
         update_config_msg: UpdateConfigMsg {
             new_owner: Some("owner0001".into()),
             new_contract_fee: Some(coin(10u128, "foobar")),
@@ -1169,7 +1119,7 @@ fn test_query_executor() {
                 "A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0t",
             )
             .unwrap()]),
-            new_service_addr: Some(HumanAddr::from("yolo")),
+            new_service_addr: Some(Addr::from("yolo")),
             new_checkpoint: None,
             new_checkpoint_threshold: None,
             new_max_req_threshold: None,
@@ -1203,9 +1153,9 @@ fn test_executor_size() {
     }
     // try registering for a new merkle root, the total trusting pool should be 12, not 3 or 22 because we get min between preference & actual executor fee
     app.execute_contract(
-        HumanAddr::from(AIORACLE_OWNER),
+        Addr::from(AIORACLE_OWNER),
         aioracle_addr.clone(),
-        &HandleMsg::UpdateConfig {
+        &ExecuteMsg::UpdateConfig {
             update_config_msg: UpdateConfigMsg {
                 new_owner: None,
                 new_service_addr: None,
@@ -1244,9 +1194,9 @@ fn test_executor_size() {
 
 //     // create a new request
 //     app.execute_contract(
-//         &HumanAddr::from("client"),
+//         &Addr::from("client"),
 //         &aioracle_addr,
-//         &HandleMsg::Request {
+//         &ExecuteMsg::Request {
 //             threshold: 1,
 //             input: None,
 //             service: "price".to_string(),
@@ -1257,14 +1207,14 @@ fn test_executor_size() {
 //     .unwrap();
 
 //     // register new merkle root
-//     let msg = HandleMsg::RegisterMerkleRoot {
+//     let msg = ExecuteMsg::RegisterMerkleRoot {
 //         stage: 1,
 //         merkle_root: test_data.root.clone(),
 //         executors: vec![pubkey.clone()],
 //     };
 
 //     app.execute_contract(
-//         HumanAddr::from(AIORACLE_OWNER),
+//         Addr::from(AIORACLE_OWNER),
 //         aioracle_addr.clone(),
 //         &msg,
 //         &[],
@@ -1274,9 +1224,9 @@ fn test_executor_size() {
 //     // invoke withdraw pool unauthorized case
 //     assert_eq!(
 //         app.execute_contract(
-//             HumanAddr::from(AIORACLE_OWNER),
+//             Addr::from(AIORACLE_OWNER),
 //             aioracle_addr.clone(),
-//             &HandleMsg::PrepareWithdrawPool {
+//             &ExecuteMsg::PrepareWithdrawPool {
 //                 pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
 //                     .unwrap(),
 //             },
@@ -1288,9 +1238,9 @@ fn test_executor_size() {
 
 //     // successful case
 //     app.execute_contract(
-//         HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+//         Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
 //         aioracle_addr.clone(),
-//         &HandleMsg::PrepareWithdrawPool {
+//         &ExecuteMsg::PrepareWithdrawPool {
 //             pubkey: pubkey.clone(),
 //         },
 //         &[],
@@ -1300,9 +1250,9 @@ fn test_executor_size() {
 //     // if invoke once again => invalid trusting period
 //     assert_eq!(
 //         app.execute_contract(
-//             HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+//             Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
 //             aioracle_addr.clone(),
-//             &HandleMsg::PrepareWithdrawPool {
+//             &ExecuteMsg::PrepareWithdrawPool {
 //                 pubkey: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn")
 //                     .unwrap(),
 //             },
@@ -1315,9 +1265,9 @@ fn test_executor_size() {
 //     // add another merkle tree root to increment balance in pool
 //     // create a new request
 //     app.execute_contract(
-//         &HumanAddr::from("client"),
+//         &Addr::from("client"),
 //         &aioracle_addr,
-//         &HandleMsg::Request {
+//         &ExecuteMsg::Request {
 //             threshold: 1,
 //             input: None,
 //             service: "price".to_string(),
@@ -1328,14 +1278,14 @@ fn test_executor_size() {
 //     .unwrap();
 
 //     // register new merkle root
-//     let msg = HandleMsg::RegisterMerkleRoot {
+//     let msg = ExecuteMsg::RegisterMerkleRoot {
 //         stage: 2,
 //         merkle_root: test_data.root,
 //         executors: vec![pubkey.clone()],
 //     };
 
 //     app.execute_contract(
-//         HumanAddr::from(AIORACLE_OWNER),
+//         Addr::from(AIORACLE_OWNER),
 //         aioracle_addr.clone(),
 //         &msg,
 //         &[],
@@ -1366,9 +1316,9 @@ fn test_executor_size() {
 
 //     // can now move all balance to withdraw pool and should automatically withdraw from pool
 //     app.execute_contract(
-//         HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+//         Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
 //         aioracle_addr.clone(),
-//         &HandleMsg::PrepareWithdrawPool {
+//         &ExecuteMsg::PrepareWithdrawPool {
 //             pubkey: pubkey.clone(),
 //         },
 //         &[],
@@ -1410,9 +1360,9 @@ fn test_increment_executor_when_register_merkle() {
 
     // create a new request
     app.execute_contract(
-        &HumanAddr::from("client"),
+        &Addr::from("client"),
         &aioracle_addr,
-        &HandleMsg::Request {
+        &ExecuteMsg::Request {
             threshold: 1,
             input: None,
             service: "price".to_string(),
@@ -1423,25 +1373,20 @@ fn test_increment_executor_when_register_merkle() {
     .unwrap();
 
     // register new merkle root
-    let msg = HandleMsg::RegisterMerkleRoot {
+    let msg = ExecuteMsg::RegisterMerkleRoot {
         stage: 1,
         merkle_root: test_data.root.clone(),
         executors: vec![pubkey.clone()],
     };
 
-    app.execute_contract(
-        HumanAddr::from(AIORACLE_OWNER),
-        aioracle_addr.clone(),
-        &msg,
-        &[],
-    )
-    .unwrap();
+    app.execute_contract(Addr::from(AIORACLE_OWNER), aioracle_addr.clone(), &msg, &[])
+        .unwrap();
 
     // trigger to add executor fee
     app.execute_contract(
-        HumanAddr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
+        Addr::from("orai14n3tx8s5ftzhlxvq0w5962v60vd82h30rha573"),
         service_fees_addr,
-        &aioracle_service_fees::msg::HandleMsg::UpdateServiceFees {
+        &aioracle_service_fees::msg::ExecuteMsg::UpdateServiceFees {
             fees: Coin {
                 denom: String::from("orai"),
                 amount: Uint128::from(10u64),
@@ -1453,9 +1398,9 @@ fn test_increment_executor_when_register_merkle() {
 
     // create a new request to register for new merkle root
     app.execute_contract(
-        &HumanAddr::from("client"),
+        &Addr::from("client"),
         &aioracle_addr,
-        &HandleMsg::Request {
+        &ExecuteMsg::Request {
             threshold: 1,
             input: None,
             service: "price".to_string(),
@@ -1467,9 +1412,9 @@ fn test_increment_executor_when_register_merkle() {
 
     // // try registering for a new merkle root, the total trusting pool should be 2, not 11
     // app.execute_contract(
-    //     HumanAddr::from(AIORACLE_OWNER),
+    //     Addr::from(AIORACLE_OWNER),
     //     aioracle_addr.clone(),
-    //     &HandleMsg::RegisterMerkleRoot {
+    //     &ExecuteMsg::RegisterMerkleRoot {
     //         stage: 2,
     //         merkle_root: test_data.root.clone(),
     //         executors: vec![pubkey.clone()],
@@ -1484,9 +1429,9 @@ fn test_increment_executor_when_register_merkle() {
     // // preference executor fee should be increased to 20 because min bound is 20 already
     // assert_eq!(
     //     app.execute_contract(
-    //         &HumanAddr::from("client"),
+    //         &Addr::from("client"),
     //         &aioracle_addr,
-    //         &HandleMsg::Request {
+    //         &ExecuteMsg::Request {
     //             threshold: 1,
     //             input: None,
     //             service: "price".to_string(),
@@ -1500,9 +1445,9 @@ fn test_increment_executor_when_register_merkle() {
 
     // successful case
     app.execute_contract(
-        &HumanAddr::from("client"),
+        &Addr::from("client"),
         &aioracle_addr,
-        &HandleMsg::Request {
+        &ExecuteMsg::Request {
             threshold: 1,
             input: None,
             service: "price".to_string(),
@@ -1514,9 +1459,9 @@ fn test_increment_executor_when_register_merkle() {
 
     // try registering for a new merkle root, the total trusting pool should be 12, not 3 or 22 because we get min between preference & actual executor fee
     app.execute_contract(
-        HumanAddr::from(AIORACLE_OWNER),
+        Addr::from(AIORACLE_OWNER),
         aioracle_addr.clone(),
-        &HandleMsg::RegisterMerkleRoot {
+        &ExecuteMsg::RegisterMerkleRoot {
             stage: 3,
             merkle_root: test_data.root,
             executors: vec![pubkey.clone()],
@@ -1628,7 +1573,7 @@ pub fn skip_trusting_period(block: &mut BlockInfo) {
 // fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
 //     let mut deps = mock_dependencies(&coins(100000, DENOM));
 //     deps.api.canonical_length = 54;
-//     let msg = InitMsg {
+//     let msg = InstantiateMsg {
 //         owner:
 //     };
 //     let info = mock_info(CREATOR, &[]);
@@ -1640,7 +1585,7 @@ pub fn skip_trusting_period(block: &mut BlockInfo) {
 
 #[test]
 fn test_executor_join() {
-    let msg = HandleMsg::ExecutorJoin {
+    let msg = ExecuteMsg::ExecutorJoin {
         executor: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0a").unwrap(),
     };
     let mut app = mock_app();
@@ -1673,7 +1618,7 @@ fn test_executor_join() {
     assert_eq!(executor.is_active, true);
 
     // Test pending period before an executor can join again.
-    let msg = HandleMsg::ExecutorLeave {
+    let msg = ExecuteMsg::ExecutorLeave {
         executor: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0a").unwrap(),
     };
     let res = app
@@ -1681,7 +1626,7 @@ fn test_executor_join() {
         .unwrap();
 
     // Rejoining before pending period
-    let msg = HandleMsg::ExecutorJoin {
+    let msg = ExecuteMsg::ExecutorJoin {
         executor: Binary::from_base64("A6ENA5I5QhHyy1QIOLkgTcf/x31WE+JLFoISgmcQaI0a").unwrap(),
     };
     let res = app
@@ -1706,7 +1651,7 @@ fn test_executor_leave() {
     let mut app = mock_app();
     let info = mock_info("orai1nky8s7p7wc0whcmnatyn2spdxqvq6ntk8azd3x", &[]);
     let (_, _, aioracle_addr) = setup_test_case(&mut app);
-    let msg = HandleMsg::ExecutorLeave {
+    let msg = ExecuteMsg::ExecutorLeave {
         executor: Binary::from_base64("AipQCudhlHpWnHjSgVKZ+SoSicvjH7Mp5gCFyDdlnQtn").unwrap(),
     };
 

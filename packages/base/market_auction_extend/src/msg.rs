@@ -41,7 +41,7 @@ pub struct Auction {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum AuctionHandleMsg {
+pub enum AuctionExecuteMsg {
     // this allow implementation contract to update the storage
     UpdateAuction { auction: Auction },
     RemoveAuction { id: u64 },

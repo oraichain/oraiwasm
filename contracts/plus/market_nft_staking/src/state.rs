@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, StdResult, Storage, Uint128};
 use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, PkOwned, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -24,10 +24,10 @@ pub fn increment_collection_stakers(storage: &mut dyn Storage) -> StdResult<u64>
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
-    pub admin: HumanAddr,
+    pub admin: Addr,
     pub verifier_pubkey_base64: String,
-    pub nft_1155_contract_addr_whitelist: Vec<HumanAddr>,
-    pub nft_721_contract_addr_whitelist: Vec<HumanAddr>,
+    pub nft_1155_contract_addr_whitelist: Vec<Addr>,
+    pub nft_721_contract_addr_whitelist: Vec<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -43,7 +43,7 @@ pub struct CollectionPoolInfo {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct CollectionStakerInfo {
     pub id: Option<u64>,
-    pub staker_addr: HumanAddr,
+    pub staker_addr: Addr,
     pub collection_id: String,
     pub total_staked: Uint128,
     pub reward_debt: Uint128,
@@ -58,7 +58,7 @@ pub struct CollectionStakedTokenInfo {
     pub token_id: String,
     pub amount: Uint128,
     pub contract_type: ContractType,
-    pub contract_addr: HumanAddr,
+    pub contract_addr: Addr,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -84,7 +84,7 @@ impl<'a> IndexList<CollectionStakerInfo> for CollectionStakerInfoIndexes<'a> {
     }
 }
 
-pub fn get_unique_collection_staker(collection_id: String, staker_addr: HumanAddr) -> PkOwned {
+pub fn get_unique_collection_staker(collection_id: String, staker_addr: Addr) -> PkOwned {
     let mut vec = collection_id.as_bytes().to_vec();
     vec.extend(staker_addr.as_bytes());
     PkOwned(vec)

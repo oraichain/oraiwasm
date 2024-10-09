@@ -5,9 +5,9 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Api;
-use cosmwasm_std::{coin, coins, from_binary, Env, HumanAddr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_binary, Env, Addr, Order, OwnedDeps, Uint128};
 use market_auction::QueryAuctionsResult;
-use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions};
+use market_auction::{Auction, AuctionExecuteMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions};
 
 const CREATOR: &str = "owner";
 const DENOM: &str = "orai";
@@ -15,8 +15,8 @@ const DENOM: &str = "orai";
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
-    let msg = InitMsg {
-        governance: HumanAddr::from(CREATOR),
+    let msg = InstantiateMsg {
+        governance: Addr::from(CREATOR),
     };
     let info = mock_info(CREATOR, &[]);
     let contract_env = mock_env();
@@ -33,11 +33,11 @@ fn sort_auction() {
     let info = mock_info(CREATOR, &vec![coin(50000000, DENOM)]);
     let contract_addr = deps
         .api
-        .canonical_address(&HumanAddr::from("contract_addr"))
+        .canonical_address(&Addr::from("contract_addr"))
         .unwrap();
     let asker = deps
         .api
-        .canonical_address(&HumanAddr::from("asker"))
+        .canonical_address(&Addr::from("asker"))
         .unwrap();
 
     for i in 1..50 {
@@ -57,7 +57,7 @@ fn sort_auction() {
             orig_price: Uint128(i),
             bidder: None,
         };
-        let msg = HandleMsg::Auction(AuctionHandleMsg::UpdateAuction { auction });
+        let msg = ExecuteMsg::Auction(AuctionExecuteMsg::UpdateAuction { auction });
         let _res = handle(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
     }
 

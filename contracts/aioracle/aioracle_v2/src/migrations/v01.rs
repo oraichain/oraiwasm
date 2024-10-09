@@ -2,7 +2,7 @@ use cw_storage_plus::Item;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Coin, HumanAddr, StdResult, Storage};
+use cosmwasm_std::{Addr, Coin, StdResult, Storage};
 
 use crate::{
     contract::TRUSTING_PERIOD,
@@ -13,8 +13,8 @@ use crate::{
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OldConfig {
     /// Owner If None set, contract is frozen.
-    pub owner: HumanAddr,
-    pub service_addr: HumanAddr,
+    pub owner: Addr,
+    pub service_addr: Addr,
     pub contract_fee: Coin,
     /// this threshold is to update the checkpoint stage when current previous checkpoint +
     pub checkpoint_threshold: u64,
@@ -57,7 +57,7 @@ mod test {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::HumanAddr;
+    use cosmwasm_std::Addr;
     use cosmwasm_std::{coins, from_binary, Coin, OwnedDeps, Uint128};
     use cw_storage_plus::Item;
 
@@ -71,8 +71,8 @@ mod test {
             .save(
                 &mut deps.storage,
                 &OldConfig {
-                    owner: HumanAddr::from("foobar"),
-                    service_addr: HumanAddr::from("foobar"),
+                    owner: Addr::from("foobar"),
+                    service_addr: Addr::from("foobar"),
                     contract_fee: Coin {
                         amount: Uint128::from(0u64),
                         denom: String::from("foobar"),
@@ -88,14 +88,14 @@ mod test {
     // #[test]
     // fn test_migrate() {
     //     let mut deps = setup_old_contract();
-    //     let info = mock_info(HumanAddr::from("foobar"), &[]);
+    //     let info = mock_info(Addr::from("foobar"), &[]);
     //     migrate(
     //         deps.as_mut(),
     //         mock_env(),
     //         info,
     //         MigrateMsg {
     //             trusting_period: Some(1000000000),
-    //             ping_addr: HumanAddr::from("foobar"),
+    //             ping_addr: Addr::from("foobar"),
     //         },
     //     )
     //     .unwrap();

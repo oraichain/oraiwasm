@@ -31,7 +31,7 @@ pub struct MemberMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     // readable
     pub members: Vec<MemberMsg>,
     /// The denom in which bounties are paid. This is typically the fee token of the chain.
@@ -47,7 +47,7 @@ pub struct UpdateShareSigMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     InitShare {
         share: ShareMsg,
     },

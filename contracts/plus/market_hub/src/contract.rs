@@ -1,14 +1,15 @@
 use cosmwasm_std::{
-    attr, to_binary, Api, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
-    HumanAddr, InitResponse, MessageInfo, StdError, StdResult, WasmMsg,
+    attr, to_json_binary, Api, Binary, CanonicalAddr, CosmosMsg, Deps, DepsMut, Env, Response,
+    Addr, Response, MessageInfo, StdError, StdResult, WasmMsg,
 };
 
 use crate::error::ContractError;
-use crate::msg::{AdminListResponse, CanExecuteResponse, HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{AdminListResponse, CanExecuteResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
 use crate::state::{admin_list, admin_list_read, registry, registry_read};
-use market::{query_proxy, AdminList, Registry, StorageHandleMsg, StorageQueryMsg};
+use market::{query_proxy, AdminList, Registry, StorageExecuteMsg, StorageQueryMsg};
 
-pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdResult<InitResponse> {
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(deps: DepsMut, _env: Env, info: MessageInfo, msg: InstantiateMsg) -> StdResult<Response> {
     // list of whitelist
     let cfg = AdminList {
         admins: map_canonical(deps.api, &msg.admins)?,
@@ -23,40 +24,41 @@ pub fn init(deps: DepsMut, _env: Env, info: MessageInfo, msg: InitMsg) -> StdRes
         implementations: msg.implementations,
     };
     registry(deps.storage).save(&reg)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-fn map_canonical(api: &dyn Api, admins: &[HumanAddr]) -> StdResult<Vec<CanonicalAddr>> {
+fn map_canonical(api: &dyn Api, admins: &[Addr]) -> StdResult<Vec<CanonicalAddr>> {
     admins
         .iter()
         .map(|addr| api.canonical_address(addr))
         .collect()
 }
 
-fn map_human(api: &dyn Api, admins: &[CanonicalAddr]) -> StdResult<Vec<HumanAddr>> {
+fn map_human(api: &dyn Api, admins: &[CanonicalAddr]) -> StdResult<Vec<Addr>> {
     admins.iter().map(|addr| api.human_address(addr)).collect()
 }
 
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
     // Note: implement this function with different type to add support for custom messages
     // and then import the rest of this contract code.
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::UpdateImplementation { implementation } => {
+        ExecuteMsg::UpdateImplementation { implementation } => {
             handle_update_implementation(deps, env, info, implementation)
         }
-        HandleMsg::RemoveImplementation { implementation } => {
+        ExecuteMsg::RemoveImplementation { implementation } => {
             handle_remove_implementation(deps, env, info, implementation)
         }
-        HandleMsg::UpdateStorages { storages } => handle_update_storages(deps, env, info, storages),
-        HandleMsg::Freeze {} => handle_freeze(deps, env, info),
-        HandleMsg::UpdateAdmins { admins } => handle_update_admins(deps, env, info, admins),
-        HandleMsg::Storage(storage_msg) => match storage_msg {
-            StorageHandleMsg::UpdateStorageData { name, msg } => {
+        ExecuteMsg::UpdateStorages { storages } => handle_update_storages(deps, env, info, storages),
+        ExecuteMsg::Freeze {} => handle_freeze(deps, env, info),
+        ExecuteMsg::UpdateAdmins { admins } => handle_update_admins(deps, env, info, admins),
+        ExecuteMsg::Storage(storage_msg) => match storage_msg {
+            StorageExecuteMsg::UpdateStorageData { name, msg } => {
                 handle_update_storage_data(deps, env, info, name, msg)
             }
         },
@@ -68,8 +70,8 @@ pub fn handle_update_implementation(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    implementation: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    implementation: Addr,
+) -> Result<Response, ContractError> {
     if !can_execute(deps.as_ref(), &info.sender)? {
         Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
@@ -81,7 +83,7 @@ pub fn handle_update_implementation(
         })?;
 
         // then call initialize with storage as params
-        let mut res = HandleResponse::default();
+        let mut res = Response::default();
         res.attributes = vec![attr("action", "update_implementation")];
         Ok(res)
     }
@@ -92,8 +94,8 @@ pub fn handle_remove_implementation(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    implementation: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    implementation: Addr,
+) -> Result<Response, ContractError> {
     if !can_execute(deps.as_ref(), &info.sender)? {
         Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
@@ -113,7 +115,7 @@ pub fn handle_remove_implementation(
         })?;
 
         // then call initialize with storage as params
-        let mut res = HandleResponse::default();
+        let mut res = Response::default();
         res.attributes = vec![attr("action", "remove_implementation")];
         Ok(res)
     }
@@ -123,8 +125,8 @@ pub fn handle_update_storages(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    storages: Vec<(String, HumanAddr)>,
-) -> Result<HandleResponse, ContractError> {
+    storages: Vec<(String, Addr)>,
+) -> Result<Response, ContractError> {
     if !can_execute(deps.as_ref(), &info.sender)? {
         Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
@@ -138,7 +140,7 @@ pub fn handle_update_storages(
         // update new data
         registry(deps.storage).save(&data)?;
 
-        let mut res = HandleResponse::default();
+        let mut res = Response::default();
         res.attributes = vec![attr("action", "update_storages")];
         Ok(res)
     }
@@ -150,7 +152,7 @@ pub fn handle_update_storage_data(
     info: MessageInfo,
     name: String,
     msg: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let registry_obj = registry_read(deps.storage).load()?;
     let admin_list = admin_list_read(deps.storage).load()?;
     let sender_canonical = deps.api.canonical_address(&info.sender)?;
@@ -170,14 +172,14 @@ pub fn handle_update_storage_data(
     }
 
     let storage_addr = get_storage_addr(&registry_obj, &name)?;
-    let mut res = HandleResponse::default();
+    let mut res = Response::default();
     let mut messages: Vec<CosmosMsg> = vec![];
 
     messages.push(
         WasmMsg::Execute {
             contract_addr: storage_addr,
             msg,
-            send: vec![],
+            funds: vec![],
         }
         .into(),
     );
@@ -190,7 +192,7 @@ pub fn handle_freeze(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let mut cfg = admin_list_read(deps.storage).load()?;
     if !cfg.can_modify(&deps.api.canonical_address(&info.sender)?) {
         Err(ContractError::Unauthorized {
@@ -200,7 +202,7 @@ pub fn handle_freeze(
         cfg.mutable = false;
         admin_list(deps.storage).save(&cfg)?;
 
-        let mut res = HandleResponse::default();
+        let mut res = Response::default();
         res.attributes = vec![attr("action", "freeze")];
         Ok(res)
     }
@@ -210,8 +212,8 @@ pub fn handle_update_admins(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    admins: Vec<HumanAddr>,
-) -> Result<HandleResponse, ContractError> {
+    admins: Vec<Addr>,
+) -> Result<Response, ContractError> {
     let mut cfg = admin_list_read(deps.storage).load()?;
     if !cfg.can_modify(&deps.api.canonical_address(&info.sender)?) {
         Err(ContractError::Unauthorized {
@@ -221,13 +223,13 @@ pub fn handle_update_admins(
         cfg.admins = map_canonical(deps.api, &admins)?;
         admin_list(deps.storage).save(&cfg)?;
 
-        let mut res = HandleResponse::default();
+        let mut res = Response::default();
         res.attributes = vec![attr("action", "update_admins")];
         Ok(res)
     }
 }
 
-fn can_execute(deps: Deps, sender: &HumanAddr) -> StdResult<bool> {
+fn can_execute(deps: Deps, sender: &Addr) -> StdResult<bool> {
     let cfg = admin_list_read(deps.storage).load()?;
     let can = cfg.is_admin(&deps.api.canonical_address(sender)?);
     Ok(can)
@@ -235,12 +237,12 @@ fn can_execute(deps: Deps, sender: &HumanAddr) -> StdResult<bool> {
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::AdminList {} => to_binary(&query_admin_list(deps)?),
-        QueryMsg::CanExecute { sender } => to_binary(&query_can_execute(deps, sender)?),
-        QueryMsg::Registry {} => to_binary(&registry_read(deps.storage).load()?),
+        QueryMsg::AdminList {} => to_json_binary(&query_admin_list(deps)?),
+        QueryMsg::CanExecute { sender } => to_json_binary(&query_can_execute(deps, sender)?),
+        QueryMsg::Registry {} => to_json_binary(&registry_read(deps.storage).load()?),
         QueryMsg::Storage(storage_msg) => match storage_msg {
             StorageQueryMsg::QueryStorageAddr { name } => {
-                to_binary(&query_storage_addr(deps, name)?)
+                to_json_binary(&query_storage_addr(deps, name)?)
             }
             StorageQueryMsg::QueryStorage { name, msg } => query_storage(deps, name, msg),
         },
@@ -256,18 +258,18 @@ pub fn query_admin_list(deps: Deps) -> StdResult<AdminListResponse> {
     })
 }
 
-pub fn query_can_execute(deps: Deps, sender: HumanAddr) -> StdResult<CanExecuteResponse> {
+pub fn query_can_execute(deps: Deps, sender: Addr) -> StdResult<CanExecuteResponse> {
     Ok(CanExecuteResponse {
         can_execute: can_execute(deps, &sender)?,
     })
 }
 
-fn get_storage_addr(registry: &Registry, name: &str) -> StdResult<HumanAddr> {
+fn get_storage_addr(registry: &Registry, name: &str) -> StdResult<Addr> {
     registry
         .storages
         .iter()
         .find(|item| item.0.eq(name))
-        .map(|item| HumanAddr::from(item.1.to_string()))
+        .map(|item| Addr::from(item.1.to_string()))
         .ok_or(StdError::generic_err("storage not found".to_string()))
 }
 
@@ -279,7 +281,7 @@ pub fn query_storage(deps: Deps, name: String, msg: Binary) -> StdResult<Binary>
     query_proxy(deps, storage_addr, msg)
 }
 
-pub fn query_storage_addr(deps: Deps, name: String) -> StdResult<HumanAddr> {
+pub fn query_storage_addr(deps: Deps, name: String) -> StdResult<Addr> {
     let registry_obj = registry_read(deps.storage).load()?;
     get_storage_addr(&registry_obj, &name)
 }
@@ -293,14 +295,14 @@ mod tests {
     fn init_and_modify_config() {
         let mut deps = mock_dependencies(&[]);
 
-        let alice = HumanAddr::from("alice");
-        let bob = HumanAddr::from("bob");
-        let carl = HumanAddr::from("carl");
-        let owner = HumanAddr::from("tupt");
-        let anyone = HumanAddr::from("anyone");
+        let alice = Addr::from("alice");
+        let bob = Addr::from("bob");
+        let carl = Addr::from("carl");
+        let owner = Addr::from("tupt");
+        let anyone = Addr::from("anyone");
 
         // init the contract
-        let init_msg = InitMsg {
+        let init_msg = InstantiateMsg {
             admins: vec![alice.clone(), bob.clone(), carl.clone()],
             storages: vec![],
             implementations: vec![],
@@ -318,7 +320,7 @@ mod tests {
         assert_eq!(query_admin_list(deps.as_ref()).unwrap(), expected);
 
         // anyone cannot modify the contract
-        let msg = HandleMsg::UpdateAdmins {
+        let msg = ExecuteMsg::UpdateAdmins {
             admins: vec![anyone.clone()],
         };
         let info = mock_info(&anyone, &[]);
@@ -329,7 +331,7 @@ mod tests {
         }
 
         // but alice can kick out carl
-        let msg = HandleMsg::UpdateAdmins {
+        let msg = ExecuteMsg::UpdateAdmins {
             admins: vec![alice.clone(), bob.clone()],
         };
         let info = mock_info(&alice, &[]);
@@ -345,7 +347,7 @@ mod tests {
 
         // carl cannot freeze it
         let info = mock_info(&carl, &[]);
-        let res = handle(deps.as_mut(), mock_env(), info, HandleMsg::Freeze {});
+        let res = handle(deps.as_mut(), mock_env(), info, ExecuteMsg::Freeze {});
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
             e => panic!("unexpected error: {}", e),
@@ -353,7 +355,7 @@ mod tests {
 
         // but bob can
         let info = mock_info(&bob, &[]);
-        handle(deps.as_mut(), mock_env(), info, HandleMsg::Freeze {}).unwrap();
+        handle(deps.as_mut(), mock_env(), info, ExecuteMsg::Freeze {}).unwrap();
         let expected = AdminListResponse {
             admins: vec![alice.clone(), bob.clone()],
             owner: owner.clone(),
@@ -362,7 +364,7 @@ mod tests {
         assert_eq!(query_admin_list(deps.as_ref()).unwrap(), expected);
 
         // and now alice cannot change it again
-        let msg = HandleMsg::UpdateAdmins {
+        let msg = ExecuteMsg::UpdateAdmins {
             admins: vec![alice.clone()],
         };
         let info = mock_info(&alice, &[]);
@@ -377,13 +379,13 @@ mod tests {
     fn execute_messages_has_proper_permissions() {
         let mut deps = mock_dependencies(&[]);
 
-        let alice = HumanAddr::from("alice");
-        let bob = HumanAddr::from("bob");
-        let carl = HumanAddr::from("carl");
-        let owner = HumanAddr::from("tupt");
+        let alice = Addr::from("alice");
+        let bob = Addr::from("bob");
+        let carl = Addr::from("carl");
+        let owner = Addr::from("tupt");
 
         // init the contract
-        let init_msg = InitMsg {
+        let init_msg = InstantiateMsg {
             admins: vec![alice.clone(), carl.clone()],
             storages: vec![],
             implementations: vec![],
@@ -394,15 +396,15 @@ mod tests {
 
         // carl cannot freeze it
         let info = mock_info(&carl, &[]);
-        let res = handle(deps.as_mut(), mock_env(), info, HandleMsg::Freeze {});
+        let res = handle(deps.as_mut(), mock_env(), info, ExecuteMsg::Freeze {});
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
             e => panic!("unexpected error: {}", e),
         }
 
         // make some nice message
-        let handle_msg = HandleMsg::UpdateImplementation {
-            implementation: HumanAddr::from("market"),
+        let handle_msg = ExecuteMsg::UpdateImplementation {
+            implementation: Addr::from("market"),
         };
 
         // bob cannot execute them
@@ -426,13 +428,13 @@ mod tests {
     fn can_execute_query_works() {
         let mut deps = mock_dependencies(&[]);
 
-        let alice = HumanAddr::from("alice");
-        let bob = HumanAddr::from("bob");
-        let owner = HumanAddr::from("tupt");
-        let anyone = HumanAddr::from("anyone");
+        let alice = Addr::from("alice");
+        let bob = Addr::from("bob");
+        let owner = Addr::from("tupt");
+        let anyone = Addr::from("anyone");
 
         // init the contract
-        let init_msg = InitMsg {
+        let init_msg = InstantiateMsg {
             admins: vec![alice.clone(), bob.clone()],
             storages: vec![],
             implementations: vec![],

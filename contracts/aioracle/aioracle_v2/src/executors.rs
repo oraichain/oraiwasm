@@ -2,7 +2,7 @@ use std::ops::{Add, Sub};
 
 use aioracle_base::Executor;
 use cosmwasm_std::{
-    attr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, HandleResponse, MessageInfo, Order,
+    attr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Order, Response,
     StdError, StdResult, Storage, Uint128,
 };
 use cw_storage_plus::Bound;
@@ -21,7 +21,7 @@ pub fn handle_executor_join(
     env: Env,
     info: MessageInfo,
     executor: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let executor_human = pubkey_to_address(&executor)?;
     if info.sender.ne(&executor_human) {
         return Err(ContractError::Unauthorized {});
@@ -56,7 +56,7 @@ pub fn handle_executor_join(
         })?;
     let new_index = executor_index.max(new_executor.index);
     EXECUTORS_INDEX.save(deps.storage, &new_index)?;
-    Ok(HandleResponse {
+    Ok(Response {
         data: None,
         messages: vec![],
         attributes: vec![
@@ -71,7 +71,7 @@ pub fn handle_executor_leave(
     env: Env,
     info: MessageInfo,
     executor: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let executor_human = pubkey_to_address(&executor)?;
     if info.sender.ne(&executor_human) {
         return Err(ContractError::Unauthorized {});
@@ -91,7 +91,7 @@ pub fn handle_executor_leave(
                 "Executor not existed!",
             )));
         })?;
-        return Ok(HandleResponse {
+        return Ok(Response {
             messages: vec![],
             attributes: vec![
                 attr("action", "executor_leave_aioracle"),
@@ -175,7 +175,7 @@ pub fn handle_prepare_withdraw_pool(
     env: Env,
     info: MessageInfo,
     pubkey: Binary,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let executor_addr = pubkey_to_address(&pubkey)?;
     let Config {
         trusting_period, ..
@@ -200,7 +200,6 @@ pub fn handle_prepare_withdraw_pool(
         // add execute tx to automatically withdraw orai from pool
         cosmos_msgs.push(
             BankMsg::Send {
-                from_address: env.contract.address.clone(),
                 to_address: executor_addr,
                 amount: vec![Coin {
                     denom: trusting_pool.withdraw_amount_coin.denom.clone(),
@@ -229,7 +228,7 @@ pub fn handle_prepare_withdraw_pool(
     }
     EXECUTORS_TRUSTING_POOL.save(deps.storage, pubkey.as_slice(), &trusting_pool)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         attributes: vec![attr("action", "handle_withdraw_pool")],
         messages: cosmos_msgs,
         data: None,

@@ -3,7 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use drand::msg::{BountiesResponse, HandleMsg, InitMsg, QueryMsg, RandomData};
+use drand::msg::{BountiesResponse, ExecuteMsg, InstantiateMsg, QueryMsg, RandomData};
 use drand::state::Config;
 
 fn main() {
@@ -13,8 +13,8 @@ fn main() {
     remove_schemas(&out_dir).unwrap();
 
     // messages
-    export_schema(&schema_for!(InitMsg), &out_dir);
-    export_schema(&schema_for!(HandleMsg), &out_dir);
+    export_schema(&schema_for!(InstantiateMsg), &out_dir);
+    export_schema(&schema_for!(ExecuteMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
     // Query responses
     export_schema(&schema_for!(BountiesResponse), &out_dir);

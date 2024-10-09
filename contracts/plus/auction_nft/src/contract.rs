@@ -1,18 +1,18 @@
 use crate::error::ContractError;
 use crate::msg::{
-    AskNftMsg, AuctionsResponse, HandleMsg, InitMsg, PagingOptions, QueryAuctionsResult, QueryMsg,
+    AskNftMsg, AuctionsResponse, ExecuteMsg, InstantiateMsg, PagingOptions, QueryAuctionsResult, QueryMsg,
     UpdateContractMsg,
 };
 use crate::state::{
     auctions, get_contract_token_id, increment_auctions, Auction, ContractInfo, CONTRACT_INFO,
 };
 use cosmwasm_std::{
-    attr, coins, from_binary, to_binary, Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg,
-    Decimal, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order, StdError,
+    attr, coins, from_binary, to_json_binary, Api, BankMsg, Binary, CanonicalAddr, Coin, CosmosMsg,
+    Decimal, Deps, DepsMut, Env, Response, Response, MessageInfo, Order, StdError,
     StdResult, Uint128, WasmMsg,
 };
-use cosmwasm_std::{HumanAddr, KV};
-use cw721::{Cw721HandleMsg, Cw721ReceiveMsg};
+use cosmwasm_std::{Addr, KV};
+use cw721::{Cw721ExecuteMsg, Cw721ReceiveMsg};
 use cw_storage_plus::Bound;
 use std::convert::TryInto;
 use std::ops::{Add, Mul, Sub};
@@ -34,12 +34,13 @@ fn sanitize_fee(fee: u64, limit: u64, name: &str) -> Result<u64, ContractError> 
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     let info = ContractInfo {
         name: msg.name,
         creator: info.sender.to_string(),
@@ -49,27 +50,28 @@ pub fn init(
         step_price: msg.step_price,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::BidNft { auction_id } => try_bid_nft(deps, info, env, auction_id),
-        HandleMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
-        // HandleMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
-        HandleMsg::EmergencyCancel { auction_id } => {
+        ExecuteMsg::BidNft { auction_id } => try_bid_nft(deps, info, env, auction_id),
+        ExecuteMsg::ClaimWinner { auction_id } => try_claim_winner(deps, info, env, auction_id),
+        // ExecuteMsg::WithdrawNft { auction_id } => try_withdraw_nft(deps, info, env, auction_id),
+        ExecuteMsg::EmergencyCancel { auction_id } => {
             try_emergency_cancel_auction(deps, info, env, auction_id)
         }
-        HandleMsg::ReceiveNft(msg) => try_receive_nft(deps, info, env, msg),
-        HandleMsg::CancelBid { auction_id } => try_cancel_bid(deps, info, env, auction_id),
-        HandleMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
-        HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
+        ExecuteMsg::ReceiveNft(msg) => try_receive_nft(deps, info, env, msg),
+        ExecuteMsg::CancelBid { auction_id } => try_cancel_bid(deps, info, env, auction_id),
+        ExecuteMsg::WithdrawFunds { funds } => try_withdraw_funds(deps, info, env, funds),
+        ExecuteMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
 }
 
@@ -78,16 +80,16 @@ pub fn try_withdraw_funds(
     _info: MessageInfo,
     env: Env,
     fund: Coin,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
         from_address: env.contract.address,
-        to_address: HumanAddr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
+        to_address: Addr::from(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![bank_msg],
         attributes: vec![
             attr("action", "withdraw_funds"),
@@ -104,7 +106,7 @@ pub fn try_update_info(
     info: MessageInfo,
     _env: Env,
     msg: UpdateContractMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
         // Unauthorized
         if !info.sender.to_string().eq(&contract_info.creator) {
@@ -128,10 +130,10 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "update_info")],
-        data: to_binary(&new_contract_info).ok(),
+        data: to_json_binary(&new_contract_info).ok(),
     })
 }
 
@@ -141,7 +143,7 @@ pub fn try_bid_nft(
     info: MessageInfo,
     env: Env,
     auction_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // check if auction exists
     let auctions = auctions();
     let key = auction_id.to_be_bytes();
@@ -209,7 +211,7 @@ pub fn try_bid_nft(
         return Err(ContractError::InvalidZeroAmount {});
     }
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "bid_nft"),
@@ -227,7 +229,7 @@ pub fn try_claim_winner(
     info: MessageInfo,
     env: Env,
     auction_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let auctions = auctions();
     let key = auction_id.to_be_bytes();
     let off = match auctions.load(deps.storage, &key) {
@@ -257,11 +259,11 @@ pub fn try_claim_winner(
         cosmos_msgs.push(
             WasmMsg::Execute {
                 contract_addr: deps.api.human_address(&off.contract_addr)?,
-                msg: to_binary(&Cw721HandleMsg::TransferNft {
+                msg: to_json_binary(&Cw721ExecuteMsg::TransferNft {
                     recipient: bidder_addr,
                     token_id: off.token_id.clone(),
                 })?,
-                send: vec![],
+                funds: vec![],
             }
             .into(),
         );
@@ -284,11 +286,11 @@ pub fn try_claim_winner(
         cosmos_msgs.push(
             WasmMsg::Execute {
                 contract_addr: deps.api.human_address(&off.contract_addr)?,
-                msg: to_binary(&Cw721HandleMsg::TransferNft {
+                msg: to_json_binary(&Cw721ExecuteMsg::TransferNft {
                     recipient: asker_addr,
                     token_id: off.token_id.clone(),
                 })?,
-                send: vec![],
+                funds: vec![],
             }
             .into(),
         );
@@ -297,7 +299,7 @@ pub fn try_claim_winner(
     // remove auction
     auctions.remove(deps.storage, &key)?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "claim_winner"),
@@ -315,7 +317,7 @@ pub fn try_receive_nft(
     info: MessageInfo,
     env: Env,
     rcv_msg: Cw721ReceiveMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let msg: AskNftMsg = match rcv_msg.msg {
         Some(bin) => Ok(from_binary(&bin)?),
         None => Err(ContractError::NoData {}),
@@ -368,7 +370,7 @@ pub fn try_receive_nft(
 
     let price_string = format!("{}", msg.price);
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "ask_nft"),
@@ -388,7 +390,7 @@ pub fn try_cancel_bid(
     info: MessageInfo,
     env: Env,
     auction_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // check if token_id is currently sold by the requesting address
     let key = auction_id.to_be_bytes();
     let auctions = auctions();
@@ -435,7 +437,7 @@ pub fn try_cancel_bid(
             off.price = off.orig_price;
             auctions.save(deps.storage, &key, &off)?;
 
-            return Ok(HandleResponse {
+            return Ok(Response {
                 messages: cosmos_msgs,
                 attributes: vec![
                     attr("action", "cancel_bid"),
@@ -461,7 +463,7 @@ pub fn try_cancel_bid(
 //     info: MessageInfo,
 //     env: Env,
 //     auction_id: u64,
-// ) -> Result<HandleResponse, ContractError> {
+// ) -> Result<Response, ContractError> {
 //     // check if token_id is currently sold by the requesting address
 //     let key = auction_id.to_be_bytes();
 //     let auctions = auctions();
@@ -476,11 +478,11 @@ pub fn try_cancel_bid(
 //         cosmos_msgs.push(
 //             WasmMsg::Execute {
 //                 contract_addr: deps.api.human_address(&off.contract_addr)?,
-//                 msg: to_binary(&Cw721HandleMsg::TransferNft {
+//                 msg: to_json_binary(&Cw721ExecuteMsg::TransferNft {
 //                     recipient: asker_addr,
 //                     token_id: off.token_id.clone(),
 //                 })?,
-//                 send: vec![],
+//                 funds: vec![],
 //             }
 //             .into(),
 //         );
@@ -502,7 +504,7 @@ pub fn try_cancel_bid(
 //         // remove auction
 //         auctions.remove(deps.storage, &key)?;
 
-//         return Ok(HandleResponse {
+//         return Ok(Response {
 //             messages: cosmos_msgs,
 //             attributes: vec![
 //                 attr("action", "withdraw_nft"),
@@ -521,7 +523,7 @@ pub fn try_emergency_cancel_auction(
     info: MessageInfo,
     env: Env,
     auction_id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // check if token_id is currently sold by the requesting address
     let key = auction_id.to_be_bytes();
     let auctions = auctions();
@@ -529,7 +531,7 @@ pub fn try_emergency_cancel_auction(
     let asker_addr = deps.api.human_address(&off.asker)?;
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
-    if !info.sender.eq(&HumanAddr::from(contract_info.creator)) {
+    if !info.sender.eq(&Addr::from(contract_info.creator)) {
         return Err(ContractError::Unauthorized {});
     }
     // transfer token back to original owner
@@ -537,11 +539,11 @@ pub fn try_emergency_cancel_auction(
     cosmos_msgs.push(
         WasmMsg::Execute {
             contract_addr: deps.api.human_address(&off.contract_addr)?,
-            msg: to_binary(&Cw721HandleMsg::TransferNft {
+            msg: to_json_binary(&Cw721ExecuteMsg::TransferNft {
                 recipient: asker_addr,
                 token_id: off.token_id.clone(),
             })?,
-            send: vec![],
+            funds: vec![],
         }
         .into(),
     );
@@ -563,7 +565,7 @@ pub fn try_emergency_cancel_auction(
     // remove auction
     auctions.remove(deps.storage, &key)?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: cosmos_msgs,
         attributes: vec![
             attr("action", "withdraw_nft"),
@@ -577,21 +579,21 @@ pub fn try_emergency_cancel_auction(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetAuctions { options } => to_binary(&query_auctions(deps, &options)?),
+        QueryMsg::GetAuctions { options } => to_json_binary(&query_auctions(deps, &options)?),
         QueryMsg::GetAuctionsByBidder { bidder, options } => {
-            to_binary(&query_auctions_by_bidder(deps, bidder, &options)?)
+            to_json_binary(&query_auctions_by_bidder(deps, bidder, &options)?)
         }
         QueryMsg::GetAuctionsByAsker { asker, options } => {
-            to_binary(&query_auctions_by_asker(deps, asker, &options)?)
+            to_json_binary(&query_auctions_by_asker(deps, asker, &options)?)
         }
         QueryMsg::GetAuctionsByContract { contract, options } => {
-            to_binary(&query_auctions_by_contract(deps, contract, &options)?)
+            to_json_binary(&query_auctions_by_contract(deps, contract, &options)?)
         }
-        QueryMsg::GetAuction { auction_id } => to_binary(&query_auction(deps, auction_id)?),
-        QueryMsg::GetAuctionByContractTokenId { contract, token_id } => to_binary(
+        QueryMsg::GetAuction { auction_id } => to_json_binary(&query_auction(deps, auction_id)?),
+        QueryMsg::GetAuctionByContractTokenId { contract, token_id } => to_json_binary(
             &query_auction_by_contract_tokenid(deps, contract, token_id)?,
         ),
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        QueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
     }
 }
 
@@ -634,7 +636,7 @@ pub fn query_auctions(deps: Deps, options: &PagingOptions) -> StdResult<Auctions
 
 pub fn query_auctions_by_asker(
     deps: Deps,
-    asker: HumanAddr,
+    asker: Addr,
     options: &PagingOptions,
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
@@ -653,7 +655,7 @@ pub fn query_auctions_by_asker(
 // if bidder is empty, it is pending auctions
 pub fn query_auctions_by_bidder(
     deps: Deps,
-    bidder: Option<HumanAddr>,
+    bidder: Option<Addr>,
     options: &PagingOptions,
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
@@ -674,7 +676,7 @@ pub fn query_auctions_by_bidder(
 
 pub fn query_auctions_by_contract(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     options: &PagingOptions,
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
@@ -696,7 +698,7 @@ pub fn query_auction(deps: Deps, auction_id: u64) -> StdResult<Auction> {
 
 pub fn query_auction_by_contract_tokenid(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     token_id: String,
 ) -> StdResult<QueryAuctionsResult> {
     let contract_raw = deps.api.canonical_address(&contract)?;

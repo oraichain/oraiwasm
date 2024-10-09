@@ -1,17 +1,17 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
     get_contract_token_id, get_key_royalty, increment_offerings, offerings, offerings_royalty,
     ContractInfo, CONTRACT_INFO,
 };
-use market_royalty::{OfferingHandleMsg, OfferingRoyalty, OffsetMsg};
+use market_royalty::{OfferingExecuteMsg, OfferingRoyalty, OffsetMsg};
 use market_royalty::{OfferingQueryMsg, OfferingsResponse, QueryOfferingsResult};
 
 use cosmwasm_std::{
-    attr, to_binary, Api, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo,
+    attr, to_json_binary, Api, Binary, Deps, DepsMut, Env, Response, Response, MessageInfo,
     Order, StdError, StdResult,
 };
-use cosmwasm_std::{HumanAddr, KV};
+use cosmwasm_std::{Addr, KV};
 use cw_storage_plus::{Bound, PkOwned};
 use market_royalty::Offering;
 use std::convert::TryInto;
@@ -23,41 +23,43 @@ const DEFAULT_LIMIT: u8 = 20;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     // first time deploy, it will not know about the implementation
     let info = ContractInfo {
         governance: msg.governance,
         creator: info.sender,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Offering(offering_handle) => match offering_handle {
-            OfferingHandleMsg::UpdateOffering { offering } => {
+        ExecuteMsg::Offering(offering_handle) => match offering_handle {
+            OfferingExecuteMsg::UpdateOffering { offering } => {
                 try_update_offering(deps, info, env, offering)
             }
-            OfferingHandleMsg::RemoveOffering { id } => try_remove_offering(deps, info, env, id),
-            OfferingHandleMsg::UpdateOfferingRoyalty { offering } => {
+            OfferingExecuteMsg::RemoveOffering { id } => try_remove_offering(deps, info, env, id),
+            OfferingExecuteMsg::UpdateOfferingRoyalty { offering } => {
                 try_update_offering_royalty(deps, info, env, offering)
-            } // OfferingHandleMsg::RemoveOfferingRoyalty { id } => {
+            } // OfferingExecuteMsg::RemoveOfferingRoyalty { id } => {
               //     try_delete_offering_royalty(deps, info, env, id)
               // }
         },
-        HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
+        ExecuteMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
 }
 
@@ -68,13 +70,13 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_offerings(deps, limit, offset, order)?),
+            } => to_json_binary(&query_offerings(deps, limit, offset, order)?),
             OfferingQueryMsg::GetOfferingsBySeller {
                 seller,
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_offerings_by_seller(
+            } => to_json_binary(&query_offerings_by_seller(
                 deps, seller, limit, offset, order,
             )?),
             OfferingQueryMsg::GetOfferingsByContract {
@@ -82,30 +84,30 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_offerings_by_contract(
+            } => to_json_binary(&query_offerings_by_contract(
                 deps, contract, limit, offset, order,
             )?),
             OfferingQueryMsg::GetOffering { offering_id } => {
-                to_binary(&query_offering(deps, offering_id)?)
+                to_json_binary(&query_offering(deps, offering_id)?)
             }
             OfferingQueryMsg::GetOfferingState { offering_id } => {
-                to_binary(&query_offering_state(deps, offering_id)?)
+                to_json_binary(&query_offering_state(deps, offering_id)?)
             }
-            OfferingQueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_binary(
+            OfferingQueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_json_binary(
                 &query_offering_by_contract_tokenid(deps, contract, token_id)?,
             ),
             OfferingQueryMsg::GetOfferingsRoyalty {
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_offerings_royalty(deps, limit, offset, order)?),
+            } => to_json_binary(&query_offerings_royalty(deps, limit, offset, order)?),
 
             OfferingQueryMsg::GetOfferingsRoyaltyByContract {
                 contract,
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_offerings_royalty_by_contract(
+            } => to_json_binary(&query_offerings_royalty_by_contract(
                 deps, contract, limit, offset, order,
             )?),
             OfferingQueryMsg::GetOfferingsRoyaltyByCurrentOwner {
@@ -113,7 +115,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_offerings_royalty_by_current_owner(
+            } => to_json_binary(&query_offerings_royalty_by_current_owner(
                 deps,
                 current_owner,
                 limit,
@@ -121,16 +123,16 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 order,
             )?),
             OfferingQueryMsg::GetOfferingRoyalty { offering_id } => {
-                to_binary(&query_offering_royalty(deps, offering_id)?)
+                to_json_binary(&query_offering_royalty(deps, offering_id)?)
             }
             OfferingQueryMsg::GetOfferingRoyaltyByContractTokenId { contract, token_id } => {
-                to_binary(&query_offering_royalty_by_contract_tokenid(
+                to_json_binary(&query_offering_royalty_by_contract_tokenid(
                     deps, contract, token_id,
                 )?)
             }
-            OfferingQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+            OfferingQueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
         },
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        QueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
     }
 }
 
@@ -139,7 +141,7 @@ pub fn try_update_offering(
     info: MessageInfo,
     _env: Env,
     mut offering: Offering,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // must check the sender is implementation contract
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
@@ -155,7 +157,7 @@ pub fn try_update_offering(
 
     offerings().save(deps.storage, &offering.id.unwrap().to_be_bytes(), &offering)?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: vec![],
         attributes: vec![
             attr("action", "update_offering"),
@@ -170,7 +172,7 @@ pub fn try_remove_offering(
     info: MessageInfo,
     _env: Env,
     id: u64,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if contract_info.governance.ne(&info.sender) {
         return Err(ContractError::Unauthorized {
@@ -181,7 +183,7 @@ pub fn try_remove_offering(
     // remove offering
     offerings().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "remove_offering"), attr("offering_id", id)],
         data: None,
@@ -193,7 +195,7 @@ pub fn try_update_offering_royalty(
     info: MessageInfo,
     _env: Env,
     offering: OfferingRoyalty,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // must check the sender is implementation contract
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
@@ -212,10 +214,10 @@ pub fn try_update_offering_royalty(
         &offering,
     )?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "update_offering_royalty")],
-        data: to_binary(&offering).ok(),
+        data: to_json_binary(&offering).ok(),
     });
 }
 
@@ -223,9 +225,9 @@ pub fn try_update_offering_royalty(
 //     deps: DepsMut,
 //     info: MessageInfo,
 //     _env: Env,
-//     contract_addr: HumanAddr,
+//     contract_addr: Addr,
 //     token_id: String,
-// ) -> Result<HandleResponse, ContractError> {
+// ) -> Result<Response, ContractError> {
 //     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 //     if contract_info.governance.ne(&info.sender) {
 //         return Err(ContractError::Unauthorized {
@@ -239,7 +241,7 @@ pub fn try_update_offering_royalty(
 //         &get_contract_token_id_human(&contract_addr, &token_id).0,
 //     )?;
 
-//     return Ok(HandleResponse {
+//     return Ok(Response {
 //         messages: vec![],
 //         attributes: vec![attr("action", "remove_offering_royalty")],
 //         data: None,
@@ -251,7 +253,7 @@ pub fn try_update_info(
     info: MessageInfo,
     _env: Env,
     msg: UpdateContractMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
         // Unauthorized
         if !info.sender.eq(&contract_info.creator) {
@@ -268,10 +270,10 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "update_info")],
-        data: to_binary(&new_contract_info).ok(),
+        data: to_json_binary(&new_contract_info).ok(),
     })
 }
 
@@ -361,7 +363,7 @@ pub fn query_offering_ids(deps: Deps) -> StdResult<Vec<u64>> {
 
 pub fn query_offerings_by_seller(
     deps: Deps,
-    seller: HumanAddr,
+    seller: Addr,
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
@@ -381,7 +383,7 @@ pub fn query_offerings_by_seller(
 
 pub fn query_offerings_by_contract(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
@@ -417,7 +419,7 @@ pub fn query_offering_state(deps: Deps, offering_id: u64) -> StdResult<Offering>
 
 pub fn query_offering_by_contract_tokenid(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     token_id: String,
 ) -> StdResult<QueryOfferingsResult> {
     let contract_raw = deps.api.canonical_address(&contract)?;
@@ -459,7 +461,7 @@ pub fn query_offerings_royalty(
 
 pub fn query_offerings_royalty_by_current_owner(
     deps: Deps,
-    current_owner: HumanAddr,
+    current_owner: Addr,
     limit: Option<u8>,
     offset: Option<OffsetMsg>,
     order: Option<u8>,
@@ -484,7 +486,7 @@ pub fn query_offerings_royalty_by_current_owner(
 
 pub fn query_offerings_royalty_by_contract(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     limit: Option<u8>,
     offset: Option<OffsetMsg>,
     order: Option<u8>,
@@ -508,7 +510,7 @@ pub fn query_offering_royalty(deps: Deps, offering_id: u64) -> StdResult<Offerin
 
 pub fn query_offering_royalty_by_contract_tokenid(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     token_id: String,
 ) -> StdResult<OfferingRoyalty> {
     let offering = offerings_royalty().idx.contract_token_id.item(

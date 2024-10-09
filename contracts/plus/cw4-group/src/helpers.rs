@@ -2,12 +2,12 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::ops::Deref;
 
-use cosmwasm_std::{to_binary, CosmosMsg, HumanAddr, StdResult, WasmMsg};
+use cosmwasm_std::{to_json_binary, Addr, CosmosMsg, StdResult, WasmMsg};
 use cw4::{Cw4Contract, Member};
 
-use crate::msg::HandleMsg;
+use crate::msg::ExecuteMsg;
 
-/// Cw4GroupContract is a wrapper around HumanAddr that provides a lot of helpers
+/// Cw4GroupContract is a wrapper around Addr that provides a lot of helpers
 /// for working with cw4-group contracts.
 ///
 /// It extends Cw4Contract to add the extra calls from cw4-group.
@@ -23,21 +23,21 @@ impl Deref for Cw4GroupContract {
 }
 
 impl Cw4GroupContract {
-    pub fn new(addr: HumanAddr) -> Self {
+    pub fn new(addr: Addr) -> Self {
         Cw4GroupContract(Cw4Contract(addr))
     }
 
-    fn encode_msg(&self, msg: HandleMsg) -> StdResult<CosmosMsg> {
+    fn encode_msg(&self, msg: ExecuteMsg) -> StdResult<CosmosMsg> {
         Ok(WasmMsg::Execute {
             contract_addr: self.addr(),
-            msg: to_binary(&msg)?,
-            send: vec![],
+            msg: to_json_binary(&msg)?,
+            funds: vec![],
         }
         .into())
     }
 
-    pub fn update_members(&self, remove: Vec<HumanAddr>, add: Vec<Member>) -> StdResult<CosmosMsg> {
-        let msg = HandleMsg::UpdateMembers { remove, add };
+    pub fn update_members(&self, remove: Vec<Addr>, add: Vec<Member>) -> StdResult<CosmosMsg> {
+        let msg = ExecuteMsg::UpdateMembers { remove, add };
         self.encode_msg(msg)
     }
 }

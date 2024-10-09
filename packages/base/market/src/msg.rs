@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
+use cosmwasm_std::{Addr, Binary, Coin, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -18,7 +18,7 @@ pub struct TokenInfo {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum AssetInfo {
-    Token { contract_addr: HumanAddr },
+    Token { contract_addr: Addr },
     NativeToken { denom: String },
 }
 
@@ -31,13 +31,13 @@ pub enum Funds {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum StorageHandleMsg {
+pub enum StorageExecuteMsg {
     // GetOfferings returns a list of all offerings
     UpdateStorageData { name: String, msg: Binary },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum MarketHubHandleMsg {
-    Storage(StorageHandleMsg),
+pub enum MarketHubExecuteMsg {
+    Storage(StorageExecuteMsg),
 }

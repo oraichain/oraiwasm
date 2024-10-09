@@ -1,8 +1,8 @@
 use std::ops::{Mul, Sub};
 
 use cosmwasm_std::{
-    coins, to_binary, BankMsg, Binary, CosmosMsg, Decimal, HandleResponse, HumanAddr, StdError,
-    Uint128, WasmMsg,
+    coins, to_json_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Response, StdError, Uint128,
+    WasmMsg,
 };
 use market::AssetInfo;
 
@@ -21,7 +21,7 @@ fn add_royalties_event<'a>(
     nft_addr: &'a str,
     token_id: &'a str,
     royalties_event: &'a [RoyaltyEvent],
-    rsp: &mut HandleResponse,
+    rsp: &mut Response,
 ) {
     if royalties_event.len() > 0 {
         RoyaltiesEvent {
@@ -37,19 +37,19 @@ pub fn parse_transfer_msg(
     asset_info: AssetInfo,
     amount: Uint128,
     sender: &str,
-    recipient: HumanAddr,
+    recipient: Addr,
 ) -> Result<CosmosMsg, StdError> {
     match asset_info {
         AssetInfo::NativeToken { denom } => Ok(BankMsg::Send {
-            from_address: HumanAddr::from(sender),
+            from_address: Addr::from(sender),
             to_address: recipient,
             amount: coins(amount.u128(), denom),
         }
         .into()),
         AssetInfo::Token { contract_addr } => Ok(WasmMsg::Execute {
             contract_addr,
-            msg: to_binary(&cw20::Cw20HandleMsg::Transfer { recipient, amount })?,
-            send: vec![],
+            msg: to_json_binary(&cw20::Cw20ExecuteMsg::Transfer { recipient, amount })?,
+            funds: vec![],
         }
         .into()),
     }
@@ -61,7 +61,7 @@ pub fn pay_royalties(
     decimal_point: u64,
     remaining: &mut Uint128,
     cosmos_msgs: &mut Vec<CosmosMsg>,
-    rsp: &mut HandleResponse,
+    rsp: &mut Response,
     contract_addr: &str,
     denom: &str,
     asset_info: AssetInfo,

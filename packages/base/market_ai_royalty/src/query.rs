@@ -1,4 +1,4 @@
-use cosmwasm_std::HumanAddr;
+use cosmwasm_std::Addr;
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -8,12 +8,12 @@ use serde::{Deserialize, Serialize};
 pub enum AiRoyaltyQueryMsg {
     // GetOfferings returns a list of all offerings
     GetPreference {
-        creator: HumanAddr,
+        creator: Addr,
     },
     GetRoyalty {
-        contract_addr: HumanAddr,
+        contract_addr: Addr,
         token_id: String,
-        creator: HumanAddr,
+        creator: Addr,
     },
     GetRoyalties {
         offset: Option<OffsetMsg>,
@@ -27,19 +27,19 @@ pub enum AiRoyaltyQueryMsg {
         order: Option<u8>,
     },
     GetRoyaltiesOwner {
-        owner: HumanAddr,
+        owner: Addr,
         offset: Option<OffsetMsg>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetRoyaltiesContract {
-        contract_addr: HumanAddr,
+        contract_addr: Addr,
         offset: Option<OffsetMsg>,
         limit: Option<u8>,
         order: Option<u8>,
     },
     GetRoyaltiesContractTokenId {
-        contract_addr: HumanAddr,
+        contract_addr: Addr,
         token_id: String,
         offset: Option<OffsetMsg>,
         limit: Option<u8>,
@@ -50,7 +50,7 @@ pub enum AiRoyaltyQueryMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OffsetMsg {
-    pub contract: HumanAddr,
+    pub contract: Addr,
     pub token_id: String,
-    pub creator: HumanAddr,
+    pub creator: Addr,
 }

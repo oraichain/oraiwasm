@@ -2,22 +2,22 @@ use aioracle_base::{GetServiceFeesMsg, Reward, ServiceMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Binary, Coin, HumanAddr, Uint128};
+use cosmwasm_std::{Addr, Binary, Coin, Uint128};
 
 use crate::state::TrustingPool;
 
 #[derive(Serialize, Deserialize, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     /// Owner if none set to info.sender.
-    pub owner: Option<HumanAddr>,
-    pub service_addr: HumanAddr,
+    pub owner: Option<Addr>,
+    pub service_addr: Addr,
     pub contract_fee: Coin,
     pub executors: Vec<Binary>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     UpdateConfig {
         update_config_msg: UpdateConfigMsg,
     },
@@ -200,7 +200,7 @@ pub struct GetParticipantFee {
 pub struct RequestResponse {
     pub stage: u64,
     /// Owner If None set, contract is frozen.
-    pub requester: HumanAddr,
+    pub requester: Addr,
     pub request_height: u64,
     pub submit_merkle_height: u64,
     /// Owner If None set, contract is frozen.
@@ -230,8 +230,8 @@ pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct UpdateConfigMsg {
-    pub new_owner: Option<HumanAddr>,
-    pub new_service_addr: Option<HumanAddr>,
+    pub new_owner: Option<Addr>,
+    pub new_service_addr: Option<Addr>,
     pub new_contract_fee: Option<Coin>,
     pub new_executors: Option<Vec<Binary>>,
     pub old_executors: Option<Vec<Binary>>,

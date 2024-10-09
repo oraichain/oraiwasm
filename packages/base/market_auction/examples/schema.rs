@@ -3,7 +3,7 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use market_auction::{Auction, AuctionHandleMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions};
+use market_auction::{Auction, AuctionExecuteMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions};
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -12,7 +12,7 @@ fn main() {
     remove_schemas(&out_dir).unwrap();
 
     export_schema(&schema_for!(Auction), &out_dir);
-    export_schema(&schema_for!(AuctionHandleMsg), &out_dir);
+    export_schema(&schema_for!(AuctionExecuteMsg), &out_dir);
     export_schema(&schema_for!(AuctionQueryMsg), &out_dir);
     export_schema(&schema_for!(AuctionsResponse), &out_dir);
     export_schema(&schema_for!(PagingOptions), &out_dir);

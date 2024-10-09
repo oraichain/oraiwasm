@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Empty, HumanAddr};
+use cosmwasm_std::{Addr, Binary, Empty};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -6,13 +6,13 @@ use std::fmt;
 use crate::state::AiRequest;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub name: String,
     pub fee: u64,
     pub denom: String,
-    pub governance: HumanAddr,
-    pub dsources: Vec<HumanAddr>,
-    pub tcases: Vec<HumanAddr>,
+    pub governance: Addr,
+    pub dsources: Vec<Addr>,
+    pub tcases: Vec<Addr>,
     pub threshold: u8,
 }
 
@@ -22,9 +22,9 @@ pub struct UpdateContractMsg {
     pub creator: Option<String>,
     pub fee: Option<u64>,
     pub denom: Option<String>,
-    pub governance: Option<HumanAddr>,
-    pub dsources: Option<Vec<HumanAddr>>,
-    pub tcases: Option<Vec<HumanAddr>>,
+    pub governance: Option<Addr>,
+    pub dsources: Option<Vec<Addr>>,
+    pub tcases: Option<Vec<Addr>>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -38,7 +38,7 @@ pub enum AiOracleStorageMsg {
 
 // #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 // #[serde(rename_all = "snake_case")]
-// pub enum AiOracleHandleMsg {
+// pub enum AiOracleExecuteMsg {
 //     SetState(StateMsg),
 //     SetValidatorFees {
 //         fees: u64,
@@ -54,13 +54,13 @@ pub enum AiOracleStorageMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct AiRequestMsg {
-    pub validators: Vec<HumanAddr>,
+    pub validators: Vec<Addr>,
     pub input: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct DataSourceResultMsg {
-    pub contract: HumanAddr,
+    pub contract: Addr,
     pub result: String,
     pub status: bool,
     pub test_case_results: Vec<Option<TestCaseResultMsg>>,
@@ -68,34 +68,34 @@ pub struct DataSourceResultMsg {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct TestCaseResultMsg {
-    pub contract: HumanAddr,
+    pub contract: Addr,
     pub dsource_status: bool,
     pub tcase_status: bool,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateMsg {
-    pub dsources: Option<Vec<HumanAddr>>,
-    pub tcases: Option<Vec<HumanAddr>>,
-    pub owner: Option<HumanAddr>,
+    pub dsources: Option<Vec<Addr>>,
+    pub tcases: Option<Vec<Addr>>,
+    pub owner: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum StorageHandleMsg {
+pub enum StorageExecuteMsg {
     // GetOfferings returns a list of all offerings
     UpdateStorageData { name: String, msg: Binary },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum AiOracleHubHandleMsg {
-    Storage(StorageHandleMsg),
+pub enum AiOracleHubExecuteMsg {
+    Storage(StorageExecuteMsg),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum ProxyHandleMsg<T = Empty>
+pub enum ProxyExecuteMsg<T = Empty>
 where
     T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
 {

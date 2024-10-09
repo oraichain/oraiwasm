@@ -1,5 +1,5 @@
 use crate::msg::PagingOptions;
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -11,15 +11,15 @@ pub enum AuctionQueryMsg {
         options: PagingOptions,
     },
     GetAuctionsByAsker {
-        asker: HumanAddr,
+        asker: Addr,
         options: PagingOptions,
     },
     GetAuctionsByBidder {
-        bidder: Option<HumanAddr>,
+        bidder: Option<Addr>,
         options: PagingOptions,
     },
     GetAuctionsByContract {
-        contract: HumanAddr,
+        contract: Addr,
         options: PagingOptions,
     },
     GetAuctionRaw {
@@ -29,14 +29,14 @@ pub enum AuctionQueryMsg {
         auction_id: u64,
     },
     GetAuctionsByContractTokenId {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
         options: PagingOptions,
     },
     GetUniqueAuction {
-        contract: HumanAddr,
+        contract: Addr,
         token_id: String,
-        asker: HumanAddr,
+        asker: Addr,
     },
 }
 
@@ -45,11 +45,11 @@ pub struct QueryAuctionsResult {
     pub id: u64,
     pub token_id: String,
     pub amount: Uint128,
-    pub contract_addr: HumanAddr,
+    pub contract_addr: Addr,
     // who askes the minimum price
-    pub asker: HumanAddr,
+    pub asker: Addr,
     // who pays the maximum price
-    pub bidder: Option<HumanAddr>,
+    pub bidder: Option<Addr>,
     // start block number, by default is current block height
     pub start: u64,
     // end block number, by default is current block height + duration in number of blocks

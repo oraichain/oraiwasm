@@ -1,7 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Coin, HumanAddr, StdResult, Storage, Uint128};
+use cosmwasm_std::{Addr, Coin, StdResult, Storage, Uint128};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 
 use crate::{
@@ -12,9 +12,9 @@ use crate::{
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct OldState {
-    pub owner: HumanAddr,
+    pub owner: Addr,
     pub ping_jump: u64,
-    pub aioracle_addr: HumanAddr,
+    pub aioracle_addr: Addr,
     pub base_reward: Coin,
     pub ping_jump_interval: u64,
 }
@@ -58,7 +58,7 @@ mod test {
     use cosmwasm_std::testing::{
         mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
     };
-    use cosmwasm_std::HumanAddr;
+    use cosmwasm_std::Addr;
     use cosmwasm_std::{coins, from_binary, Coin, OwnedDeps, Uint128};
 
     use super::old_config;
@@ -70,9 +70,9 @@ mod test {
 
         old_config(deps.as_mut().storage)
             .save(&OldState {
-                owner: HumanAddr::from("foobar"),
+                owner: Addr::from("foobar"),
                 ping_jump: 1,
-                aioracle_addr: HumanAddr::from("abc"),
+                aioracle_addr: Addr::from("abc"),
                 base_reward: Coin {
                     amount: Uint128::from(1u64),
                     denom: "foo".into(),
@@ -86,7 +86,7 @@ mod test {
     #[test]
     fn test_migrate() {
         let mut deps = setup_old_contract();
-        let info = mock_info(HumanAddr::from("foobar"), &[]);
+        let info = mock_info(Addr::from("foobar"), &[]);
         migrate(deps.as_mut(), mock_env(), info, MigrateMsg {}).unwrap();
 
         // query config

@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    to_binary, to_vec, Binary, CanonicalAddr, ContractResult, CosmosMsg, Empty, HumanAddr,
+    to_json_binary, to_vec, Addr, Binary, CanonicalAddr, ContractResult, CosmosMsg, Empty,
     QuerierWrapper, QueryRequest, StdError, StdResult, SystemResult, WasmMsg, WasmQuery,
 };
 use provider::{state::State, QueryMsg as ProviderQueryMsg};
@@ -10,7 +10,7 @@ use test_case::msg::{Response, TestCaseResponse};
 use test_case::QueryMsg as TestCaseQueryMsg;
 
 use crate::{
-    AiOracleHubHandleMsg, AiOracleHubQueryMsg, ProxyHandleMsg, ProxyQueryMsg, StorageHandleMsg,
+    AiOracleHubExecuteMsg, AiOracleHubQueryMsg, ProxyExecuteMsg, ProxyQueryMsg, StorageExecuteMsg,
     StorageQueryMsg,
 };
 
@@ -41,14 +41,14 @@ impl AdminList {
 }
 
 /// Storage Item, tupple in json format is like: ["royalties","royalties_addr"]
-pub type StorageItem = (String, HumanAddr);
+pub type StorageItem = (String, Addr);
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, Default)]
 
 // support few implementation, only add, not remove, so that old implement can work well with old storage
 pub struct Registry {
     // storages should be map with name to help other implementations work well with mapped name storage
     pub storages: Vec<StorageItem>,
-    pub implementations: Vec<HumanAddr>,
+    pub implementations: Vec<Addr>,
 }
 
 impl Registry {
@@ -57,7 +57,7 @@ impl Registry {
         self.storages.iter().find(|x| x.0.eq(item_key))
     }
 
-    pub fn add_storage(&mut self, item_key: &str, addr: HumanAddr) {
+    pub fn add_storage(&mut self, item_key: &str, addr: Addr) {
         if let Some(old) = self.storages.iter_mut().find(|x| x.0.eq(item_key)) {
             old.1 = addr;
         } else {
@@ -75,35 +75,36 @@ impl Registry {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AiOracleHubContract(pub HumanAddr);
+pub struct AiOracleHubContract(pub Addr);
 
 impl AiOracleHubContract {
-    pub fn new(addr: HumanAddr) -> Self {
+    pub fn new(addr: Addr) -> Self {
         AiOracleHubContract(addr)
     }
 
-    pub fn addr(&self) -> HumanAddr {
+    pub fn addr(&self) -> Addr {
         self.0.clone()
     }
 
-    fn encode_msg(&self, msg: AiOracleHubHandleMsg) -> StdResult<CosmosMsg> {
+    fn encode_msg(&self, msg: AiOracleHubExecuteMsg) -> StdResult<CosmosMsg> {
         Ok(WasmMsg::Execute {
             contract_addr: self.addr(),
-            msg: to_binary(&msg)?,
-            send: vec![],
+            msg: to_json_binary(&msg)?,
+            funds: vec![],
         }
         .into())
     }
 
     fn update_storage(&self, name: String, msg: Binary) -> StdResult<CosmosMsg> {
-        let msg = AiOracleHubHandleMsg::Storage(StorageHandleMsg::UpdateStorageData { name, msg });
+        let msg =
+            AiOracleHubExecuteMsg::Storage(StorageExecuteMsg::UpdateStorageData { name, msg });
         self.encode_msg(msg)
     }
 
     fn encode_smart_query(&self, msg: AiOracleHubQueryMsg) -> StdResult<QueryRequest<Empty>> {
         Ok(WasmQuery::Smart {
             contract_addr: self.addr(),
-            msg: to_binary(&msg)?,
+            msg: to_json_binary(&msg)?,
         }
         .into())
     }
@@ -120,14 +121,14 @@ impl AiOracleHubContract {
         Ok(querier.query(&query)?)
     }
 
-    fn query_storage_addr(&self, name: String, querier: &QuerierWrapper) -> StdResult<HumanAddr> {
+    fn query_storage_addr(&self, name: String, querier: &QuerierWrapper) -> StdResult<Addr> {
         let query = self.encode_smart_query(AiOracleHubQueryMsg::Storage(
             StorageQueryMsg::QueryStorageAddr { name },
         ))?;
         Ok(querier.query(&query)?)
     }
 
-    fn get_raw_request(&self, addr: HumanAddr, msg: Binary) -> StdResult<Vec<u8>> {
+    fn get_raw_request(&self, addr: Addr, msg: Binary) -> StdResult<Vec<u8>> {
         let request: QueryRequest<Empty> = WasmQuery::Smart {
             contract_addr: addr,
             msg,
@@ -140,12 +141,7 @@ impl AiOracleHubContract {
         raw
     }
 
-    fn query_proxy(
-        &self,
-        querier: &QuerierWrapper,
-        addr: HumanAddr,
-        msg: Binary,
-    ) -> StdResult<Binary> {
+    fn query_proxy(&self, querier: &QuerierWrapper, addr: Addr, msg: Binary) -> StdResult<Binary> {
         let raw = self.get_raw_request(addr, msg)?;
 
         match querier.raw_query(&raw) {
@@ -171,7 +167,7 @@ impl AiOracleHubContract {
     ) -> StdResult<U> {
         self.query_storage(
             storage_name.to_string(),
-            to_binary(&ProxyQueryMsg::Msg(msg))?,
+            to_json_binary(&ProxyQueryMsg::Msg(msg))?,
             &querier,
         )
     }
@@ -187,7 +183,7 @@ impl AiOracleHubContract {
         self.query_proxy(
             &querier,
             self.query_storage_addr(storage_name.to_string(), &querier)?,
-            to_binary(&ProxyQueryMsg::Msg(msg))?,
+            to_json_binary(&ProxyQueryMsg::Msg(msg))?,
         )
     }
 
@@ -195,28 +191,28 @@ impl AiOracleHubContract {
     where
         T: Clone + fmt::Debug + PartialEq + JsonSchema + Serialize,
     {
-        let binary_msg = to_binary(&ProxyHandleMsg::Msg(msg))?;
+        let binary_msg = to_json_binary(&ProxyExecuteMsg::Msg(msg))?;
         // println!("in get handle msg");
         self.update_storage(name.to_string(), binary_msg)
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AiOracleProviderContract(pub HumanAddr);
+pub struct AiOracleProviderContract(pub Addr);
 
 impl AiOracleProviderContract {
-    pub fn new(addr: HumanAddr) -> Self {
+    pub fn new(addr: Addr) -> Self {
         AiOracleProviderContract(addr)
     }
 
-    pub fn addr(&self) -> HumanAddr {
+    pub fn addr(&self) -> Addr {
         self.0.clone()
     }
 
     fn encode_smart_query(&self, msg: ProviderQueryMsg) -> StdResult<QueryRequest<Empty>> {
         Ok(WasmQuery::Smart {
             contract_addr: self.addr(),
-            msg: to_binary(&msg)?,
+            msg: to_json_binary(&msg)?,
         }
         .into())
     }
@@ -230,21 +226,21 @@ impl AiOracleProviderContract {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct AiOracleTestCaseContract(pub HumanAddr);
+pub struct AiOracleTestCaseContract(pub Addr);
 
 impl AiOracleTestCaseContract {
-    pub fn new(addr: HumanAddr) -> Self {
+    pub fn new(addr: Addr) -> Self {
         AiOracleTestCaseContract(addr)
     }
 
-    pub fn addr(&self) -> HumanAddr {
+    pub fn addr(&self) -> Addr {
         self.0.clone()
     }
 
     fn encode_smart_query(&self, msg: TestCaseQueryMsg) -> StdResult<QueryRequest<Empty>> {
         Ok(WasmQuery::Smart {
             contract_addr: self.addr(),
-            msg: to_binary(&msg)?,
+            msg: to_json_binary(&msg)?,
         }
         .into())
     }
@@ -281,14 +277,14 @@ impl AiOracleTestCaseContract {
 mod tests {
     use super::*;
     use cosmwasm_std::testing::MockApi;
-    use cosmwasm_std::{Api, HumanAddr};
+    use cosmwasm_std::{Addr, Api};
 
     #[test]
     fn is_admin() {
         let api = MockApi::default();
         let admins: Vec<_> = vec!["bob", "paul", "john"]
             .into_iter()
-            .map(|name| api.canonical_address(&HumanAddr::from(name)).unwrap())
+            .map(|name| api.canonical_address(&Addr::from(name)).unwrap())
             .collect();
         let owner = api.canonical_address(&"tupt".into()).unwrap();
         let config = AdminList {
@@ -299,16 +295,16 @@ mod tests {
         assert!(config.is_admin(&owner));
         assert!(config.is_admin(&admins[0]));
         assert!(config.is_admin(&admins[2]));
-        let other = api.canonical_address(&HumanAddr::from("other")).unwrap();
+        let other = api.canonical_address(&Addr::from("other")).unwrap();
         assert!(!config.is_admin(&other));
     }
 
     #[test]
     fn can_modify() {
         let api = MockApi::default();
-        let alice = api.canonical_address(&HumanAddr::from("alice")).unwrap();
-        let bob = api.canonical_address(&HumanAddr::from("bob")).unwrap();
-        let owner = api.canonical_address(&HumanAddr::from("tupt")).unwrap();
+        let alice = api.canonical_address(&Addr::from("alice")).unwrap();
+        let bob = api.canonical_address(&Addr::from("bob")).unwrap();
+        let owner = api.canonical_address(&Addr::from("tupt")).unwrap();
 
         // admin can modify mutable contract
         let config = AdminList {
@@ -331,12 +327,12 @@ mod tests {
 
     #[test]
     fn add_storage() {
-        let royalties = HumanAddr::from("royalties");
+        let royalties = Addr::from("royalties");
 
-        let auctions = HumanAddr::from("auctions");
-        let offerings = HumanAddr::from("offerings");
+        let auctions = Addr::from("auctions");
+        let offerings = Addr::from("offerings");
 
-        let implementation = HumanAddr::from("implementation");
+        let implementation = Addr::from("implementation");
 
         // admin can modify mutable contract
         let mut registry = Registry {
@@ -353,10 +349,10 @@ mod tests {
 
     #[test]
     fn remove_storage() {
-        let royalties = HumanAddr::from("royalties");
-        let auctions = HumanAddr::from("auctions");
-        let offerings = HumanAddr::from("offerings");
-        let implementation = HumanAddr::from("implementation");
+        let royalties = Addr::from("royalties");
+        let auctions = Addr::from("auctions");
+        let offerings = Addr::from("offerings");
+        let implementation = Addr::from("implementation");
 
         // admin can modify mutable contract
         let mut registry = Registry {

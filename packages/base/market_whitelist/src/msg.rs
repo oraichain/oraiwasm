@@ -7,7 +7,7 @@ pub type TokenId = String;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum MarketWhiteListHandleMsg {
+pub enum MarketWhiteListExecuteMsg {
     ApproveAll {
         nft_addr: String,
         expires: Option<Expiration>,

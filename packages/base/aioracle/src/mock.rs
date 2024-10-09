@@ -1,7 +1,7 @@
 use cosmwasm_std::testing::{BankQuerier, MockApi, MockStorage, StakingQuerier};
 use cosmwasm_std::{
-    from_slice, BlockInfo, Coin, ContractInfo, Empty, Env, HumanAddr, OwnedDeps, Querier,
-    QuerierResult, QueryRequest, SystemError, SystemResult, WasmQuery,
+    from_slice, Addr, BlockInfo, Coin, ContractInfo, Empty, Env, OwnedDeps, Querier, QuerierResult,
+    QueryRequest, SystemError, SystemResult, WasmQuery,
 };
 
 const CANONICAL_LENGTH: usize = 32;
@@ -46,7 +46,7 @@ impl MockQuerier {
 }
 
 pub fn mock_dependencies(
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     contract_balance: &[Coin],
     wasm_handler: WasmHandler,
 ) -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
@@ -72,7 +72,7 @@ pub fn mock_env(contract_addr: &str) -> Env {
             chain_id: "oraichain-2021".to_string(),
         },
         contract: ContractInfo {
-            address: HumanAddr::from(contract_addr),
+            address: Addr::from(contract_addr),
         },
     }
 }

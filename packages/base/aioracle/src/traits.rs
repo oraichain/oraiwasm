@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, DepsMut, Env, HandleResponse, MessageInfo, StdError, StdResult};
+use cosmwasm_std::{Binary, DepsMut, Env, Response, MessageInfo, StdError, StdResult};
 
 pub type AggregateHandler = fn(&mut DepsMut, &Env, &MessageInfo, &[String]) -> StdResult<Binary>;
 
@@ -11,5 +11,5 @@ pub trait AiOracleHandle {
         request_id: u64,
         dsource_results: Vec<String>,
         aggregate_fn: AggregateHandler,
-    ) -> Result<HandleResponse, StdError>;
+    ) -> Result<Response, StdError>;
 }

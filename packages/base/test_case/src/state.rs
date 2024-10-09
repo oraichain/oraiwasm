@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, HumanAddr};
+use cosmwasm_std::{Addr, Coin};
 
 use cw_storage_plus::{Item, Map};
 
@@ -9,4 +9,4 @@ pub static CONFIG_KEY: &[u8] = b"config";
 
 pub const FEES: Item<Coin> = Item::new("fees");
 
-pub const OWNER: Item<HumanAddr> = Item::new("owner");
+pub const OWNER: Item<Addr> = Item::new("owner");

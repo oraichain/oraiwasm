@@ -1,5 +1,5 @@
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{attr, from_binary, to_binary, Binary, HandleResponse, HumanAddr, StdError};
+use cosmwasm_std::{attr, from_binary, to_json_binary, Binary, Response, Addr, StdError};
 
 use cw1155::{
     ApprovedForAllResponse, BalanceResponse, BatchBalanceResponse, Cw1155BatchReceiveMsg,
@@ -56,7 +56,7 @@ fn check_transfers() {
         handle(
             deps.as_mut(),
             mock_env(),
-            mock_info(HumanAddr(user1.clone()), &[]),
+            mock_info(Addr(user1.clone()), &[]),
             mint_msg.clone(),
         ),
         Err(ContractError::Unauthorized {})
@@ -67,24 +67,24 @@ fn check_transfers() {
         handle(
             deps.as_mut(),
             mock_env(),
-            mock_info(HumanAddr(minter.clone()), &[]),
+            mock_info(Addr(minter.clone()), &[]),
             mint_msg,
         )
         .unwrap(),
-        HandleResponse {
+        Response {
             attributes: vec![
                 attr("action", "transfer"),
                 attr("token_id", &token1),
                 attr("amount", 1u64),
                 attr("to", &user1),
             ],
-            ..HandleResponse::default()
+            ..Response::default()
         }
     );
 
     // query balance
     assert_eq!(
-        to_binary(&BalanceResponse {
+        to_json_binary(&BalanceResponse {
             balance: 1u64.into()
         }),
         query(
@@ -110,7 +110,7 @@ fn check_transfers() {
         handle(
             deps.as_mut(),
             mock_env(),
-            mock_info(HumanAddr(minter.clone()), &[]),
+            mock_info(Addr(minter.clone()), &[]),
             transfer_msg.clone(),
         ),
         Err(ContractError::Unauthorized {})
@@ -120,7 +120,7 @@ fn check_transfers() {
     handle(
         deps.as_mut(),
         mock_env(),
-        mock_info(HumanAddr(user1.clone()), &[]),
+        mock_info(Addr(user1.clone()), &[]),
         Cw1155ExecuteMsg::ApproveAll {
             operator: minter.clone(),
             expires: None,
@@ -133,11 +133,11 @@ fn check_transfers() {
         handle(
             deps.as_mut(),
             mock_env(),
-            mock_info(HumanAddr(minter.clone()), &[]),
+            mock_info(Addr(minter.clone()), &[]),
             transfer_msg,
         )
         .unwrap(),
-        HandleResponse {
+        Response {
             attributes: vec![
                 attr("action", "transfer"),
                 attr("token_id", &token1),
@@ -145,7 +145,7 @@ fn check_transfers() {
                 attr("from", &user1),
                 attr("to", &user2),
             ],
-            ..HandleResponse::default()
+            ..Response::default()
         }
     );
 
@@ -159,7 +159,7 @@ fn check_transfers() {
                 token_id: token1.clone(),
             }
         ),
-        to_binary(&BalanceResponse {
+        to_json_binary(&BalanceResponse {
             balance: 1u64.into()
         }),
     );
@@ -172,7 +172,7 @@ fn check_transfers() {
                 token_id: token1.clone(),
             }
         ),
-        to_binary(&BalanceResponse {
+        to_json_binary(&BalanceResponse {
             balance: 0u64.into()
         }),
     );
@@ -182,7 +182,7 @@ fn check_transfers() {
         handle(
             deps.as_mut(),
             mock_env(),
-            mock_info(HumanAddr(minter.clone()), &[]),
+            mock_info(Addr(minter.clone()), &[]),
             Cw1155ExecuteMsg::BatchMint {
                 to: user2.clone(),
                 batch: vec![(token2.clone(), 1u64.into()), (token3.clone(), 1u64.into())],
@@ -190,7 +190,7 @@ fn check_transfers() {
             },
         )
         .unwrap(),
-        HandleResponse {
+        Response {
             attributes: vec![
                 attr("action", "transfer"),
                 attr("token_id", &token2),
@@ -201,7 +201,7 @@ fn check_transfers() {
                 attr("amount", 1u64),
                 attr("to", &user2),
             ],
-            ..HandleResponse::default()
+            ..Response::default()
         }
     );
 
@@ -220,7 +220,7 @@ fn check_transfers() {
         handle(
             deps.as_mut(),
             mock_env(),
-            mock_info(HumanAddr(minter.clone()), &[]),
+            mock_info(Addr(minter.clone()), &[]),
             batch_transfer_msg.clone(),
         ),
         Err(ContractError::Unauthorized {}),
@@ -230,7 +230,7 @@ fn check_transfers() {
     handle(
         deps.as_mut(),
         mock_env(),
-        mock_info(HumanAddr(user2.clone()), &[]),
+        mock_info(Addr(user2.clone()), &[]),
         Cw1155ExecuteMsg::ApproveAll {
             operator: minter.clone(),
             expires: None,
@@ -243,11 +243,11 @@ fn check_transfers() {
         handle(
             deps.as_mut(),
             mock_env(),
-            mock_info(HumanAddr(minter.clone()), &[]),
+            mock_info(Addr(minter.clone()), &[]),
             batch_transfer_msg,
         )
         .unwrap(),
-        HandleResponse {
+        Response {
             attributes: vec![
                 attr("action", "transfer"),
                 attr("token_id", &token1),
@@ -265,7 +265,7 @@ fn check_transfers() {
                 attr("from", &user2),
                 attr("to", &user1),
             ],
-            ..HandleResponse::default()
+            ..Response::default()
         },
     );
 
@@ -279,7 +279,7 @@ fn check_transfers() {
                 token_ids: vec![token1.clone(), token2.clone(), token3.clone()],
             }
         ),
-        to_binary(&BatchBalanceResponse {
+        to_json_binary(&BatchBalanceResponse {
             balances: vec![1u64.into(), 1u64.into(), 1u64.into()]
         }),
     );
@@ -288,7 +288,7 @@ fn check_transfers() {
     handle(
         deps.as_mut(),
         mock_env(),
-        mock_info(HumanAddr(user1.clone()), &[]),
+        mock_info(Addr(user1.clone()), &[]),
         Cw1155ExecuteMsg::RevokeAll {
             operator: minter.clone(),
         },
@@ -305,7 +305,7 @@ fn check_transfers() {
                 operator: minter.clone(),
             }
         ),
-        to_binary(&IsApprovedForAllResponse { approved: false }),
+        to_json_binary(&IsApprovedForAllResponse { approved: false }),
     );
 
     // tranfer without approval
@@ -313,7 +313,7 @@ fn check_transfers() {
         handle(
             deps.as_mut(),
             mock_env(),
-            mock_info(HumanAddr(minter.clone()), &[]),
+            mock_info(Addr(minter.clone()), &[]),
             Cw1155ExecuteMsg::SendFrom {
                 from: user1.clone(),
                 to: user2,
@@ -330,7 +330,7 @@ fn check_transfers() {
         handle(
             deps.as_mut(),
             mock_env(),
-            mock_info(HumanAddr(user1.clone()), &[]),
+            mock_info(Addr(user1.clone()), &[]),
             Cw1155ExecuteMsg::Burn {
                 from: user1.clone(),
                 token_id: token1.clone(),
@@ -338,14 +338,14 @@ fn check_transfers() {
             }
         )
         .unwrap(),
-        HandleResponse {
+        Response {
             attributes: vec![
                 attr("action", "transfer"),
                 attr("token_id", &token1),
                 attr("amount", 1u64),
                 attr("from", &user1),
             ],
-            ..HandleResponse::default()
+            ..Response::default()
         }
     );
 
@@ -354,14 +354,14 @@ fn check_transfers() {
         handle(
             deps.as_mut(),
             mock_env(),
-            mock_info(HumanAddr(user1.clone()), &[]),
+            mock_info(Addr(user1.clone()), &[]),
             Cw1155ExecuteMsg::BatchBurn {
                 from: user1.clone(),
                 batch: vec![(token2.clone(), 1u64.into()), (token3.clone(), 1u64.into())]
             }
         )
         .unwrap(),
-        HandleResponse {
+        Response {
             attributes: vec![
                 attr("action", "transfer"),
                 attr("token_id", &token2),
@@ -372,7 +372,7 @@ fn check_transfers() {
                 attr("amount", 1u64),
                 attr("from", &user1),
             ],
-            ..HandleResponse::default()
+            ..Response::default()
         }
     );
 }
@@ -396,7 +396,7 @@ fn check_send_contract() {
     handle(
         deps.as_mut(),
         mock_env(),
-        mock_info(HumanAddr(minter.clone()), &[]),
+        mock_info(Addr(minter.clone()), &[]),
         Cw1155ExecuteMsg::Mint {
             to: user1.clone(),
             token_id: token2.clone(),
@@ -411,7 +411,7 @@ fn check_send_contract() {
         handle(
             deps.as_mut(),
             mock_env(),
-            mock_info(HumanAddr(minter.clone()), &[]),
+            mock_info(Addr(minter.clone()), &[]),
             Cw1155ExecuteMsg::Mint {
                 to: receiver.clone(),
                 token_id: token1.clone(),
@@ -420,7 +420,7 @@ fn check_send_contract() {
             },
         )
         .unwrap(),
-        HandleResponse {
+        Response {
             messages: vec![Cw1155ReceiveMsg {
                 operator: minter.clone(),
                 from: None,
@@ -436,7 +436,7 @@ fn check_send_contract() {
                 attr("amount", 1u64),
                 attr("to", &receiver),
             ],
-            ..HandleResponse::default()
+            ..Response::default()
         }
     );
 
@@ -445,7 +445,7 @@ fn check_send_contract() {
         handle(
             deps.as_mut(),
             mock_env(),
-            mock_info(HumanAddr(user1.clone()), &[]),
+            mock_info(Addr(user1.clone()), &[]),
             Cw1155ExecuteMsg::BatchSendFrom {
                 from: user1.clone(),
                 to: receiver.clone(),
@@ -454,7 +454,7 @@ fn check_send_contract() {
             },
         )
         .unwrap(),
-        HandleResponse {
+        Response {
             messages: vec![Cw1155BatchReceiveMsg {
                 operator: user1.clone(),
                 from: Some(user1.clone()),
@@ -470,7 +470,7 @@ fn check_send_contract() {
                 attr("from", &user1),
                 attr("to", &receiver),
             ],
-            ..HandleResponse::default()
+            ..Response::default()
         }
     );
 }
@@ -493,7 +493,7 @@ fn check_queries() {
     handle(
         deps.as_mut(),
         mock_env(),
-        mock_info(HumanAddr(minter), &[]),
+        mock_info(Addr(minter), &[]),
         Cw1155ExecuteMsg::BatchMint {
             to: users[0].clone(),
             batch: tokens
@@ -515,7 +515,7 @@ fn check_queries() {
                 limit: Some(5),
             },
         ),
-        to_binary(&TokensResponse {
+        to_json_binary(&TokensResponse {
             tokens: tokens[..5].to_owned()
         })
     );
@@ -530,7 +530,7 @@ fn check_queries() {
                 limit: Some(5),
             },
         ),
-        to_binary(&TokensResponse {
+        to_json_binary(&TokensResponse {
             tokens: tokens[6..].to_owned()
         })
     );
@@ -544,7 +544,7 @@ fn check_queries() {
                 limit: Some(5),
             },
         ),
-        to_binary(&TokensResponse {
+        to_json_binary(&TokensResponse {
             tokens: tokens[6..].to_owned()
         })
     );
@@ -557,14 +557,14 @@ fn check_queries() {
                 token_id: "token5".to_owned()
             },
         ),
-        to_binary(&TokenInfoResponse { url: "".to_owned() })
+        to_json_binary(&TokenInfoResponse { url: "".to_owned() })
     );
 
     for user in users[1..].iter() {
         handle(
             deps.as_mut(),
             mock_env(),
-            mock_info(HumanAddr(users[0].clone()), &[]),
+            mock_info(Addr(users[0].clone()), &[]),
             Cw1155ExecuteMsg::ApproveAll {
                 operator: user.clone(),
                 expires: None,
@@ -584,7 +584,7 @@ fn check_queries() {
                 limit: Some(1),
             },
         ),
-        to_binary(&ApprovedForAllResponse {
+        to_json_binary(&ApprovedForAllResponse {
             operators: vec![cw1155::Approval {
                 spender: users[3].clone(),
                 expires: Expiration::Never {}
@@ -616,7 +616,7 @@ fn approval_expires() {
     handle(
         deps.as_mut(),
         env.clone(),
-        mock_info(HumanAddr(minter), &[]),
+        mock_info(Addr(minter), &[]),
         Cw1155ExecuteMsg::Mint {
             to: user1.clone(),
             token_id: token1,
@@ -631,7 +631,7 @@ fn approval_expires() {
         handle(
             deps.as_mut(),
             env.clone(),
-            mock_info(HumanAddr(user1.clone()), &[]),
+            mock_info(Addr(user1.clone()), &[]),
             Cw1155ExecuteMsg::ApproveAll {
                 operator: user2.clone(),
                 expires: Some(Expiration::AtHeight(5)),
@@ -643,7 +643,7 @@ fn approval_expires() {
     handle(
         deps.as_mut(),
         env.clone(),
-        mock_info(HumanAddr(user1.clone()), &[]),
+        mock_info(Addr(user1.clone()), &[]),
         Cw1155ExecuteMsg::ApproveAll {
             operator: user2.clone(),
             expires: Some(Expiration::AtHeight(100)),
@@ -657,7 +657,7 @@ fn approval_expires() {
     };
     assert_eq!(
         query(deps.as_ref(), env, query_msg.clone()),
-        to_binary(&IsApprovedForAllResponse { approved: true })
+        to_json_binary(&IsApprovedForAllResponse { approved: true })
     );
 
     let env = {
@@ -668,7 +668,7 @@ fn approval_expires() {
 
     assert_eq!(
         query(deps.as_ref(), env, query_msg,),
-        to_binary(&IsApprovedForAllResponse { approved: false })
+        to_json_binary(&IsApprovedForAllResponse { approved: false })
     );
 }
 
@@ -689,7 +689,7 @@ fn mint_overflow() {
     handle(
         deps.as_mut(),
         env.clone(),
-        mock_info(HumanAddr(minter.clone()), &[]),
+        mock_info(Addr(minter.clone()), &[]),
         Cw1155ExecuteMsg::Mint {
             to: user1.clone(),
             token_id: token1.clone(),
@@ -703,7 +703,7 @@ fn mint_overflow() {
         handle(
             deps.as_mut(),
             env,
-            mock_info(HumanAddr(minter.clone()), &[]),
+            mock_info(Addr(minter.clone()), &[]),
             Cw1155ExecuteMsg::Mint {
                 to: user1,
                 token_id: token1,
@@ -733,7 +733,7 @@ fn change_minter() {
         handle(
             deps.as_mut(),
             env.clone(),
-            mock_info(HumanAddr(minter.clone()), &[]),
+            mock_info(Addr(minter.clone()), &[]),
             Cw1155ExecuteMsg::ChangeMinter {
                 minter: "hello there".to_string()
             },
@@ -746,7 +746,7 @@ fn change_minter() {
     handle(
         deps.as_mut(),
         env.clone(),
-        mock_info(HumanAddr("operator".to_string()), &[]),
+        mock_info(Addr("operator".to_string()), &[]),
         Cw1155ExecuteMsg::ChangeMinter {
             minter: "hello there".to_string(),
         },
@@ -754,8 +754,8 @@ fn change_minter() {
     .unwrap();
 
     let query_msg = query(deps.as_ref(), mock_env(), Cw1155QueryMsg::Minter {}).unwrap();
-    let minter_result: HumanAddr = from_binary(&query_msg).unwrap();
-    assert_eq!(minter_result, HumanAddr("hello there".to_string()));
+    let minter_result: Addr = from_binary(&query_msg).unwrap();
+    assert_eq!(minter_result, Addr("hello there".to_string()));
 }
 
 #[test]
@@ -775,7 +775,7 @@ fn change_owner() {
         handle(
             deps.as_mut(),
             env.clone(),
-            mock_info(HumanAddr(minter.clone()), &[]),
+            mock_info(Addr(minter.clone()), &[]),
             Cw1155ExecuteMsg::ChangeOwner {
                 owner: "hello there".to_string()
             },
@@ -788,7 +788,7 @@ fn change_owner() {
     handle(
         deps.as_mut(),
         env.clone(),
-        mock_info(HumanAddr("operator".to_string()), &[]),
+        mock_info(Addr("operator".to_string()), &[]),
         Cw1155ExecuteMsg::ChangeOwner {
             owner: "hello there".to_string(),
         },
@@ -796,6 +796,6 @@ fn change_owner() {
     .unwrap();
 
     let query_msg = query(deps.as_ref(), mock_env(), Cw1155QueryMsg::Owner {}).unwrap();
-    let owner_result: HumanAddr = from_binary(&query_msg).unwrap();
-    assert_eq!(owner_result, HumanAddr("hello there".to_string()));
+    let owner_result: Addr = from_binary(&query_msg).unwrap();
+    assert_eq!(owner_result, Addr("hello there".to_string()));
 }

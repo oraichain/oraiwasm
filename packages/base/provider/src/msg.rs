@@ -1,17 +1,17 @@
-use cosmwasm_std::{Coin, HumanAddr};
+use cosmwasm_std::{Addr, Coin};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use crate::state::State;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg(pub State);
+pub struct InstantiateMsg(pub State);
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     SetState(StateMsg),
-    SetServiceFees { contract_addr: HumanAddr, fee: Coin },
+    SetServiceFees { contract_addr: Addr, fee: Coin },
     WithdrawFees { fee: Coin },
     SetOwner { owner: String },
 }

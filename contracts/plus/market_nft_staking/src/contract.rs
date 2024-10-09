@@ -1,12 +1,14 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
 use std::{
     convert::TryInto,
     ops::{Add, AddAssign},
 };
 
 use cosmwasm_std::{
-    attr, entry_point, from_binary, to_binary, Binary, CosmosMsg, Deps, DepsMut, Empty, Env,
-    HandleResponse, HumanAddr, InitResponse, MessageInfo, MigrateResponse, Order, StdError,
-    StdResult, Storage, Uint128, WasmMsg, KV,
+    attr, entry_point, from_binary, to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Empty,
+    Env, MessageInfo, MigrateResponse, Order, Response, Response, StdError, StdResult, Storage,
+    Uint128, WasmMsg, KV,
 };
 use cw1155::Cw1155ReceiveMsg;
 use cw721::Cw721ReceiveMsg;
@@ -15,7 +17,7 @@ use cw_storage_plus::Bound;
 use crate::{
     error::{ContractError, DivideByZeroError, OverflowError, OverflowOperation},
     msg::{
-        CreateCollectionPoolMsg, DepositeMsg, HandleMsg, InitMsg, QueryMsg, StakeMsgDetail,
+        CreateCollectionPoolMsg, DepositeMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StakeMsgDetail,
         UpdateCollectionPoolMsg, UpdateContractInfoMsg,
     },
     state::{
@@ -30,37 +32,13 @@ use crate::{
 const MAX_LIMIT: u8 = 100;
 const DEFAULT_LIMIT: u8 = 20;
 
-pub fn checked_add(this: Uint128, other: Uint128) -> StdResult<Uint128> {
-    this.0.checked_add(other.0).map(Uint128).ok_or_else(|| {
-        StdError::generic_err(OverflowError::new(OverflowOperation::Add, this, other).to_string())
-    })
-}
-
-pub fn checked_sub(this: Uint128, other: Uint128) -> StdResult<Uint128> {
-    this.0.checked_sub(other.0).map(Uint128).ok_or_else(|| {
-        StdError::generic_err(OverflowError::new(OverflowOperation::Sub, this, other).to_string())
-    })
-}
-
-pub fn checked_mul(this: Uint128, other: Uint128) -> StdResult<Uint128> {
-    this.0.checked_mul(other.0).map(Uint128).ok_or_else(|| {
-        StdError::generic_err(OverflowError::new(OverflowOperation::Mul, this, other).to_string())
-    })
-}
-
-pub fn checked_div(this: Uint128, other: Uint128) -> StdResult<Uint128> {
-    this.0
-        .checked_div(other.0)
-        .map(Uint128)
-        .ok_or_else(|| StdError::generic_err(DivideByZeroError::new(this).to_string()))
-}
-
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     let mut admin = info.sender;
     if msg.admin.is_some() {
         admin = msg.admin.unwrap();
@@ -73,24 +51,27 @@ pub fn init(
     };
 
     CONTRACT_INFO.save(deps.storage, &info)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::UpdateContractInfo(msg) => handle_update_contract_info(deps, info, msg),
-        HandleMsg::CreateCollectionPool(msg) => {
+        ExecuteMsg::UpdateContractInfo(msg) => handle_update_contract_info(deps, info, msg),
+        ExecuteMsg::CreateCollectionPool(msg) => {
             handle_create_collection_pool_info(deps, env, info, msg)
         }
-        HandleMsg::UpdateCollectionPool(msg) => handle_update_collection_pool_info(deps, info, msg),
-        HandleMsg::Receive(receive_msg) => handle_receive_1155(deps, env, info, receive_msg),
-        HandleMsg::ReceiveNft(receive_msg) => handle_receive_721(deps, env, info, receive_msg),
-        HandleMsg::Withdraw {
+        ExecuteMsg::UpdateCollectionPool(msg) => {
+            handle_update_collection_pool_info(deps, info, msg)
+        }
+        ExecuteMsg::Receive(receive_msg) => handle_receive_1155(deps, env, info, receive_msg),
+        ExecuteMsg::ReceiveNft(receive_msg) => handle_receive_721(deps, env, info, receive_msg),
+        ExecuteMsg::Withdraw {
             collection_id,
             withdraw_rewards,
             withdraw_nft_ids,
@@ -102,12 +83,12 @@ pub fn handle(
             withdraw_rewards,
             withdraw_nft_ids,
         ),
-        HandleMsg::Claim { collection_id } => handle_claim(deps, env, info, collection_id),
-        HandleMsg::ResetEarnedRewards {
+        ExecuteMsg::Claim { collection_id } => handle_claim(deps, env, info, collection_id),
+        ExecuteMsg::ResetEarnedRewards {
             collection_id,
             staker,
         } => handle_reset_earned_rewards(deps, env, info, collection_id, staker),
-        // HandleMsg::Migrate { new_contract_addr } => {
+        // ExecuteMsg::Migrate { new_contract_addr } => {
         //     handle_migrate(deps, env, info, new_contract_addr)
         // }
     }
@@ -115,21 +96,21 @@ pub fn handle(
 
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        QueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
         QueryMsg::GetCollectionPoolInfo { collection_id } => {
-            to_binary(&query_collection_pool_info(deps, env, collection_id, true)?)
+            to_json_binary(&query_collection_pool_info(deps, env, collection_id, true)?)
         }
         QueryMsg::GetCollectionPoolInfos {
             limit,
             offset,
             order,
-        } => to_binary(&query_collection_pool_infos(
+        } => to_json_binary(&query_collection_pool_infos(
             deps, env, true, limit, offset, order,
         )?),
         QueryMsg::GetUniqueCollectionStakerInfo {
             staker_addr,
             collection_id,
-        } => to_binary(&query_unique_collection_staker_info(
+        } => to_json_binary(&query_unique_collection_staker_info(
             deps,
             env,
             staker_addr,
@@ -141,7 +122,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             offset,
             order,
-        } => to_binary(&query_collection_staker_info_by_collection(
+        } => to_json_binary(&query_collection_staker_info_by_collection(
             deps,
             env,
             collection_id,
@@ -154,7 +135,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
             limit,
             offset,
             order,
-        } => to_binary(&query_collection_staker_info_by_staker(
+        } => to_json_binary(&query_collection_staker_info_by_staker(
             deps,
             env,
             staker_addr,
@@ -165,7 +146,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     }
 }
 
-fn check_admin_permission(deps: Deps, address: &HumanAddr) -> Result<(), ContractError> {
+fn check_admin_permission(deps: Deps, address: &Addr) -> Result<(), ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if !contract_info.admin.eq(address) {
         return Err(ContractError::Unauthorized {
@@ -182,7 +163,7 @@ pub fn handle_update_contract_info(
     deps: DepsMut,
     info: MessageInfo,
     msg: UpdateContractInfoMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     check_admin_permission(deps.as_ref(), &info.sender)?;
 
     let new_contract_info = CONTRACT_INFO.update(
@@ -220,10 +201,11 @@ pub fn handle_update_contract_info(
         },
     )?;
 
-    Ok(HandleResponse {
+    Ok(Response {
+        events: vec![],
         messages: vec![],
         attributes: vec![attr("action", "update_info")],
-        data: to_binary(&new_contract_info).ok(),
+        data: to_json_binary(&new_contract_info).ok(),
     })
 }
 
@@ -232,7 +214,7 @@ pub fn handle_create_collection_pool_info(
     env: Env,
     info: MessageInfo,
     msg: CreateCollectionPoolMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     check_admin_permission(deps.as_ref(), &info.sender)?;
 
     if msg.reward_per_block.le(&Uint128(0u128)) {
@@ -267,8 +249,9 @@ pub fn handle_create_collection_pool_info(
         &new_collection_info,
     )?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         data: None,
+        events: vec![],
         messages: vec![],
         attributes: vec![
             attr("action", "create_collection_pool"),
@@ -286,7 +269,7 @@ pub fn handle_update_collection_pool_info(
     deps: DepsMut,
     info: MessageInfo,
     msg: UpdateCollectionPoolMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     check_admin_permission(deps.as_ref(), &info.sender)?;
 
     COLLECTION_POOL_INFO.update(deps.storage, msg.collection_id.clone().as_bytes(), |data| {
@@ -306,8 +289,9 @@ pub fn handle_update_collection_pool_info(
         }
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         data: None,
+        events: vec![],
         messages: vec![],
         attributes: vec![
             attr("action", "update_collection_pool_info"),
@@ -322,7 +306,7 @@ pub fn handle_receive_1155(
     env: Env,
     info: MessageInfo,
     receive_msg: Cw1155ReceiveMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     let result = contract_info
@@ -354,7 +338,7 @@ pub fn handle_receive_1155(
     handle_stake(
         deps,
         env,
-        HumanAddr::from(receive_msg.operator),
+        Addr::from(receive_msg.operator),
         stake_msg,
         deposit_msg.signature_hash,
     )
@@ -365,7 +349,7 @@ pub fn handle_receive_721(
     env: Env,
     info: MessageInfo,
     receive_msg: Cw721ReceiveMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
     let result = contract_info
@@ -395,7 +379,7 @@ pub fn handle_receive_721(
     handle_stake(
         deps,
         env,
-        HumanAddr::from(receive_msg.sender),
+        Addr::from(receive_msg.sender),
         stake_msg,
         deposit_msg.signature_hash,
     )
@@ -420,10 +404,10 @@ fn check_collection_is_expired(
 fn handle_stake(
     deps: DepsMut,
     env: Env,
-    operator: HumanAddr,
+    operator: Addr,
     msg: StakeMsgDetail,
     signature_hash: String,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage).unwrap();
 
     // Verify
@@ -438,7 +422,7 @@ fn handle_stake(
             attr("action", "stake_nft"),
             attr("collection_id", msg.collection_id.clone()),
             attr("staker_addr", operator.clone()),
-            attr("nft", to_binary(&msg.nft)?),
+            attr("nft", to_json_binary(&msg.nft)?),
         ];
 
         let collection_pool_info = COLLECTION_POOL_INFO
@@ -580,7 +564,8 @@ fn handle_stake(
             },
         )?;
 
-        Ok(HandleResponse {
+        Ok(Response {
+            events: vec![],
             data: None,
             messages: vec![],
             attributes,
@@ -627,9 +612,8 @@ fn update_collection_pool(
         let updated_collection_pool_info =
             COLLECTION_POOL_INFO.update(storage, collection_id.clone().as_bytes(), |data| {
                 if let Some(mut old_info) = data {
-                    old_info.acc_per_share = checked_add(
-                        old_info.acc_per_share,
-                        checked_div(airi_reward, collection_pool_info.total_nfts.clone())?,
+                    old_info.acc_per_share = old_info.acc_per_share.checked_add(
+                        airi_reward.checked_div(collection_pool_info.total_nfts.clone())?,
                     )?;
                     old_info.last_reward_block = env.block.height;
                     return Ok(old_info);
@@ -648,7 +632,7 @@ pub fn handle_withdraw(
     collection_id: String,
     withdraw_rewards: bool,
     withdraw_nft_ids: Vec<String>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let collection_staker_info = query_unique_collection_staker_info(
         deps.as_ref(),
         env.clone(),
@@ -741,11 +725,11 @@ pub fn handle_withdraw(
                         cosmos_msgs.push(
                             WasmMsg::Execute {
                                 contract_addr: nft.contract_addr.clone(),
-                                msg: to_binary(&cw721::Cw721HandleMsg::TransferNft {
+                                msg: to_json_binary(&cw721::Cw721ExecuteMsg::TransferNft {
                                     recipient: info.sender.clone(),
                                     token_id: nft.token_id.clone(),
                                 })?,
-                                send: vec![],
+                                funds: vec![],
                             }
                             .into(),
                         );
@@ -754,14 +738,14 @@ pub fn handle_withdraw(
                         cosmos_msgs.push(
                             WasmMsg::Execute {
                                 contract_addr: nft.contract_addr.clone(),
-                                msg: to_binary(&cw1155::Cw1155ExecuteMsg::SendFrom {
+                                msg: to_json_binary(&cw1155::Cw1155ExecuteMsg::SendFrom {
                                     from: env.contract.address.clone().to_string(),
                                     to: info.sender.clone().to_string(),
                                     token_id: nft.token_id.clone(),
                                     value: nft.amount.clone(),
                                     msg: None,
                                 })?,
-                                send: vec![],
+                                funds: vec![],
                             }
                             .into(),
                         );
@@ -811,7 +795,8 @@ pub fn handle_withdraw(
                 },
             )?;
 
-            Ok(HandleResponse {
+            Ok(Response {
+                events: vec![],
                 data: None,
                 messages: cosmos_msgs,
                 attributes,
@@ -828,7 +813,7 @@ pub fn handle_claim(
     env: Env,
     info: MessageInfo,
     collection_id: String,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let collection_staker_info = query_unique_collection_staker_info(
         deps.as_ref(),
         env.clone(),
@@ -895,8 +880,9 @@ pub fn handle_claim(
                 },
             )?;
 
-            Ok(HandleResponse {
+            Ok(Response {
                 data: None,
+                events: vec![],
                 messages: vec![],
                 attributes: vec![
                     attr("action", "claim_reward"),
@@ -915,8 +901,8 @@ pub fn handle_reset_earned_rewards(
     env: Env,
     info: MessageInfo,
     collection_id: String,
-    staker: HumanAddr,
-) -> Result<HandleResponse, ContractError> {
+    staker: Addr,
+) -> Result<Response, ContractError> {
     check_admin_permission(deps.as_ref(), &info.sender)?;
 
     let collection_staker_info = query_unique_collection_staker_info(
@@ -948,7 +934,8 @@ pub fn handle_reset_earned_rewards(
                     }
                 },
             )?;
-            Ok(HandleResponse {
+            Ok(Response {
+                events: vec![],
                 data: None,
                 messages: vec![],
                 attributes,
@@ -961,12 +948,11 @@ pub fn handle_reset_earned_rewards(
     }
 }
 
-#[entry_point]
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
     _deps: DepsMut,
     _env: Env,
-    _info: MessageInfo,
-    // new_contract_addr: HumanAddr,
+    // new_contract_addr: Addr,
     _msg: Empty,
 ) -> Result<MigrateResponse, ContractError> {
     // check_admin_permission(deps.as_ref(), &info.sender)?;
@@ -990,8 +976,8 @@ pub fn migrate(
     //                 crate::state::ContractType::V721 => cosmos_msgs.push(
     //                     WasmMsg::Execute {
     //                         contract_addr: contract_info.nft_721_contract_addr.clone(),
-    //                         send: vec![],
-    //                         msg: to_binary(&cw721::Cw721HandleMsg::TransferNft {
+    //                         funds: vec![],
+    //                         msg: to_json_binary(&cw721::Cw721ExecuteMsg::TransferNft {
     //                             recipient: new_contract_addr.clone(),
     //                             token_id: token.token_id.clone(),
     //                         })?,
@@ -1007,8 +993,8 @@ pub fn migrate(
     //     cosmos_msgs.push(
     //         WasmMsg::Execute {
     //             contract_addr: contract_info.nft_1155_contract_addr.clone(),
-    //             send: vec![],
-    //             msg: to_binary(&cw1155::Cw1155ExecuteMsg::BatchSendFrom {
+    //             funds: vec![],
+    //             msg: to_json_binary(&cw1155::Cw1155ExecuteMsg::BatchSendFrom {
     //                 from: env.contract.address.to_string(),
     //                 to: new_contract_addr.clone().to_string(),
     //                 batch: nft_1155
@@ -1062,12 +1048,12 @@ fn current_pending(
 }
 
 // Check nft transfering permission for this contract
-// pub fn check_can_transfer(deps: Deps, owner: HumanAddr, operator: HumanAddr) -> StdResult<bool> {
+// pub fn check_can_transfer(deps: Deps, owner: Addr, operator: Addr) -> StdResult<bool> {
 //     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 //     let res: cw1155::IsApprovedForAllResponse = deps.querier.query(
 //         &WasmQuery::Smart {
 //             contract_addr: contract_info.nft_1155_contract_addr.clone(),
-//             msg: to_binary(&cw1155::Cw1155QueryMsg::IsApprovedForAll {
+//             msg: to_json_binary(&cw1155::Cw1155QueryMsg::IsApprovedForAll {
 //                 owner: owner.clone().to_string(),
 //                 operator: operator.clone().to_string(),
 //             })?,
@@ -1084,7 +1070,7 @@ fn current_pending(
 //     let res: cw721::ApprovedForAllResponse = deps.querier.query(
 //         &WasmQuery::Smart {
 //             contract_addr: contract_info.nft_721_contract_addr.clone(),
-//             msg: to_binary(&cw721::Cw721QueryMsg::ApprovedForAll {
+//             msg: to_json_binary(&cw721::Cw721QueryMsg::ApprovedForAll {
 //                 owner: owner.clone(),
 //                 include_expired: None,
 //                 limit: None,
@@ -1191,7 +1177,7 @@ pub fn query_collection_pool_infos(
 pub fn query_unique_collection_staker_info(
     deps: Deps,
     env: Env,
-    staker_addr: HumanAddr,
+    staker_addr: Addr,
     collection_id: String,
     get_real_current_pending: bool,
 ) -> StdResult<Option<CollectionStakerInfo>> {
@@ -1251,7 +1237,7 @@ pub fn query_collection_staker_info_by_collection(
 pub fn query_collection_staker_info_by_staker(
     deps: Deps,
     env: Env,
-    staker_addr: HumanAddr,
+    staker_addr: Addr,
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,

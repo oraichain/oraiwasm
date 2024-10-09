@@ -1,11 +1,11 @@
-use cosmwasm_std::{Binary, HumanAddr};
+use cosmwasm_std::{Binary, Addr};
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub pub_keys: Vec<Binary>,
 }
 
@@ -15,8 +15,8 @@ pub struct UnlockNft {
     pub token_id: String,
     pub signature: Binary,
     pub pub_key: Binary,
-    pub nft_addr: HumanAddr,
-    pub orai_addr: HumanAddr,
+    pub nft_addr: Addr,
+    pub orai_addr: Addr,
     pub nonce: u64,
 }
 
@@ -31,7 +31,7 @@ pub struct UnlockRaw {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     ReceiveNft(Cw721ReceiveMsg),
     Unlock {
         unlock_msg: UnlockNft,
@@ -63,7 +63,7 @@ pub enum HandleMsg {
 pub struct LockNft {
     pub token_id: String,
     pub bsc_addr: String,
-    pub orai_addr: HumanAddr,
+    pub orai_addr: Addr,
     pub nft_addr: String,
 }
 
@@ -109,7 +109,7 @@ pub enum NftQueryMsg {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct OwnerOfResponse {
     /// Owner of the token
-    pub owner: HumanAddr,
+    pub owner: Addr,
     /// If set this address is approved to transfer/send the token as well
     pub approvals: Vec<Approval>,
 }
@@ -117,7 +117,7 @@ pub struct OwnerOfResponse {
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct Approval {
     /// Account that can transfer/send the token
-    pub spender: HumanAddr,
+    pub spender: Addr,
     /// When the Approval expires (maybe Expiration::never)
     pub expires: Expiration,
 }

@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 use cw1155::Cw1155ReceiveMsg;
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
@@ -7,16 +7,16 @@ use serde::{Deserialize, Serialize};
 use crate::state::CollectionStakedTokenInfo;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
-pub struct InitMsg {
+pub struct InstantiateMsg {
     pub verifier_pubkey_base64: String,
-    pub nft_1155_contract_addr_whitelist: Vec<HumanAddr>,
-    pub nft_721_contract_addr_whitelist: Vec<HumanAddr>,
-    pub admin: Option<HumanAddr>,
+    pub nft_1155_contract_addr_whitelist: Vec<Addr>,
+    pub nft_721_contract_addr_whitelist: Vec<Addr>,
+    pub admin: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
-pub enum HandleMsg {
+pub enum ExecuteMsg {
     UpdateContractInfo(UpdateContractInfoMsg),
     CreateCollectionPool(CreateCollectionPoolMsg),
     UpdateCollectionPool(UpdateCollectionPoolMsg),
@@ -32,7 +32,7 @@ pub enum HandleMsg {
     },
     ResetEarnedRewards {
         collection_id: String,
-        staker: HumanAddr,
+        staker: Addr,
     },
 }
 
@@ -40,9 +40,9 @@ pub enum HandleMsg {
 #[serde(rename_all = "snake_case")]
 pub struct UpdateContractInfoMsg {
     pub verifier_pubkey_base64: Option<String>,
-    pub nft_1155_contract_addr_whitelist: Option<Vec<HumanAddr>>,
-    pub nft_721_contract_addr_whitelist: Option<Vec<HumanAddr>>,
-    pub admin: Option<HumanAddr>,
+    pub nft_1155_contract_addr_whitelist: Option<Vec<Addr>>,
+    pub nft_721_contract_addr_whitelist: Option<Vec<Addr>>,
+    pub admin: Option<Addr>,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -90,7 +90,7 @@ pub enum QueryMsg {
     },
     GetUniqueCollectionStakerInfo {
         collection_id: String,
-        staker_addr: HumanAddr,
+        staker_addr: Addr,
     },
     GetCollectionStakerInfoByCollection {
         collection_id: String,
@@ -99,7 +99,7 @@ pub enum QueryMsg {
         order: Option<u8>,
     },
     GetCollectionStakerInfoByStaker {
-        staker_addr: HumanAddr,
+        staker_addr: Addr,
         limit: Option<u8>,
         offset: Option<u64>,
         order: Option<u8>,

@@ -1,4 +1,4 @@
-use cosmwasm_std::{HumanAddr, Uint128};
+use cosmwasm_std::{Addr, Uint128};
 
 use market::AssetInfo;
 use schemars::JsonSchema;
@@ -21,8 +21,8 @@ pub enum ExtraData {
 pub struct Offering {
     pub id: Option<u64>,
     pub token_id: String,
-    pub contract_addr: HumanAddr,
-    pub seller: HumanAddr,
+    pub contract_addr: Addr,
+    pub seller: Addr,
     pub per_price: Uint128,
     pub amount: Uint128,
 }
@@ -30,8 +30,8 @@ pub struct Offering {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct MintMsg {
-    pub contract_addr: HumanAddr,
-    pub creator: HumanAddr,
+    pub contract_addr: Addr,
+    pub creator: Addr,
     pub creator_type: String,
     pub royalty: Option<u64>,
     pub mint: MintIntermediate,
@@ -40,7 +40,7 @@ pub struct MintMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct Provider {
-    pub address: HumanAddr,
+    pub address: Addr,
     pub creator_tpye: Option<String>,
     pub royalty: Option<u64>,
 }
@@ -62,7 +62,7 @@ pub struct MintStruct {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum MarketHandleMsg {
+pub enum MarketExecuteMsg {
     // this allow implementation contract to update the storage
     UpdateOffering { offering: Offering },
     RemoveOffering { id: u64 },

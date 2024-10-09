@@ -1,22 +1,23 @@
 use cosmwasm_std::{
-    coins, from_binary, to_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, HandleResponse,
-    InitResponse, MessageInfo, Order, StdResult, Storage,
+    coins, from_binary, to_json_binary, BankMsg, Binary, CosmosMsg, Deps, DepsMut, Env, Response,
+    Response, MessageInfo, Order, StdResult, Storage,
 };
 use drand_verify::{derive_randomness, g1_from_variable, verify};
 
 use crate::errors::{HandleError, QueryError};
-use crate::msg::{BountiesResponse, Bounty, HandleMsg, InitMsg, QueryMsg, RandomData};
+use crate::msg::{BountiesResponse, Bounty, ExecuteMsg, InstantiateMsg, QueryMsg, RandomData};
 use crate::state::{
     beacons_storage, beacons_storage_read, bounties_storage, bounties_storage_read, config,
     config_read, Config,
 };
 
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     _info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, HandleError> {
+    msg: InstantiateMsg,
+) -> Result<Response, HandleError> {
     // verify signature for genesis round
     let pk = g1_from_variable(&msg.pubkey).map_err(|_| HandleError::InvalidPubkey {})?;
     let valid = verify(&pk, 0, &vec![], msg.signature.as_slice()).unwrap_or(false);
@@ -32,18 +33,19 @@ pub fn init(
         bounty_denom: msg.bounty_denom,
         signature: msg.signature,
     })?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, HandleError> {
+    msg: ExecuteMsg,
+) -> Result<Response, HandleError> {
     match msg {
-        HandleMsg::SetBounty { round } => try_set_bounty(deps, info, round),
-        HandleMsg::Add { signature } => try_add(deps, env, info, signature),
+        ExecuteMsg::SetBounty { round } => try_set_bounty(deps, info, round),
+        ExecuteMsg::Add { signature } => try_add(deps, env, info, signature),
     }
 }
 
@@ -51,7 +53,7 @@ pub fn try_set_bounty(
     deps: DepsMut,
     info: MessageInfo,
     round: u64,
-) -> Result<HandleResponse, HandleError> {
+) -> Result<Response, HandleError> {
     let denom = config_read(deps.storage).load()?.bounty_denom;
 
     let matching_coin = info.sent_funds.iter().find(|fund| fund.denom == denom);
@@ -68,7 +70,7 @@ pub fn try_set_bounty(
     let new_value = current + sent_amount;
     set_bounty(deps.storage, round, new_value);
 
-    let mut response = HandleResponse::default();
+    let mut response = Response::default();
     response.data = Some(new_value.to_be_bytes().into());
     Ok(response)
 }
@@ -78,7 +80,7 @@ pub fn try_add(
     env: Env,
     info: MessageInfo,
     signature: Binary,
-) -> Result<HandleResponse, HandleError> {
+) -> Result<Response, HandleError> {
     let Config {
         pubkey,
         bounty_denom,
@@ -112,7 +114,7 @@ pub fn try_add(
 
     let randomness = derive_randomness(&signature);
 
-    let msg = to_binary(&RandomData {
+    let msg = to_json_binary(&RandomData {
         round,
         previous_signature,
         signature,
@@ -121,7 +123,7 @@ pub fn try_add(
 
     beacons_storage(deps.storage).set(&round.to_be_bytes(), &msg);
 
-    let mut response = HandleResponse::default();
+    let mut response = Response::default();
     response.data = Some(randomness.into());
     let bounty = get_bounty(deps.storage, round)?;
     if bounty != 0 {
@@ -137,9 +139,9 @@ pub fn try_add(
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, QueryError> {
     let response = match msg {
-        QueryMsg::Get { round } => to_binary(&query_get(deps, round)?)?,
-        QueryMsg::Latest {} => to_binary(&query_latest(deps)?)?,
-        QueryMsg::Bounties {} => to_binary(&query_bounties(deps)?)?,
+        QueryMsg::Get { round } => to_json_binary(&query_get(deps, round)?)?,
+        QueryMsg::Latest {} => to_json_binary(&query_latest(deps)?)?,
+        QueryMsg::Bounties {} => to_json_binary(&query_bounties(deps)?)?,
     };
     Ok(response)
 }
@@ -209,7 +211,7 @@ fn clear_bounty(storage: &mut dyn Storage, round: u64) {
 mod tests {
     use super::*;
     use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
-    use cosmwasm_std::{from_binary, Coin, HumanAddr, Uint128};
+    use cosmwasm_std::{from_binary, Coin, Addr, Uint128};
 
     const PUB_KEY: &str = "pzOZRhfkA57am7gdqjYr9eFT65WXt8hm2SETYIsGsDm7D/a6OV5Vdgvn0XL6ePeJ";
     const BOUNTY_DENOM: &str = "orai";
@@ -235,9 +237,9 @@ mod tests {
         Binary::from_base64(SIGNATURES[0]).unwrap()
     }
 
-    fn initialization(deps: DepsMut) -> InitResponse {
+    fn initialization(deps: DepsMut) -> Response {
         let info = mock_info("creator", &coins(1000, "earth"));
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             pubkey: pubkey_genesis_mainnet(),
             bounty_denom: BOUNTY_DENOM.into(),
             signature: signature_genesis_mainnet(),
@@ -255,7 +257,7 @@ mod tests {
         assert_eq!(res.messages.len(), 0);
 
         for i in 1..SIGNATURES.len() {
-            let msg = HandleMsg::Add {
+            let msg = ExecuteMsg::Add {
                 signature: Binary::from_base64(SIGNATURES[i]).unwrap(),
             };
             let info = mock_info("anyone", &[]);
@@ -270,7 +272,7 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
 
         let info = mock_info("creator", &[]);
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             pubkey: pubkey_genesis_mainnet(),
             bounty_denom: BOUNTY_DENOM.into(),
             signature: signature_genesis_mainnet(),
@@ -278,7 +280,7 @@ mod tests {
         init(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // First bounty
-        let msg = HandleMsg::SetBounty { round: 7000 };
+        let msg = ExecuteMsg::SetBounty { round: 7000 };
         let info = mock_info(
             "anyone",
             &[Coin {
@@ -291,7 +293,7 @@ mod tests {
 
         // Increase bounty
 
-        let msg = HandleMsg::SetBounty { round: 7000 };
+        let msg = ExecuteMsg::SetBounty { round: 7000 };
         let info = mock_info(
             "anyone",
             &[Coin {
@@ -308,7 +310,7 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
 
         let info = mock_info("creator", &[]);
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             pubkey: pubkey_genesis_mainnet(),
             bounty_denom: BOUNTY_DENOM.into(),
             signature: signature_genesis_mainnet(),
@@ -317,7 +319,7 @@ mod tests {
 
         let info = mock_info("anyone", &[]);
 
-        let msg = HandleMsg::Add {
+        let msg = ExecuteMsg::Add {
             signature: Binary::from_base64(SIGNATURES[1]).unwrap(),
         };
         let data = handle(deps.as_mut(), mock_env(), info, msg)
@@ -336,7 +338,7 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
 
         let info = mock_info("creator", &[]);
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             pubkey: pubkey_genesis_mainnet(),
             bounty_denom: BOUNTY_DENOM.into(),
             signature: signature_genesis_mainnet(),
@@ -344,7 +346,7 @@ mod tests {
         init(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // Set bounty
-        let msg = HandleMsg::SetBounty { round: 1 };
+        let msg = ExecuteMsg::SetBounty { round: 1 };
         let info = mock_info(
             "anyone",
             &[Coin {
@@ -357,7 +359,7 @@ mod tests {
 
         // Claim bounty
         let info = mock_info("claimer", &[]);
-        let msg = HandleMsg::Add {
+        let msg = ExecuteMsg::Add {
             signature: Binary::from_base64(SIGNATURES[1]).unwrap(),
         };
         let response = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -365,15 +367,15 @@ mod tests {
         assert_eq!(
             response.messages[0],
             CosmosMsg::Bank(BankMsg::Send {
-                from_address: HumanAddr::from(MOCK_CONTRACT_ADDR),
-                to_address: HumanAddr::from("claimer"),
+                from_address: Addr::from(MOCK_CONTRACT_ADDR),
+                to_address: Addr::from("claimer"),
                 amount: coins(4500, BOUNTY_DENOM),
             })
         );
 
         // Cannot be claimed again, because it will be next round
         let info = mock_info("claimer2", &[]);
-        let msg = HandleMsg::Add {
+        let msg = ExecuteMsg::Add {
             signature: Binary::from_base64(SIGNATURES[2]).unwrap(),
         };
         let response = handle(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -385,7 +387,7 @@ mod tests {
         let mut deps = mock_dependencies(&[]);
 
         let info = mock_info("creator", &[]);
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             pubkey: pubkey_genesis_mainnet(),
             bounty_denom: BOUNTY_DENOM.into(),
             signature: signature_genesis_mainnet(),
@@ -400,7 +402,7 @@ mod tests {
 
         // Set first bounty and query again
 
-        let msg = HandleMsg::SetBounty { round: 72785 };
+        let msg = ExecuteMsg::SetBounty { round: 72785 };
         let info = mock_info(
             "anyone",
             &[Coin {
@@ -424,7 +426,7 @@ mod tests {
 
         // Set second bounty and query again
 
-        let msg = HandleMsg::SetBounty { round: 72786 };
+        let msg = ExecuteMsg::SetBounty { round: 72786 };
         let info = mock_info(
             "anyone",
             &[Coin {
@@ -454,7 +456,7 @@ mod tests {
 
         // Set third bounty and query again
 
-        let msg = HandleMsg::SetBounty { round: 72784 };
+        let msg = ExecuteMsg::SetBounty { round: 72784 };
         let info = mock_info(
             "anyone",
             &[Coin {

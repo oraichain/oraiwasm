@@ -1,11 +1,11 @@
 use crate::error::ContractError;
 use crate::msg::{
-    AssertOutput, HandleMsg, InitMsg, QueryMsg, Response, TestCaseMsg, TestCaseResponse,
+    AssertOutput, ExecuteMsg, InstantiateMsg, QueryMsg, Response, TestCaseMsg, TestCaseResponse,
 };
 use crate::state::{FEES, OWNER, TEST_CASES};
 use cosmwasm_std::{
-    from_binary, from_slice, to_binary, Api, Binary, Deps, DepsMut, Env, HandleResponse, HumanAddr,
-    InitResponse, MessageInfo, Order, StdResult, KV,
+    from_binary, from_slice, to_json_binary, Addr, Api, Binary, Deps, DepsMut, Env, MessageInfo,
+    Order, Response, Response, StdResult, KV,
 };
 use cw_storage_plus::Bound;
 
@@ -19,10 +19,10 @@ pub fn init_testcase(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> StdResult<InitResponse> {
+    msg: InstantiateMsg,
+) -> StdResult<Response> {
     for test_case in msg.test_cases {
-        let input_bin = to_binary(&test_case.parameters)?;
+        let input_bin = to_json_binary(&test_case.parameters)?;
         TEST_CASES.save(
             deps.storage,
             input_bin.as_slice(),
@@ -33,7 +33,7 @@ pub fn init_testcase(
         FEES.save(deps.storage, &fees)?;
     };
     OWNER.save(deps.storage, &info.sender)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
@@ -41,12 +41,12 @@ pub fn handle_testcase(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::AddTestCase { test_case } => try_add_test_case(deps, info, test_case),
-        HandleMsg::RemoveTestCase { input } => try_remove_test_case(deps, info, input),
-        HandleMsg::SetOwner { owner } => try_set_owner(deps, info, owner),
+        ExecuteMsg::AddTestCase { test_case } => try_add_test_case(deps, info, test_case),
+        ExecuteMsg::RemoveTestCase { input } => try_remove_test_case(deps, info, input),
+        ExecuteMsg::SetOwner { owner } => try_set_owner(deps, info, owner),
     }
 }
 
@@ -54,45 +54,45 @@ fn try_add_test_case(
     deps: DepsMut,
     info: MessageInfo,
     test_case: TestCaseMsg,
-) -> Result<HandleResponse, ContractError> {
-    let owner: HumanAddr = OWNER.load(deps.storage)?;
+) -> Result<Response, ContractError> {
+    let owner: Addr = OWNER.load(deps.storage)?;
     if !info.sender.eq(&owner) {
         return Err(ContractError::Unauthorized {});
     }
-    let input_bin = to_binary(&test_case.parameters)?;
+    let input_bin = to_json_binary(&test_case.parameters)?;
     TEST_CASES.save(
         deps.storage,
         input_bin.as_slice(),
         &test_case.expected_output,
     )?;
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
 fn try_remove_test_case(
     deps: DepsMut,
     info: MessageInfo,
     input: Vec<String>,
-) -> Result<HandleResponse, ContractError> {
-    let owner: HumanAddr = OWNER.load(deps.storage)?;
+) -> Result<Response, ContractError> {
+    let owner: Addr = OWNER.load(deps.storage)?;
     if !info.sender.eq(&owner) {
         return Err(ContractError::Unauthorized {});
     }
-    let input_bin = to_binary(&input)?;
+    let input_bin = to_json_binary(&input)?;
     TEST_CASES.remove(deps.storage, input_bin.as_slice());
-    Ok(HandleResponse::default())
+    Ok(Response::default())
 }
 
 fn try_set_owner(
     deps: DepsMut,
     info: MessageInfo,
     owner: String,
-) -> Result<HandleResponse, ContractError> {
-    let old_owner: HumanAddr = OWNER.load(deps.storage)?;
+) -> Result<Response, ContractError> {
+    let old_owner: Addr = OWNER.load(deps.storage)?;
     if !info.sender.eq(&old_owner) {
         return Err(ContractError::Unauthorized {});
     }
-    OWNER.save(deps.storage, &HumanAddr::from(owner))?;
-    Ok(HandleResponse::default())
+    OWNER.save(deps.storage, &Addr::from(owner))?;
+    Ok(Response::default())
 }
 
 pub fn query_testcase(
@@ -106,17 +106,17 @@ pub fn query_testcase(
             limit,
             offset,
             order,
-        } => to_binary(&query_testcases(deps, limit, offset, order)?),
+        } => to_json_binary(&query_testcases(deps, limit, offset, order)?),
         QueryMsg::GetOwner {} => query_owner(deps),
         QueryMsg::Assert { assert_inputs } => {
-            to_binary(&assert(env, assert_inputs, assert_handler)?)
+            to_json_binary(&assert(env, assert_inputs, assert_handler)?)
         }
     }
 }
 
 fn query_owner(deps: Deps) -> StdResult<Binary> {
     let state = OWNER.load(deps.storage)?;
-    to_binary(&state)
+    to_json_binary(&state)
 }
 
 fn assert(
@@ -217,12 +217,12 @@ mod tests {
     use cosmwasm_std::{coin, coins, from_binary};
 
     use crate::msg::{TestCaseMsg, TestCaseResponse};
-    use crate::{init_testcase, query_testcase, InitMsg, QueryMsg};
+    use crate::{init_testcase, query_testcase, InstantiateMsg, QueryMsg};
 
-    use cosmwasm_std::{to_binary, Binary, StdResult};
+    use cosmwasm_std::{to_json_binary, Binary, StdResult};
 
     pub fn assert(_: &[String]) -> StdResult<Binary> {
-        to_binary("hi")
+        to_json_binary("hi")
     }
 
     #[test]
@@ -239,7 +239,7 @@ mod tests {
             // code goes here
         }
 
-        let msg = InitMsg {
+        let msg = InstantiateMsg {
             test_cases,
             fees: None,
         };
@@ -272,7 +272,7 @@ mod tests {
                 mock_env(),
                 QueryMsg::GetTestCases {
                     limit: Some(1),
-                    offset: Some(to_binary(&vec![String::from("ethereum 0")]).unwrap()),
+                    offset: Some(to_json_binary(&vec![String::from("ethereum 0")]).unwrap()),
                     order: None,
                 },
                 assert,

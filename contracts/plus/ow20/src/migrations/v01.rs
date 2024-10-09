@@ -94,7 +94,7 @@ impl Into<Expiration> for OldExpiration {
 
 pub mod testing {
     use super::*;
-    use cosmwasm_std::{Api, CanonicalAddr, HumanAddr};
+    use cosmwasm_std::{Api, CanonicalAddr, Addr};
     use cw2::set_contract_version;
 
     /// This generates test data as if it came from v0.1.0 - only intended for usage in test cases
@@ -124,13 +124,13 @@ pub mod testing {
             mint: None,
         })?;
 
-        let user1 = api.canonical_address(&HumanAddr::from("user1"))?;
-        let user2 = api.canonical_address(&HumanAddr::from("user2"))?;
+        let user1 = api.canonical_address(&Addr::from("user1"))?;
+        let user2 = api.canonical_address(&Addr::from("user2"))?;
         crate::state::balances(storage).save(user1.as_slice(), &Uint128(123456))?;
         crate::state::balances(storage).save(user2.as_slice(), &Uint128(654321))?;
 
-        let spender1 = api.canonical_address(&HumanAddr::from("spender1"))?;
-        let spender2 = api.canonical_address(&HumanAddr::from("spender2"))?;
+        let spender1 = api.canonical_address(&Addr::from("spender1"))?;
+        let spender2 = api.canonical_address(&Addr::from("spender2"))?;
         allowances(storage, &user1).save(
             spender1.as_slice(),
             &OldAllowanceResponse {

@@ -1,16 +1,16 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{ContractInfo, APPROVES, CONTRACT_INFO};
 use market_whitelist::{
     ApproveAllEvent, Approved, ApprovedForAllResponse, Event, Expiration, IsApprovedForAllResponse,
-    MarketWhiteListHandleMsg, MarketWhiteListdQueryMsg,
+    MarketWhiteListExecuteMsg, MarketWhiteListdQueryMsg,
 };
 
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order,
+    attr, to_json_binary, Binary, Deps, DepsMut, Env, Response, Response, MessageInfo, Order,
     StdResult,
 };
-use cosmwasm_std::{HumanAddr, KV};
+use cosmwasm_std::{Addr, KV};
 use cw_storage_plus::Bound;
 use std::usize;
 
@@ -19,38 +19,40 @@ const MAX_LIMIT: u32 = 50;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     // first time deploy, it will not know about the implementation
     let info = ContractInfo {
         governance: msg.governance,
         creator: info.sender,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Msg(offering_handle) => match offering_handle {
-            MarketWhiteListHandleMsg::ApproveAll { nft_addr, expires } => {
+        ExecuteMsg::Msg(offering_handle) => match offering_handle {
+            MarketWhiteListExecuteMsg::ApproveAll { nft_addr, expires } => {
                 execute_approve_all(deps, info, env, nft_addr, expires)
             }
-            MarketWhiteListHandleMsg::RevokeAll { nft_addr } => {
+            MarketWhiteListExecuteMsg::RevokeAll { nft_addr } => {
                 execute_revoke_all(deps, info, nft_addr)
             }
         },
-        HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
+        ExecuteMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
 }
 
@@ -59,7 +61,7 @@ pub fn try_update_info(
     info: MessageInfo,
     _env: Env,
     msg: UpdateContractMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
         // Unauthorized
         if !info.sender.eq(&contract_info.creator) {
@@ -76,10 +78,10 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "update_info")],
-        data: to_binary(&new_contract_info).ok(),
+        data: to_json_binary(&new_contract_info).ok(),
     })
 }
 
@@ -98,15 +100,15 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
         QueryMsg::Msg(auction_query) => match auction_query {
             MarketWhiteListdQueryMsg::IsApprovedForAll { nft_addr } => {
                 let approved = check_can_approve(deps, &env, &nft_addr)?;
-                to_binary(&IsApprovedForAllResponse { approved })
+                to_json_binary(&IsApprovedForAllResponse { approved })
             }
             MarketWhiteListdQueryMsg::ApprovedForAll {
                 include_expired,
                 start_after,
                 limit,
             } => {
-                let start_addr = start_after.map(HumanAddr);
-                to_binary(&query_all_approvals(
+                let start_addr = start_after.map(Addr);
+                to_json_binary(&query_all_approvals(
                     deps,
                     env,
                     include_expired.unwrap_or(false),
@@ -115,7 +117,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 )?)
             }
         },
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        QueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
     }
 }
 
@@ -125,7 +127,7 @@ pub fn execute_approve_all(
     env: Env,
     nft_addr: String,
     expires: Option<Expiration>,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo {
         governance,
         creator,
@@ -147,7 +149,7 @@ pub fn execute_approve_all(
     // set the nft_info for us
     APPROVES.save(deps.storage, nft_addr.as_bytes(), &expires)?;
 
-    let mut rsp = HandleResponse::default();
+    let mut rsp = Response::default();
     ApproveAllEvent {
         sender: info.sender.as_ref(),
         nft_addr: &nft_addr,
@@ -161,7 +163,7 @@ pub fn execute_revoke_all(
     deps: DepsMut,
     info: MessageInfo,
     nft_addr: String,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let ContractInfo {
         governance,
         creator,
@@ -176,7 +178,7 @@ pub fn execute_revoke_all(
 
     APPROVES.remove(deps.storage, nft_addr.as_bytes());
 
-    let mut rsp = HandleResponse::default();
+    let mut rsp = Response::default();
     ApproveAllEvent {
         sender: info.sender.as_ref(),
         nft_addr: &nft_addr,
@@ -190,7 +192,7 @@ fn query_all_approvals(
     deps: Deps,
     env: Env,
     include_expired: bool,
-    start_after: Option<HumanAddr>,
+    start_after: Option<Addr>,
     limit: Option<u32>,
 ) -> StdResult<ApprovedForAllResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;

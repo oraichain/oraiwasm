@@ -5,10 +5,10 @@ use cosmwasm_std::testing::{
     mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Api;
-use cosmwasm_std::{coin, coins, from_binary, Env, HumanAddr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_binary, Env, Addr, Order, OwnedDeps, Uint128};
 use market_auction_extend::QueryAuctionsResult;
 use market_auction_extend::{
-    Auction, AuctionHandleMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions,
+    Auction, AuctionExecuteMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions,
 };
 
 const CREATOR: &str = "owner";
@@ -17,8 +17,8 @@ const DENOM: &str = "orai";
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
     let mut deps = mock_dependencies(&coins(100000, DENOM));
     deps.api.canonical_length = 54;
-    let msg = InitMsg {
-        governance: HumanAddr::from(CREATOR),
+    let msg = InstantiateMsg {
+        governance: Addr::from(CREATOR),
     };
     let info = mock_info(CREATOR, &[]);
     let contract_env = mock_env();
@@ -35,11 +35,11 @@ fn sort_auction() {
     let info = mock_info(CREATOR, &vec![coin(50000000, DENOM)]);
     let contract_addr = deps
         .api
-        .canonical_address(&HumanAddr::from("contract_addr"))
+        .canonical_address(&Addr::from("contract_addr"))
         .unwrap();
     let asker = deps
         .api
-        .canonical_address(&HumanAddr::from("asker"))
+        .canonical_address(&Addr::from("asker"))
         .unwrap();
 
     for i in 1..50 {
@@ -60,7 +60,7 @@ fn sort_auction() {
             bidder: None,
             amount: Uint128(10),
         };
-        let msg = HandleMsg::Msg(AuctionHandleMsg::UpdateAuction { auction });
+        let msg = ExecuteMsg::Msg(AuctionExecuteMsg::UpdateAuction { auction });
         let _res = handle(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
     }
 
@@ -78,13 +78,13 @@ fn sort_auction() {
         token_id: "2".to_string(),
         asker: deps
             .api
-            .canonical_address(&HumanAddr::from("another asker"))
+            .canonical_address(&Addr::from("another asker"))
             .unwrap(),
         orig_per_price: Uint128(1),
         bidder: None,
         amount: Uint128(10),
     };
-    let msg = HandleMsg::Msg(AuctionHandleMsg::UpdateAuction { auction });
+    let msg = ExecuteMsg::Msg(AuctionExecuteMsg::UpdateAuction { auction });
     let _res = handle(deps.as_mut(), contract_env.clone(), info.clone(), msg).unwrap();
 
     // Auction should be listed
@@ -121,9 +121,9 @@ fn sort_auction() {
         deps.as_ref(),
         contract_env.clone(),
         QueryMsg::Msg(AuctionQueryMsg::GetUniqueAuction {
-            contract: HumanAddr::from("contract_addr"),
+            contract: Addr::from("contract_addr"),
             token_id: "2".to_string(),
-            asker: HumanAddr::from("asker"),
+            asker: Addr::from("asker"),
         }),
     )
     .unwrap();
@@ -136,7 +136,7 @@ fn sort_auction() {
         deps.as_ref(),
         contract_env.clone(),
         QueryMsg::Msg(AuctionQueryMsg::GetAuctionsByContractTokenId {
-            contract: HumanAddr::from("contract_addr"),
+            contract: Addr::from("contract_addr"),
             token_id: "2".into(),
             options: PagingOptions {
                 limit: Some(100),

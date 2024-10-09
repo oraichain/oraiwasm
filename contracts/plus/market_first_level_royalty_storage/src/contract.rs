@@ -1,14 +1,14 @@
 use crate::error::ContractError;
-use crate::msg::{HandleMsg, InitMsg, QueryMsg, UpdateContractMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{first_lv_royalties, get_key_royalty, ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Env, HandleResponse, InitResponse, MessageInfo, Order,
+    attr, to_json_binary, Binary, Deps, DepsMut, Env, Response, Response, MessageInfo, Order,
     StdError, StdResult,
 };
-use cosmwasm_std::{HumanAddr, KV};
+use cosmwasm_std::{Addr, KV};
 use cw_storage_plus::{Bound, PkOwned};
 use market_first_lv_royalty::{
-    FirstLvRoyalty, FirstLvRoyaltyHandleMsg, FirstLvRoyaltyQueryMsg, OffsetMsg,
+    FirstLvRoyalty, FirstLvRoyaltyExecuteMsg, FirstLvRoyaltyQueryMsg, OffsetMsg,
 };
 use std::usize;
 
@@ -18,39 +18,41 @@ const DEFAULT_LIMIT: u8 = 20;
 
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
-pub fn init(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn instantiate(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    msg: InitMsg,
-) -> Result<InitResponse, ContractError> {
+    msg: InstantiateMsg,
+) -> Result<Response, ContractError> {
     // first time deploy, it will not know about the implementation
     let info = ContractInfo {
         governance: msg.governance,
         creator: info.sender,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    Ok(InitResponse::default())
+    Ok(Response::default())
 }
 
 // And declare a custom Error variant for the ones where you will want to make use of it
-pub fn handle(
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn execute(
     deps: DepsMut,
     env: Env,
     info: MessageInfo,
-    msg: HandleMsg,
-) -> Result<HandleResponse, ContractError> {
+    msg: ExecuteMsg,
+) -> Result<Response, ContractError> {
     match msg {
-        HandleMsg::Msg(offering_handle) => match offering_handle {
-            FirstLvRoyaltyHandleMsg::UpdateFirstLvRoyalty { first_lv_royalty } => {
+        ExecuteMsg::Msg(offering_handle) => match offering_handle {
+            FirstLvRoyaltyExecuteMsg::UpdateFirstLvRoyalty { first_lv_royalty } => {
                 try_update_first_lv_royalty(deps, info, env, first_lv_royalty)
             }
-            FirstLvRoyaltyHandleMsg::RemoveFirstLvRoyalty {
+            FirstLvRoyaltyExecuteMsg::RemoveFirstLvRoyalty {
                 contract_addr,
                 token_id,
             } => try_delete_first_lv_royalty(deps, info, env, contract_addr, token_id),
         },
-        HandleMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
+        ExecuteMsg::UpdateInfo(msg) => try_update_info(deps, info, env, msg),
     }
 }
 
@@ -61,14 +63,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_first_lv_royalties(deps, limit, offset, order)?),
+            } => to_json_binary(&query_first_lv_royalties(deps, limit, offset, order)?),
 
             FirstLvRoyaltyQueryMsg::GetFirstLvRoyaltiesByContract {
                 contract,
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_first_lv_royalties_by_contract(
+            } => to_json_binary(&query_first_lv_royalties_by_contract(
                 deps, contract, limit, offset, order,
             )?),
             FirstLvRoyaltyQueryMsg::GetFirstLvRoyaltiesByCurrentOwner {
@@ -76,7 +78,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 limit,
                 offset,
                 order,
-            } => to_binary(&query_first_lv_royalties_by_current_owner(
+            } => to_json_binary(&query_first_lv_royalties_by_current_owner(
                 deps,
                 current_owner,
                 limit,
@@ -84,11 +86,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 order,
             )?),
             FirstLvRoyaltyQueryMsg::GetFirstLvRoyalty { contract, token_id } => {
-                to_binary(&query_first_lv_royalty(deps, contract, token_id)?)
+                to_json_binary(&query_first_lv_royalty(deps, contract, token_id)?)
             }
-            FirstLvRoyaltyQueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+            FirstLvRoyaltyQueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
         },
-        QueryMsg::GetContractInfo {} => to_binary(&query_contract_info(deps)?),
+        QueryMsg::GetContractInfo {} => to_json_binary(&query_contract_info(deps)?),
     }
 }
 
@@ -97,7 +99,7 @@ pub fn try_update_first_lv_royalty(
     info: MessageInfo,
     _env: Env,
     first_lv_royalty: FirstLvRoyalty,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     // must check the sender is implementation contract
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
 
@@ -116,10 +118,10 @@ pub fn try_update_first_lv_royalty(
         &first_lv_royalty,
     )?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "update_offering_royalty")],
-        data: to_binary(&first_lv_royalty).ok(),
+        data: to_json_binary(&first_lv_royalty).ok(),
     });
 }
 
@@ -127,9 +129,9 @@ pub fn try_delete_first_lv_royalty(
     deps: DepsMut,
     info: MessageInfo,
     _env: Env,
-    contract_addr: HumanAddr,
+    contract_addr: Addr,
     token_id: String,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     if contract_info.governance.ne(&info.sender) {
         return Err(ContractError::Unauthorized {
@@ -143,7 +145,7 @@ pub fn try_delete_first_lv_royalty(
         &get_key_royalty(contract_addr.as_bytes(), token_id.as_bytes()),
     )?;
 
-    return Ok(HandleResponse {
+    return Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "remove_offering_royalty")],
         data: None,
@@ -155,7 +157,7 @@ pub fn try_update_info(
     info: MessageInfo,
     _env: Env,
     msg: UpdateContractMsg,
-) -> Result<HandleResponse, ContractError> {
+) -> Result<Response, ContractError> {
     let new_contract_info = CONTRACT_INFO.update(deps.storage, |mut contract_info| {
         // Unauthorized
         if !info.sender.eq(&contract_info.creator) {
@@ -172,10 +174,10 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(HandleResponse {
+    Ok(Response {
         messages: vec![],
         attributes: vec![attr("action", "update_info")],
-        data: to_binary(&new_contract_info).ok(),
+        data: to_json_binary(&new_contract_info).ok(),
     })
 }
 
@@ -230,7 +232,7 @@ pub fn query_first_lv_royalties(
 
 pub fn query_first_lv_royalties_by_current_owner(
     deps: Deps,
-    current_owner: HumanAddr,
+    current_owner: Addr,
     limit: Option<u8>,
     offset: Option<OffsetMsg>,
     order: Option<u8>,
@@ -255,7 +257,7 @@ pub fn query_first_lv_royalties_by_current_owner(
 
 pub fn query_first_lv_royalties_by_contract(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     limit: Option<u8>,
     offset: Option<OffsetMsg>,
     order: Option<u8>,
@@ -274,7 +276,7 @@ pub fn query_first_lv_royalties_by_contract(
 
 pub fn query_first_lv_royalty(
     deps: Deps,
-    contract: HumanAddr,
+    contract: Addr,
     token_id: String,
 ) -> StdResult<FirstLvRoyalty> {
     let first_lv_royalty = first_lv_royalties().idx.unique_royalty.item(
