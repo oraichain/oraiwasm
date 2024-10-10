@@ -1,6 +1,9 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use cosmwasm_std::{
-    attr, to_json_binary, Addr, Api, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo,
-    Response, Order, Response, Response, StdError, StdResult, KV,
+    attr, to_json_binary, Addr, Api, Binary, BlockInfo, Deps, DepsMut, Env, MessageInfo, Order,
+    Record, Response, StdError, StdResult,
 };
 
 use cw721::{
@@ -37,8 +40,8 @@ pub fn instantiate(
         version: msg.version.unwrap_or(CONTRACT_VERSION.to_string()),
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    let minter = deps.api.addr_canonicalize(&msg.minter)?;
-    let owner = deps.api.addr_canonicalize(&msg_info.sender)?;
+    let minter = deps.api.addr_canonicalize(&msg.minter.as_str())?;
+    let owner = deps.api.addr_canonicalize(&msg_info.sender.as_str())?;
     MINTER.save(deps.storage, &minter)?;
     OWNER.save(deps.storage, &owner)?;
     Ok(Response::default())
@@ -91,13 +94,10 @@ pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response
 
     // // once we have "migrated", set the new version and return success
     // set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
-    Ok(Response {
-        add_attributes(vec![
-            attr("new_contract_name", CONTRACT_NAME),
-            attr("new_contract_version", CONTRACT_VERSION),
-        ],
-        ..Response::default()
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("new_contract_name", CONTRACT_NAME),
+        attr("new_contract_version", CONTRACT_VERSION),
+    ]))
 }
 
 pub fn handle_mint(
@@ -107,7 +107,7 @@ pub fn handle_mint(
     msg: MintMsg,
 ) -> Result<Response, ContractError> {
     let minter = MINTER.load(deps.storage)?;
-    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
 
     if sender_raw != minter {
         return Err(ContractError::Unauthorized {});
@@ -122,7 +122,7 @@ pub fn handle_mint(
 
     // create the token
     let token = TokenInfo {
-        owner: deps.api.addr_canonicalize(&msg.owner)?,
+        owner: deps.api.addr_canonicalize(&msg.owner.as_str())?,
         approvals: vec![],
         name,
         description,
@@ -135,13 +135,11 @@ pub fn handle_mint(
 
     increment_tokens(deps.storage)?;
 
-    Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "mint_nft"),
-            attr("minter", info.sender),
-            attr("token_id", msg.token_id),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "mint_nft"),
+        attr("minter", info.sender),
+        attr("token_id", msg.token_id),
+    ]))
 }
 
 pub fn handle_burn(
@@ -157,13 +155,11 @@ pub fn handle_burn(
 
     decrement_tokens(deps.storage)?;
 
-    Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "burn_nft"),
-            attr("minter", info.sender),
-            attr("token_id", token_id),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "burn_nft"),
+        attr("minter", info.sender),
+        attr("token_id", token_id),
+    ]))
 }
 
 /// this is trigger when there is buy_nft action
@@ -178,14 +174,12 @@ pub fn handle_transfer_nft(
 
     // need transfer_payout as well
 
-    Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "transfer_nft"),
-            attr("sender", info.sender),
-            attr("recipient", recipient),
-            attr("token_id", token_id),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "transfer_nft"),
+        attr("sender", info.sender),
+        attr("recipient", recipient),
+        attr("token_id", token_id),
+    ]))
 }
 
 pub fn handle_update_nft(
@@ -197,7 +191,7 @@ pub fn handle_update_nft(
     description: Option<String>,
     image: Option<String>,
 ) -> Result<Response, ContractError> {
-    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
 
     // update name and description if existed
     tokens().update(deps.storage, &token_id, |old| match old {
@@ -242,14 +236,14 @@ pub fn handle_send_nft(
     };
 
     // Send message
-    Ok(Response::new().add_messages( vec![send.into_cosmos_msg(contract.clone())?],
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(vec![send.into_cosmos_msg(contract.clone())?])
+        .add_attributes(vec![
             attr("action", "send_nft"),
             attr("sender", info.sender),
             attr("recipient", contract),
             attr("token_id", token_id),
-        ],
-        ))
+        ]))
 }
 
 pub fn _transfer_nft(
@@ -279,14 +273,12 @@ pub fn handle_approve(
 ) -> Result<Response, ContractError> {
     _update_approvals(deps, &env, &info, &spender, &token_id, true, expires)?;
 
-    Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "approve"),
-            attr("sender", info.sender),
-            attr("spender", spender),
-            attr("token_id", token_id),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "approve"),
+        attr("sender", info.sender),
+        attr("spender", spender),
+        attr("token_id", token_id),
+    ]))
 }
 
 pub fn handle_revoke(
@@ -298,14 +290,12 @@ pub fn handle_revoke(
 ) -> Result<Response, ContractError> {
     _update_approvals(deps, &env, &info, &spender, &token_id, false, None)?;
 
-    Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "revoke"),
-            attr("sender", info.sender),
-            attr("spender", spender),
-            attr("token_id", token_id),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "revoke"),
+        attr("sender", info.sender),
+        attr("spender", spender),
+        attr("token_id", token_id),
+    ]))
 }
 
 pub fn _update_approvals(
@@ -363,17 +353,15 @@ pub fn handle_approve_all(
     }
 
     // set the operator for us
-    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
     let operator_raw = deps.api.addr_canonicalize(operator.as_str())?;
     OPERATORS.save(deps.storage, (&sender_raw, &operator_raw), &expires)?;
 
-    Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "approve_all"),
-            attr("sender", info.sender),
-            attr("operator", operator),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "approve_all"),
+        attr("sender", info.sender),
+        attr("operator", operator),
+    ]))
 }
 
 pub fn handle_revoke_all(
@@ -382,17 +370,15 @@ pub fn handle_revoke_all(
     info: MessageInfo,
     operator: Addr,
 ) -> Result<Response, ContractError> {
-    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
     let operator_raw = deps.api.addr_canonicalize(operator.as_str())?;
     OPERATORS.remove(deps.storage, (&sender_raw, &operator_raw));
 
-    Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "revoke_all"),
-            attr("sender", info.sender),
-            attr("operator", operator),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "revoke_all"),
+        attr("sender", info.sender),
+        attr("operator", operator),
+    ]))
 }
 
 pub fn handle_change_minter(
@@ -401,20 +387,18 @@ pub fn handle_change_minter(
     info: MessageInfo,
     minter: Addr,
 ) -> Result<Response, ContractError> {
-    let owner_raw = deps.api.addr_canonicalize(&info.sender)?;
+    let owner_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
     let owner = OWNER.load(deps.storage)?;
     if !owner.eq(&owner_raw) {
         return Err(ContractError::Unauthorized {});
     }
     let minter = deps.api.addr_canonicalize(minter.as_str())?;
     MINTER.save(deps.storage, &minter)?;
-    Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "change_minter"),
-            attr("minter", minter),
-            attr("owner", info.sender),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "change_minter"),
+        attr("minter", minter.to_string()),
+        attr("owner", info.sender),
+    ]))
 }
 
 /// returns true iff the sender can execute approve or reject on the contract
@@ -425,7 +409,7 @@ fn check_can_approve(
     token: &TokenInfo,
 ) -> Result<(), ContractError> {
     // owner can approve
-    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
     let owner_raw = OWNER.load(deps.storage)?;
     if sender_raw.eq(&owner_raw) {
         return Ok(());
@@ -455,7 +439,7 @@ fn check_can_send(
     token: &TokenInfo,
 ) -> Result<(), ContractError> {
     // owner can send
-    let sender_raw = deps.api.addr_canonicalize(&info.sender)?;
+    let sender_raw = deps.api.addr_canonicalize(&info.sender.as_str())?;
     let owner_raw = OWNER.load(deps.storage)?;
     if sender_raw.eq(&owner_raw) {
         return Ok(());
@@ -588,7 +572,7 @@ fn query_all_approvals(
     let start_canon = start_after
         .map(|x| deps.api.addr_canonicalize(x.as_str()))
         .transpose()?;
-    let start = start_canon.map(Bound::exclusive);
+    let start = start_canon.map(|c| Bound::ExclusiveRaw(c.to_vec()));
 
     let owner_raw = deps.api.addr_canonicalize(owner.as_str())?;
     let res: StdResult<Vec<_>> = OPERATORS
@@ -601,7 +585,10 @@ fn query_all_approvals(
     Ok(ApprovedForAllResponse { operators: res? })
 }
 
-fn parse_approval(api: &dyn Api, item: StdResult<Record<Expiration>>) -> StdResult<cw721::Approval> {
+fn parse_approval(
+    api: &dyn Api,
+    item: StdResult<Record<Expiration>>,
+) -> StdResult<cw721::Approval> {
     item.and_then(|(k, expires)| {
         let spender = api.addr_humanize(&k.into())?;
         Ok(cw721::Approval { spender, expires })
@@ -615,13 +602,14 @@ fn query_tokens(
     limit: Option<u32>,
 ) -> StdResult<TokensResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(Bound::exclusive);
+    let start = start_after.map(|k| Bound::ExclusiveRaw(k.as_bytes().to_vec()));
 
     let owner_raw = deps.api.addr_canonicalize(owner.as_str())?;
     let tokens: Result<Vec<String>, _> = tokens()
         .idx
         .owner
-        .pks(deps.storage, &owner_raw, start, None, Order::Ascending)
+        .prefix(owner_raw.to_vec())
+        .keys_raw(deps.storage, start, None, Order::Ascending)
         .take(limit)
         .map(String::from_utf8)
         .collect();
@@ -635,12 +623,12 @@ fn query_all_tokens(
     limit: Option<u32>,
 ) -> StdResult<TokensResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(Bound::exclusive);
+    let start = start_after.map(|k| Bound::ExclusiveRaw(k.as_bytes().to_vec()));
 
     let tokens: StdResult<Vec<String>> = tokens()
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
-        .map(|item| item.map(|(k, _)| String::from_utf8_lossy(&k).to_string()))
+        .map(|item| item.map(|(k, _)| String::from_utf8_lossy(k.as_bytes()).to_string()))
         .collect();
     Ok(TokensResponse { tokens: tokens? })
 }
