@@ -1,6 +1,6 @@
 use std::convert::TryInto;
 
-use crate::contract::{handle, init, query};
+use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, InstantiateMsg, IsClaimedResponse, LatestStageResponse,
@@ -9,8 +9,8 @@ use crate::msg::{
 
 use sha2::Digest;
 
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
-use cosmwasm_std::{attr, coins, from_json, from_json, Addr};
+use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
+use cosmwasm_std::{attr, coins, from_json, Addr};
 use serde::Deserialize;
 
 const DENOM: &str = "ORAI";
@@ -20,7 +20,7 @@ fn proper_instantiation() {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
 
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
+        owner: Some(Addr::unchecked("owner0000")),
     };
 
     let env = mock_env();
@@ -53,7 +53,7 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        new_owner: Some("owner0001".into()),
+        new_owner: Some(Addr::unchecked("owner0001")),
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -78,7 +78,7 @@ fn register_merkle_root() {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
 
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
+        owner: Some(Addr::unchecked("owner0000")),
     };
 
     let env = mock_env();
@@ -170,7 +170,7 @@ fn claim() {
     println!("hash {:?} {:?}", test_data.root, hex::encode(computed_hash));
 
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
+        owner: Some(Addr::unchecked("owner0000")),
     };
 
     let env = mock_env();
@@ -262,7 +262,7 @@ fn owner_freeze() {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
 
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
+        owner: Some(Addr::unchecked("owner0000")),
     };
 
     let env = mock_env();
@@ -281,7 +281,7 @@ fn owner_freeze() {
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        new_owner: Some("owner0001".into()),
+        new_owner: Some(Addr::unchecked("owner0001")),
     };
 
     let res = execute(deps.as_mut(), env, info, msg).unwrap();

@@ -1,9 +1,10 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use cosmwasm_std::{
-    attr, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Response,
-    StdResult,
+    attr, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult,
 };
 
-use cw_storage_plus::U8Key;
 use sha2::Digest;
 use std::convert::TryInto;
 
@@ -69,10 +70,7 @@ pub fn execute_update_config(
         Ok(exists)
     })?;
 
-    Ok(Response {
-        add_attributes(vec![attr("action", "update_config")],
-        messages: vec![],
-        ))
+    Ok(Response::new().add_attributes(vec![attr("action", "update_config")]))
 }
 
 pub fn execute_register_merkle_root(
@@ -97,15 +95,11 @@ pub fn execute_register_merkle_root(
 
     MERKLE_ROOT.save(deps.storage, stage, &merkle_root)?;
 
-    Ok(Response {
-        data: None,
-        messages: vec![],
-        add_attributes(vec![
-            attr("action", "register_merkle_root"),
-            attr("stage", stage.to_string()),
-            attr("merkle_root", merkle_root),
-        ],
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "register_merkle_root"),
+        attr("stage", stage.to_string()),
+        attr("merkle_root", merkle_root),
+    ]))
 }
 
 pub fn execute_claim(
@@ -117,7 +111,7 @@ pub fn execute_claim(
     proof: Vec<String>,
 ) -> Result<Response, ContractError> {
     // verify not claimed
-    let mut key = deps.api.addr_canonicalize(&info.sender)?.to_vec();
+    let mut key = deps.api.addr_canonicalize(&info.sender.as_str())?.to_vec();
     key.push(stage);
     let claimed = CLAIM.may_load(deps.storage, &key)?;
     if claimed.is_some() {
@@ -152,16 +146,12 @@ pub fn execute_claim(
     // Update claim index to the current stage
     CLAIM.save(deps.storage, &key, &true)?;
 
-    let res = Response {
-        data: None,
-        messages: vec![],
-        add_attributes(vec![
-            attr("action", "claim"),
-            attr("stage", stage.to_string()),
-            attr("address", info.sender),
-            attr("data", data),
-        ],
-    };
+    let res = Response::new().add_attributes(vec![
+        attr("action", "claim"),
+        attr("stage", stage.to_string()),
+        attr("address", info.sender),
+        attr("data", data),
+    ]);
     Ok(res)
 }
 
