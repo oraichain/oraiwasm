@@ -4,7 +4,7 @@ use crate::contract::*;
 use crate::msg::*;
 use crate::state::ContractInfo;
 use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    mock_dependencies_with_balance, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Decimal;
 use cosmwasm_std::{coin, coins, from_json, Addr, Order, OwnedDeps, Uint128};
@@ -72,7 +72,7 @@ fn sort_first_lv_royalty() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Msg(FirstLvRoyaltyQueryMsg::GetFirstLvRoyaltiesByCurrentOwner {
-            current_owner: "seller1".into(),
+            current_owner: Addr::unchecked("seller1"),
             limit: None,
             offset: None,
             order: Some(Order::Ascending as u8),

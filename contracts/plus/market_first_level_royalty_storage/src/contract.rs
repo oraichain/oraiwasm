@@ -191,8 +191,8 @@ fn _get_range_params_first_lv_royalty(
     Order,
 ) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let mut min: Option<Bound> = None;
-    let max: Option<Bound> = None;
+    let mut min = None;
+    let max = None;
     let mut order_enum = Order::Ascending;
     if let Some(num) = order {
         if num == 2 {
@@ -243,13 +243,8 @@ pub fn query_first_lv_royalties_by_current_owner(
     let res: StdResult<Vec<FirstLvRoyalty>> = first_lv_royalties()
         .idx
         .current_owner
-        .items(
-            deps.storage,
-            &current_owner.as_bytes(),
-            min,
-            max,
-            order_enum,
-        )
+        .prefix(current_owner.as_bytes().to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_first_lv_royalty(kv_item))
         .collect();
@@ -268,7 +263,8 @@ pub fn query_first_lv_royalties_by_contract(
     let res: StdResult<Vec<FirstLvRoyalty>> = first_lv_royalties()
         .idx
         .contract
-        .items(deps.storage, &contract.as_bytes(), min, max, order_enum)
+        .prefix(contract.as_bytes().to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_first_lv_royalty(kv_item))
         .collect();
