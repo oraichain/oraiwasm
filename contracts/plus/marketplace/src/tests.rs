@@ -5,7 +5,7 @@ use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::*;
 use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    mock_dependencies_with_balance, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::BankMsg;
 use cosmwasm_std::CosmosMsg;
@@ -52,7 +52,7 @@ fn sort_offering() {
     // beneficiary can release it
     let info = mock_info("anyone", &vec![coin(50, DENOM)]);
 
-    for i in 1..50 {
+    for i in 1..50u128 {
         let sell_msg = SellNft {
             price: Uint128::from(i),
             royalty: None,
@@ -65,7 +65,7 @@ fn sort_offering() {
         let _res = execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     }
 
-    for i in 50..100 {
+    for i in 50..100u128 {
         let sell_msg = SellNft {
             price: Uint128::from(i),
             royalty: None,
@@ -83,7 +83,7 @@ fn sort_offering() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::GetOfferingsBySeller {
-            seller: "seller".into(),
+            seller: Addr::unchecked("seller"),
             limit: Some(100),
             offset: Some(40),
             order: Some(Order::Descending as u8),
@@ -98,7 +98,7 @@ fn sort_offering() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::GetOfferingsBySeller {
-            seller: "tupt".into(),
+            seller: Addr::unchecked("tupt"),
             limit: Some(100),
             offset: Some(40),
             order: Some(Order::Ascending as u8),
@@ -186,14 +186,9 @@ fn test_royalties() {
     let contract_info = CONTRACT_INFO.load(&deps.storage).unwrap();
     println!("offering: {:?}", offering);
     for message in result.messages {
-        if let CosmosMsg::Bank(msg) = message {
+        if let CosmosMsg::Bank(msg) = message.msg {
             match msg {
-                BankMsg::Send {
-                    from_address,
-                    to_address,
-                    amount,
-                } => {
-                    println!("from address: {}", from_address);
+                BankMsg::Send { to_address, amount } => {
                     println!("to address: {}", to_address);
                     println!("amount: {:?}", amount);
                     let amount = amount[0].amount;
@@ -221,6 +216,8 @@ fn test_royalties() {
                         );
                     }
                 }
+
+                _ => continue,
             }
         } else {
         }
@@ -237,7 +234,7 @@ fn test_royalties() {
             deps.as_ref(),
             mock_env(),
             QueryMsg::GetPayoutsByContractTokenId {
-                contract: "nft_contract".into(),
+                contract: Addr::unchecked("nft_contract"),
                 token_id: "SellableNFT".into(),
             },
         )
@@ -387,7 +384,7 @@ fn withdraw_all_offerings_happy_path() {
     // beneficiary can release it
     let info = mock_info("anyone", &vec![coin(50, DENOM)]);
 
-    for i in 1..5000 {
+    for i in 1..5000u128 {
         let sell_msg = SellNft {
             price: Uint128::from(i),
             royalty: None,

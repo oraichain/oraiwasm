@@ -328,7 +328,7 @@ pub fn try_receive_nft(
     }?;
 
     // check if same token Id form same original contract is already on sale
-    let contract_addr = deps.api.addr_canonicalize(&info.sender)?;
+    let contract_addr = deps.api.addr_canonicalize(&info.sender.as_str())?;
     let offering = offerings().idx.contract_token_id.item(
         deps.storage,
         get_contract_token_id(contract_addr.to_vec(), &rcv_msg.token_id).into(),
@@ -340,7 +340,7 @@ pub fn try_receive_nft(
 
     // get OFFERING_COUNT
     let offering_id = increment_offerings(deps.storage)?;
-    let seller = deps.api.addr_canonicalize(&rcv_msg.sender)?;
+    let seller = deps.api.addr_canonicalize(&rcv_msg.sender.as_str())?;
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let mut royalty = Some(sanitize_royalty(
         msg.royalty.unwrap_or(0),
@@ -389,13 +389,13 @@ pub fn try_receive_nft(
         attr("seller", rcv_msg.sender),
         attr("price", price_string),
         attr("token_id", off.token_id),
-        attr("offering_id", offering_id),
+        attr("offering_id", offering_id.to_string()),
     ]))
 }
 
 pub fn try_withdraw_all(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
-    let mut msgs = vec![];
+    let mut msgs: Vec<CosmosMsg> = vec![];
     // Unauthorized
     if !info.sender.to_string().eq(&contract_info.creator) {
         return Err(ContractError::Unauthorized {});
@@ -437,7 +437,7 @@ pub fn try_withdraw(
     // check if token_id is currently sold by the requesting address
     let storage_key = offering_id.to_be_bytes();
     let off = offerings().load(deps.storage, &storage_key)?;
-    if off.seller == deps.api.addr_canonicalize(&info.sender)? {
+    if off.seller == deps.api.addr_canonicalize(&info.sender.as_str())? {
         // check if token_id is currently sold by the requesting address
         // transfer token back to original owner
         let transfer_cw721_msg = Cw721ExecuteMsg::TransferNft {
@@ -446,7 +446,7 @@ pub fn try_withdraw(
         };
 
         let exec_cw721_transfer = WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&off.contract_addr)?,
+            contract_addr: deps.api.addr_humanize(&off.contract_addr)?.to_string(),
             msg: to_json_binary(&transfer_cw721_msg)?,
             funds: vec![],
         };
@@ -461,7 +461,7 @@ pub fn try_withdraw(
             .add_attributes(vec![
                 attr("action", "withdraw_nft"),
                 attr("seller", info.sender),
-                attr("offering_id", offering_id),
+                attr("offering_id", offering_id.to_string()),
                 attr("token_id", off.token_id),
             ]));
     }
@@ -539,7 +539,8 @@ pub fn query_offerings_by_seller(
     let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .idx
         .seller
-        .items(deps.storage, &seller_raw, min, max, order_enum)
+        .prefix(seller_raw.to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(deps.storage, deps.api, kv_item))
         .collect();
@@ -559,7 +560,8 @@ pub fn query_offerings_by_contract(
     let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .idx
         .contract
-        .items(deps.storage, &contract_raw, min, max, order_enum)
+        .prefix(contract_raw.to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(deps.storage, deps.api, kv_item))
         .collect();
