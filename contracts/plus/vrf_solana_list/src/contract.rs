@@ -1,6 +1,9 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use cosmwasm_std::{
     attr, from_json, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
-    Response, StdResult, Storage,
+    StdResult, Storage,
 };
 
 use crate::errors::ContractError;

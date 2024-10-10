@@ -1,8 +1,8 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_json_binary, to_vec, Addr, Binary, CanonicalAddr, Deps, DepsMut, Env, MessageInfo,
-    Response, StdResult, Storage, Uint128,
+    attr, to_json_binary, to_json_vec, to_vec, Addr, Binary, CanonicalAddr, Deps, DepsMut, Env,
+    MessageInfo, Response, StdResult, Storage, Uint128,
 };
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use std::convert::TryInto;
