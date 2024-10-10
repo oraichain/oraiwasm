@@ -3,7 +3,7 @@ use std::ops::Mul;
 use crate::contract::*;
 use crate::msg::*;
 use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    mock_dependencies_with_balance, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Decimal;
 use cosmwasm_std::{coin, coins, from_json, Addr, Order, OwnedDeps, Uint128};
@@ -21,7 +21,7 @@ const DENOM: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
-    
+
     let msg = InstantiateMsg {
         governance: Addr::unchecked("market_hub"),
     };
@@ -86,7 +86,7 @@ fn sort_offering() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Msg(DataHubQueryMsg::GetOfferingsBySeller {
-            seller: "seller".into(),
+            seller: Addr::unchecked("seller"),
             limit: Some(100),
             offset: Some(1),
             order: Some(Order::Ascending as u8),
@@ -101,7 +101,7 @@ fn sort_offering() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Msg(DataHubQueryMsg::GetOfferingsByContract {
-            contract: "xxx".into(),
+            contract: Addr::unchecked("xxx"),
             limit: Some(100),
             offset: Some(1),
             order: Some(Order::Ascending as u8),
@@ -187,7 +187,7 @@ fn withdraw_offering() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Msg(DataHubQueryMsg::GetOfferingsBySeller {
-            seller: "seller".into(),
+            seller: Addr::unchecked("seller"),
             limit: Some(100),
             offset: Some(0),
             order: Some(Order::Ascending as u8),
@@ -249,7 +249,7 @@ fn sort_annotations() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Msg(DataHubQueryMsg::GetAnnotationsByContract {
-            contract: "xxx".into(),
+            contract: Addr::unchecked("xxx"),
             limit: Some(100),
             offset: Some(0),
             order: Some(Order::Ascending as u8),

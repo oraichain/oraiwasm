@@ -242,7 +242,7 @@ pub fn try_update_offering(
 
     return Ok(Response::new().add_attributes(vec![
         attr("action", "update_offering"),
-        attr("offering_id", offering.id.unwrap()),
+        attr("offering_id", offering.id.unwrap().to_string()),
     ]));
 }
 
@@ -264,7 +264,7 @@ pub fn try_withdraw_offering(
 
     return Ok(Response::new().add_attributes(vec![
         attr("action", "remove_offering"),
-        attr("offering_id", id),
+        attr("offering_id", id.to_string()),
     ]));
 }
 
@@ -295,7 +295,7 @@ pub fn try_update_annotation(
 
     return Ok(Response::new().add_attributes(vec![
         attr("action", "update_annotation"),
-        attr("annotation_id", annotation.id.unwrap()),
+        attr("annotation_id", annotation.id.unwrap().to_string()),
     ]));
 }
 
@@ -316,7 +316,7 @@ pub fn try_withdraw_annotation(
 
     return Ok(Response::new().add_attributes(vec![
         attr("action", "remove_annotation"),
-        attr("annotation_id", id),
+        attr("annotation_id", id.to_string()),
     ]));
 }
 
@@ -579,7 +579,8 @@ pub fn query_offerings_by_seller(
     let offerings_result: StdResult<Vec<Offering>> = offerings()
         .idx
         .seller
-        .items(deps.storage, seller.as_bytes(), min, max, order_enum)
+        .prefix(seller.as_bytes().to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(kv_item))
         .collect();
@@ -598,7 +599,8 @@ pub fn query_offerings_by_contract(
     let offerings_result: StdResult<Vec<Offering>> = offerings()
         .idx
         .contract
-        .items(deps.storage, contract.as_bytes(), min, max, order_enum)
+        .prefix(contract.as_bytes().to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(kv_item))
         .collect();
@@ -618,13 +620,8 @@ pub fn query_offerings_by_contract_token_id(
     let offerings_result: StdResult<Vec<Offering>> = offerings()
         .idx
         .contract_token_id
-        .items(
-            deps.storage,
-            &get_contract_token_id(&contract, &token_id),
-            min,
-            max,
-            order_enum,
-        )
+        .prefix(get_contract_token_id(&contract, &token_id))
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(kv_item))
         .collect();
@@ -643,10 +640,10 @@ pub fn query_unique_offering(
     token_id: String,
     owner: Addr,
 ) -> StdResult<Offering> {
-    let offering = offerings()
-        .idx
-        .unique_offering
-        .item(deps.storage, get_unique_key(&contract, &token_id, &owner))?;
+    let offering = offerings().idx.unique_offering.item(
+        deps.storage,
+        get_unique_key(&contract, &token_id, &owner.as_str()),
+    )?;
     if let Some(offering_obj) = offering {
         let off = offering_obj.1;
         Ok(off)
@@ -710,7 +707,8 @@ pub fn query_annotations_by_contract(
     let annotations_result: StdResult<Vec<Annotation>> = annotations()
         .idx
         .contract
-        .items(deps.storage, contract.as_bytes(), min, max, order_enum)
+        .prefix(contract.as_bytes().to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_annotation(kv_item))
         .collect();
@@ -735,13 +733,8 @@ pub fn query_annotations_by_contract_tokenid(
     let annotations_result: StdResult<Vec<Annotation>> = annotations()
         .idx
         .contract_token_id
-        .items(
-            deps.storage,
-            get_contract_token_id(&contract, &token_id).as_slice(),
-            min,
-            max,
-            order_enum,
-        )
+        .prefix(get_contract_token_id(&contract, &token_id))
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_annotation(kv_item))
         .collect();
@@ -760,7 +753,8 @@ pub fn query_annotations_by_requester(
     let annotations_result: StdResult<Vec<Annotation>> = annotations()
         .idx
         .requester
-        .items(deps.storage, requester.as_bytes(), min, max, order_enum)
+        .prefix(requester.as_bytes().to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_annotation(kv_item))
         .collect();
@@ -798,13 +792,8 @@ pub fn query_annotation_results_by_annotation_id(
     let results: StdResult<Vec<AnnotationResult>> = annotation_results()
         .idx
         .annotation
-        .items(
-            deps.storage,
-            &annotation_id.to_be_bytes(),
-            None,
-            None,
-            Order::Ascending,
-        )
+        .prefix(annotation_id.to_be_bytes().to_vec())
+        .range(deps.storage, None, None, Order::Ascending)
         .map(|kv_item| parse_annotation_result(kv_item))
         .collect();
 
@@ -818,13 +807,8 @@ pub fn query_annotation_results_by_reviewer(
     let results: StdResult<Vec<AnnotationResult>> = annotation_results()
         .idx
         .reviewer
-        .items(
-            deps.storage,
-            &reviewer_address.as_bytes(),
-            None,
-            None,
-            Order::Ascending,
-        )
+        .prefix(reviewer_address.as_bytes().to_vec())
+        .range(deps.storage, None, None, Order::Ascending)
         .map(|kv_item| parse_annotation_result(kv_item))
         .collect();
 
@@ -873,13 +857,8 @@ pub fn query_annotation_reviewer_by_annotation_id(
     let items: StdResult<Vec<AnnotationReviewer>> = annotation_reviewers()
         .idx
         .annotation
-        .items(
-            deps.storage,
-            &annotation_id.to_be_bytes().to_vec(),
-            None,
-            None,
-            Order::Ascending,
-        )
+        .prefix(annotation_id.to_be_bytes().to_vec())
+        .range(deps.storage, None, None, Order::Ascending)
         .map(|item| parse_annotation_reviewer(item))
         .collect();
 
@@ -929,13 +908,8 @@ pub fn query_reviewed_upload_by_annotation_id(
     let results: StdResult<Vec<AnnotationResult>> = reviewed_uploads()
         .idx
         .annotation
-        .items(
-            deps.storage,
-            &annotation_id.to_be_bytes().to_vec(),
-            None,
-            None,
-            Order::Ascending,
-        )
+        .prefix(annotation_id.to_be_bytes().to_vec())
+        .range(deps.storage, None, None, Order::Ascending)
         .map(|kv_item| parse_annotation_result(kv_item))
         .collect();
 
