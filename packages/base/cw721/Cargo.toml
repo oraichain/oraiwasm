@@ -1,0 +1,17 @@
+[package]
+name = "cw721"
+version = "1.0.1"
+authors = ["Ethan Frey <ethanfrey@users.noreply.github.com>"]
+edition = { workspace = true }
+description = "Definition and types for the CosmWasm-721 NFT interface"
+license = "Apache-2.0"
+repository = "https://github.com/CosmWasm/cosmwasm-plus"
+homepage = "https://cosmwasm.com"
+documentation = "https://docs.cosmwasm.com"
+
+[dependencies]
+cw-utils = { workspace = true }
+cosmwasm-std = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+cosmwasm-schema = { workspace = true }
