@@ -79,7 +79,7 @@ pub fn instantiate(
         step_price: msg.step_price,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
+    MARKET_FEES.save(deps.storage, &Uint128::zero())?;
     Ok(Response::default())
 }
 
@@ -148,7 +148,7 @@ pub fn execute(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    // MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
+    // MARKET_FEES.save(deps.storage, &Uint128::zero())?;
     Ok(Response::default())
 }
 

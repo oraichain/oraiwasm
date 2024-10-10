@@ -1,6 +1,4 @@
-use std::convert::TryInto;
-
-use crate::contract::{handle, init, query};
+use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError;
 use crate::msg::{
     ClaimKeyCountResponse, ClaimKeysResponse, ConfigResponse, ExecuteMsg, InstantiateMsg,
@@ -11,27 +9,27 @@ use crate::state::CLAIM;
 
 use sha2::Digest;
 
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
 use cosmwasm_std::{
-    attr, coins, from_json, from_json, to_json_binary, Binary, CosmosMsg, Addr, Order,
-    StdResult, Uint128, WasmMsg,
+    attr, coins, from_json, to_json_binary, Addr, Binary, CosmosMsg, Order, StdResult, SubMsg,
+    Uint128, WasmMsg,
 };
-use cw_storage_plus::{Bound, U8Key};
+use cw_storage_plus::Bound;
 use serde::Deserialize;
 
 const DENOM: &str = "ORAI";
 
 use crate::msg::TotalClaimedResponse;
 
-use cw_utils::Expiration;
 use cw20::Cw20ExecuteMsg;
+use cw_utils::Expiration;
 
 #[test]
 fn test_range() {
     let mut deps = mock_dependencies_with_balance(&[]);
     let data = true;
-    CLAIM.save(&mut deps.storage, b"john", &data);
-    CLAIM.save(&mut deps.storage, b"jim", &data);
+    CLAIM.save(&mut deps.storage, b"john", &data).unwrap();
+    CLAIM.save(&mut deps.storage, b"jim", &data).unwrap();
 
     // iterate over them all
     let all: StdResult<Vec<_>> = CLAIM
@@ -44,7 +42,7 @@ fn test_range() {
     let all: StdResult<Vec<_>> = CLAIM
         .range(
             &deps.storage,
-            Some(Bound::Exclusive(1u64.to_be_bytes().to_vec())),
+            Some(Bound::ExclusiveRaw(1u64.to_be_bytes().to_vec())),
             None,
             Order::Ascending,
         )
@@ -59,8 +57,8 @@ fn proper_instantiation() {
     let mut deps = mock_dependencies_with_balance(&[]);
 
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
-        cw20_token_address: "anchor0000".into(),
+        owner: Some(Addr::unchecked("owner0000")),
+        cw20_token_address: Addr::unchecked("anchor0000"),
     };
 
     let env = mock_env();
@@ -86,7 +84,7 @@ fn update_config() {
 
     let msg = InstantiateMsg {
         owner: None,
-        cw20_token_address: "anchor0000".into(),
+        cw20_token_address: Addr::unchecked("anchor0000"),
     };
 
     let env = mock_env();
@@ -97,7 +95,7 @@ fn update_config() {
     let env = mock_env();
     let info = mock_info("owner0000", &[]);
     let msg = ExecuteMsg::UpdateConfig {
-        new_owner: Some("owner0001".into()),
+        new_owner: Some(Addr::unchecked("owner0001")),
     };
 
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
@@ -123,7 +121,7 @@ fn test_update_claim() {
 
     let msg = InstantiateMsg {
         owner: None,
-        cw20_token_address: "anchor0000".into(),
+        cw20_token_address: Addr::unchecked("anchor0000"),
     };
 
     let env = mock_env();
@@ -170,8 +168,8 @@ fn register_merkle_root() {
     let mut deps = mock_dependencies_with_balance(&[]);
 
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
-        cw20_token_address: "anchor0000".into(),
+        owner: Some(Addr::unchecked("owner0000")),
+        cw20_token_address: Addr::unchecked("anchor0000"),
     };
 
     let env = mock_env();
@@ -242,12 +240,12 @@ struct Encoded {
 fn claim() {
     // Run test 1
     let mut deps = mock_dependencies_with_balance(&[]);
-    
+
     let test_data: Encoded = from_json(TEST_DATA_1).unwrap();
 
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
-        cw20_token_address: "token0000".into(),
+        owner: Some(Addr::unchecked("owner0000")),
+        cw20_token_address: Addr::unchecked("token0000"),
     };
 
     let env = mock_env();
@@ -272,12 +270,12 @@ fn claim() {
     };
 
     let env = mock_env();
-    let info = mock_info(test_data.account.clone(), &[]);
+    let info = mock_info(test_data.account.as_str(), &[]);
 
     let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
 
     let expected: CosmosMsg<_> = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: "token0000".into(),
+        contract_addr: "token0000".to_string(),
         msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
             recipient: test_data.account.clone().into(),
             amount: test_data.amount,
@@ -286,7 +284,7 @@ fn claim() {
         funds: vec![],
     });
 
-    assert_eq!(res.messages, vec![expected]);
+    assert_eq!(res.messages, vec![SubMsg::new(expected)]);
 
     assert_eq!(
         res.attributes,
@@ -321,7 +319,7 @@ fn claim() {
                 env.clone(),
                 QueryMsg::IsClaimed {
                     stage: 1,
-                    address: test_data.account.into()
+                    address: Addr::unchecked(test_data.account)
                 }
             )
             .unwrap()
@@ -360,7 +358,7 @@ fn claim() {
     let info = mock_info(test_data.account.as_str(), &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     let expected: CosmosMsg<_> = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: "token0000".into(),
+        contract_addr: "token0000".to_string(),
         funds: vec![],
         msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
             recipient: test_data.account.clone().into(),
@@ -368,7 +366,7 @@ fn claim() {
         })
         .unwrap(),
     });
-    assert_eq!(res.messages, vec![expected]);
+    assert_eq!(res.messages, vec![SubMsg::new(expected)]);
 
     assert_eq!(
         res.attributes,
@@ -411,12 +409,12 @@ struct MultipleData {
 fn multiple_claim() {
     // Run test 1
     let mut deps = mock_dependencies_with_balance(&[]);
-    
+
     let test_data: MultipleData = from_json(TEST_DATA_1_MULTI).unwrap();
 
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
-        cw20_token_address: "token0000".into(),
+        owner: Some(Addr::unchecked("owner0000")),
+        cw20_token_address: Addr::unchecked("token0000"),
     };
 
     let env = mock_env();
@@ -446,7 +444,7 @@ fn multiple_claim() {
         let info = mock_info(account.account.as_str(), &[]);
         let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
         let expected: CosmosMsg<_> = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: "token0000".into(),
+            contract_addr: "token0000".to_string(),
             funds: vec![],
             msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: account.account.clone().into(),
@@ -454,7 +452,7 @@ fn multiple_claim() {
             })
             .unwrap(),
         });
-        assert_eq!(res.messages, vec![expected]);
+        assert_eq!(res.messages, vec![SubMsg::new(expected)]);
 
         assert_eq!(
             res.attributes,
@@ -483,12 +481,12 @@ fn multiple_claim() {
 fn test_query_claim_keys() {
     // Run test 1
     let mut deps = mock_dependencies_with_balance(&[]);
-    
+
     let test_data: MultipleData = from_json(TEST_DATA_1_MULTI).unwrap();
 
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
-        cw20_token_address: "token0000".into(),
+        owner: Some(Addr::unchecked("owner0000")),
+        cw20_token_address: Addr::unchecked("token0000"),
     };
 
     let env = mock_env();
@@ -518,7 +516,7 @@ fn test_query_claim_keys() {
         let info = mock_info(account.account.as_str(), &[]);
         let res = execute(deps.as_mut(), env.clone(), info.clone(), msg.clone()).unwrap();
         let expected: CosmosMsg<_> = CosmosMsg::Wasm(WasmMsg::Execute {
-            contract_addr: "token0000".into(),
+            contract_addr: "token0000".to_string(),
             funds: vec![],
             msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: account.account.clone().into(),
@@ -526,7 +524,7 @@ fn test_query_claim_keys() {
             })
             .unwrap(),
         });
-        assert_eq!(res.messages, vec![expected]);
+        assert_eq!(res.messages, vec![SubMsg::new(expected)]);
 
         assert_eq!(
             res.attributes,
@@ -601,8 +599,8 @@ fn stage_expires() {
     let mut deps = mock_dependencies_with_balance(&[]);
 
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
-        cw20_token_address: "token0000".into(),
+        owner: Some(Addr::unchecked("owner0000")),
+        cw20_token_address: Addr::unchecked("token0000"),
     };
 
     let env = mock_env();
@@ -645,8 +643,8 @@ fn cant_burn() {
     let mut deps = mock_dependencies_with_balance(&[]);
 
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
-        cw20_token_address: "token0000".into(),
+        owner: Some(Addr::unchecked("owner0000")),
+        cw20_token_address: Addr::unchecked("token0000"),
     };
 
     let env = mock_env();
@@ -681,12 +679,12 @@ fn cant_burn() {
 #[test]
 fn can_burn() {
     let mut deps = mock_dependencies_with_balance(&[]);
-    
+
     let test_data: Encoded = from_json(TEST_DATA_1).unwrap();
 
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
-        cw20_token_address: "token0000".into(),
+        owner: Some(Addr::unchecked("owner0000")),
+        cw20_token_address: Addr::unchecked("token0000"),
     };
 
     let mut env = mock_env();
@@ -713,7 +711,7 @@ fn can_burn() {
     let info = mock_info(test_data.account.as_str(), &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     let expected: CosmosMsg<_> = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: "token0000".into(),
+        contract_addr: "token0000".to_string(),
         funds: vec![],
         msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
             recipient: test_data.account.clone().into(),
@@ -721,7 +719,7 @@ fn can_burn() {
         })
         .unwrap(),
     });
-    assert_eq!(res.messages, vec![expected]);
+    assert_eq!(res.messages, vec![SubMsg::new(expected)]);
 
     assert_eq!(
         res.attributes,
@@ -743,14 +741,14 @@ fn can_burn() {
     let res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     let expected: CosmosMsg<_> = CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: "token0000".into(),
+        contract_addr: "token0000".to_string(),
         funds: vec![],
         msg: to_json_binary(&Cw20ExecuteMsg::Burn {
-            amount: Uint128::from(9900u128),
+            amount: Uint128::from(100u128),
         })
         .unwrap(),
     });
-    assert_eq!(res.messages, vec![expected]);
+    assert_eq!(res.messages, vec![SubMsg::new(expected)]);
 
     assert_eq!(
         res.attributes,
@@ -758,7 +756,7 @@ fn can_burn() {
             attr("action", "burn"),
             attr("stage", "1"),
             attr("address", "owner0000"),
-            attr("amount", Uint128::from(9900u128)),
+            attr("amount", Uint128::from(100u128)),
         ]
     );
 }
@@ -766,10 +764,10 @@ fn can_burn() {
 #[test]
 fn cant_withdraw() {
     let mut deps = mock_dependencies_with_balance(&[]);
-    
+
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
-        cw20_token_address: "token0000".into(),
+        owner: Some(Addr::unchecked("owner0000")),
+        cw20_token_address: Addr::unchecked("token0000"),
     };
 
     let env = mock_env();
@@ -804,12 +802,12 @@ fn cant_withdraw() {
 #[test]
 fn can_withdraw() {
     let mut deps = mock_dependencies_with_balance(&[]);
-    
+
     let test_data: Encoded = from_json(TEST_DATA_1).unwrap();
 
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
-        cw20_token_address: "token0000".into(),
+        owner: Some(Addr::unchecked("owner0000")),
+        cw20_token_address: Addr::unchecked("token0000"),
     };
 
     let mut env = mock_env();
@@ -836,7 +834,7 @@ fn can_withdraw() {
     let info = mock_info(test_data.account.as_str(), &[]);
     let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
     let expected: CosmosMsg<_> = (CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: "token0000".into(),
+        contract_addr: "token0000".to_string(),
         funds: vec![],
         msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
             recipient: test_data.account.clone().into(),
@@ -844,7 +842,7 @@ fn can_withdraw() {
         })
         .unwrap(),
     }));
-    assert_eq!(res.messages, vec![expected]);
+    assert_eq!(res.messages, vec![SubMsg::new(expected)]);
 
     assert_eq!(
         res.attributes,
@@ -866,15 +864,15 @@ fn can_withdraw() {
     let res = execute(deps.as_mut(), env, info, msg).unwrap();
 
     let expected: CosmosMsg<_> = (CosmosMsg::Wasm(WasmMsg::Execute {
-        contract_addr: "token0000".into(),
+        contract_addr: "token0000".to_string(),
         funds: vec![],
         msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-            amount: Uint128::from(9900u128),
-            recipient: "owner0000".into(),
+            amount: Uint128::from(100u128),
+            recipient: "owner0000".to_string(),
         })
         .unwrap(),
     }));
-    assert_eq!(res.messages, vec![expected]);
+    assert_eq!(res.messages, vec![SubMsg::new(expected)]);
 
     assert_eq!(
         res.attributes,
@@ -882,7 +880,7 @@ fn can_withdraw() {
             attr("action", "withdraw"),
             attr("stage", "1"),
             attr("address", "owner0000"),
-            attr("amount", Uint128::from(9900u128)),
+            attr("amount", Uint128::from(100u128)),
             attr("recipient", "owner0000")
         ]
     );
@@ -891,10 +889,10 @@ fn can_withdraw() {
 #[test]
 fn stage_starts() {
     let mut deps = mock_dependencies_with_balance(&[]);
-    
+
     let msg = InstantiateMsg {
-        owner: Some("owner0000".into()),
-        cw20_token_address: "token0000".into(),
+        owner: Some(Addr::unchecked("owner0000")),
+        cw20_token_address: Addr::unchecked("token0000"),
     };
 
     let env = mock_env();

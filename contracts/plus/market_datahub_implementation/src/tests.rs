@@ -380,7 +380,7 @@ fn test_royalties() {
 
         let results = manager.execute(info_buy, buy_msg).unwrap();
 
-        let mut total_payment = Uint128::from(0u128);
+        let mut total_payment = Uint128::zero();
 
         // query royalties
         let royalties: Vec<Royalty> = from_json(

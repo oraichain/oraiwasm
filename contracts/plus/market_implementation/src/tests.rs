@@ -555,7 +555,7 @@ fn sell_auction_happy_path() {
         let sell_msg = ExecuteMsg::AskNft {
             contract_addr: Addr::unchecked(OW721),
             token_id: String::from(PROVIDER_NFT_NATIVE),
-            price: Uint128::from(0u128),
+            price: Uint128::zero(),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -629,7 +629,7 @@ fn sell_auction_cw20_happy_path() {
         let sell_msg = ExecuteMsg::AskNft {
             contract_addr: Addr::unchecked(OW721),
             token_id: String::from(PROVIDER_NFT_CW20),
-            price: Uint128::from(0u128),
+            price: Uint128::zero(),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -2039,8 +2039,8 @@ fn test_royalties() {
         .unwrap();
 
         let results = manager.execute(info_buy, buy_msg).unwrap();
-        let mut total_payment = Uint128::from(0u128);
-        let mut royatly_marketplace = Uint128::from(0u128);
+        let mut total_payment = Uint128::zero();
+        let mut royatly_marketplace = Uint128::zero();
 
         // query royalties
         let royalties: Vec<Royalty> = from_json(
@@ -2293,8 +2293,8 @@ fn test_royalties_ow20() {
         .unwrap();
 
         let results = manager.execute(info_buy, buy_msg).unwrap();
-        let mut total_payment = Uint128::from(0u128);
-        let mut royatly_marketplace = Uint128::from(0u128);
+        let mut total_payment = Uint128::zero();
+        let mut royatly_marketplace = Uint128::zero();
 
         // query royalties
         let royalties: Vec<Royalty> = from_json(

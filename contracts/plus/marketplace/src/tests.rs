@@ -42,7 +42,7 @@ fn test_price() {
     assert_eq!(Uint128::from(200u128), payout);
     price = Uint128::from(1u128);
     payout = price.mul(percent);
-    assert_eq!(Uint128::from(0u128), payout)
+    assert_eq!(Uint128::zero(), payout)
 }
 
 #[test]
@@ -180,9 +180,9 @@ fn test_royalties() {
     let buy_msg = ExecuteMsg::BuyNft { offering_id: 3 };
     let info_buy = mock_info("buyer2", &coins(9000000, DENOM));
     let result = execute(deps.as_mut(), mock_env(), info_buy, buy_msg).unwrap();
-    let mut total_payment = Uint128::from(0u128);
-    let mut royalty_creator = Uint128::from(0u128);
-    let mut royatly_marketplace = Uint128::from(0u128);
+    let mut total_payment = Uint128::zero();
+    let mut royalty_creator = Uint128::zero();
+    let mut royatly_marketplace = Uint128::zero();
     let contract_info = CONTRACT_INFO.load(&deps.storage).unwrap();
     println!("offering: {:?}", offering);
     for message in result.messages {
@@ -257,7 +257,7 @@ fn sell_offering_happy_path() {
     let info = mock_info("anyone", &vec![coin(5, DENOM)]);
 
     let sell_msg = SellNft {
-        price: Uint128::from(0u128),
+        price: Uint128::zero(),
         royalty: Some(10),
     };
     let sell_msg_second = SellNft {

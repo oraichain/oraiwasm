@@ -5,7 +5,7 @@ use crate::query::*;
 use crate::state::PackageOffering;
 use cosmwasm_std::from_json;
 use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    mock_dependencies_with_balance, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Decimal;
 use cosmwasm_std::Uint128;
@@ -17,12 +17,12 @@ const DENOM: &str = "orai";
 const SELLER_ADDR: &str = "oraiDuongbeo";
 const CUSTOMER_ADDR: &str = "oraiHaichan";
 const MOCK_PACKAGE_ID: &str = "454fef-543545-fefefef-343434";
-const MOCK_NUMBER_OF_REQUEST: Uint128 = Uint128::from(30u128));
-const MOCK_UNIT_PRICE: Uint128 = Uint128::from(1u128));
+const MOCK_NUMBER_OF_REQUEST: Uint128 = Uint128::from(30u128);
+const MOCK_UNIT_PRICE: Uint128 = Uint128::from(1u128);
 
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
-    
+
     let msg = InstantiateMsg {
         name: "ai_market".into(),
         creator: Addr::unchecked(CREATOR_ADDR),
@@ -31,7 +31,7 @@ fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
         fee: 1, //1%
     };
 
-    let info = mock_info(Addr::unchecked(CREATOR_ADDR), &[]);
+    let info = mock_info(CREATOR_ADDR, &[]);
     let contract_env = mock_env();
     let res = instantiate(deps.as_mut(), contract_env.clone(), info, msg).unwrap();
     assert_eq!(0, res.messages.len());
@@ -47,8 +47,8 @@ fn offering_factory(
     number_requests: Uint128,
     unit_price: Uint128,
 ) -> PackageOffering {
-    let info_buy = mock_info(customer, &vec![coin(30, DENOM)]);
-    let creator_buy = mock_info(Addr::unchecked(CREATOR_ADDR), &vec![]);
+    let info_buy = mock_info(customer.as_str(), &vec![coin(30, DENOM)]);
+    let creator_buy = mock_info(CREATOR_ADDR, &vec![]);
     let msg_buy = ExecuteMsg::Buy {
         owner: owner.clone(),
         package_id: package_id.clone(),
@@ -95,8 +95,8 @@ fn offering_factory(
 fn test_buy_and_instantiate() {
     let (mut deps, contract_env) = setup_contract();
 
-    // let number_requests = Uint128::from(30u128));
-    // let per_price = Uint128::from(1u128));
+    // let number_requests = Uint128::from(30u128);
+    // let per_price = Uint128::from(1u128);
     let customer_address = Addr::unchecked(CUSTOMER_ADDR);
     let owner_address = Addr::unchecked(SELLER_ADDR);
     let info_buy = mock_info(customer_address.clone(), &vec![coin(30, DENOM)]);
@@ -130,22 +130,22 @@ fn test_buy_and_instantiate() {
         package_offering,
         PackageOffering {
             id: offering_id,
-            number_requests: Uint128::from(0u128),
-            success_requests: Uint128::from(0u128),
+            number_requests: Uint128::zero(),
+            success_requests: Uint128::zero(),
             seller: Addr::unchecked(SELLER_ADDR),
             customer: info_buy.clone().sender,
             is_init: false,
             total_amount_paid: Uint128::from(30u128),
-            unit_price: Uint128::from(0u128),
-            claimable_amount: Uint128::from(0u128),
-            claimed: Uint128::from(0u128),
+            unit_price: Uint128::zero(),
+            claimable_amount: Uint128::zero(),
+            claimed: Uint128::zero(),
             claimable: false,
             package_id: String::from(MOCK_PACKAGE_ID),
         }
     );
 
     // INIT package offering
-    let mock_number_of_request = Uint128::from(30u128));
+    let mock_number_of_request = Uint128::from(30u128);
     let msg_init = ExecuteMsg::InitPackageOffering {
         id: offering_id,
         number_requests: MOCK_NUMBER_OF_REQUEST,
@@ -162,7 +162,7 @@ fn test_buy_and_instantiate() {
     assert_eq!(_res_non_creator_init, Err(ContractError::Unauthorized {}));
 
     // Test init with creator - should be successful
-    let creator_buy = mock_info(Addr::unchecked(CREATOR_ADDR), &vec![]);
+    let creator_buy = mock_info(CREATOR_ADDR, &vec![]);
     let _res_creator_init = execute(
         deps.as_mut(),
         contract_env.clone(),
@@ -194,13 +194,13 @@ fn test_update_success_request() {
         MOCK_NUMBER_OF_REQUEST,
         MOCK_UNIT_PRICE,
     );
-    let mock_success_request = Uint128::from(10u128));
+    let mock_success_request = Uint128::from(10u128);
     let msg_update_success_request = ExecuteMsg::UpdatePackageOfferingSuccessRequest {
         id: new_offering.id,
         success_requests: mock_success_request,
     };
 
-    let creator_buy = mock_info(Addr::unchecked(CREATOR_ADDR), &vec![]);
+    let creator_buy = mock_info(CREATOR_ADDR, &vec![]);
     let _res_creator_update_success_request = execute(
         deps.as_mut(),
         contract_env.clone(),
@@ -214,7 +214,7 @@ fn test_update_success_request() {
             .attributes
             .get(2)
             .map(|attr| attr.value.clone()),
-        Some(Uint128::from(10u128)).to_string())
+        Some(Uint128::from(10u128).to_string())
     );
 
     let package_offering: PackageOffering = from_json(
@@ -228,7 +228,7 @@ fn test_update_success_request() {
         .unwrap(),
     )
     .unwrap();
-    assert_eq!(package_offering.success_requests, Uint128::from(10u128)));
+    assert_eq!(package_offering.success_requests, Uint128::from(10u128));
 
     // test with a success_requests > number_requests
 
@@ -268,7 +268,7 @@ fn test_claim() {
     };
     // test Unauthorized
 
-    let non_owner_buy = mock_info(Addr::unchecked(CUSTOMER_ADDR), &vec![]);
+    let non_owner_buy = mock_info(CUSTOMER_ADDR, &vec![]);
 
     let _res_non_owner_claim = execute(
         deps.as_mut(),
@@ -283,7 +283,7 @@ fn test_claim() {
 
     // update success_requests
 
-    let creator_buy = mock_info(Addr::unchecked(CREATOR_ADDR), &vec![]);
+    let creator_buy = mock_info(CREATOR_ADDR, &vec![]);
 
     let failed_msg_update_success_request = ExecuteMsg::UpdatePackageOfferingSuccessRequest {
         id: new_offering.id,
@@ -297,11 +297,11 @@ fn test_claim() {
         failed_msg_update_success_request.clone(),
     );
 
-    let claimable_amount = Uint128::from(11u128)) * Decimal::from_ratio(new_offering.unit_price, Uint128::from(1u128)))
+    let claimable_amount = Uint128::from(11u128)
+        * Decimal::from_ratio(new_offering.unit_price, Uint128::from(1u128))
         - new_offering.claimed;
 
-    let owner_address = Addr::unchecked(SELLER_ADDR);
-    let owner_buy = mock_info(owner_address, &vec![]);
+    let owner_buy = mock_info(SELLER_ADDR, &vec![]);
 
     let _res_owner_claim = execute(
         deps.as_mut(),
@@ -316,7 +316,7 @@ fn test_claim() {
             .attributes
             .get(2)
             .map(|attr| attr.value.clone()),
-        Some(claimable_amount.unwrap().to_string())
+        Some(claimable_amount.to_string())
     );
 }
 
@@ -368,8 +368,8 @@ fn test_query_offerings_by_selle() {
 
 //     let owner = Addr::unchecked("owner");
 //     let package_id = String::from("1");
-//     let number_requests = Uint128::from(30u128));
-//     let per_price = Uint128::from(1u128));
+//     let number_requests = Uint128::from(30u128);
+//     let per_price = Uint128::from(1u128);
 
 //     let info_buy = mock_info("Customer", &vec![coin(30, DENOM)]);
 //     let msg_buy = ExecuteMsg::Buy {
@@ -402,10 +402,10 @@ fn test_query_offerings_by_selle() {
 //         claim_info,
 //         ClaimeInfo {
 //             number_requests: Uint128::from(30u128),
-//             success_requests: Uint128::from(0u128),
+//             success_requests: Uint128::zero(),
 //             per_price: Uint128::from(1u128),
-//             claimable_amount: Uint128::from(0u128),
-//             claimed: Uint128::from(0u128),
+//             claimable_amount: Uint128::zero(),
+//             claimed: Uint128::zero(),
 //             claimable: false,
 //             package_id: package_id.clone(),
 //             customer: info_buy.sender.clone(),
@@ -447,7 +447,7 @@ fn test_query_offerings_by_selle() {
 //             success_requests: Uint128::from(10u128),
 //             per_price: Uint128::from(1u128),
 //             claimable_amount: Uint128::from(10u128),
-//             claimed: Uint128::from(0u128),
+//             claimed: Uint128::zero(),
 //             claimable: true,
 //             customer: info_buy.sender.clone(),
 //             package_id: package_id.clone()
@@ -461,8 +461,8 @@ fn test_query_offerings_by_selle() {
 
 //     let owner = Addr::unchecked("owner");
 //     let package_id = String::from("1");
-//     let number_requests = Uint128::from(30u128));
-//     let per_price = Uint128::from(1u128));
+//     let number_requests = Uint128::from(30u128);
+//     let per_price = Uint128::from(1u128);
 
 //     let info_buy = mock_info("Customer", &vec![coin(30, DENOM)]);
 //     let msg_buy = ExecuteMsg::Buy {
@@ -525,7 +525,7 @@ fn test_query_offerings_by_selle() {
 //             number_requests: Uint128::from(30u128),
 //             success_requests: Uint128::from(10u128),
 //             per_price: Uint128::from(1u128),
-//             claimable_amount: Uint128::from(0u128),
+//             claimable_amount: Uint128::zero(),
 //             claimed: Uint128::from(10u128),
 //             claimable: false,
 //             customer: info_buy.sender,
@@ -542,7 +542,7 @@ fn test_query_offerings_by_selle() {
 //     let owner = Addr::unchecked("owner");
 //     let package_id1 = "1".to_string();
 //     let package_id2 = "2".to_string();
-//     let per_price = Uint128::from(1u128));
+//     let per_price = Uint128::from(1u128);
 
 //     let info_buy = mock_info("Customer", &vec![coin(30, DENOM)]);
 //     let msg_buy = ExecuteMsg::Buy {
@@ -591,10 +591,10 @@ fn test_query_offerings_by_selle() {
 //             ClaimInfoResponse {
 //                 claim_info: ClaimeInfo {
 //                     number_requests: Uint128::from(20u128),
-//                     success_requests: Uint128::from(0u128),
+//                     success_requests: Uint128::zero(),
 //                     per_price: Uint128::from(1u128),
-//                     claimable_amount: Uint128::from(0u128),
-//                     claimed: Uint128::from(0u128),
+//                     claimable_amount: Uint128::zero(),
+//                     claimed: Uint128::zero(),
 //                     claimable: false,
 //                     customer: Addr::unchecked("customer".to_string()),
 //                     package_id: "1".to_string()
@@ -603,10 +603,10 @@ fn test_query_offerings_by_selle() {
 //             ClaimInfoResponse {
 //                 claim_info: ClaimeInfo {
 //                     number_requests: Uint128::from(40u128),
-//                     success_requests: Uint128::from(0u128),
+//                     success_requests: Uint128::zero(),
 //                     per_price: Uint128::from(1u128),
-//                     claimable_amount: Uint128::from(0u128),
-//                     claimed: Uint128::from(0u128),
+//                     claimable_amount: Uint128::zero(),
+//                     claimed: Uint128::zero(),
 //                     claimable: false,
 //                     customer: Addr::unchecked("customer".to_string()),
 //                     package_id: "2".to_string()

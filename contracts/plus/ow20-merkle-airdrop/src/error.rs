@@ -1,5 +1,5 @@
 use crate::scheduled::Scheduled;
-use cosmwasm_std::StdError;
+use cosmwasm_std::{DivideByZeroError, StdError};
 use cw_utils::Expiration;
 use hex::FromHexError;
 use thiserror::Error;
@@ -11,6 +11,9 @@ pub enum ContractError {
 
     #[error("{0}")]
     Hex(#[from] FromHexError),
+
+    #[error("{0}")]
+    Div(#[from] DivideByZeroError),
 
     #[error("Unauthorized")]
     Unauthorized {},

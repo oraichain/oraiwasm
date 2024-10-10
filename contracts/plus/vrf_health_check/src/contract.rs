@@ -1,11 +1,15 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use std::ops::Sub;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, QueryRoundResponse, QuerySingleRoundResponse};
+use crate::msg::{
+    ExecuteMsg, InstantiateMsg, QueryMsg, QueryRoundResponse, QuerySingleRoundResponse,
+};
 use crate::state::{config, config_read, Member, RoundInfo, State, MAPPED_COUNT};
 use cosmwasm_std::{
-    attr, to_json_binary, Binary, Deps, DepsMut, Env, Response, Addr, Response,
-    MessageInfo, Order, StdResult,
+    attr, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult,
 };
 use cw_storage_plus::Bound;
 
@@ -16,7 +20,12 @@ const DEFAULT_ROUND_JUMP: u64 = 300;
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn instantiate(deps: DepsMut, env: Env, info: MessageInfo, init: InstantiateMsg) -> StdResult<Response> {
+pub fn instantiate(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+    init: InstantiateMsg,
+) -> StdResult<Response> {
     let state = State {
         owner: info.sender.clone(),
         round_jump: DEFAULT_ROUND_JUMP,
@@ -99,10 +108,10 @@ pub fn change_state(
         reset_count(deps, info)?;
     }
 
-    Ok(Response {
-        add_attributes(vec![attr("action", "change_state"), attr("caller", info_sender)],
-        ..Response::default()
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "change_state"),
+        attr("caller", info_sender),
+    ]))
 }
 
 pub fn reset_count(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
@@ -122,17 +131,13 @@ pub fn reset_count(deps: DepsMut, info: MessageInfo) -> Result<Response, Contrac
         }
     }
 
-    Ok(Response {
-        add_attributes(vec![attr("action", "reset_count"), attr("caller", info.sender)],
-        ..Response::default()
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "reset_count"),
+        attr("caller", info.sender),
+    ]))
 }
 
-pub fn add_ping(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-) -> Result<Response, ContractError> {
+pub fn add_ping(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
     let QuerySingleRoundResponse {
         mut round_info,
         round_jump,
@@ -158,10 +163,10 @@ pub fn add_ping(
     round_info.round = round_info.round + 1;
     round_info.height = env.block.height;
     MAPPED_COUNT.save(deps.storage, info.sender.as_bytes(), &round_info)?;
-    Ok(Response {
-        add_attributes(vec![attr("action", "add_ping"), attr("executor", info.sender)],
-        ..Response::default()
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "add_ping"),
+        attr("executor", info.sender),
+    ]))
 }
 
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -209,8 +214,8 @@ fn query_rounds(
     order: Option<u8>,
 ) -> StdResult<Vec<QueryRoundResponse>> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let mut min: Option<Bound> = None;
-    let max: Option<Bound> = None;
+    let mut min = None;
+    let max = None;
     let mut order_enum = Order::Ascending;
     if let Some(num) = order {
         if num == 2 {
@@ -220,7 +225,7 @@ fn query_rounds(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::Exclusive(offset.as_bytes().to_vec()));
+        let offset_value = Some(Bound::ExclusiveRaw(offset.as_bytes().to_vec()));
         // match order_enum {
         //     Order::Ascending => min = offset_value,
         //     Order::Descending => max = offset_value,

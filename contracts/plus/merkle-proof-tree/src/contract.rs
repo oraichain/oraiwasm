@@ -95,7 +95,7 @@ pub fn execute_register_merkle_root(
 
     let stage = LATEST_STAGE.update(deps.storage, |stage| -> StdResult<_> { Ok(stage + 1) })?;
 
-    MERKLE_ROOT.save(deps.storage, U8Key::from(stage), &merkle_root)?;
+    MERKLE_ROOT.save(deps.storage, stage, &merkle_root)?;
 
     Ok(Response {
         data: None,
@@ -184,7 +184,7 @@ pub fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
 }
 
 pub fn query_merkle_root(deps: Deps, stage: u8) -> StdResult<MerkleRootResponse> {
-    let merkle_root = MERKLE_ROOT.load(deps.storage, U8Key::from(stage))?;
+    let merkle_root = MERKLE_ROOT.load(deps.storage, stage)?;
     let resp = MerkleRootResponse { stage, merkle_root };
 
     Ok(resp)

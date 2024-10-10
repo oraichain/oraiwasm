@@ -18,7 +18,7 @@ const DENOM: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
-    
+
     let msg = InstantiateMsg {
         governance: Addr::unchecked("market_hub"),
     };
@@ -37,7 +37,7 @@ fn test_price() {
     assert_eq!(Uint128::from(200u128), payout);
     price = Uint128::from(1u128);
     payout = price.mul(percent);
-    assert_eq!(Uint128::from(0u128), payout)
+    assert_eq!(Uint128::zero(), payout)
 }
 
 #[test]

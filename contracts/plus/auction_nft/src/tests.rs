@@ -104,7 +104,7 @@ fn sell_auction_happy_path() {
     let info = mock_info("anyone", &vec![coin(5, DENOM)]);
 
     let sell_msg = AskNftMsg {
-        price: Uint128::from(0u128),
+        price: Uint128::zero(),
         cancel_fee: Some(10),
         start: None,
         end: None,

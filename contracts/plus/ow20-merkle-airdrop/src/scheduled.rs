@@ -33,7 +33,7 @@ impl Scheduled {
     pub fn is_triggered(&self, block: &BlockInfo) -> bool {
         match self {
             Scheduled::AtHeight(height) => block.height >= *height,
-            Scheduled::AtTime(time) => block.time >= *time,
+            Scheduled::AtTime(time) => block.time.seconds() >= *time,
         }
     }
 }

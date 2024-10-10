@@ -78,7 +78,7 @@ pub fn pay_royalties(
         // royalty = total price * royalty percentage
         let creator_amount =
             price.mul(Uint128::from(royalty.royalty)) / Uint128::from(decimal_point);
-        if creator_amount.gt(&Uint128::from(0u128)) {
+        if creator_amount.gt(&Uint128::zero()) {
             *remaining = remaining.sub(creator_amount);
             cosmos_msgs.push(parse_transfer_msg(
                 asset_info.clone(),

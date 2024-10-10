@@ -600,7 +600,7 @@ fn sell_auction_happy_path() {
         let asker_info = mock_info("asker", &vec![coin(5, DENOM)]);
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128::from(0u128),
+            per_price: Uint128::zero(),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -647,7 +647,7 @@ fn sell_auction_cw20_happy_path() {
         let asker_info = mock_info("asker", &vec![coin(5, DENOM)]);
 
         let sell_msg = AskNftMsg {
-            per_price: Uint128::from(0u128),
+            per_price: Uint128::zero(),
             cancel_fee: Some(10),
             start: None,
             end: None,
@@ -2054,7 +2054,7 @@ fn test_royalties() {
 
         let results = manager.execute(info_buy, buy_msg).unwrap();
 
-        let mut total_payment = Uint128::from(0u128);
+        let mut total_payment = Uint128::zero();
 
         // query royalties
         let royalties: Vec<Royalty> = from_json(
@@ -2206,7 +2206,7 @@ fn test_royalties_cw20() {
 
         let results = manager.execute(info_buy, buy_msg).unwrap();
 
-        let mut total_payment = Uint128::from(0u128);
+        let mut total_payment = Uint128::zero();
 
         // query royalties
         let royalties: Vec<Royalty> = from_json(
@@ -3174,7 +3174,7 @@ fn transfer_nft_directly_unhappy_path() {
         // )
         // .unwrap();
 
-        // assert_eq!(receiver_balance.balance, Uint128::from(0u128)));
+        // assert_eq!(receiver_balance.balance, Uint128::zero()));
         // assert_eq!(sender_balance.balance, Uint128::from(50u128)));
     }
 }

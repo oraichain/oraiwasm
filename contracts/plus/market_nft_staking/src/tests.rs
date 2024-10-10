@@ -330,7 +330,7 @@ fn create_collection_pool_test() {
 
         let mut msg = CreateCollectionPoolMsg {
             collection_id: String::from("1"),
-            reward_per_block: Uint128::from(0u128),
+            reward_per_block: Uint128::zero(),
             expired_after: None
         };
 

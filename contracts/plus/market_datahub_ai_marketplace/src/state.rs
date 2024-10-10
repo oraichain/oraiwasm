@@ -1,5 +1,5 @@
 use cosmwasm_std::{Addr, StdResult, Storage, Uint128};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -37,10 +37,10 @@ pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("ai_market_storage_info"
 // Offering storage IndexsMap
 
 pub struct PackageOfferingIndexes<'a> {
-    pub seller: MultiIndex<'a, PackageOffering>,
-    pub customer: MultiIndex<'a, PackageOffering>,
-    pub package_id: MultiIndex<'a, PackageOffering>,
-    pub id: UniqueIndex<'a, PkOwned, PackageOffering>,
+    pub seller: MultiIndex<'a, Vec<u8>, PackageOffering, &'a [u8]>,
+    pub customer: MultiIndex<'a, Vec<u8>, PackageOffering, &'a [u8]>,
+    pub package_id: MultiIndex<'a, Vec<u8>, PackageOffering, &'a [u8]>,
+    pub id: UniqueIndex<'a, Vec<u8>, PackageOffering>,
 }
 
 impl<'a> IndexList<PackageOffering> for PackageOfferingIndexes<'a> {
@@ -55,24 +55,21 @@ pub fn package_offerings<'a>(
 ) -> IndexedMap<'a, &'a [u8], PackageOffering, PackageOfferingIndexes<'a>> {
     let indexes = PackageOfferingIndexes {
         seller: MultiIndex::new(
-            |o| o.seller.as_bytes().to_vec(),
+            |_pk, o| o.seller.as_bytes().to_vec(),
             "package_offerings",
             "package_offerings__seller",
         ),
         customer: MultiIndex::new(
-            |o| o.customer.as_bytes().to_vec(),
+            |_pk, o| o.customer.as_bytes().to_vec(),
             "package_offerings",
             "package_offerings__customer",
         ),
         package_id: MultiIndex::new(
-            |o| o.package_id.as_bytes().to_vec(),
+            |_pk, o| o.package_id.as_bytes().to_vec(),
             "package_offerings",
             "package_offerings__package_id",
         ),
-        id: UniqueIndex::new(
-            |o| PkOwned(o.id.to_be_bytes().to_vec()),
-            "package_offering_id",
-        ),
+        id: UniqueIndex::new(|o| o.id.to_be_bytes().to_vec(), "package_offering_id"),
     };
     IndexedMap::new("package_offerings", indexes)
 }

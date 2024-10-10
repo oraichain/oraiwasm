@@ -3,16 +3,16 @@ use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::{Member, State};
 use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    mock_dependencies_with_balance, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
-use cosmwasm_std::{coins, from_json, Binary, BlockInfo, OwnedDeps};
+use cosmwasm_std::{coins, from_json, Binary, BlockInfo, OwnedDeps, Timestamp};
 use cosmwasm_std::{Addr, Env};
 
 const OWNER: &str = "orai1up8ct7kk2hr6x9l37ev6nfgrtqs268tdrevk3d";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies_with_balance(&coins(100000, "orai"));
-    
+
     let msg = InstantiateMsg {
         members: vec![
             Member {
@@ -50,7 +50,7 @@ fn proper_initialization() {
     // init ping
     for i in 1..5 {
         let msg = ExecuteMsg::Ping {};
-        let info = mock_info(i.to_string(), &[]);
+        let info = mock_info(i.to_string().as_str(), &[]);
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     }
 
@@ -70,14 +70,13 @@ fn proper_initialization() {
     // update ping
     for i in 1..4 {
         let msg = ExecuteMsg::Ping {};
-        let info = mock_info(i.to_string(), &[]);
+        let info = mock_info(i.to_string().as_str(), &[]);
         execute(
             deps.as_mut(),
             Env {
                 block: BlockInfo {
                     height: 12_645,
-                    time: 1_571_797_419,
-                    time_nanos: 879305533,
+                    time: Timestamp::from_seconds(1_571_797_419),
                     chain_id: "cosmos-testnet-14002".to_string(),
                 },
                 ..mock_env()
@@ -127,7 +126,7 @@ fn update_ping_too_soon() {
     // init ping
     for i in 1..5 {
         let msg = ExecuteMsg::Ping {};
-        let info = mock_info(i.to_string(), &[]);
+        let info = mock_info(i.to_string().as_str(), &[]);
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();
     }
 
@@ -146,15 +145,14 @@ fn update_ping_too_soon() {
     // update ping
     for i in 1..4 {
         let msg = ExecuteMsg::Ping {};
-        let info = mock_info(i.to_string(), &[]);
+        let info = mock_info(i.to_string().as_str(), &[]);
         assert!(matches!(
             execute(
                 deps.as_mut(),
                 Env {
                     block: BlockInfo {
                         height: 12_545,
-                        time: 1_571_797_419,
-                        time_nanos: 879305533,
+                        time: Timestamp::from_seconds(1_571_797_419),
                         chain_id: "cosmos-testnet-14002".to_string(),
                     },
                     ..mock_env()
@@ -193,14 +191,14 @@ fn change_owner() {
         prev_checkpoint: None,
         cur_checkpoint: None,
     };
-    let info = mock_info(Addr::unchecked("someone".to_string()), &[]);
+    let info = mock_info("someone", &[]);
     assert!(matches!(
         execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()),
         Err(ContractError::Unauthorized {})
     ));
 
     // authorized reset
-    let info = mock_info(Addr::unchecked(OWNER.to_string()), &[]);
+    let info = mock_info(OWNER, &[]);
     execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     // query new state

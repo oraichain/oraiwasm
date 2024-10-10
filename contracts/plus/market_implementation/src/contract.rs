@@ -76,7 +76,7 @@ pub fn instantiate(
         decimal_point: msg.max_decimal_point,
     };
     CONTRACT_INFO.save(deps.storage, &info)?;
-    MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
+    MARKET_FEES.save(deps.storage, &Uint128::zero())?;
     Ok(Response::default())
 }
 
@@ -191,7 +191,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    // MARKET_FEES.save(deps.storage, &Uint128::from(0u128))?;
+    // MARKET_FEES.save(deps.storage, &Uint128::zero())?;
     Ok(Response::default())
 }
 

@@ -227,7 +227,7 @@ pub fn try_buy(
             if contract_info.fee > 0 {
                 let fee_amount = off.price.mul(Decimal::permille(contract_info.fee));
                 // Rust will automatically floor down the value to 0 if amount is too small => error
-                if fee_amount.gt(&Uint128::from(0u128)) {
+                if fee_amount.gt(&Uint128::zero()) {
                     seller_amount = seller_amount.sub(fee_amount)?;
                     cosmos_msgs.push(
                         BankMsg::Send {
@@ -245,7 +245,7 @@ pub fn try_buy(
                 royalties_read(deps.storage, &off.contract_addr).load(off.token_id.as_bytes())
             {
                 let creator_amount = off.price.mul(Decimal::percent(creator_royalty));
-                if creator_amount.gt(&Uint128::from(0u128)) {
+                if creator_amount.gt(&Uint128::zero()) {
                     seller_amount = seller_amount.sub(creator_amount)?;
                     cosmos_msgs.push(
                         BankMsg::Send {
@@ -261,7 +261,7 @@ pub fn try_buy(
             // payout for the previous owner
             if let Some(owner_royalty) = off.royalty {
                 let owner_amount = off.price.mul(Decimal::percent(owner_royalty));
-                if owner_amount.gt(&Uint128::from(0u128)) {
+                if owner_amount.gt(&Uint128::zero()) {
                     seller_amount = seller_amount.sub(owner_amount)?;
                     cosmos_msgs.push(
                         BankMsg::Send {

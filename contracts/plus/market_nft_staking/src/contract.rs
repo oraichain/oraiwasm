@@ -485,7 +485,7 @@ fn handle_stake(
             )?
             .add(&staker_info.pending.clone());
 
-            if pending.gt(&Uint128::from(0u128)) {
+            if pending.gt(&Uint128::zero()) {
                 //println!("staker_info {:?}", staker_info);
                 collection_staker_infos().update(
                     deps.storage,
@@ -496,7 +496,7 @@ fn handle_stake(
                             if msg.withdraw_rewards {
                                 attributes.push(attr("claimed", pending.clone()));
                                 staker_info.total_earned.add_assign(pending.clone());
-                                staker_info.pending = Uint128::from(0u128);
+                                staker_info.pending = Uint128::zero();
                             } else {
                                 staker_info.pending = pending;
                             }
@@ -643,7 +643,7 @@ pub fn handle_withdraw(
 
     match collection_staker_info {
         Some(staker_info) => {
-            if staker_info.total_staked.le(&Uint128::from(0u128)) {
+            if staker_info.total_staked.le(&Uint128::zero()) {
                 return Err(ContractError::Std(StdError::generic_err(
                     "You have not stake any nft editions to this collection",
                 )));
@@ -670,7 +670,7 @@ pub fn handle_withdraw(
             )?
             .add(&staker_info.pending.clone());
 
-            if current_pending.gt(&Uint128::from(0u128)) {
+            if current_pending.gt(&Uint128::zero()) {
                 collection_staker_infos().update(
                     deps.storage,
                     &staker_info.id.unwrap().to_be_bytes(),
@@ -679,7 +679,7 @@ pub fn handle_withdraw(
                             if withdraw_rewards {
                                 attributes.push(attr("claimed", current_pending.clone()));
                                 old_info.total_earned.add_assign(current_pending.clone());
-                                old_info.pending = Uint128::from(0u128);
+                                old_info.pending = Uint128::zero();
                             } else {
                                 old_info.pending = current_pending.clone();
                             }
@@ -715,7 +715,7 @@ pub fn handle_withdraw(
                 return  Err(ContractError::Std(StdError::generic_err("Invalid withdraw: You are trying to withdraw some nfts that you haven't staken!")));
             }
 
-            let mut num_of_withdraw_editions = Uint128::from(0u128);
+            let mut num_of_withdraw_editions = Uint128::zero();
 
             // Transfer nfts back to staker
             for nft in withdraw_nfts {
@@ -827,7 +827,7 @@ pub fn handle_claim(
             let collection_pool_info =
                 update_collection_pool(deps.storage, env, collection_id.clone())?;
 
-            let mut claim_amount = Uint128::from(0u128);
+            let mut claim_amount = Uint128::zero();
 
             //Update or claim pending
             let current_pending = checked_sub(
@@ -839,7 +839,7 @@ pub fn handle_claim(
             )?
             .add(&staker_info.pending.clone());
 
-            if current_pending.gt(&Uint128::from(0u128)) {
+            if current_pending.gt(&Uint128::zero()) {
                 println!("current_pending {:?}", current_pending.clone());
                 staker_info = collection_staker_infos().update(
                     deps.storage,
@@ -849,7 +849,7 @@ pub fn handle_claim(
                             claim_amount = current_pending.clone();
                             //Update total_earnded and reset pending
                             old_info.total_earned.add_assign(current_pending);
-                            old_info.pending = Uint128::from(0u128);
+                            old_info.pending = Uint128::zero();
 
                             Ok(old_info)
                         } else {
@@ -925,7 +925,7 @@ pub fn handle_reset_earned_rewards(
                 |data| {
                     if let Some(mut old_info) = data {
                         attributes.push(attr("amount", old_info.total_earned.clone()));
-                        old_info.total_earned = Uint128::from(0u128);
+                        old_info.total_earned = Uint128::zero();
                         Ok(old_info)
                     } else {
                         Err(ContractError::Std(StdError::generic_err(
@@ -1025,7 +1025,7 @@ fn current_pending(
         .unwrap();
     let mut acc_per_share_view = collection_pool_info.acc_per_share.clone();
     if env.block.height > collection_pool_info.last_reward_block
-        && collection_pool_info.total_nfts.ne(&Uint128::from(0u128))
+        && collection_pool_info.total_nfts.ne(&Uint128::zero())
     {
         let multiplier = env.block.height - collection_pool_info.last_reward_block;
         let airi_reward = checked_mul(
@@ -1037,7 +1037,7 @@ fn current_pending(
             collection_pool_info.total_nfts.clone(),
         )?);
     }
-    if staker_info.total_staked.gt(&Uint128::from(0u128)) {
+    if staker_info.total_staked.gt(&Uint128::zero()) {
         Ok(checked_sub(
             checked_mul(staker_info.total_staked, acc_per_share_view)?.add(staker_info.pending),
             staker_info.reward_debt,
@@ -1117,7 +1117,7 @@ pub fn query_collection_pool_info(
         let mut acc_per_share_view = collection_pool_info.acc_per_share.clone();
 
         if env.block.height > collection_pool_info.last_reward_block
-            && collection_pool_info.total_nfts.ne(&Uint128::from(0u128))
+            && collection_pool_info.total_nfts.ne(&Uint128::zero())
         {
             let multiplier = env.block.height - collection_pool_info.last_reward_block;
             let airi_reward = checked_mul(
@@ -1156,7 +1156,7 @@ pub fn query_collection_pool_infos(
             let (_, item) = kv_item?;
             if get_real_acc_per_share
                 && env.block.height > item.last_reward_block
-                && item.total_nfts.ne(&Uint128::from(0u128))
+                && item.total_nfts.ne(&Uint128::zero())
             {
                 let mut acc_per_share_view = item.acc_per_share.clone();
                 let multiplier = env.block.height - item.last_reward_block;

@@ -233,7 +233,7 @@ pub fn try_buy(
                     // royalty = total price * royalty percentage
                     let creator_amount =
                         price.mul(Decimal::from_ratio(royalty.royalty, decimal_point));
-                    if creator_amount.gt(&Uint128::from(0u128)) {
+                    if creator_amount.gt(&Uint128::zero()) {
                         seller_amount = seller_amount.sub(creator_amount)?;
                         cosmos_msgs.push(
                             BankMsg::Send {

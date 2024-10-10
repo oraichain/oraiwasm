@@ -1,9 +1,12 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use cosmwasm_std::{
-    attr, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Response, Order,
-    Response, Response, StdResult, Uint128, WasmMsg,
+    attr, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    StdResult, Uint128, WasmMsg,
 };
 use cw20::Cw20ExecuteMsg;
-use cw_storage_plus::{Bound, U8Key};
+use cw_storage_plus::Bound;
 use cw_utils::Expiration;
 use sha2::Digest;
 use std::convert::TryInto;
@@ -105,10 +108,7 @@ pub fn execute_update_config(
         })?;
     }
 
-    Ok(Response {
-        add_attributes(vec![attr("action", "update_config")],
-        messages: vec![],
-        ))
+    Ok(Response::new().add_attributes(vec![attr("action", "update_config")]))
 }
 
 pub fn execute_update_claim(
@@ -128,10 +128,7 @@ pub fn execute_update_claim(
         CLAIM.save(deps.storage, &key, &true)?;
     }
 
-    Ok(Response {
-        add_attributes(vec![attr("action", "update_claim")],
-        messages: vec![],
-        ))
+    Ok(Response::new().add_attributes(vec![attr("action", "update_claim")]))
 }
 
 pub fn execute_remove_merkle_root(
@@ -147,12 +144,12 @@ pub fn execute_remove_merkle_root(
         return Err(ContractError::Unauthorized {});
     }
 
-    MERKLE_ROOT.save(deps.storage, U8Key::from(stage), &"".into())?;
+    MERKLE_ROOT.save(deps.storage, stage, &String::new())?;
 
-    Ok(Response {
-        add_attributes(vec![attr("action", "remove_merkle_root"), attr("stage", stage)],
-        messages: vec![],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "remove_merkle_root"),
+        attr("stage", stage.to_string()),
+    ]))
 }
 
 pub fn execute_register_merkle_root(
@@ -179,36 +176,32 @@ pub fn execute_register_merkle_root(
 
     let stage = LATEST_STAGE.update(deps.storage, |stage| -> StdResult<_> { Ok(stage + 1) })?;
 
-    MERKLE_ROOT.save(deps.storage, U8Key::from(stage), &merkle_root)?;
+    MERKLE_ROOT.save(deps.storage, stage, &merkle_root)?;
     LATEST_STAGE.save(deps.storage, &stage)?;
 
     // save expiration
     let exp = expiration.unwrap_or(Expiration::Never {});
-    STAGE_EXPIRATION.save(deps.storage, U8Key::from(stage), &exp)?;
+    STAGE_EXPIRATION.save(deps.storage, stage, &exp)?;
 
     // save start
     if let Some(start) = start {
-        STAGE_START.save(deps.storage, U8Key::from(stage), &start)?;
+        STAGE_START.save(deps.storage, stage, &start)?;
     }
 
     // save total airdropped amount
     let amount = total_amount.unwrap_or_else(Uint128::zero);
-    STAGE_AMOUNT.save(deps.storage, U8Key::from(stage), &amount)?;
-    STAGE_AMOUNT_CLAIMED.save(deps.storage, U8Key::from(stage), &Uint128::zero())?;
+    STAGE_AMOUNT.save(deps.storage, stage, &amount)?;
+    STAGE_AMOUNT_CLAIMED.save(deps.storage, stage, &Uint128::zero())?;
 
-    STAGE_METADATA.save(deps.storage, U8Key::from(stage), &metadata)?;
+    STAGE_METADATA.save(deps.storage, stage, &metadata)?;
 
-    Ok(Response {
-        data: None,
-        messages: vec![],
-        add_attributes(vec![
-            attr("action", "register_merkle_root"),
-            attr("stage", stage.to_string()),
-            attr("merkle_root", merkle_root),
-            attr("total_amount", amount),
-            attr("metadata", metadata),
-        ],
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "register_merkle_root"),
+        attr("stage", stage.to_string()),
+        attr("merkle_root", merkle_root),
+        attr("total_amount", amount),
+        attr("metadata", metadata.to_string()),
+    ]))
 }
 
 pub fn execute_claim(
@@ -220,27 +213,27 @@ pub fn execute_claim(
     proof: Vec<String>,
 ) -> Result<Response, ContractError> {
     // airdrop begun
-    let start = STAGE_START.may_load(deps.storage, U8Key::from(stage))?;
+    let start = STAGE_START.may_load(deps.storage, stage)?;
     if let Some(start) = start {
         if !start.is_triggered(&_env.block) {
             return Err(ContractError::StageNotBegun { stage, start });
         }
     }
     // not expired
-    let expiration = STAGE_EXPIRATION.load(deps.storage, U8Key::from(stage))?;
+    let expiration = STAGE_EXPIRATION.load(deps.storage, stage)?;
     if expiration.is_expired(&_env.block) {
         return Err(ContractError::StageExpired { stage, expiration });
     }
 
     // verify not claimed
-    let mut key = deps.api.addr_canonicalize(&info.sender)?.to_vec();
+    let mut key = deps.api.addr_canonicalize(info.sender.as_str())?.to_vec();
     key.push(stage);
     let claimed = CLAIM.may_load(deps.storage, &key)?;
     if claimed.is_some() {
         return Err(ContractError::Claimed {});
     }
 
-    let merkle_root = MERKLE_ROOT.load(deps.storage, U8Key::from(stage))?;
+    let merkle_root = MERKLE_ROOT.load(deps.storage, stage)?;
 
     // let user_input = format!("{{\"address\":\"{}\",\"data\":{}}}", info.sender, data);
     let user_input = format!("{}{}", info.sender, amount);
@@ -276,24 +269,21 @@ pub fn execute_claim(
 
     let config = CONFIG.load(deps.storage)?;
 
-    let res = Response {
-        data: None,
-        messages: vec![WasmMsg::Execute {
-            contract_addr: config.cw20_token_address,
+    let res = Response::new()
+        .add_messages(vec![WasmMsg::Execute {
+            contract_addr: config.cw20_token_address.to_string(),
             msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: info.sender.clone(),
+                recipient: info.sender.to_string(),
                 amount,
             })?,
             funds: vec![],
-        }
-        .into()],
-        add_attributes(vec![
+        }])
+        .add_attributes(vec![
             attr("action", "claim"),
             attr("stage", stage.to_string()),
             attr("address", info.sender.to_string()),
             attr("amount", amount),
-        ],
-    };
+        ]);
     Ok(res)
 }
 
@@ -326,23 +316,22 @@ pub fn execute_burn(
     }
 
     // Get balance
-    let balance_to_burn = (total_amount - claimed_amount)?;
+    let balance_to_burn = total_amount.checked_div(claimed_amount)?;
 
-    let res = Response::new().add_messages( vec![WasmMsg::Execute {
-            contract_addr: cfg.cw20_token_address,
+    let res = Response::new()
+        .add_messages(vec![WasmMsg::Execute {
+            contract_addr: cfg.cw20_token_address.to_string(),
             funds: vec![],
             msg: to_json_binary(&Cw20ExecuteMsg::Burn {
                 amount: balance_to_burn,
             })?,
-        }
-        .into()],
-        add_attributes(vec![
+        }])
+        .add_attributes(vec![
             attr("action", "burn"),
             attr("stage", stage.to_string()),
             attr("address", info.sender),
             attr("amount", balance_to_burn),
-        ],
-        );
+        ]);
     Ok(res)
 }
 
@@ -375,26 +364,25 @@ pub fn execute_withdraw(
     }
 
     // Get balance
-    let balance_to_withdraw = (total_amount - claimed_amount)?;
+    let balance_to_withdraw = total_amount.checked_div(claimed_amount)?;
 
     // Withdraw the tokens and response
-    let res = Response::new().add_messages( vec![WasmMsg::Execute {
-            contract_addr: cfg.cw20_token_address,
+    let res = Response::new()
+        .add_messages(vec![WasmMsg::Execute {
+            contract_addr: cfg.cw20_token_address.to_string(),
             funds: vec![],
             msg: to_json_binary(&Cw20ExecuteMsg::Transfer {
-                recipient: owner.clone(),
+                recipient: owner.to_string(),
                 amount: balance_to_withdraw,
             })?,
-        }
-        .into()],
-        add_attributes(vec![
+        }])
+        .add_attributes(vec![
             attr("action", "withdraw"),
             attr("stage", stage.to_string()),
             attr("address", info.sender),
             attr("amount", balance_to_withdraw),
             attr("recipient", owner),
-        ],
-        );
+        ]);
 
     Ok(res)
 }
@@ -470,9 +458,7 @@ pub fn query_claim_keys(
         .map(|x| x.unwrap().0)
         .collect();
 
-    let resp = ClaimKeysResponse {
-        claim_keys: claim_keys,
-    };
+    let resp = ClaimKeysResponse { claim_keys };
 
     Ok(resp)
 }
@@ -481,13 +467,17 @@ fn get_range_params(
     offset: Option<Vec<u8>>,
     limit: Option<u64>,
     order_enum: Order,
-) -> (usize, Option<Bound>, Option<Bound>) {
+) -> (
+    usize,
+    Option<Bound<'static, &'static [u8]>>,
+    Option<Bound<'static, &'static [u8]>>,
+) {
     let limit = limit.unwrap_or(1000u64).min(1000u64) as usize;
 
-    let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
+    let mut min = None;
+    let mut max = None;
 
-    let offset_value = offset.map(|offset| Bound::Exclusive(offset));
+    let offset_value = offset.map(|offset| Bound::ExclusiveRaw(offset));
     match order_enum {
         Order::Ascending => min = offset_value,
         Order::Descending => max = offset_value,
@@ -516,10 +506,6 @@ pub fn query_claim_key_count(deps: Deps) -> StdResult<ClaimKeyCountResponse> {
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(
-    _deps: DepsMut,
-    _env: Env,
-    _msg: MigrateMsg,
-) -> Result<Response, ContractError> {
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     Ok(Response::default())
 }

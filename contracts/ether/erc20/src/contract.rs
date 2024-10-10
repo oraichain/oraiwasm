@@ -912,7 +912,7 @@ mod tests {
             // Transfer
             let transfer_msg = ExecuteMsg::Transfer {
                 recipient: Addr::unchecked("addr1111".to_string()),
-                amount: Uint128::from(0u128),
+                amount: Uint128::zero(),
             };
             let (env, info) = mock_env_height(&Addr::unchecked("addr0000".to_string()), 450, 550);
             let transfer_result = execute(deps.as_mut(), env, info, transfer_msg).unwrap();
@@ -1469,7 +1469,7 @@ mod tests {
             assert_eq!(get_total_supply(&deps.storage), 33);
             // Burn
             let burn_msg = ExecuteMsg::Burn {
-                amount: Uint128::from(0u128),
+                amount: Uint128::zero(),
             };
             let (env, info) = mock_env_height(&Addr::unchecked("addr0000".to_string()), 450, 550);
             let burn_result = execute(deps.as_mut(), env, info, burn_msg).unwrap();

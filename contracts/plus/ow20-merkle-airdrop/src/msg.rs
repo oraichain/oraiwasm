@@ -1,12 +1,13 @@
+use cosmwasm_schema::cw_serde;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{Binary, Addr, Uint128};
+use cosmwasm_std::{Addr, Binary, Uint128};
 use cw_utils::Expiration;
 
 use crate::scheduled::Scheduled;
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[cw_serde]
 pub struct InstantiateMsg {
     /// Owner if none set to info.sender.
     pub owner: Option<Addr>,
