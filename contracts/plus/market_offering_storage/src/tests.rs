@@ -4,7 +4,7 @@ use crate::contract::*;
 use crate::msg::*;
 use crate::state::ContractInfo;
 use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    mock_dependencies_with_balance, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Decimal;
 use cosmwasm_std::{coin, coins, from_json, Addr, Order, OwnedDeps, Uint128};
@@ -21,7 +21,7 @@ const DENOM: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
-    
+
     let msg = InstantiateMsg {
         governance: Addr::unchecked("market_hub"),
     };
@@ -54,17 +54,9 @@ fn sort_offering() {
     for i in 1u64..3u64 {
         let offering = Offering {
             id: Some(i),
-            contract_addr: deps
-                .as_ref()
-                .api
-                .addr_canonicalize(&Addr::unchecked("xxx"))
-                .unwrap(),
+            contract_addr: deps.as_ref().api.addr_canonicalize("xxx").unwrap(),
             token_id: i.to_string(),
-            seller: deps
-                .as_ref()
-                .api
-                .addr_canonicalize(&Addr::unchecked("seller"))
-                .unwrap(),
+            seller: deps.as_ref().api.addr_canonicalize("seller").unwrap(),
             price: Uint128::from(1u64),
         };
         offerings.push(offering);
@@ -80,7 +72,7 @@ fn sort_offering() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Offering(OfferingQueryMsg::GetOfferingsBySeller {
-            seller: "seller".into(),
+            seller: Addr::unchecked("seller"),
             limit: Some(100),
             offset: Some(50),
             order: Some(Order::Descending as u8),
@@ -94,7 +86,7 @@ fn sort_offering() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Offering(OfferingQueryMsg::GetOfferingsBySeller {
-            seller: "seller".into(),
+            seller: Addr::unchecked("seller"),
             limit: Some(100),
             offset: Some(1),
             order: Some(Order::Ascending as u8),
@@ -139,7 +131,7 @@ fn sort_offering_royalty() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Offering(OfferingQueryMsg::GetOfferingsRoyaltyByCurrentOwner {
-            current_owner: "seller1".into(),
+            current_owner: Addr::unchecked("seller1"),
             limit: None,
             offset: None,
             order: Some(Order::Ascending as u8),
@@ -205,17 +197,9 @@ fn withdraw_offering() {
     for i in 1u64..3u64 {
         let offering = Offering {
             id: Some(i),
-            contract_addr: deps
-                .as_ref()
-                .api
-                .addr_canonicalize(&Addr::unchecked("xxx"))
-                .unwrap(),
+            contract_addr: deps.as_ref().api.addr_canonicalize("xxx").unwrap(),
             token_id: i.to_string(),
-            seller: deps
-                .as_ref()
-                .api
-                .addr_canonicalize(&Addr::unchecked("seller"))
-                .unwrap(),
+            seller: deps.as_ref().api.addr_canonicalize("seller").unwrap(),
             price: Uint128::from(1u64),
         };
         offerings.push(offering);
@@ -233,7 +217,7 @@ fn withdraw_offering() {
         deps.as_ref(),
         mock_env(),
         QueryMsg::Offering(OfferingQueryMsg::GetOfferingsBySeller {
-            seller: "seller".into(),
+            seller: Addr::unchecked("seller"),
             limit: Some(100),
             offset: Some(1),
             order: Some(Order::Ascending as u8),

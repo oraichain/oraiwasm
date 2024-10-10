@@ -164,7 +164,7 @@ pub fn try_update_offering(
 
     return Ok(Response::new().add_attributes(vec![
         attr("action", "update_offering"),
-        attr("offering_id", offering.id.unwrap()),
+        attr("offering_id", offering.id.unwrap().to_string()),
     ]));
 }
 
@@ -186,7 +186,7 @@ pub fn try_remove_offering(
 
     return Ok(Response::new().add_attributes(vec![
         attr("action", "remove_offering"),
-        attr("offering_id", id),
+        attr("offering_id", id.to_string()),
     ]));
 }
 
@@ -317,8 +317,8 @@ fn _get_range_params_offering_royalty(
     Order,
 ) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let mut min: Option<Bound> = None;
-    let max: Option<Bound> = None;
+    let mut min = None;
+    let max = None;
     let mut order_enum = Order::Ascending;
     if let Some(num) = order {
         if num == 2 {
@@ -379,7 +379,8 @@ pub fn query_offerings_by_seller(
     let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .idx
         .seller
-        .items(deps.storage, &seller_raw, min, max, order_enum)
+        .prefix(seller_raw.to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(deps.api, kv_item))
         .collect();
@@ -399,7 +400,8 @@ pub fn query_offerings_by_contract(
     let res: StdResult<Vec<QueryOfferingsResult>> = offerings()
         .idx
         .contract
-        .items(deps.storage, &contract_raw, min, max, order_enum)
+        .prefix(contract_raw.to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(deps.api, kv_item))
         .collect();
@@ -476,13 +478,8 @@ pub fn query_offerings_royalty_by_current_owner(
     let res: StdResult<Vec<OfferingRoyalty>> = offerings_royalty()
         .idx
         .current_owner
-        .items(
-            deps.storage,
-            &current_owner.as_bytes(),
-            min,
-            max,
-            order_enum,
-        )
+        .prefix(current_owner.as_bytes().to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering_royalty(kv_item))
         .collect();
@@ -501,7 +498,8 @@ pub fn query_offerings_royalty_by_contract(
     let res: StdResult<Vec<OfferingRoyalty>> = offerings_royalty()
         .idx
         .contract
-        .items(deps.storage, &contract.as_bytes(), min, max, order_enum)
+        .prefix(contract.as_bytes().to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering_royalty(kv_item))
         .collect();
