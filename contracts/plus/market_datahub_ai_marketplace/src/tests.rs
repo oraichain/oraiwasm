@@ -17,8 +17,8 @@ const DENOM: &str = "orai";
 const SELLER_ADDR: &str = "oraiDuongbeo";
 const CUSTOMER_ADDR: &str = "oraiHaichan";
 const MOCK_PACKAGE_ID: &str = "454fef-543545-fefefef-343434";
-const MOCK_NUMBER_OF_REQUEST: Uint128 = Uint128::from(30u128);
-const MOCK_UNIT_PRICE: Uint128 = Uint128::from(1u128);
+const MOCK_NUMBER_OF_REQUEST: u128 = 30u128;
+const MOCK_UNIT_PRICE: u128 = 1u128;
 
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
@@ -99,7 +99,7 @@ fn test_buy_and_instantiate() {
     // let per_price = Uint128::from(1u128);
     let customer_address = Addr::unchecked(CUSTOMER_ADDR);
     let owner_address = Addr::unchecked(SELLER_ADDR);
-    let info_buy = mock_info(customer_address.clone(), &vec![coin(30, DENOM)]);
+    let info_buy = mock_info(customer_address.as_str(), &vec![coin(30, DENOM)]);
     let msg_buy = ExecuteMsg::Buy {
         owner: owner_address,
         package_id: String::from(MOCK_PACKAGE_ID),
@@ -148,8 +148,8 @@ fn test_buy_and_instantiate() {
     let mock_number_of_request = Uint128::from(30u128);
     let msg_init = ExecuteMsg::InitPackageOffering {
         id: offering_id,
-        number_requests: MOCK_NUMBER_OF_REQUEST,
-        unit_price: MOCK_UNIT_PRICE,
+        number_requests: MOCK_NUMBER_OF_REQUEST.into(),
+        unit_price: MOCK_UNIT_PRICE.into(),
     };
 
     // Test Init Unauthorized
@@ -191,8 +191,8 @@ fn test_update_success_request() {
         Addr::unchecked(SELLER_ADDR),
         Addr::unchecked(CUSTOMER_ADDR),
         String::from(MOCK_PACKAGE_ID),
-        MOCK_NUMBER_OF_REQUEST,
-        MOCK_UNIT_PRICE,
+        MOCK_NUMBER_OF_REQUEST.into(),
+        MOCK_UNIT_PRICE.into(),
     );
     let mock_success_request = Uint128::from(10u128);
     let msg_update_success_request = ExecuteMsg::UpdatePackageOfferingSuccessRequest {
@@ -259,8 +259,8 @@ fn test_claim() {
         Addr::unchecked(SELLER_ADDR),
         Addr::unchecked(CUSTOMER_ADDR),
         String::from(MOCK_PACKAGE_ID),
-        MOCK_NUMBER_OF_REQUEST,
-        MOCK_UNIT_PRICE,
+        MOCK_NUMBER_OF_REQUEST.into(),
+        MOCK_UNIT_PRICE.into(),
     );
 
     let msg_update_claim = ExecuteMsg::Claim {
@@ -330,8 +330,8 @@ fn test_query_offerings_by_selle() {
             Addr::unchecked(SELLER_ADDR),
             Addr::unchecked(CUSTOMER_ADDR),
             String::from(MOCK_PACKAGE_ID),
-            MOCK_NUMBER_OF_REQUEST,
-            MOCK_UNIT_PRICE,
+            MOCK_NUMBER_OF_REQUEST.into(),
+            MOCK_UNIT_PRICE.into(),
         )
     });
 
@@ -341,8 +341,8 @@ fn test_query_offerings_by_selle() {
         Addr::unchecked("strangeOwner"),
         Addr::unchecked(CUSTOMER_ADDR),
         String::from(MOCK_PACKAGE_ID),
-        MOCK_NUMBER_OF_REQUEST,
-        MOCK_UNIT_PRICE,
+        MOCK_NUMBER_OF_REQUEST.into(),
+        MOCK_UNIT_PRICE.into(),
     );
 
     let list_result: Vec<PackageOffering> = from_json(

@@ -1,7 +1,7 @@
 use std::convert::TryInto;
 
 use cosmwasm_std::{
-    attr, from_json, Addr, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError,
+    attr, from_json, Addr, CosmosMsg, Deps, DepsMut, Env, MessageInfo, Response, StdError, Uint128,
 };
 use market_datahub::{
     AnnotationResult, AnnotationReviewer, AnnotatorResult, DataHubExecuteMsg, DataHubQueryMsg,
@@ -36,10 +36,8 @@ pub fn try_add_annotation_result(
     }
 
     for result in annotator_results.iter() {
-        if result.result.len()
+        if Uint128::from(result.result.len() as u64)
             > (annotation.number_of_samples + annotation.max_upload_tasks)
-                .try_into()
-                .unwrap()
         {
             return Err(ContractError::Std(StdError::generic_err(
                 "Annotator result's length must be less equal than annotation's number_of_sample",

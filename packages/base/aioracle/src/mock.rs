@@ -43,7 +43,7 @@ impl MockQuerier {
             }
             QueryRequest::Staking(staking_query) => self.staking.query(staking_query),
             QueryRequest::Wasm(msg) => (self.wasm_handler)(msg),
-            _ => todo!(),
+            _ => panic!("unsupported request"),
         }
     }
 }

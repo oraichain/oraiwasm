@@ -861,7 +861,7 @@ fn test_royalty_auction_happy_path() {
                             }
                         }
 
-                        _ => todo!(),
+                        _ => continue,
                     }
                 }
             }
@@ -2109,7 +2109,7 @@ fn test_royalties() {
                             }
                         }
 
-                        _ => todo!(),
+                        _ => continue,
                     }
                 }
             }

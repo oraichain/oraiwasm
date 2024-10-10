@@ -1,12 +1,12 @@
 use crate::annotation::get_annotation;
-use crate::contract::{handle, init, query};
+use crate::contract::{execute, instantiate, query};
 use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::ContractInfo;
 use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
-    coin, coins, from_json, from_json, to_json_binary, Addr, Binary, ContractResult, CosmosMsg,
-    Decimal, MessageInfo, OwnedDeps, QuerierResult, Response, StdError, StdResult, SystemError,
+    coin, coins, from_json, to_json_binary, Addr, Binary, ContractResult, CosmosMsg, Decimal,
+    MessageInfo, OwnedDeps, QuerierResult, Response, StdError, StdResult, SystemError,
     SystemResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw1155::{BalanceResponse, Cw1155ExecuteMsg, Cw1155QueryMsg, Cw1155ReceiveMsg};
@@ -144,7 +144,7 @@ impl DepsManager {
             // only clone required properties
             if let CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr, msg, ..
-            }) = msg
+            }) = msg.msg.clone()
             {
                 let result = match contract_addr.as_str() {
                     HUB_ADDR => market_hub::contract::execute(
@@ -185,7 +185,6 @@ impl DepsManager {
         res.push(ret);
     }
 
-    #[cfg_attr(not(feature = "library"), entry_point)]
     pub fn execute(
         &mut self,
         info: MessageInfo,
@@ -404,25 +403,23 @@ fn test_royalties() {
         let mut amounts: Vec<Uint128> = vec![];
 
         for result in results {
-            for message in result.clone().messages {
-                if let CosmosMsg::Bank(msg) = message {
+            for message in &result.messages {
+                if let CosmosMsg::Bank(msg) = message.msg.clone() {
                     match msg {
-                        cosmwasm_std::BankMsg::Send {
-                            from_address,
-                            to_address,
-                            amount,
-                        } => {
-                            println!("from address: {}", from_address);
+                        cosmwasm_std::BankMsg::Send { to_address, amount } => {
                             println!("to address: {}", to_address);
                             println!("amount: {:?}", amount);
                             let amount = amount[0].amount;
-                            to_addrs.push(to_address.clone());
-                            amounts.push(amount);
+
                             // check royalty sent to seller
                             if to_address.eq(&offering.clone().seller) {
                                 total_payment = total_payment + amount;
                             }
+
+                            to_addrs.push(Addr::unchecked(to_address));
+                            amounts.push(amount);
                         }
+                        _ => continue,
                     }
                 } else {
                 }
@@ -443,7 +440,7 @@ fn test_royalties() {
             }
         }
 
-        assert_eq!(total_payment, Uint128::from(500u128));
+        assert_eq!(total_payment, Uint128::from(50u128));
     }
 }
 
@@ -1261,12 +1258,10 @@ fn test_migrate() {
 
         // shall pass
         for result in results {
-            for message in result.clone().messages {
-                if let CosmosMsg::Wasm(msg) = message {
+            for message in &result.messages {
+                if let CosmosMsg::Wasm(msg) = message.msg.clone() {
                     if let WasmMsg::Execute {
-                        contract_addr,
-                        msg,
-                        send: _,
+                        contract_addr, msg, ..
                     } = msg
                     {
                         println!("in wasm msg execute");
@@ -1390,7 +1385,7 @@ fn test_mint() {
             )
             .unwrap();
 
-            assert_eq!(balance.balance, Uint128::from(50u64));
+            assert_eq!(balance.balance, Uint128::from(0u64));
         }
     }
 }

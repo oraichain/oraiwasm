@@ -13,7 +13,7 @@ use cosmwasm_std::{Addr, StdError};
 use cw1155::{BalanceResponse, Cw1155ExecuteMsg, Cw1155QueryMsg, Cw1155ReceiveMsg};
 use market_ai_royalty::{AiRoyaltyExecuteMsg, AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
 use market_datahub::{DataHubExecuteMsg, DataHubQueryMsg, MintMsg, Offering};
-use std::ops::{Mul, Sub};
+use std::ops::Mul;
 
 pub fn add_msg_royalty(
     sender: &str,
@@ -73,7 +73,7 @@ pub fn try_handle_mint(
     msg.mint.mint.to = info.sender.to_string();
 
     let mint_msg = WasmMsg::Execute {
-        contract_addr: msg.contract_addr.clone(),
+        contract_addr: msg.contract_addr.to_string(),
         msg: to_json_binary(&msg.mint)?,
         funds: vec![],
     }
@@ -83,7 +83,7 @@ pub fn try_handle_mint(
 
     let mut cosmos_msgs = add_msg_royalty(
         info.sender.as_str(),
-        &governance,
+        governance.as_str(),
         RoyaltyMsg {
             contract_addr: msg.contract_addr,
             token_id: msg.mint.mint.token_id,
@@ -94,9 +94,12 @@ pub fn try_handle_mint(
     )?;
     cosmos_msgs.push(mint_msg);
 
-    let response = Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![attr("action", "mint_nft"), attr("invoker", info.sender)],
-        );
+    let response = Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
+            attr("action", "mint_nft"),
+            attr("invoker", info.sender),
+        ]);
 
     Ok(response)
 }
@@ -167,15 +170,15 @@ pub fn try_sell(
         DataHubExecuteMsg::UpdateOffering { offering },
     )?);
 
-    return Ok(Response::new().add_messages( cosmos_msg,
-        add_attributes(vec![
+    return Ok(Response::new()
+        .add_messages(cosmos_msg)
+        .add_attributes(vec![
             attr("action", "sell_nft"),
             attr("token_id", token_id),
             attr("amount", amount),
             attr("seller", info.sender),
             attr("per_price", royalty_msg.per_price),
-        ],
-        ));
+        ]));
 }
 
 pub fn try_buy(
@@ -236,8 +239,8 @@ pub fn try_buy(
                     if creator_amount.gt(&Uint128::zero()) {
                         seller_amount = seller_amount.checked_sub(creator_amount)?;
                         cosmos_msgs.push(
-                            BankMsg::Send {                                
-                                to_address: royalty.creator,
+                            BankMsg::Send {
+                                to_address: royalty.creator.to_string(),
                                 amount: coins(creator_amount.u128(), &contract_info.denom),
                             }
                             .into(),
@@ -250,8 +253,7 @@ pub fn try_buy(
             if !seller_amount.is_zero() {
                 cosmos_msgs.push(
                     BankMsg::Send {
-                        from_address: env.contract.address.clone(),
-                        to_address: seller_addr.clone(),
+                        to_address: seller_addr.to_string(),
                         amount: coins(seller_amount.u128(), &contract_info.denom),
                     }
                     .into(),
@@ -274,7 +276,7 @@ pub fn try_buy(
     // if everything is fine transfer NFT token to buyer
     cosmos_msgs.push(
         WasmMsg::Execute {
-            contract_addr: off.contract_addr.clone(),
+            contract_addr: off.contract_addr.to_string(),
             msg: to_json_binary(&transfer_cw721_msg)?,
             funds: vec![],
         }
@@ -300,17 +302,17 @@ pub fn try_buy(
         )?);
     }
 
-    Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
             attr("action", "buy_nft"),
             attr("buyer", info.sender),
             attr("seller", seller_addr),
             attr("token_id", off.token_id),
-            attr("offering_id", offering_id),
+            attr("offering_id", offering_id.to_string()),
             attr("per_price", off.per_price),
             attr("amount", off.amount),
-        ],
-        ))
+        ]))
 }
 
 pub fn try_withdraw(
@@ -339,7 +341,7 @@ pub fn try_withdraw(
         };
 
         let exec_cw721_transfer = WasmMsg::Execute {
-            contract_addr: off.contract_addr,
+            contract_addr: off.contract_addr.to_string(),
             msg: to_json_binary(&transfer_cw721_msg)?,
             funds: vec![],
         };
@@ -353,16 +355,14 @@ pub fn try_withdraw(
             DataHubExecuteMsg::RemoveOffering { id: offering_id },
         )?);
 
-        return Ok(Response {
-            messages: cw721_transfer_cosmos_msg,
-            add_attributes(vec![
+        return Ok(Response::new()
+            .add_messages(cw721_transfer_cosmos_msg)
+            .add_attributes(vec![
                 attr("action", "withdraw_nft"),
                 attr("seller", info.sender),
-                attr("offering_id", offering_id),
+                attr("offering_id", offering_id.to_string()),
                 attr("token_id", off.token_id),
-            ],
-            data: None,
-        });
+            ]));
     }
     Err(ContractError::Unauthorized {
         sender: info.sender.to_string(),
@@ -413,14 +413,14 @@ pub fn handle_sell_nft(
         },
     )?);
 
-    Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
             attr("action", "sell_nft"),
             attr("original_contract", info.sender),
             attr("seller", rcv_msg.operator),
             attr("per price", offering.per_price.to_string()),
-        ],
-        ))
+        ]))
 }
 
 fn get_offering(deps: Deps, offering_id: u64) -> Result<Offering, ContractError> {

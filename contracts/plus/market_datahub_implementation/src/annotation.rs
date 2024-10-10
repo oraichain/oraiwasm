@@ -58,7 +58,7 @@ pub fn try_withdraw(
         if !annotation_price.is_zero() {
             cosmos_msgs.push(
                 BankMsg::Send {
-                    to_address: Addr::unchecked(off.requester),
+                    to_address: off.requester.to_string(),
                     amount: coins(annotation_price.clone().u128(), &denom),
                 }
                 .into(),
@@ -77,7 +77,7 @@ pub fn try_withdraw(
             .add_attributes(vec![
                 attr("action", "withdraw_annotation_request"),
                 attr("requester", info.sender),
-                attr("annotation_id", annotation_id),
+                attr("annotation_id", annotation_id.to_string()),
                 attr("token_id", off.token_id),
                 attr("payback_amount", annotation_price.to_string()),
             ]));
@@ -316,7 +316,7 @@ pub fn try_payout(
             total_reward = total_reward + reward;
             cosmos_msg.push(
                 BankMsg::Send {
-                    to_address: annotator_address.clone(),
+                    to_address: annotator_address.to_string(),
                     amount: coins(reward.into(), denom.clone()),
                 }
                 .into(),
@@ -333,7 +333,7 @@ pub fn try_payout(
     if payback_amount.gt(&0u128) {
         cosmos_msg.push(
             BankMsg::Send {
-                to_address: annotation.clone().requester,
+                to_address: annotation.requester.to_string(),
                 amount: coins(payback_amount, denom.clone()),
             }
             .into(),

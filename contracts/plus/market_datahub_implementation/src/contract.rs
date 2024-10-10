@@ -1,3 +1,6 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use std::fmt;
 
 use crate::annotation::{
@@ -18,7 +21,7 @@ use crate::state::{ContractInfo, CONTRACT_INFO};
 use cosmwasm_std::Addr;
 use cosmwasm_std::{
     attr, from_json, to_json_binary, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Empty, Env,
-    MessageInfo, Response, Response, Response, StdResult, Uint128, WasmMsg,
+    MessageInfo, Response, StdResult, Uint128, WasmMsg,
 };
 use cw1155::{Cw1155ExecuteMsg, Cw1155ReceiveMsg};
 use market::{query_proxy, StorageExecuteMsg, StorageQueryMsg};
@@ -173,7 +176,7 @@ pub fn try_withdraw_funds(
 ) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
-        to_address: Addr::unchecked(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
+        to_address: contract_info.creator.to_string(), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
@@ -261,7 +264,7 @@ pub fn try_migrate(
         };
 
         let exec_cw721_transfer = WasmMsg::Execute {
-            contract_addr: nft_contract_addr.clone(),
+            contract_addr: nft_contract_addr.to_string(),
             msg: to_json_binary(&transfer_cw721_msg)?,
             funds: vec![],
         }
@@ -320,7 +323,7 @@ where
         });
 
     Ok(WasmMsg::Execute {
-        contract_addr: Addr::unchecked(addr),
+        contract_addr: addr.to_string(),
         msg: to_json_binary(&proxy_msg)?,
         funds: vec![],
     }

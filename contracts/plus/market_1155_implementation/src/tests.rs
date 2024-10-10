@@ -1387,7 +1387,7 @@ fn claim_winner_with_market_fees() {
                             }
                             // check royalty sent to seller
                         }
-                        _ => todo!(),
+                        _ => continue,
                     }
                 } else {
                 }
@@ -2090,7 +2090,7 @@ fn test_royalties() {
                             to_addrs.push(Addr::unchecked(to_address));
                             amounts.push(amount);
                         }
-                        _ => todo!(),
+                        _ => continue,
                     }
                 } else {
                 }
@@ -2262,7 +2262,7 @@ fn test_royalties_cw20() {
                             msg,
                             funds: send,
                         } => {}
-                        _ => todo!(),
+                        _ => continue,
                     }
                 } else {
                 }
