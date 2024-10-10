@@ -86,9 +86,10 @@ pub fn try_update_auction(
     // check if token_id is currently sold by the requesting address. auction id here must be a Some value already
     auctions().save(deps.storage, &id.to_be_bytes(), &auction)?;
 
-    Ok(Response::new().
-        add_attributes(vec![attr("action", "update_auction"), attr("auction_id", id)],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "update_auction"),
+        attr("auction_id", id),
+    ]))
 }
 
 pub fn try_remove_auction(
@@ -106,9 +107,10 @@ pub fn try_remove_auction(
 
     auctions().remove(deps.storage, &id.to_be_bytes())?;
 
-    Ok(Response::new().
-        add_attributes(vec![attr("action", "remove_auction"), attr("auction_id", id)],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "remove_auction"),
+        attr("auction_id", id),
+    ]))
 }
 
 pub fn try_update_info(
@@ -133,10 +135,9 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().
-        add_attributes(vec![attr("action", "update_info")],
-        data: to_json_binary(&new_contract_info).ok(),
-    })
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "update_info")])
+        .set_data(to_json_binary(&new_contract_info)?))
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -330,7 +331,10 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
 }
 
-fn parse_auction(api: &dyn Api, item: StdResult<Record<Auction>>) -> StdResult<QueryAuctionsResult> {
+fn parse_auction(
+    api: &dyn Api,
+    item: StdResult<Record<Auction>>,
+) -> StdResult<QueryAuctionsResult> {
     item.and_then(|(k, auction)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array

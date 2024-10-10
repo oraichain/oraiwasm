@@ -7,10 +7,10 @@ use crate::state::{
     auctions, get_contract_token_id, increment_auctions, ContractInfo, CONTRACT_INFO,
 };
 use cosmwasm_std::{
-    attr, to_json_binary, Binary, CanonicalAddr, Deps, DepsMut, Env, MessageInfo, Order, Response,
-    Response, StdError, StdResult,
+    attr, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Record, Response,
+    StdError, StdResult,
 };
-use cosmwasm_std::{Addr, Api, KV};
+use cosmwasm_std::{Addr, Api};
 use cw_storage_plus::Bound;
 use market_auction::{
     Auction, AuctionExecuteMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions,
@@ -88,9 +88,10 @@ pub fn try_update_auction(
     // check if token_id is currently sold by the requesting address. auction id here must be a Some value already
     auctions().save(deps.storage, &id.to_be_bytes(), &auction)?;
 
-    Ok(Response::new().
-        add_attributes(vec![attr("action", "update_auction"), attr("auction_id", id)],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "update_auction"),
+        attr("auction_id", id.to_string()),
+    ]))
 }
 
 pub fn try_remove_auction(
@@ -108,9 +109,10 @@ pub fn try_remove_auction(
 
     auctions().remove(deps.storage, &id.to_be_bytes())?;
 
-    Ok(Response::new().
-        add_attributes(vec![attr("action", "remove_auction"), attr("auction_id", id)],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "remove_auction"),
+        attr("auction_id", id.to_string()),
+    ]))
 }
 
 pub fn try_update_info(
@@ -135,10 +137,9 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().
-        add_attributes(vec![attr("action", "update_info")],
-        data: to_json_binary(&new_contract_info).ok(),
-    })
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "update_info")])
+        .set_data(to_json_binary(&new_contract_info)?))
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
@@ -173,7 +174,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 // ============================== Query Handlers ==============================
 
-fn _get_range_params(options: &PagingOptions) -> (usize, Option<Bound>, Option<Bound>, Order) {
+fn _get_range_params(
+    options: &PagingOptions,
+) -> (usize, Option<Bound<&[u8]>>, Option<Bound<&[u8]>>, Order) {
     let limit = options.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     // let mut max: Option<Bound> = None;
     let mut order_enum = Order::Descending;
@@ -186,7 +189,7 @@ fn _get_range_params(options: &PagingOptions) -> (usize, Option<Bound>, Option<B
     // if there is offset, assign to min or max
     let min = options
         .offset
-        .map(|offset| Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        .map(|offset| Bound::ExclusiveRaw(offset.to_be_bytes().to_vec()));
 
     (limit, min, None, order_enum)
 }
@@ -213,7 +216,8 @@ pub fn query_auctions_by_asker(
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .asker
-        .items(deps.storage, &asker_raw, min, max, order_enum)
+        .prefix(asker_raw.to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_auction(deps.api, kv_item))
         .collect();
@@ -229,13 +233,14 @@ pub fn query_auctions_by_bidder(
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
     let bidder_raw = match bidder {
-        Some(addr) => deps.api.addr_canonicalize(addr.as_str())?,
-        None => CanonicalAddr::default(),
+        Some(addr) => deps.api.addr_canonicalize(addr.as_str())?.to_vec(),
+        None => vec![],
     };
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .bidder
-        .items(deps.storage, &bidder_raw, min, max, order_enum)
+        .prefix(bidder_raw)
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_auction(deps.api, kv_item))
         .collect();
@@ -253,7 +258,8 @@ pub fn query_auctions_by_contract(
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .contract
-        .items(deps.storage, &contract_raw, min, max, order_enum)
+        .prefix(contract_raw.to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_auction(deps.api, kv_item))
         .collect();
@@ -296,7 +302,10 @@ pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
 }
 
-fn parse_auction(api: &dyn Api, item: StdResult<Record<Auction>>) -> StdResult<QueryAuctionsResult> {
+fn parse_auction(
+    api: &dyn Api,
+    item: StdResult<Record<Auction>>,
+) -> StdResult<QueryAuctionsResult> {
     item.and_then(|(k, auction)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array
@@ -308,7 +317,7 @@ fn parse_auction(api: &dyn Api, item: StdResult<Record<Auction>>) -> StdResult<Q
             // bidder can be None
             bidder: auction
                 .bidder
-                .map(|can_addr| api.addr_humanize(&can_addr).unwrap_or_default()),
+                .map(|can_addr| api.addr_humanize(&can_addr).unwrap()),
             token_id: auction.token_id,
             price: auction.price,
             orig_price: auction.orig_price,

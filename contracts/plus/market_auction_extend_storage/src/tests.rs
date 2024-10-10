@@ -45,18 +45,18 @@ fn sort_auction() {
     for i in 1..50 {
         let auction = Auction {
             id: None,
-            per_price: Uint128(i),
+            per_price: Uint128::from(i),
             start: contract_env.block.height + 15,
             end: contract_env.block.height + 100,
             cancel_fee: Some(1),
-            buyout_per_price: Some(Uint128(i)),
+            buyout_per_price: Some(Uint128::from(i)),
             start_timestamp: Uint128::from(0u64),
             end_timestamp: Uint128::from(0u64),
             step_price: 1,
             contract_addr: contract_addr.clone(),
             token_id: i.to_string(),
             asker: asker.clone(),
-            orig_per_price: Uint128(i),
+            orig_per_price: Uint128::from(i),
             bidder: None,
             amount: Uint128::from(10u128),
         };

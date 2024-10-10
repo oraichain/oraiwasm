@@ -20,7 +20,7 @@ const DENOM: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
-    
+
     let msg = InstantiateMsg {
         name: String::from(CONTRACT_NAME),
         denom: DENOM.into(),
@@ -54,7 +54,7 @@ fn sort_offering() {
 
     for i in 1..50 {
         let sell_msg = SellNft {
-            price: Uint128(i),
+            price: Uint128::from(i),
             royalty: None,
         };
         let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
@@ -67,7 +67,7 @@ fn sort_offering() {
 
     for i in 50..100 {
         let sell_msg = SellNft {
-            price: Uint128(i),
+            price: Uint128::from(i),
             royalty: None,
         };
         let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
@@ -389,7 +389,7 @@ fn withdraw_all_offerings_happy_path() {
 
     for i in 1..5000 {
         let sell_msg = SellNft {
-            price: Uint128(i),
+            price: Uint128::from(i),
             royalty: None,
         };
         let msg = ExecuteMsg::ReceiveNft(Cw721ReceiveMsg {
