@@ -5,7 +5,7 @@ use crate::msg::*;
 use crate::state::ContractInfo;
 use crate::state::PaymentKey;
 use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    mock_dependencies_with_balance, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::to_json_binary;
 use cosmwasm_std::Decimal;
@@ -21,7 +21,7 @@ const DENOM: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
-    
+
     let msg = InstantiateMsg {
         governance: Addr::unchecked("market_hub"),
     };
@@ -102,7 +102,7 @@ fn check_query_offering_1155_payments() {
     let info = mock_info("market_hub", &vec![coin(50, DENOM)]);
 
     for i in 1..10 {
-        let sender_info = mock_info(format!("foobar{}", i), &vec![coin(50, DENOM)]);
+        let sender_info = mock_info(format!("foobar{}", i).as_str(), &vec![coin(50, DENOM)]);
         let msg = ExecuteMsg::Msg(PaymentExecuteMsg::UpdateOfferingPayment(Payment {
             contract_addr: Addr::unchecked("abc"),
             token_id: "foobar".into(),
