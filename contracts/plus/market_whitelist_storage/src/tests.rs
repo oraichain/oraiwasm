@@ -3,7 +3,7 @@ use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::ContractInfo;
 use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    mock_dependencies_with_balance, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::{coins, from_json, Addr, OwnedDeps};
 
@@ -17,7 +17,7 @@ const DENOM: &str = "MGK";
 
 fn setup_contract() -> OwnedDeps<MockStorage, MockApi, MockQuerier> {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
-    
+
     let msg = InstantiateMsg {
         governance: Addr::unchecked("market_hub"),
     };

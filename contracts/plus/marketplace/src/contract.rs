@@ -1,18 +1,21 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, InfoMsg, InstantiateMsg, OfferingsResponse, PayoutMsg, QueryMsg, QueryOfferingsResult,
-    SellNft,
+    ExecuteMsg, InfoMsg, InstantiateMsg, OfferingsResponse, PayoutMsg, QueryMsg,
+    QueryOfferingsResult, SellNft,
 };
 use crate::state::{
     get_contract_token_id, increment_offerings, offerings, royalties, royalties_read, ContractInfo,
     Offering, CONTRACT_INFO,
 };
+use cosmwasm_std::Addr;
 use cosmwasm_std::{
     attr, coins, from_json, to_json_binary, Api, BankMsg, Binary, Coin, CosmosMsg, Decimal, Deps,
-    DepsMut, Env, Response, Response, MessageInfo, Order, StdError, StdResult, Storage,
-    Uint128, WasmMsg,
+    DepsMut, Env, MessageInfo, Order, Record, Response, StdError, StdResult, Storage, Uint128,
+    WasmMsg,
 };
-use cosmwasm_std::{Addr, KV};
 use cw721::{Cw721ExecuteMsg, Cw721ReceiveMsg};
 use cw_storage_plus::Bound;
 use std::convert::TryInto;
@@ -96,7 +99,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
         } => to_json_binary(&query_offerings_by_contract(
             deps, contract, limit, offset, order,
         )?),
-        QueryMsg::GetOffering { offering_id } => to_json_binary(&query_offering(deps, offering_id)?),
+        QueryMsg::GetOffering { offering_id } => {
+            to_json_binary(&query_offering(deps, offering_id)?)
+        }
         QueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_json_binary(
             &query_offering_by_contract_tokenid(deps, contract, token_id)?,
         ),
@@ -122,13 +127,13 @@ pub fn try_handle_mint(
     }
     .into();
 
-    let response = Response::new().add_messages( vec![mint_msg],
-        add_attributes(vec![
+    let response = Response::new()
+        .add_messages(vec![mint_msg])
+        .add_attributes(vec![
             attr("action", "mint_nft"),
             attr("invoker", info.sender),
             attr("mint_msg", msg),
-        ],
-        );
+        ]);
 
     Ok(response)
 }
@@ -141,20 +146,19 @@ pub fn try_withdraw_funds(
 ) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
-        
         to_address: Addr::unchecked(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
 
-    Ok(Response::new().add_messages( vec![bank_msg]).
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(vec![bank_msg])
+        .add_attributes(vec![
             attr("action", "withdraw_funds"),
             attr("denom", fund.denom),
             attr("amount", fund.amount),
             attr("receiver", contract_info.creator),
-        ],
-        ))
+        ]))
 }
 
 pub fn try_update_info(
@@ -183,13 +187,12 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_attributes(vec![
             attr("action", "update_info"),
             attr("info_sender", info.sender),
-        ],
-        data: to_json_binary(&new_contract_info).ok(),
-    })
+        ])
+        .set_data(to_json_binary(&new_contract_info)?))
 }
 
 pub fn try_buy(
@@ -231,7 +234,6 @@ pub fn try_buy(
                     seller_amount = seller_amount.sub(fee_amount)?;
                     cosmos_msgs.push(
                         BankMsg::Send {
-                            from_address: env.contract.address.clone(),
                             to_address: Addr::unchecked(contract_info.creator),
                             amount: coins(fee_amount.u128(), &contract_info.denom),
                         }
@@ -249,7 +251,6 @@ pub fn try_buy(
                     seller_amount = seller_amount.sub(creator_amount)?;
                     cosmos_msgs.push(
                         BankMsg::Send {
-                            from_address: env.contract.address.clone(),
                             to_address: deps.api.addr_humanize(&creator_addr)?,
                             amount: coins(creator_amount.u128(), &contract_info.denom),
                         }
@@ -265,7 +266,6 @@ pub fn try_buy(
                     seller_amount = seller_amount.sub(owner_amount)?;
                     cosmos_msgs.push(
                         BankMsg::Send {
-                            from_address: env.contract.address.clone(),
                             to_address: deps.api.addr_humanize(&off.seller)?,
                             amount: coins(owner_amount.u128(), &contract_info.denom),
                         }
@@ -277,7 +277,6 @@ pub fn try_buy(
             // pay the left to the seller
             cosmos_msgs.push(
                 BankMsg::Send {
-                    from_address: env.contract.address,
                     to_address: seller_addr.clone(),
                     amount: coins(seller_amount.u128(), &contract_info.denom),
                 }
@@ -307,15 +306,15 @@ pub fn try_buy(
         .into(),
     );
 
-    Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
             attr("action", "buy_nft"),
             attr("buyer", info.sender),
             attr("seller", seller_addr),
             attr("token_id", off.token_id),
             attr("offering_id", offering_id),
-        ],
-        ))
+        ]))
 }
 
 /// when user sell NFT to
@@ -385,16 +384,14 @@ pub fn try_receive_nft(
 
     let price_string = format!("{}", msg.price);
 
-    Ok(Response::new().add_messages( Vec::new(),
-        add_attributes(vec![
-            attr("action", "sell_nft"),
-            attr("original_contract", info.sender),
-            attr("seller", rcv_msg.sender),
-            attr("price", price_string),
-            attr("token_id", off.token_id),
-            attr("offering_id", offering_id),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "sell_nft"),
+        attr("original_contract", info.sender),
+        attr("seller", rcv_msg.sender),
+        attr("price", price_string),
+        attr("token_id", off.token_id),
+        attr("offering_id", offering_id),
+    ]))
 }
 
 pub fn try_withdraw_all(deps: DepsMut, info: MessageInfo) -> Result<Response, ContractError> {
@@ -428,9 +425,9 @@ pub fn try_withdraw_all(deps: DepsMut, info: MessageInfo) -> Result<Response, Co
         offerings().remove(storage, &storage_key)?;
     }
 
-    Ok(Response::new().add_messages( msgs,
-        add_attributes(vec![attr("action", "withdraw_all_nfts")],
-        ))
+    Ok(Response::new()
+        .add_messages(msgs)
+        .add_attributes(vec![attr("action", "withdraw_all_nfts")]))
 }
 
 pub fn try_withdraw(
@@ -460,16 +457,14 @@ pub fn try_withdraw(
         // remove offering
         offerings().remove(deps.storage, &storage_key)?;
 
-        return Ok(Response {
-            messages: cw721_transfer_cosmos_msg,
-            add_attributes(vec![
+        return Ok(Response::new()
+            .add_messages(cw721_transfer_cosmos_msg)
+            .add_attributes(vec![
                 attr("action", "withdraw_nft"),
                 attr("seller", info.sender),
                 attr("offering_id", offering_id),
                 attr("token_id", off.token_id),
-            ],
-            data: None,
-        });
+            ]));
     }
     Err(ContractError::Unauthorized {})
 }
@@ -480,10 +475,15 @@ fn _get_range_params(
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> (usize, Option<Bound>, Option<Bound>, Order) {
+) -> (
+    usize,
+    Option<Bound<'static, &'static [u8]>>,
+    Option<Bound<'static, &'static [u8]>>,
+    Order,
+) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
+    let mut min = None;
+    let mut max = None;
     let mut order_enum = Order::Descending;
     if let Some(num) = order {
         if num == 1 {
@@ -493,7 +493,7 @@ fn _get_range_params(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        let offset_value = Some(Bound::ExclusiveRaw(offset.to_be_bytes().to_vec()));
         match order_enum {
             Order::Ascending => min = offset_value,
             Order::Descending => max = offset_value,

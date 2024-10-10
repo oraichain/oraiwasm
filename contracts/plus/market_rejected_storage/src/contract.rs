@@ -1,3 +1,6 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{get_key_nft_info, ContractInfo, CONTRACT_INFO, REJECTS};
@@ -6,10 +9,10 @@ use market_rejected::{
     NftInfo, RejectAllEvent, Rejected, RejectedForAllResponse,
 };
 
-use cosmwasm_std::KV;
+use cosmwasm_std::Record;
 use cosmwasm_std::{
-    attr, from_json, to_json_binary, Binary, Deps, DepsMut, Env, Response, Response,
-    MessageInfo, Order, StdResult,
+    attr, from_json, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response,
+    StdResult,
 };
 use cw_storage_plus::Bound;
 use std::usize;
@@ -78,10 +81,9 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().
-        add_attributes(vec![attr("action", "update_info")],
-        data: to_json_binary(&new_contract_info).ok(),
-    })
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "update_info")])
+        .set_data(to_json_binary(&new_contract_info)?))
 }
 
 /// returns true iff the sender is rejected or not
@@ -222,7 +224,7 @@ fn query_all_rejected(
 ) -> StdResult<RejectedForAllResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = start_after.map(|rejected| {
-        Bound::exclusive(get_key_nft_info(
+        Bound::ExclusiveRaw(get_key_nft_info(
             rejected.contract_addr.as_bytes(),
             rejected.token_id.as_bytes(),
         ))

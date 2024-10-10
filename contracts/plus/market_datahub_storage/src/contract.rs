@@ -1,3 +1,6 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
@@ -10,11 +13,11 @@ use market_datahub::{
     Annotation, AnnotationResult, AnnotationReviewer, DataHubExecuteMsg, DataHubQueryMsg, Offering,
 };
 
+use cosmwasm_std::Addr;
 use cosmwasm_std::{
-    attr, to_json_binary, Binary, Deps, DepsMut, Env, Response, Response, MessageInfo, Order,
+    attr, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Record, Response,
     StdError, StdResult,
 };
-use cosmwasm_std::{Addr, KV};
 use cw_storage_plus::Bound;
 use std::convert::TryInto;
 use std::usize;
@@ -159,9 +162,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 annotation_result_id,
             } => to_json_binary(&query_annotation_result(deps, annotation_result_id)?),
 
-            DataHubQueryMsg::GetAnnotationResultsByAnnotationId { annotation_id } => to_json_binary(
-                &query_annotation_results_by_annotation_id(deps, annotation_id)?,
-            ),
+            DataHubQueryMsg::GetAnnotationResultsByAnnotationId { annotation_id } => {
+                to_json_binary(&query_annotation_results_by_annotation_id(
+                    deps,
+                    annotation_id,
+                )?)
+            }
             DataHubQueryMsg::GetAnnotationResultByReviewer { reviewer_address } => to_json_binary(
                 &query_annotation_results_by_reviewer(deps, reviewer_address)?,
             ),
@@ -184,9 +190,12 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 reviewer_address,
             )?),
 
-            DataHubQueryMsg::GetAnnotationReviewerByAnnotationId { annotation_id } => to_json_binary(
-                &query_annotation_reviewer_by_annotation_id(deps, annotation_id)?,
-            ),
+            DataHubQueryMsg::GetAnnotationReviewerByAnnotationId { annotation_id } => {
+                to_json_binary(&query_annotation_reviewer_by_annotation_id(
+                    deps,
+                    annotation_id,
+                )?)
+            }
             DataHubQueryMsg::GetReviewedUploadByAnnotationId { annotation_id } => to_json_binary(
                 &query_reviewed_upload_by_annotation_id(deps, annotation_id)?,
             ),
@@ -231,12 +240,10 @@ pub fn try_update_offering(
 
     offerings().save(deps.storage, &offering.id.unwrap().to_be_bytes(), &offering)?;
 
-    return Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "update_offering"),
-            attr("offering_id", offering.id.unwrap()),
-        ],
-        ));
+    return Ok(Response::new().add_attributes(vec![
+        attr("action", "update_offering"),
+        attr("offering_id", offering.id.unwrap()),
+    ]));
 }
 
 pub fn try_withdraw_offering(
@@ -255,9 +262,10 @@ pub fn try_withdraw_offering(
     // remove offering
     offerings().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(Response::new().
-        add_attributes(vec![attr("action", "remove_offering"), attr("offering_id", id)],
-        ));
+    return Ok(Response::new().add_attributes(vec![
+        attr("action", "remove_offering"),
+        attr("offering_id", id),
+    ]));
 }
 
 pub fn try_update_annotation(
@@ -285,12 +293,10 @@ pub fn try_update_annotation(
         &annotation,
     )?;
 
-    return Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "update_annotation"),
-            attr("annotation_id", annotation.id.unwrap()),
-        ],
-        ));
+    return Ok(Response::new().add_attributes(vec![
+        attr("action", "update_annotation"),
+        attr("annotation_id", annotation.id.unwrap()),
+    ]));
 }
 
 pub fn try_withdraw_annotation(
@@ -308,12 +314,10 @@ pub fn try_withdraw_annotation(
     // remove offering
     annotations().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "remove_annotation"),
-            attr("annotation_id", id),
-        ],
-        ));
+    return Ok(Response::new().add_attributes(vec![
+        attr("action", "remove_annotation"),
+        attr("annotation_id", id),
+    ]));
 }
 
 pub fn try_update_annotation_results(
@@ -336,12 +340,10 @@ pub fn try_update_annotation_results(
 
     annotation_results().save(deps.storage, &data.id.unwrap().to_be_bytes(), &data)?;
 
-    Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "update_annotation_result"),
-            attr("annotation_result_id", &data.id.unwrap().to_string()),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "update_annotation_result"),
+        attr("annotation_result_id", &data.id.unwrap().to_string()),
+    ]))
 }
 
 pub fn try_add_annotation_reviewer(
@@ -378,15 +380,11 @@ pub fn try_add_annotation_reviewer(
             &annotation_reviewer,
         )?;
 
-        Ok(Response {
-            messages: vec![],
-            data: None,
-            add_attributes(vec![
-                attr("action", "add_annotation_reviewer"),
-                attr("annotation_id", annotation_id.to_string()),
-                attr("reviewer_address", reviewer_address.to_string()),
-            ],
-        })
+        Ok(Response::new().add_attributes(vec![
+            attr("action", "add_annotation_reviewer"),
+            attr("annotation_id", annotation_id.to_string()),
+            attr("reviewer_address", reviewer_address.to_string()),
+        ]))
     }
 }
 
@@ -418,15 +416,11 @@ pub fn try_remove_annotation_reviewer(
             &old.as_ref().unwrap().1.id.unwrap().to_be_bytes().to_vec(),
         )?;
 
-        Ok(Response {
-            messages: vec![],
-            add_attributes(vec![
-                attr("action", "remove_annotation_reviewer"),
-                attr("annotation_id", annotation_id.to_string()),
-                attr("reviewer_address", reviewer_address.to_string()),
-            ],
-            data: None,
-        })
+        Ok(Response::new().add_attributes(vec![
+            attr("action", "remove_annotation_reviewer"),
+            attr("annotation_id", annotation_id.to_string()),
+            attr("reviewer_address", reviewer_address.to_string()),
+        ]))
     }
 }
 
@@ -456,9 +450,7 @@ pub fn try_remove_annotation_result_data(
         annotation_reviewers().remove(deps.storage, &item.id.unwrap().to_be_bytes().to_vec())?;
     }
 
-    Ok(Response::new().
-        add_attributes(vec![attr("action", "remove annotation result")],
-        ))
+    Ok(Response::new().add_attributes(vec![attr("action", "remove annotation result")]))
 }
 
 pub fn try_add_reviewed_upload(
@@ -485,12 +477,10 @@ pub fn try_add_reviewed_upload(
         &reviewed_upload,
     )?;
 
-    Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "add_reviewed_count"),
-            attr("review_result_id", &reviewed_upload.id.unwrap().to_string()),
-        ],
-        ))
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "add_reviewed_count"),
+        attr("review_result_id", &reviewed_upload.id.unwrap().to_string()),
+    ]))
 }
 
 pub fn try_update_info(
@@ -515,10 +505,9 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().
-        add_attributes(vec![attr("action", "update_info")],
-        data: to_json_binary(&new_contract_info).ok(),
-    })
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "update_info")])
+        .set_data(to_json_binary(&new_contract_info)?))
 }
 
 // ============================== Query Handlers ==============================
@@ -527,10 +516,15 @@ fn _get_range_params(
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> (usize, Option<Bound>, Option<Bound>, Order) {
+) -> (
+    usize,
+    Option<Bound<'static, &'static [u8]>>,
+    Option<Bound<'static, &'static [u8]>>,
+    Order,
+) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
+    let mut min = None;
+    let mut max = None;
     let mut order_enum = Order::Descending;
     if let Some(num) = order {
         if num == 1 {
@@ -540,7 +534,7 @@ fn _get_range_params(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        let offset_value = Some(Bound::ExclusiveRaw(offset.to_be_bytes().to_vec()));
         match order_enum {
             Order::Ascending => min = offset_value,
             Order::Descending => max = offset_value,

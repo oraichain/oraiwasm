@@ -1,3 +1,6 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
@@ -5,8 +8,8 @@ use crate::state::{
 };
 
 use cosmwasm_std::{
-    attr, from_json, from_json, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
-    Response, Order, Response, Response, StdError, StdResult, KV,
+    attr, from_json, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Record,
+    Response, StdError, StdResult,
 };
 use cw_storage_plus::Bound;
 use market_payment::{
@@ -137,12 +140,10 @@ pub fn try_update_offering_payment(
     )?;
     let asset_info_bin = to_json_binary(&payment.asset_info)?;
 
-    return Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "update_offering_payment"),
-            attr("asset_info", asset_info_bin),
-        ],
-        ));
+    return Ok(Response::new().add_attributes(vec![
+        attr("action", "update_offering_payment"),
+        attr("asset_info", asset_info_bin.to_string()),
+    ]));
 }
 
 pub fn try_update_auction_payment(
@@ -171,12 +172,10 @@ pub fn try_update_auction_payment(
     )?;
     let asset_info_bin = to_json_binary(&payment.asset_info)?;
 
-    return Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "update_auction_payment"),
-            attr("asset_info", asset_info_bin),
-        ],
-        ));
+    return Ok(Response::new().add_attributes(vec![
+        attr("action", "update_auction_payment"),
+        attr("asset_info", asset_info_bin.to_string()),
+    ]));
 }
 
 pub fn try_remove_offering_payment(
@@ -200,13 +199,11 @@ pub fn try_remove_offering_payment(
         &parse_payment_key(contract_addr.as_str(), token_id.as_str(), sender)?,
     );
 
-    return Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "remove_offering_payment"),
-            attr("contract_addr", contract_addr),
-            attr("token_id", token_id),
-        ],
-        ));
+    return Ok(Response::new().add_attributes(vec![
+        attr("action", "remove_offering_payment"),
+        attr("contract_addr", contract_addr),
+        attr("token_id", token_id),
+    ]));
 }
 
 pub fn try_remove_auction_payment(
@@ -230,13 +227,11 @@ pub fn try_remove_auction_payment(
         &parse_payment_key(contract_addr.as_str(), token_id.as_str(), sender)?,
     );
 
-    return Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "remove_offering_payment"),
-            attr("contract_addr", contract_addr),
-            attr("token_id", token_id),
-        ],
-        ));
+    return Ok(Response::new().add_attributes(vec![
+        attr("action", "remove_offering_payment"),
+        attr("contract_addr", contract_addr),
+        attr("token_id", token_id),
+    ]));
 }
 
 pub fn try_update_info(
@@ -264,10 +259,9 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().
-        add_attributes(vec![attr("action", "update_info")],
-        data: to_json_binary(&new_contract_info).ok(),
-    })
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "update_info")])
+        .set_data(to_json_binary(&new_contract_info)?))
 }
 
 // ============================== Query Handlers ==============================
@@ -314,10 +308,15 @@ fn _get_range_params(
     limit: Option<u8>,
     offset: Option<Binary>,
     order: Option<u8>,
-) -> StdResult<(usize, Option<Bound>, Option<Bound>, Order)> {
+) -> StdResult<(
+    usize,
+    Option<Bound<'static, &'static [u8]>>,
+    Option<Bound<'static, &'static [u8]>>,
+    Order,
+)> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let mut min: Option<Bound> = None;
-    let max: Option<Bound> = None;
+    let mut min = None;
+    let max = None;
     let mut order_enum = Order::Ascending;
     if let Some(num) = order {
         if num == 2 {
@@ -328,7 +327,7 @@ fn _get_range_params(
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
         let payment: PaymentMsg = from_json(&offset)?;
-        let offset_value = Some(Bound::Exclusive(parse_payment_key(
+        let offset_value = Some(Bound::ExclusiveRaw(parse_payment_key(
             payment.contract_addr.as_str(),
             payment.token_id.as_str(),
             payment.sender,

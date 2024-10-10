@@ -1282,10 +1282,10 @@ fn _get_range_params(
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> (usize, Option<Bound>, Option<Bound>, Order) {
+) -> (usize, Option<Bound<&[u8]>>, Option<Bound<&[u8]>>, Order) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
+    let mut min = None;
+    let mut max = None;
     let mut order_enum = Order::Descending;
     if let Some(num) = order {
         if num == 1 {
@@ -1295,7 +1295,7 @@ fn _get_range_params(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        let offset_value = Some(Bound::ExclusiveRaw(offset.to_be_bytes().to_vec()));
         match order_enum {
             Order::Ascending => min = offset_value,
             Order::Descending => max = offset_value,

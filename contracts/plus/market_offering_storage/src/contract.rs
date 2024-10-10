@@ -1,3 +1,6 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
@@ -7,12 +10,12 @@ use crate::state::{
 use market_royalty::{OfferingExecuteMsg, OfferingRoyalty, OffsetMsg};
 use market_royalty::{OfferingQueryMsg, OfferingsResponse, QueryOfferingsResult};
 
+use cosmwasm_std::Addr;
 use cosmwasm_std::{
-    attr, to_json_binary, Api, Binary, Deps, DepsMut, Env, Response, Response, MessageInfo,
-    Order, StdError, StdResult,
+    attr, to_json_binary, Api, Binary, Deps, DepsMut, Env, MessageInfo, Order, Record, Response,
+    StdError, StdResult,
 };
-use cosmwasm_std::{Addr, KV};
-use cw_storage_plus::{Bound, PkOwned};
+use cw_storage_plus::Bound;
 use market_royalty::Offering;
 use std::convert::TryInto;
 use std::usize;
@@ -93,9 +96,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             OfferingQueryMsg::GetOfferingState { offering_id } => {
                 to_json_binary(&query_offering_state(deps, offering_id)?)
             }
-            OfferingQueryMsg::GetOfferingByContractTokenId { contract, token_id } => to_json_binary(
-                &query_offering_by_contract_tokenid(deps, contract, token_id)?,
-            ),
+            OfferingQueryMsg::GetOfferingByContractTokenId { contract, token_id } => {
+                to_json_binary(&query_offering_by_contract_tokenid(
+                    deps, contract, token_id,
+                )?)
+            }
             OfferingQueryMsg::GetOfferingsRoyalty {
                 limit,
                 offset,
@@ -157,12 +162,10 @@ pub fn try_update_offering(
 
     offerings().save(deps.storage, &offering.id.unwrap().to_be_bytes(), &offering)?;
 
-    return Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "update_offering"),
-            attr("offering_id", offering.id.unwrap()),
-        ],
-        ));
+    return Ok(Response::new().add_attributes(vec![
+        attr("action", "update_offering"),
+        attr("offering_id", offering.id.unwrap()),
+    ]));
 }
 
 pub fn try_remove_offering(
@@ -181,9 +184,10 @@ pub fn try_remove_offering(
     // remove offering
     offerings().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(Response::new().
-        add_attributes(vec![attr("action", "remove_offering"), attr("offering_id", id)],
-        ));
+    return Ok(Response::new().add_attributes(vec![
+        attr("action", "remove_offering"),
+        attr("offering_id", id),
+    ]));
 }
 
 pub fn try_update_offering_royalty(
@@ -210,10 +214,9 @@ pub fn try_update_offering_royalty(
         &offering,
     )?;
 
-    return Ok(Response::new().
-        add_attributes(vec![attr("action", "update_offering_royalty")],
-        data: to_json_binary(&offering).ok(),
-    });
+    return Ok(Response::new()
+        .add_attributes(vec![attr("action", "update_offering_royalty")])
+        .set_data(to_json_binary(&offering)?));
 }
 
 // pub fn try_remove_offering_royalty(
@@ -265,10 +268,9 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().
-        add_attributes(vec![attr("action", "update_info")],
-        data: to_json_binary(&new_contract_info).ok(),
-    })
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "update_info")])
+        .set_data(to_json_binary(&new_contract_info)?))
 }
 
 // ============================== Query Handlers ==============================
@@ -277,10 +279,15 @@ fn _get_range_params(
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> (usize, Option<Bound>, Option<Bound>, Order) {
+) -> (
+    usize,
+    Option<Bound<'static, &'static [u8]>>,
+    Option<Bound<'static, &'static [u8]>>,
+    Order,
+) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
+    let mut min = None;
+    let mut max = None;
     let mut order_enum = Order::Descending;
     if let Some(num) = order {
         if num == 1 {
@@ -290,7 +297,7 @@ fn _get_range_params(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        let offset_value = Some(Bound::ExclusiveRaw(offset.to_be_bytes().to_vec()));
         match order_enum {
             Order::Ascending => min = offset_value,
             Order::Descending => max = offset_value,
@@ -303,7 +310,12 @@ fn _get_range_params_offering_royalty(
     limit: Option<u8>,
     offset: Option<OffsetMsg>,
     order: Option<u8>,
-) -> (usize, Option<Bound>, Option<Bound>, Order) {
+) -> (
+    usize,
+    Option<Bound<'static, &'static [u8]>>,
+    Option<Bound<'static, &'static [u8]>>,
+    Order,
+) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min: Option<Bound> = None;
     let max: Option<Bound> = None;
@@ -316,7 +328,7 @@ fn _get_range_params_offering_royalty(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::Exclusive(get_key_royalty(
+        let offset_value = Some(Bound::ExclusiveRaw(get_key_royalty(
             offset.contract.as_bytes(),
             offset.token_id.as_bytes(),
         )));
@@ -509,7 +521,7 @@ pub fn query_offering_royalty_by_contract_tokenid(
 ) -> StdResult<OfferingRoyalty> {
     let offering = offerings_royalty().idx.contract_token_id.item(
         deps.storage,
-        PkOwned(get_key_royalty(contract.as_bytes(), token_id.as_bytes())),
+        get_key_royalty(contract.as_bytes(), token_id.as_bytes()),
     )?;
     if let Some(offering_obj) = offering {
         Ok(offering_obj.1)
@@ -540,7 +552,9 @@ fn parse_offering<'a>(
     })
 }
 
-fn parse_offering_royalty<'a>(item: StdResult<Record<OfferingRoyalty>>) -> StdResult<OfferingRoyalty> {
+fn parse_offering_royalty<'a>(
+    item: StdResult<Record<OfferingRoyalty>>,
+) -> StdResult<OfferingRoyalty> {
     item.and_then(|(_, offering)| {
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array

@@ -1,3 +1,6 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{ContractInfo, APPROVES, CONTRACT_INFO};
@@ -7,10 +10,9 @@ use market_whitelist::{
 };
 
 use cosmwasm_std::{
-    attr, to_json_binary, Binary, Deps, DepsMut, Env, Response, Response, MessageInfo, Order,
-    StdResult,
+    attr, to_json_binary, Binary, Deps, DepsMut, Env, MessageInfo, Order, Response, StdResult,
 };
-use cosmwasm_std::{Addr, KV};
+use cosmwasm_std::{Addr, Record};
 use cw_storage_plus::Bound;
 use std::usize;
 
@@ -78,10 +80,9 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().
-        add_attributes(vec![attr("action", "update_info")],
-        data: to_json_binary(&new_contract_info).ok(),
-    })
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "update_info")])
+        .set_data(to_json_binary(&new_contract_info)?))
 }
 
 /// returns true iff the sender can execute approve or reject on the contract
@@ -106,7 +107,7 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 start_after,
                 limit,
             } => {
-                let start_addr = start_after.map(Addr);
+                let start_addr = start_after.map(Addr::unchecked);
                 to_json_binary(&query_all_approvals(
                     deps,
                     env,
@@ -195,7 +196,7 @@ fn query_all_approvals(
     limit: Option<u32>,
 ) -> StdResult<ApprovedForAllResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|approved| Bound::exclusive(approved.as_bytes()));
+    let start = start_after.map(|approved| Bound::ExclusiveRaw(approved.as_bytes().to_vec()));
 
     let operators = APPROVES
         .range(deps.storage, start, None, Order::Ascending)
