@@ -2,10 +2,10 @@ use crate::contract::*;
 
 use crate::msg::*;
 use cosmwasm_std::testing::{
-    mock_dependencies, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
+    mock_dependencies_with_balance, mock_env, mock_info, MockApi, MockQuerier, MockStorage,
 };
 use cosmwasm_std::Api;
-use cosmwasm_std::{coin, coins, from_json, Env, Addr, Order, OwnedDeps, Uint128};
+use cosmwasm_std::{coin, coins, from_json, Addr, Env, Order, OwnedDeps, Uint128};
 use market_auction_extend::QueryAuctionsResult;
 use market_auction_extend::{
     Auction, AuctionExecuteMsg, AuctionQueryMsg, AuctionsResponse, PagingOptions,
@@ -16,7 +16,7 @@ const DENOM: &str = "orai";
 
 fn setup_contract() -> (OwnedDeps<MockStorage, MockApi, MockQuerier>, Env) {
     let mut deps = mock_dependencies_with_balance(&coins(100000, DENOM));
-    
+
     let msg = InstantiateMsg {
         governance: Addr::unchecked(CREATOR),
     };
@@ -33,16 +33,10 @@ fn sort_auction() {
 
     // beneficiary can release it
     let info = mock_info(CREATOR, &vec![coin(50000000, DENOM)]);
-    let contract_addr = deps
-        .api
-        .addr_canonicalize(&Addr::unchecked("contract_addr"))
-        .unwrap();
-    let asker = deps
-        .api
-        .addr_canonicalize(&Addr::unchecked("asker"))
-        .unwrap();
+    let contract_addr = deps.api.addr_canonicalize("contract_addr").unwrap();
+    let asker = deps.api.addr_canonicalize("asker").unwrap();
 
-    for i in 1..50 {
+    for i in 1..50u128 {
         let auction = Auction {
             id: None,
             per_price: Uint128::from(i),
@@ -70,16 +64,13 @@ fn sort_auction() {
         start: contract_env.block.height + 15,
         end: contract_env.block.height + 100,
         cancel_fee: Some(1),
-        buyout_per_price: Some(Uint128::from(1u128))),
+        buyout_per_price: Some(Uint128::from(1u128)),
         start_timestamp: Uint128::from(0u64),
         end_timestamp: Uint128::from(0u64),
         step_price: 1,
         contract_addr: contract_addr.clone(),
         token_id: "2".to_string(),
-        asker: deps
-            .api
-            .addr_canonicalize(&Addr::unchecked("another asker"))
-            .unwrap(),
+        asker: deps.api.addr_canonicalize("another asker").unwrap(),
         orig_per_price: Uint128::from(1u128),
         bidder: None,
         amount: Uint128::from(10u128),

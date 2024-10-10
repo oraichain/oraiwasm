@@ -1,8 +1,8 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Addr, StdResult, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
+use cosmwasm_std::{Addr, CanonicalAddr, StdResult, Storage};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
 use market_auction_extend::Auction;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -27,11 +27,11 @@ pub fn increment_auctions(storage: &mut dyn Storage) -> StdResult<u64> {
 
 // bidder is who is willing to pay the maximum price for the contract_token_id
 pub struct AuctionIndexes<'a> {
-    pub asker: MultiIndex<'a, Auction>,
-    pub bidder: MultiIndex<'a, Auction>,
-    pub contract: MultiIndex<'a, Auction>,
-    pub contract_token_id: MultiIndex<'a, Auction>,
-    pub unique_key: UniqueIndex<'a, PkOwned, Auction>,
+    pub asker: MultiIndex<'a, Vec<u8>, Auction, &'a [u8]>,
+    pub bidder: MultiIndex<'a, Vec<u8>, Auction, &'a [u8]>,
+    pub contract: MultiIndex<'a, Vec<u8>, Auction, &'a [u8]>,
+    pub contract_token_id: MultiIndex<'a, Vec<u8>, Auction, &'a [u8]>,
+    pub unique_key: UniqueIndex<'a, Vec<u8>, Auction>,
 }
 
 impl<'a> IndexList<Auction> for AuctionIndexes<'a> {
@@ -54,20 +54,20 @@ pub fn get_contract_token_id(contract: &CanonicalAddr, token_id: &str) -> Vec<u8
     vec
 }
 
-pub fn get_unique_key(contract: &CanonicalAddr, token_id: &str, owner: &CanonicalAddr) -> PkOwned {
+pub fn get_unique_key(contract: &CanonicalAddr, token_id: &str, owner: &CanonicalAddr) -> Vec<u8> {
     let mut vec = contract.as_slice().to_vec();
     vec.extend(token_id.as_bytes());
     vec.extend(owner.as_slice());
-    PkOwned(vec)
+    vec
 }
 
 // this IndexedMap instance has a lifetime
 pub fn auctions<'a>() -> IndexedMap<'a, &'a [u8], Auction, AuctionIndexes<'a>> {
     let indexes = AuctionIndexes {
-        asker: MultiIndex::new(|o| o.asker.to_vec(), "auctions", "auctions__asker"),
+        asker: MultiIndex::new(|_pk, o| o.asker.to_vec(), "auctions", "auctions__asker"),
         // do not copy the value, if we put None bidder, we got all pending bids
         bidder: MultiIndex::new(
-            |o| {
+            |_pk, o| {
                 o.bidder
                     .as_ref()
                     .map(|addr| addr.to_vec())
@@ -77,12 +77,12 @@ pub fn auctions<'a>() -> IndexedMap<'a, &'a [u8], Auction, AuctionIndexes<'a>> {
             "auctions__bidder",
         ),
         contract: MultiIndex::new(
-            |o| o.contract_addr.to_vec(),
+            |_pk, o| o.contract_addr.to_vec(),
             "auctions",
             "auctions__contract",
         ),
         contract_token_id: MultiIndex::new(
-            |o| get_contract_token_id(&o.contract_addr, &o.token_id),
+            |_pk, o| get_contract_token_id(&o.contract_addr, &o.token_id),
             "auctions",
             "contract__tokenid",
         ),
