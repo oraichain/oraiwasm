@@ -6,16 +6,15 @@ use std::{
 };
 
 use cosmwasm_std::{
-    attr, entry_point, from_json, to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Empty,
-    Env, MessageInfo, Response, Order, Response, Response, StdError, StdResult, Storage,
-    Uint128, WasmMsg, KV,
+    attr, from_json, to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Empty, Env,
+    MessageInfo, Order, Record, Response, StdError, StdResult, Storage, Uint128, WasmMsg,
 };
 use cw1155::Cw1155ReceiveMsg;
 use cw721::Cw721ReceiveMsg;
 use cw_storage_plus::Bound;
 
 use crate::{
-    error::{ContractError, DivideByZeroError, OverflowError, OverflowOperation},
+    error::ContractError,
     msg::{
         CreateCollectionPoolMsg, DepositeMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StakeMsgDetail,
         UpdateCollectionPoolMsg, UpdateContractInfoMsg,
@@ -201,12 +200,9 @@ pub fn handle_update_contract_info(
         },
     )?;
 
-    Ok(Response {
-        events: vec![],
-        messages: vec![],
-        add_attributes(vec![attr("action", "update_info")],
-        data: to_json_binary(&new_contract_info).ok(),
-    })
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "update_info")])
+        .set_data(to_json_binary(&new_contract_info)?))
 }
 
 pub fn handle_create_collection_pool_info(
@@ -217,7 +213,7 @@ pub fn handle_create_collection_pool_info(
 ) -> Result<Response, ContractError> {
     check_admin_permission(deps.as_ref(), &info.sender)?;
 
-    if msg.reward_per_block.le(&Uint128(0u128)) {
+    if msg.reward_per_block.le(&Uint128::zero()) {
         return Err(ContractError::InvalidRewardPerBlock {});
     }
 
@@ -233,8 +229,8 @@ pub fn handle_create_collection_pool_info(
     let mut new_collection_info = CollectionPoolInfo {
         collection_id: msg.collection_id.clone(),
         reward_per_block: msg.reward_per_block.clone(),
-        total_nfts: Uint128(0u128),
-        acc_per_share: Uint128(0u128),
+        total_nfts: Uint128::zero(),
+        acc_per_share: Uint128::zero(),
         last_reward_block: 0u64,
         expired_block: None,
     };
@@ -249,20 +245,18 @@ pub fn handle_create_collection_pool_info(
         &new_collection_info,
     )?;
 
-    Ok(Response {
-        data: None,
-        events: vec![],
-        messages: vec![],
-        add_attributes(vec![
-            attr("action", "create_collection_pool"),
-            attr("collection_id", msg.collection_id),
-            attr("reward_per_block", msg.reward_per_block),
-            attr(
-                "expired_block",
-                new_collection_info.expired_block.unwrap_or_default(),
-            ),
-        ],
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "create_collection_pool"),
+        attr("collection_id", msg.collection_id),
+        attr("reward_per_block", msg.reward_per_block),
+        attr(
+            "expired_block",
+            new_collection_info
+                .expired_block
+                .unwrap_or_default()
+                .to_string(),
+        ),
+    ]))
 }
 
 pub fn handle_update_collection_pool_info(
@@ -275,7 +269,7 @@ pub fn handle_update_collection_pool_info(
     COLLECTION_POOL_INFO.update(deps.storage, msg.collection_id.clone().as_bytes(), |data| {
         if let Some(mut collection_pool_info) = data {
             if let Some(reward_per_block) = msg.reward_per_block.clone() {
-                if reward_per_block.le(&Uint128(0u128)) {
+                if reward_per_block.le(&Uint128::zero()) {
                     return Err(ContractError::InvalidRewardPerBlock {});
                 }
                 collection_pool_info.reward_per_block = reward_per_block
@@ -289,16 +283,11 @@ pub fn handle_update_collection_pool_info(
         }
     })?;
 
-    Ok(Response {
-        data: None,
-        events: vec![],
-        messages: vec![],
-        add_attributes(vec![
-            attr("action", "update_collection_pool_info"),
-            attr("collection_id", msg.collection_id),
-            attr("reward_per_block", msg.reward_per_block.unwrap_or_default()),
-        ],
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "update_collection_pool_info"),
+        attr("collection_id", msg.collection_id),
+        attr("reward_per_block", msg.reward_per_block.unwrap_or_default()),
+    ]))
 }
 
 pub fn handle_receive_1155(
@@ -422,7 +411,7 @@ fn handle_stake(
             attr("action", "stake_nft"),
             attr("collection_id", msg.collection_id.clone()),
             attr("staker_addr", operator.clone()),
-            attr("nft", to_json_binary(&msg.nft)?),
+            attr("nft", to_json_binary(&msg.nft)?.to_string()),
         ];
 
         let collection_pool_info = COLLECTION_POOL_INFO
@@ -451,10 +440,10 @@ fn handle_stake(
             staker_info = CollectionStakerInfo {
                 id: Some(increment_collection_stakers(deps.storage)?),
                 collection_id: msg.collection_id.clone(),
-                pending: Uint128(0u128),
-                reward_debt: Uint128(0u128),
-                total_staked: Uint128(0u128),
-                total_earned: Uint128(0u128),
+                pending: Uint128::zero(),
+                reward_debt: Uint128::zero(),
+                total_staked: Uint128::zero(),
+                total_earned: Uint128::zero(),
                 staker_addr: operator.clone(),
                 staked_tokens: vec![],
             };
@@ -474,16 +463,13 @@ fn handle_stake(
             update_collection_pool(deps.storage, env.clone(), msg.collection_id.clone())?;
 
         // If There were nfts staked before, then update pending amount for this staker
-        if staker_info.total_staked.gt(&Uint128(0u128)) {
+        if staker_info.total_staked.gt(&Uint128::zero()) {
             // pending = ((total_staked_nft_editions * accumulate_per_share)) - reward_debt + current_pending
-            let pending = checked_sub(
-                checked_mul(
-                    staker_info.total_staked,
-                    collection_pool_info.acc_per_share.clone(),
-                )?,
-                staker_info.reward_debt.clone(),
-            )?
-            .add(&staker_info.pending.clone());
+            let pending = staker_info
+                .total_staked
+                .checked_mul(collection_pool_info.acc_per_share)?
+                .checked_sub(staker_info.reward_debt)?
+                .add(&staker_info.pending.clone());
 
             if pending.gt(&Uint128::zero()) {
                 //println!("staker_info {:?}", staker_info);
@@ -537,10 +523,9 @@ fn handle_stake(
                     user_info
                         .total_staked
                         .add_assign(Uint128::from(msg.nft.amount));
-                    user_info.reward_debt = checked_mul(
-                        user_info.total_staked,
-                        collection_pool_info.acc_per_share.clone(),
-                    )?;
+                    user_info.reward_debt = user_info
+                        .total_staked
+                        .checked_mul(collection_pool_info.acc_per_share)?;
                     if msg.nft.contract_type.eq(&crate::state::ContractType::V1155) {
                         let token = user_info
                             .staked_tokens
@@ -564,12 +549,7 @@ fn handle_stake(
             },
         )?;
 
-        Ok(Response {
-            events: vec![],
-            data: None,
-            messages: vec![],
-            attributes,
-        })
+        Ok(Response::new().add_attributes(attributes))
     }
 }
 
@@ -589,7 +569,7 @@ fn update_collection_pool(
     }
 
     // If there is no nfts staked yet, update last reward block the return
-    if collection_pool_info.total_nfts.eq(&Uint128(0u128)) {
+    if collection_pool_info.total_nfts.is_zero() {
         //collection_pool_info.last_reward_block = env.block.height;
         let updated_collection_pool_info =
             COLLECTION_POOL_INFO.update(storage, collection_id.clone().as_bytes(), |data| {
@@ -604,10 +584,9 @@ fn update_collection_pool(
     } else {
         // Update accumulate_per_share and last_block_reward
         let multiplier = env.block.height - collection_pool_info.last_reward_block;
-        let airi_reward = checked_mul(
-            collection_pool_info.reward_per_block,
-            Uint128::from(multiplier),
-        )?;
+        let airi_reward = collection_pool_info
+            .reward_per_block
+            .checked_mul(Uint128::from(multiplier))?;
 
         let updated_collection_pool_info =
             COLLECTION_POOL_INFO.update(storage, collection_id.clone().as_bytes(), |data| {
@@ -661,14 +640,11 @@ pub fn handle_withdraw(
                 update_collection_pool(deps.storage, env.clone(), collection_id.clone())?;
 
             //Update or claim current pending
-            let current_pending = checked_sub(
-                checked_mul(
-                    staker_info.total_staked,
-                    collection_pool_info.acc_per_share.clone(),
-                )?,
-                staker_info.reward_debt.clone(),
-            )?
-            .add(&staker_info.pending.clone());
+            let current_pending = staker_info
+                .total_staked
+                .checked_mul(collection_pool_info.acc_per_share)?
+                .checked_sub(staker_info.reward_debt)?
+                .add(&staker_info.pending.clone());
 
             if current_pending.gt(&Uint128::zero()) {
                 collection_staker_infos().update(
@@ -724,7 +700,7 @@ pub fn handle_withdraw(
                     crate::state::ContractType::V721 => {
                         cosmos_msgs.push(
                             WasmMsg::Execute {
-                                contract_addr: nft.contract_addr.clone(),
+                                contract_addr: nft.contract_addr.to_string(),
                                 msg: to_json_binary(&cw721::Cw721ExecuteMsg::TransferNft {
                                     recipient: info.sender.clone(),
                                     token_id: nft.token_id.clone(),
@@ -737,7 +713,7 @@ pub fn handle_withdraw(
                     crate::state::ContractType::V1155 => {
                         cosmos_msgs.push(
                             WasmMsg::Execute {
-                                contract_addr: nft.contract_addr.clone(),
+                                contract_addr: nft.contract_addr.to_string(),
                                 msg: to_json_binary(&cw1155::Cw1155ExecuteMsg::SendFrom {
                                     from: env.contract.address.clone().to_string(),
                                     to: info.sender.clone().to_string(),
@@ -759,16 +735,14 @@ pub fn handle_withdraw(
                 |data| {
                     if let Some(mut old_info) = data {
                         // Subtract total of staked first
-                        old_info.total_staked = checked_sub(
-                            old_info.total_staked.clone(),
-                            num_of_withdraw_editions.clone(),
-                        )?;
+                        old_info.total_staked = old_info
+                            .total_staked
+                            .checked_sub(num_of_withdraw_editions)?;
 
                         // Then update reward_debt base on new total_staked
-                        old_info.reward_debt = checked_mul(
-                            old_info.total_staked.clone(),
-                            collection_pool_info.acc_per_share.clone(),
-                        )?;
+                        old_info.reward_debt = old_info
+                            .total_staked
+                            .checked_mul(collection_pool_info.acc_per_share)?;
                         old_info.staked_tokens = left_nfts;
                         Ok(old_info)
                     } else {
@@ -785,7 +759,7 @@ pub fn handle_withdraw(
                 |data| {
                     if let Some(mut old_info) = data {
                         old_info.total_nfts =
-                            checked_sub(old_info.total_nfts, num_of_withdraw_editions)?;
+                            old_info.total_nfts.checked_sub(num_of_withdraw_editions)?;
                         Ok(old_info)
                     } else {
                         return Err(ContractError::Std(StdError::generic_err(
@@ -795,12 +769,9 @@ pub fn handle_withdraw(
                 },
             )?;
 
-            Ok(Response {
-                events: vec![],
-                data: None,
-                messages: cosmos_msgs,
-                attributes,
-            })
+            Ok(Response::new()
+                .add_messages(cosmos_msgs)
+                .add_attributes(attributes))
         }
         None => Err(ContractError::Std(StdError::generic_err(
             "You have not stake any nft editions to this collection",
@@ -830,14 +801,11 @@ pub fn handle_claim(
             let mut claim_amount = Uint128::zero();
 
             //Update or claim pending
-            let current_pending = checked_sub(
-                checked_mul(
-                    staker_info.total_staked,
-                    collection_pool_info.acc_per_share.clone(),
-                )?,
-                staker_info.reward_debt.clone(),
-            )?
-            .add(&staker_info.pending.clone());
+            let current_pending = staker_info
+                .total_staked
+                .checked_mul(collection_pool_info.acc_per_share)?
+                .checked_sub(staker_info.reward_debt)?
+                .add(&staker_info.pending.clone());
 
             if current_pending.gt(&Uint128::zero()) {
                 println!("current_pending {:?}", current_pending.clone());
@@ -867,10 +835,9 @@ pub fn handle_claim(
                 &staker_info.id.unwrap().to_be_bytes(),
                 |data| {
                     if let Some(mut old_info) = data {
-                        old_info.reward_debt = checked_mul(
-                            staker_info.total_staked,
-                            collection_pool_info.acc_per_share.clone(),
-                        )?;
+                        old_info.reward_debt = staker_info
+                            .total_staked
+                            .checked_mul(collection_pool_info.acc_per_share)?;
                         Ok(old_info)
                     } else {
                         Err(StdError::generic_err(
@@ -880,17 +847,12 @@ pub fn handle_claim(
                 },
             )?;
 
-            Ok(Response {
-                data: None,
-                events: vec![],
-                messages: vec![],
-                add_attributes(vec![
-                    attr("action", "claim_reward"),
-                    attr("collection_id", collection_id),
-                    attr("staker", info.sender),
-                    attr("amount", claim_amount),
-                ],
-            })
+            Ok(Response::new().add_attributes(vec![
+                attr("action", "claim_reward"),
+                attr("collection_id", collection_id),
+                attr("staker", info.sender),
+                attr("amount", claim_amount),
+            ]))
         }
         None => Err(ContractError::InvalidClaim {}),
     }
@@ -934,12 +896,7 @@ pub fn handle_reset_earned_rewards(
                     }
                 },
             )?;
-            Ok(Response {
-                events: vec![],
-                data: None,
-                messages: vec![],
-                attributes,
-            })
+            Ok(Response::new().add_attributes(attributes))
         }
         None => Err(ContractError::Std(StdError::generic_err(format!(
             "User {} have not staked any nfts in this collection",
@@ -1007,11 +964,7 @@ pub fn migrate(
     //         .into(),
     //     );
     // }
-    Ok(Response {
-        data: None,
-        messages: vec![],
-        add_attributes(vec![attr("action", "migrate")],
-    })
+    Ok(Response::new().add_attributes(vec![attr("action", "migrate")]))
 }
 
 fn current_pending(
@@ -1028,20 +981,17 @@ fn current_pending(
         && collection_pool_info.total_nfts.ne(&Uint128::zero())
     {
         let multiplier = env.block.height - collection_pool_info.last_reward_block;
-        let airi_reward = checked_mul(
-            collection_pool_info.reward_per_block,
-            Uint128::from(multiplier),
-        )?;
-        acc_per_share_view.add_assign(checked_div(
-            airi_reward,
-            collection_pool_info.total_nfts.clone(),
-        )?);
+        let airi_reward = collection_pool_info
+            .reward_per_block
+            .checked_mul(Uint128::from(multiplier))?;
+        acc_per_share_view.add_assign(airi_reward.checked_div(collection_pool_info.total_nfts)?);
     }
     if staker_info.total_staked.gt(&Uint128::zero()) {
-        Ok(checked_sub(
-            checked_mul(staker_info.total_staked, acc_per_share_view)?.add(staker_info.pending),
-            staker_info.reward_debt,
-        )?)
+        Ok(staker_info
+            .total_staked
+            .checked_mul(acc_per_share_view)?
+            .add(staker_info.pending)
+            .checked_sub(staker_info.reward_debt)?)
     } else {
         Ok(staker_info.pending)
     }
@@ -1120,14 +1070,11 @@ pub fn query_collection_pool_info(
             && collection_pool_info.total_nfts.ne(&Uint128::zero())
         {
             let multiplier = env.block.height - collection_pool_info.last_reward_block;
-            let airi_reward = checked_mul(
-                collection_pool_info.reward_per_block,
-                Uint128::from(multiplier),
-            )?;
-            acc_per_share_view.add_assign(checked_div(
-                airi_reward,
-                collection_pool_info.total_nfts.clone(),
-            )?);
+            let airi_reward = collection_pool_info
+                .reward_per_block
+                .checked_mul(Uint128::from(multiplier))?;
+            acc_per_share_view
+                .add_assign(airi_reward.checked_div(collection_pool_info.total_nfts.clone())?);
 
             return Ok(Some(CollectionPoolInfo {
                 acc_per_share: acc_per_share_view,
@@ -1160,8 +1107,10 @@ pub fn query_collection_pool_infos(
             {
                 let mut acc_per_share_view = item.acc_per_share.clone();
                 let multiplier = env.block.height - item.last_reward_block;
-                let airi_reward = checked_mul(item.reward_per_block, Uint128::from(multiplier))?;
-                acc_per_share_view.add_assign(checked_div(airi_reward, item.total_nfts.clone())?);
+                let airi_reward = item
+                    .reward_per_block
+                    .checked_mul(Uint128::from(multiplier))?;
+                acc_per_share_view.add_assign(airi_reward.checked_div(item.total_nfts.clone())?);
 
                 return Ok(CollectionPoolInfo {
                     acc_per_share: acc_per_share_view,
@@ -1220,7 +1169,8 @@ pub fn query_collection_staker_info_by_collection(
     let result: StdResult<Vec<CollectionStakerInfo>> = collection_staker_infos()
         .idx
         .collection
-        .items(deps.storage, collection_id.as_bytes(), min, max, order_enum)
+        .prefix(collection_id.as_bytes().to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_collection_staker_info(kv_item))
         .collect();
@@ -1246,7 +1196,8 @@ pub fn query_collection_staker_info_by_staker(
     let result: StdResult<Vec<CollectionStakerInfo>> = collection_staker_infos()
         .idx
         .staker
-        .items(deps.storage, staker_addr.as_bytes(), min, max, order_enum)
+        .prefix(staker_addr.as_bytes().to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_collection_staker_info(kv_item))
         .collect();
@@ -1282,7 +1233,12 @@ fn _get_range_params(
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> (usize, Option<Bound<&[u8]>>, Option<Bound<&[u8]>>, Order) {
+) -> (
+    usize,
+    Option<Bound<'static, &'static [u8]>>,
+    Option<Bound<'static, &'static [u8]>>,
+    Order,
+) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min = None;
     let mut max = None;

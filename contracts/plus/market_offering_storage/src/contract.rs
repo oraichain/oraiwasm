@@ -164,7 +164,7 @@ pub fn try_update_offering(
 
     return Ok(Response::new().add_attributes(vec![
         attr("action", "update_offering"),
-        attr("offering_id", offering.id.unwrap().to_string()),
+        attr("offering_id", offering.id.unwrap_or_default().to_string()),
     ]));
 }
 

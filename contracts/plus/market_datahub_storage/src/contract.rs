@@ -242,7 +242,7 @@ pub fn try_update_offering(
 
     return Ok(Response::new().add_attributes(vec![
         attr("action", "update_offering"),
-        attr("offering_id", offering.id.unwrap().to_string()),
+        attr("offering_id", offering.id.unwrap_or_default().to_string()),
     ]));
 }
 
@@ -295,7 +295,10 @@ pub fn try_update_annotation(
 
     return Ok(Response::new().add_attributes(vec![
         attr("action", "update_annotation"),
-        attr("annotation_id", annotation.id.unwrap().to_string()),
+        attr(
+            "annotation_id",
+            annotation.id.unwrap_or_default().to_string(),
+        ),
     ]));
 }
 
@@ -342,7 +345,10 @@ pub fn try_update_annotation_results(
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "update_annotation_result"),
-        attr("annotation_result_id", &data.id.unwrap().to_string()),
+        attr(
+            "annotation_result_id",
+            &data.id.unwrap_or_default().to_string(),
+        ),
     ]))
 }
 
@@ -479,7 +485,10 @@ pub fn try_add_reviewed_upload(
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "add_reviewed_count"),
-        attr("review_result_id", &reviewed_upload.id.unwrap().to_string()),
+        attr(
+            "review_result_id",
+            &reviewed_upload.id.unwrap_or_default().to_string(),
+        ),
     ]))
 }
 

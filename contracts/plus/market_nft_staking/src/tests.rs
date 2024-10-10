@@ -1,5 +1,5 @@
 use crate::{
-    contract::{handle, init, query},
+    contract::{execute, instantiate, query},
     error::ContractError,
     msg::{
         CreateCollectionPoolMsg, DepositeMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
@@ -8,7 +8,7 @@ use crate::{
     state::{CollectionPoolInfo, CollectionStakerInfo, ContractInfo},
 };
 use cosmwasm_std::{
-    coins, from_json, from_json,
+    coins, from_json, 
     testing::{mock_info, MockApi, MockStorage},
     to_json_binary, Binary, ContractResult, CosmosMsg, Response, Addr, MessageInfo,
     OwnedDeps, QuerierResult, StdResult, SystemError, SystemResult, Uint128, WasmQuery, Env,
@@ -103,7 +103,7 @@ impl DepsManager {
         for msg in &ret.messages {
             if let CosmosMsg::Wasm(cosmwasm_std::WasmMsg::Execute {
                 contract_addr, msg, ..
-            }) = msg
+            }) = msg.msg.clone()
             {
                 let result = match contract_addr.as_str() {
                     OW_1155_ADDR => ow1155::contract::execute(
@@ -376,7 +376,7 @@ fn update_collection_pool_info_test() {
         // try to update
         let mut msg = UpdateCollectionPoolMsg {
             collection_id: "1".to_string(),
-            reward_per_block: Some(Uint128(0u128)),
+            reward_per_block: Some(Uint128::zero()),
         };
 
         // Fail 'cause of unauthorized
@@ -397,7 +397,7 @@ fn update_collection_pool_info_test() {
         assert!(matches!(res, Err(ContractError::InvalidRewardPerBlock {})));
 
         // Update sucessfully
-        msg.reward_per_block = Some(Uint128(20u128));
+        msg.reward_per_block = Some(Uint128::from(20u128));
         let _ = manager.execute(
             mock_info(CREATOR, &[]),
             mock_env(CONTRACT_ADDR),

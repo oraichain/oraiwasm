@@ -1,5 +1,5 @@
 use cosmwasm_std::{Addr, StdResult, Storage, Uint128};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, PkOwned, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -68,9 +68,9 @@ pub enum ContractType {
 }
 
 pub struct CollectionStakerInfoIndexes<'a> {
-    pub collection: MultiIndex<'a, CollectionStakerInfo>,
-    pub staker: MultiIndex<'a, CollectionStakerInfo>,
-    pub unique_collection_staker: UniqueIndex<'a, PkOwned, CollectionStakerInfo>,
+    pub collection: MultiIndex<'a, Vec<u8>, CollectionStakerInfo, &'a [u8]>,
+    pub staker: MultiIndex<'a, Vec<u8>, CollectionStakerInfo, &'a [u8]>,
+    pub unique_collection_staker: UniqueIndex<'a, Vec<u8>, CollectionStakerInfo>,
 }
 
 impl<'a> IndexList<CollectionStakerInfo> for CollectionStakerInfoIndexes<'a> {
@@ -84,22 +84,22 @@ impl<'a> IndexList<CollectionStakerInfo> for CollectionStakerInfoIndexes<'a> {
     }
 }
 
-pub fn get_unique_collection_staker(collection_id: String, staker_addr: Addr) -> PkOwned {
+pub fn get_unique_collection_staker(collection_id: String, staker_addr: Addr) -> Vec<u8> {
     let mut vec = collection_id.as_bytes().to_vec();
     vec.extend(staker_addr.as_bytes());
-    PkOwned(vec)
+    vec
 }
 
 pub fn collection_staker_infos<'a>(
 ) -> IndexedMap<'a, &'a [u8], CollectionStakerInfo, CollectionStakerInfoIndexes<'a>> {
     let indexes = CollectionStakerInfoIndexes {
         collection: MultiIndex::new(
-            |ct| ct.collection_id.as_bytes().to_vec(),
+            |_pk, ct| ct.collection_id.as_bytes().to_vec(),
             "collection_staker_infos",
             "collection_staker_info_collection",
         ),
         staker: MultiIndex::new(
-            |ct| ct.staker_addr.as_bytes().to_vec(),
+            |_pk, ct| ct.staker_addr.as_bytes().to_vec(),
             "collection_staker_infos",
             "collection_staker_info_staker",
         ),

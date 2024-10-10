@@ -8,6 +8,9 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
+    #[error("{0}")]
+    Overflow(#[from] cosmwasm_std::OverflowError),
+
     #[error("Unauthorized datahub storage with sender: {sender}")]
     Unauthorized { sender: String },
     #[error("Collection expired")]
@@ -24,13 +27,6 @@ pub enum ContractError {
 
     #[error("You have not staken any nfts to this collection")]
     InvalidClaim {},
-
-    #[error("Overflow")]
-    Overflow {
-        source: OverflowError,
-        #[cfg(feature = "backtraces")]
-        backtrace: Backtrace,
-    },
 }
 
 impl Into<String> for ContractError {
