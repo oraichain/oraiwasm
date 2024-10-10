@@ -22,7 +22,7 @@ pub fn instantiate(
     let cfg = AdminList {
         admins: map_canonical(deps.api, &msg.admins)?,
         mutable: msg.mutable,
-        owner: deps.api.addr_canonicalize(&info.sender)?,
+        owner: deps.api.addr_canonicalize(info.sender.as_str())?,
     };
     admin_list(deps.storage).save(&cfg)?;
     // storage must appear before implementation, each time update storage, may need to update implementation if the storages is different,
@@ -165,7 +165,7 @@ pub fn handle_update_storage_data(
 ) -> Result<Response, ContractError> {
     let registry_obj = registry_read(deps.storage).load()?;
     let admin_list = admin_list_read(deps.storage).load()?;
-    let sender_canonical = deps.api.addr_canonicalize(&info.sender)?;
+    let sender_canonical = deps.api.addr_canonicalize(info.sender.as_str())?;
 
     let can_update = registry_obj
         .implementations
@@ -187,14 +187,14 @@ pub fn handle_update_storage_data(
 
     messages.push(
         WasmMsg::Execute {
-            contract_addr: storage_addr,
+            contract_addr: storage_addr.to_string(),
             msg,
             funds: vec![],
         }
         .into(),
     );
-    res.messages = messages;
-    res.attributes = vec![attr("action", "update_storage_data")];
+    res = res.add_messages(messages);
+    res = res.add_attributes(vec![attr("action", "update_storage_data")]);
     Ok(res)
 }
 
@@ -204,7 +204,7 @@ pub fn handle_freeze(
     info: MessageInfo,
 ) -> Result<Response, ContractError> {
     let mut cfg = admin_list_read(deps.storage).load()?;
-    if !cfg.can_modify(&deps.api.addr_canonicalize(&info.sender)?) {
+    if !cfg.can_modify(&deps.api.addr_canonicalize(&info.sender.as_str())?) {
         Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
         })
@@ -225,7 +225,7 @@ pub fn handle_update_admins(
     admins: Vec<Addr>,
 ) -> Result<Response, ContractError> {
     let mut cfg = admin_list_read(deps.storage).load()?;
-    if !cfg.can_modify(&deps.api.addr_canonicalize(&info.sender)?) {
+    if !cfg.can_modify(&deps.api.addr_canonicalize(info.sender.as_str())?) {
         Err(ContractError::Unauthorized {
             sender: info.sender.to_string(),
         })
@@ -299,7 +299,7 @@ pub fn query_storage_addr(deps: Deps, name: String) -> StdResult<Addr> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+    use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
 
     #[test]
     fn init_and_modify_config() {
@@ -318,7 +318,7 @@ mod tests {
             implementations: vec![],
             mutable: true,
         };
-        let info = mock_info(&owner, &[]);
+        let info = mock_info(owner.as_str(), &[]);
         instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
         // ensure expected config
@@ -333,7 +333,7 @@ mod tests {
         let msg = ExecuteMsg::UpdateAdmins {
             admins: vec![anyone.clone()],
         };
-        let info = mock_info(&anyone, &[]);
+        let info = mock_info(&anyone.as_str(), &[]);
         let res = execute(deps.as_mut(), mock_env(), info, msg);
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
@@ -344,7 +344,7 @@ mod tests {
         let msg = ExecuteMsg::UpdateAdmins {
             admins: vec![alice.clone(), bob.clone()],
         };
-        let info = mock_info(&alice, &[]);
+        let info = mock_info(&alice.as_str(), &[]);
         execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
         // ensure expected config
@@ -356,7 +356,7 @@ mod tests {
         assert_eq!(query_admin_list(deps.as_ref()).unwrap(), expected);
 
         // carl cannot freeze it
-        let info = mock_info(&carl, &[]);
+        let info = mock_info(&carl.as_str(), &[]);
         let res = execute(deps.as_mut(), mock_env(), info, ExecuteMsg::Freeze {});
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
@@ -364,7 +364,7 @@ mod tests {
         }
 
         // but bob can
-        let info = mock_info(&bob, &[]);
+        let info = mock_info(&bob.as_str(), &[]);
         execute(deps.as_mut(), mock_env(), info, ExecuteMsg::Freeze {}).unwrap();
         let expected = AdminListResponse {
             admins: vec![alice.clone(), bob.clone()],
@@ -377,7 +377,7 @@ mod tests {
         let msg = ExecuteMsg::UpdateAdmins {
             admins: vec![alice.clone()],
         };
-        let info = mock_info(&alice, &[]);
+        let info = mock_info(&alice.as_str(), &[]);
         let res = execute(deps.as_mut(), mock_env(), info, msg);
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
@@ -401,11 +401,11 @@ mod tests {
             implementations: vec![],
             mutable: false,
         };
-        let info = mock_info(&owner, &[]);
+        let info = mock_info(owner.as_str(), &[]);
         instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
         // carl cannot freeze it
-        let info = mock_info(&carl, &[]);
+        let info = mock_info(carl.as_str(), &[]);
         let res = execute(deps.as_mut(), mock_env(), info, ExecuteMsg::Freeze {});
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
@@ -418,7 +418,7 @@ mod tests {
         };
 
         // bob cannot execute them
-        let info = mock_info(&bob, &[]);
+        let info = mock_info(bob.as_str(), &[]);
         let res = execute(deps.as_mut(), mock_env(), info, handle_msg.clone());
         match res.unwrap_err() {
             ContractError::Unauthorized { .. } => {}
@@ -426,7 +426,7 @@ mod tests {
         }
 
         // but carl can
-        let info = mock_info(&carl, &[]);
+        let info = mock_info(carl.as_str(), &[]);
         let res = execute(deps.as_mut(), mock_env(), info, handle_msg.clone()).unwrap();
         assert_eq!(
             res.attributes,
@@ -450,7 +450,7 @@ mod tests {
             implementations: vec![],
             mutable: false,
         };
-        let info = mock_info(&owner, &[]);
+        let info = mock_info(owner.as_str(), &[]);
         instantiate(deps.as_mut(), mock_env(), info, init_msg).unwrap();
 
         // owner can send

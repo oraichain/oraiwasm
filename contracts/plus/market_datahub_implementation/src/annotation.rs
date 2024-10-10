@@ -58,7 +58,6 @@ pub fn try_withdraw(
         if !annotation_price.is_zero() {
             cosmos_msgs.push(
                 BankMsg::Send {
-                    from_address: env.contract.address.clone(),
                     to_address: Addr::unchecked(off.requester),
                     amount: coins(annotation_price.clone().u128(), &denom),
                 }
@@ -73,17 +72,15 @@ pub fn try_withdraw(
             DataHubExecuteMsg::RemoveAnnotation { id: annotation_id },
         )?);
 
-        return Ok(Response {
-            messages: cosmos_msgs,
-            add_attributes(vec![
+        return Ok(Response::new()
+            .add_messages(cosmos_msgs)
+            .add_attributes(vec![
                 attr("action", "withdraw_annotation_request"),
                 attr("requester", info.sender),
                 attr("annotation_id", annotation_id),
                 attr("token_id", off.token_id),
                 attr("payback_amount", annotation_price.to_string()),
-            ],
-            data: None,
-        });
+            ]));
     }
     Err(ContractError::Unauthorized {
         sender: info.sender.to_string(),
@@ -114,7 +111,7 @@ pub fn try_execute_request_annotation(
     if let Some(fund) = info.funds.iter().find(|fund| fund.denom.eq(&denom)) {
         let mut reward = calculate_annotation_price(
             reward_per_sample.clone(),
-            Uint128::from(number_of_samples.clone().0 + max_upload_tasks.clone().0),
+            number_of_samples + max_upload_tasks,
         )
         .mul(Decimal::from_ratio(max_annotation_per_task.u128(), 1u128));
 
@@ -164,8 +161,9 @@ pub fn try_execute_request_annotation(
         },
     )?);
 
-    Ok(Response::new().add_messages( cosmos_msg,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cosmos_msg)
+        .add_attributes(vec![
             attr("action", "request_annotation"),
             attr("requester", info.sender.clone()),
             attr("reward_per_sample", reward_per_sample.to_string()),
@@ -176,8 +174,7 @@ pub fn try_execute_request_annotation(
                 "reward_per_upload_sample",
                 reward_per_upload_task.to_string(),
             ),
-        ],
-        ))
+        ]))
 }
 
 pub fn try_payout(
@@ -297,9 +294,7 @@ pub fn try_payout(
     let mut total_reward = 0u128;
     let mut total_bond = calculate_annotation_price(
         annotation.reward_per_sample.clone(),
-        Uint128::from(
-            annotation.number_of_samples.clone().0 + annotation.max_upload_tasks.clone().0,
-        ),
+        annotation.number_of_samples + annotation.max_upload_tasks,
     )
     .mul(Decimal::from_ratio(
         annotation.max_annotation_per_task.u128(),
@@ -321,7 +316,6 @@ pub fn try_payout(
             total_reward = total_reward + reward;
             cosmos_msg.push(
                 BankMsg::Send {
-                    from_address: env.contract.address.clone(),
                     to_address: annotator_address.clone(),
                     amount: coins(reward.into(), denom.clone()),
                 }
@@ -358,9 +352,9 @@ pub fn try_payout(
         },
     )?);
 
-    Ok(Response::new().add_messages( cosmos_msg,
-        attributes,
-        ))
+    Ok(Response::new()
+        .add_messages(cosmos_msg)
+        .add_attributes(attributes))
 }
 
 pub fn get_annotation(deps: Deps, annotation_id: u64) -> Result<Annotation, ContractError> {

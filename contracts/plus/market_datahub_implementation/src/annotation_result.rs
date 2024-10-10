@@ -37,7 +37,7 @@ pub fn try_add_annotation_result(
 
     for result in annotator_results.iter() {
         if result.result.len()
-            > (annotation.number_of_samples.clone().0 + annotation.max_upload_tasks.clone().0)
+            > (annotation.number_of_samples + annotation.max_upload_tasks)
                 .try_into()
                 .unwrap()
         {
@@ -103,13 +103,11 @@ pub fn try_add_annotation_result(
         },
     )?);
 
-    Ok(Response::new().add_messages( msg,
-        add_attributes(vec![
-            attr("action", "reviewer_commit_result"),
-            attr("annotation_id", annotation_id.to_string()),
-            attr("reviewer_address", info.sender.to_string()),
-        ],
-        ))
+    Ok(Response::new().add_messages(msg).add_attributes(vec![
+        attr("action", "reviewer_commit_result"),
+        attr("annotation_id", annotation_id.to_string()),
+        attr("reviewer_address", info.sender.to_string()),
+    ]))
 }
 
 pub fn try_add_reviewed_upload(
@@ -195,13 +193,11 @@ pub fn try_add_reviewed_upload(
         },
     )?);
 
-    Ok(Response::new().add_messages( msg,
-        add_attributes(vec![
-            attr("action", "reviewer_commit_reviewed_upload"),
-            attr("annotation_id", annotation_id.to_string()),
-            attr("reviewer_address", info.sender.to_string()),
-        ],
-        ))
+    Ok(Response::new().add_messages(msg).add_attributes(vec![
+        attr("action", "reviewer_commit_reviewed_upload"),
+        attr("annotation_id", annotation_id.to_string()),
+        attr("reviewer_address", info.sender.to_string()),
+    ]))
 }
 
 pub fn try_add_annotation_reviewer(
@@ -244,13 +240,13 @@ pub fn try_add_annotation_reviewer(
         },
     )?);
 
-    Ok(Response::new().add_messages( cosmos_msg,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cosmos_msg)
+        .add_attributes(vec![
             attr("action", "add annotation reviewer"),
             attr("annotation_id", annotation_id.to_string()),
             attr("reviewer_address", reviewer_address.to_string()),
-        ],
-        ))
+        ]))
 }
 
 pub fn try_remove_annotation_reviewer(
@@ -293,13 +289,13 @@ pub fn try_remove_annotation_reviewer(
         },
     )?);
 
-    Ok(Response::new().add_messages( cosmos_msg,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cosmos_msg)
+        .add_attributes(vec![
             attr("action", "remove reviewer from annotation"),
             attr("annotation", annotation_id.to_string()),
             attr("reviewer_address", reviewer_address.to_string()),
-        ],
-        ))
+        ]))
 }
 
 pub fn get_annotation_results_by_annotation_id(

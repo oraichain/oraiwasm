@@ -173,20 +173,19 @@ pub fn try_withdraw_funds(
 ) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
-        from_address: env.contract.address,
         to_address: Addr::unchecked(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
 
-    Ok(Response::new().add_messages( vec![bank_msg],
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(vec![bank_msg])
+        .add_attributes(vec![
             attr("action", "withdraw_funds"),
             attr("denom", fund.denom),
             attr("amount", fund.amount),
             attr("receiver", contract_info.creator),
-        ],
-        ))
+        ]))
 }
 
 pub fn try_update_info(
@@ -230,10 +229,9 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().
-        add_attributes(vec![attr("action", "update_info")],
-        data: to_json_binary(&new_contract_info).ok(),
-    })
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "update_info")])
+        .set_data(to_json_binary(&new_contract_info)?))
 }
 
 pub fn try_migrate(
@@ -270,14 +268,14 @@ pub fn try_migrate(
         .into();
         cw721_transfer_cosmos_msg.push(exec_cw721_transfer);
     }
-    Ok(Response::new().add_messages( cw721_transfer_cosmos_msg,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cw721_transfer_cosmos_msg)
+        .add_attributes(vec![
             attr("action", "migrate_marketplace"),
             attr("nft_contract_addr", nft_contract_addr),
             attr("new_marketplace", new_marketplace),
-        ],
-        data: to_json_binary(&token_infos).ok(),
-    })
+        ])
+        .set_data(to_json_binary(&token_infos)?))
 }
 
 // when user sell NFT to
@@ -348,10 +346,6 @@ pub fn query_ai_royalty(deps: Deps, msg: AiRoyaltyQueryMsg) -> StdResult<Binary>
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(
-    _deps: DepsMut,
-    _env: Env,
-    _msg: MigrateMsg,
-) -> Result<Response, ContractError> {
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
     Ok(Response::default())
 }

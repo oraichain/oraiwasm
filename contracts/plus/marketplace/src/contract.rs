@@ -141,13 +141,13 @@ pub fn try_withdraw_funds(
 ) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
-        from_address: env.contract.address,
+        
         to_address: Addr::unchecked(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
 
-    Ok(Response::new().add_messages( vec![bank_msg],
+    Ok(Response::new().add_messages( vec![bank_msg]).
         add_attributes(vec![
             attr("action", "withdraw_funds"),
             attr("denom", fund.denom),

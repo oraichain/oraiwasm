@@ -1,6 +1,9 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use cosmwasm_std::{
     attr, coins, from_json, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut,
-    Env, MessageInfo, Order, Response, Response, StdResult, Storage, Uint128,
+    Env, MessageInfo, Order, Response, StdResult, Storage, Uint128,
 };
 use drand_verify_v1::{
     derive_randomness, g1_from_variable, g2_from_fixed, g2_from_variable, verify,
@@ -116,21 +119,20 @@ pub fn try_set_fees(
 
 pub fn try_withdraw_fees(env: Env, fees: Uint128) -> Result<Response, HandleError> {
     let withdraw_msg: CosmosMsg = BankMsg::Send {
-        from_address: env.contract.address.clone(),
-        to_address: Addr::unchecked("orai146tlt2sfuls7ku05msf7sa6v8saxauh2zenwlk"),
+        to_address: "orai146tlt2sfuls7ku05msf7sa6v8saxauh2zenwlk".to_string(),
         amount: vec![Coin {
             denom: String::from("orai"),
             amount: fees,
         }],
     }
     .into();
-    let res = Response::new().add_messages( vec![withdraw_msg],
-        add_attributes(vec![
+    let res = Response::new()
+        .add_messages(vec![withdraw_msg])
+        .add_attributes(vec![
             attr("action", "withdraw_fees"),
             attr("to_address", env.contract.address),
             attr("amount", fees),
-        ],
-        );
+        ]);
 
     Ok(res)
 }
@@ -151,9 +153,10 @@ pub fn try_invoke(
             expected_denom: "orai".to_string(),
         });
     }
-    let res = Response::new().
-        add_attributes(vec![attr("action", "invoke_add"), attr("user_input", user_input)],
-        );
+    let res = Response::new().add_attributes(vec![
+        attr("action", "invoke_add"),
+        attr("user_input", user_input),
+    ]);
 
     Ok(res)
 }
@@ -235,22 +238,21 @@ pub fn try_add(
 
     beacons_storage(deps.storage).set(&round.to_be_bytes(), &msg);
 
-    let mut response = Response::default();
-    response.data = Some(randomness.into());
+    let mut response = Response::new();
+    response = response.set_data(randomness);
     let bounty = get_bounty(deps.storage, round)?;
     if bounty != 0 {
-        response.messages = vec![CosmosMsg::Bank(BankMsg::Send {
-            from_address: env.contract.address,
-            to_address: info.sender,
+        response = response.add_messages(vec![CosmosMsg::Bank(BankMsg::Send {
+            to_address: info.sender.to_string(),
             amount: coins(bounty, bounty_denom),
-        })];
+        })]);
         clear_bounty(deps.storage, round);
     }
-    response.attributes = vec![
+    response = response.add_attributes(vec![
         attr("action", "add"),
         attr("round", round.to_string()),
         attr("randomness", msg.to_string()),
-    ];
+    ]);
     Ok(response)
 }
 
@@ -339,7 +341,9 @@ fn clear_bounty(storage: &mut dyn Storage, round: u64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info, MOCK_CONTRACT_ADDR};
+    use cosmwasm_std::testing::{
+        mock_dependencies_with_balance, mock_env, mock_info, MOCK_CONTRACT_ADDR,
+    };
     use cosmwasm_std::{from_json, Addr, Coin, Uint128};
     use hex_literal::hex;
 
@@ -514,10 +518,9 @@ mod tests {
         let response = execute(deps.as_mut(), mock_env(), info, msg).unwrap();
         assert_eq!(response.messages.len(), 1);
         assert_eq!(
-            response.messages[0],
+            response.messages[0].msg,
             CosmosMsg::Bank(BankMsg::Send {
-                from_address: Addr::unchecked(MOCK_CONTRACT_ADDR),
-                to_address: Addr::unchecked("claimer"),
+                to_address: "claimer".to_string(),
                 amount: coins(4500, BOUNTY_DENOM),
             })
         );
