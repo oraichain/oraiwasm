@@ -1,15 +1,17 @@
 use crate::auction::DEFAULT_AUCTION_BLOCK;
-use crate::contract::{handle, init, query, verify_owner, MAX_DECIMAL_POINT, MAX_ROYALTY_PERCENT};
+use crate::contract::{
+    execute, instantiate, query, verify_owner, MAX_DECIMAL_POINT, MAX_ROYALTY_PERCENT,
+};
 use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::ContractInfo;
 use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
-    coin, coins, from_json, from_json, to_json_binary, Addr, Binary, ContractResult, CosmosMsg,
-    Decimal, Env, MessageInfo, Order, OwnedDeps, QuerierResult, Response, StdError, StdResult,
-    SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
+    coin, coins, from_json, to_json_binary, Addr, Binary, ContractResult, CosmosMsg, Decimal, Env,
+    MessageInfo, Order, OwnedDeps, QuerierResult, Response, StdError, StdResult, SystemError,
+    SystemResult, Uint128, WasmMsg, WasmQuery,
 };
-use cw20::{Cw20CoinHuman, Cw20ReceiveMsg, MinterResponse};
+use cw20::{Cw20Coin, Cw20ReceiveMsg, MinterResponse};
 use cw721::{ApprovedForAllResponse, OwnerOfResponse};
 use market::parse_token_id;
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty, RoyaltyMsg};
@@ -23,7 +25,6 @@ use market_whitelist::MarketWhiteListExecuteMsg;
 use std::mem::transmute;
 use std::ops::{Add, Mul};
 use std::ptr::null;
-use std::str::from_utf8;
 
 pub const CREATOR: &str = "owner";
 pub const MARKET_ADDR: &str = "market_addr";
@@ -243,16 +244,17 @@ impl DepsManager {
             ow20.as_mut(),
             mock_env(OW20),
             info.clone(),
-            ow20::msg::InstantiateMsg {
+            cw20_base::msg::InstantiateMsg {
+                marketing: None,
                 name: "AIRI".into(),
                 symbol: "AIRI".into(),
                 decimals: 6u8,
-                initial_balances: vec![Cw20CoinHuman {
+                initial_balances: vec![Cw20Coin {
                     amount: Uint128::from(1000000000000000000u64),
-                    address: Addr::unchecked(OW20_MINTER),
+                    address: OW20_MINTER.to_string(),
                 }],
                 mint: Some(MinterResponse {
-                    minter: Addr::unchecked(OW20_MINTER),
+                    minter: OW20_MINTER.to_string(),
                     cap: None,
                 }),
             },
@@ -264,8 +266,8 @@ impl DepsManager {
             ow20.as_mut(),
             mock_env(OW20),
             mock_info(OW20_MINTER, &[]),
-            ow20::msg::ExecuteMsg::Mint {
-                recipient: Addr::unchecked(BIDDER),
+            cw20_base::msg::ExecuteMsg::Mint {
+                recipient: BIDDER.to_string(),
                 amount: Uint128::from(1000000000000000000u64),
             },
         )
@@ -275,8 +277,8 @@ impl DepsManager {
             ow20.as_mut(),
             mock_env(OW20),
             mock_info(OW20_MINTER, &[]),
-            ow20::msg::ExecuteMsg::Mint {
-                recipient: Addr::unchecked("bidder1"),
+            cw20_base::msg::ExecuteMsg::Mint {
+                recipient: "bidder1".to_string(),
                 amount: Uint128::from(1000000000000000000u64),
             },
         )
@@ -322,7 +324,7 @@ impl DepsManager {
             // only clone required properties
             if let CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr, msg, ..
-            }) = msg
+            }) = msg.msg.clone()
             {
                 let result = match contract_addr.as_str() {
                     OW721 => oraichain_nft::contract::execute(
@@ -398,7 +400,6 @@ impl DepsManager {
         res.push(ret);
     }
 
-    #[cfg_attr(not(feature = "library"), entry_point)]
     pub fn execute(
         &mut self,
         info: MessageInfo,
@@ -713,8 +714,8 @@ fn test_royalty_auction_happy_path() {
             start: Some(contract_env.block.height + 5),
             end: Some(contract_env.block.height + 100),
             buyout_price: Some(Uint128::from(300u64)),
-            start_timestamp: Some(Uint128::from(contract_env.block.time + 5)),
-            end_timestamp: Some(Uint128::from(contract_env.block.time + 100)),
+            start_timestamp: Some(Uint128::from(contract_env.block.time.seconds() + 5)),
+            end_timestamp: Some(Uint128::from(contract_env.block.time.seconds() + 100)),
             step_price: Some(10),
             royalty: Some(40 * DECIMAL),
         };
@@ -727,7 +728,7 @@ fn test_royalty_auction_happy_path() {
         let bid_info = mock_info(BIDDER, &coins(200, DENOM));
         let bid_msg = ExecuteMsg::BidNft { auction_id: 1 };
         let mut bid_contract_env = contract_env.clone();
-        bid_contract_env.block.time = contract_env.block.time + 15;
+        bid_contract_env.block.time = contract_env.block.time.plus_seconds(15);
         let _res = manager
             .handle_with_env(bid_contract_env, bid_info.clone(), bid_msg)
             .unwrap();
@@ -738,7 +739,7 @@ fn test_royalty_auction_happy_path() {
         let claim_info = mock_info("anyone", &coins(0, DENOM));
         let claim_msg = ExecuteMsg::ClaimWinner { auction_id: 1 };
         let mut claim_contract_env = contract_env.clone();
-        claim_contract_env.block.time = contract_env.block.time + 100; // > 100 at block end
+        claim_contract_env.block.time = contract_env.block.time.plus_seconds(100); // > 100 at block end
         let res = manager
             .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
             .unwrap();
@@ -777,8 +778,8 @@ fn test_royalty_auction_happy_path() {
             start: Some(contract_env.block.height + 5),
             end: Some(contract_env.block.height + 100),
             buyout_price: Some(Uint128::from(30u64)),
-            start_timestamp: Some(Uint128::from(contract_env.block.time + 5)),
-            end_timestamp: Some(Uint128::from(contract_env.block.time + 100)),
+            start_timestamp: Some(Uint128::from(contract_env.block.time.seconds() + 5)),
+            end_timestamp: Some(Uint128::from(contract_env.block.time.seconds() + 100)),
             step_price: Some(10),
             royalty: Some(40 * DECIMAL),
         };
@@ -790,7 +791,7 @@ fn test_royalty_auction_happy_path() {
         // bid to claim winner
         let bid_msg = ExecuteMsg::BidNft { auction_id: 2 };
         let mut bid_contract_env = contract_env.clone();
-        bid_contract_env.block.time = contract_env.block.time + 15;
+        bid_contract_env.block.time = contract_env.block.time.plus_seconds(15);
         let _res = manager
             .handle_with_env(
                 bid_contract_env,
@@ -836,13 +837,13 @@ fn test_royalty_auction_happy_path() {
         let claim_info = mock_info("anyone", &coins(0, DENOM));
         let claim_msg = ExecuteMsg::ClaimWinner { auction_id: 2 };
         let mut claim_contract_env = contract_env.clone();
-        claim_contract_env.block.time = contract_env.block.time + DEFAULT_AUCTION_BLOCK; // > 100 at block end
+        claim_contract_env.block.time = contract_env.block.time.plus_seconds(DEFAULT_AUCTION_BLOCK); // > 100 at block end
         let results = manager
             .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
             .unwrap();
         for result in results {
-            for message in result.clone().messages {
-                if let CosmosMsg::Bank(msg) = message {
+            for message in &result.messages {
+                if let CosmosMsg::Bank(msg) = message.msg.clone() {
                     match msg {
                         cosmwasm_std::BankMsg::Send { to_address, amount } => {
                             let amount = amount[0].amount;
@@ -916,8 +917,8 @@ fn test_royalty_auction_cw20_happy_path() {
             start: Some(contract_env.block.height + 5),
             end: Some(contract_env.block.height + 100),
             buyout_price: Some(Uint128::from(30u64)),
-            start_timestamp: Some(Uint128::from(contract_env.block.time + 5)),
-            end_timestamp: Some(Uint128::from(contract_env.block.time + 100)),
+            start_timestamp: Some(Uint128::from(contract_env.block.time.seconds() + 5)),
+            end_timestamp: Some(Uint128::from(contract_env.block.time.seconds() + 100)),
             step_price: Some(10),
             royalty: Some(40 * DECIMAL),
         };
@@ -928,12 +929,12 @@ fn test_royalty_auction_cw20_happy_path() {
 
         // bid auction
         let bid_msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
-            sender: Addr::unchecked(BIDDER),
+            sender: BIDDER.to_string(),
             amount: Uint128::from(20u64),
-            msg: Some(to_json_binary(&Cw20HookMsg::BidNft { auction_id: 1 }).unwrap()),
+            msg: to_json_binary(&Cw20HookMsg::BidNft { auction_id: 1 }).unwrap(),
         });
         let mut bid_contract_env = contract_env.clone();
-        bid_contract_env.block.time = contract_env.block.time + 15;
+        bid_contract_env.block.time = contract_env.block.time.plus_seconds(15);
         let _res = manager
             .handle_with_env(bid_contract_env, mock_info(BIDDER, &vec![]), bid_msg)
             .unwrap();
@@ -942,7 +943,7 @@ fn test_royalty_auction_cw20_happy_path() {
         let claim_info = mock_info("anyone", &coins(0, DENOM));
         let claim_msg = ExecuteMsg::ClaimWinner { auction_id: 1 };
         let mut claim_contract_env = contract_env.clone();
-        claim_contract_env.block.time = contract_env.block.time + 100; // > 100 at block end
+        claim_contract_env.block.time = contract_env.block.time.plus_seconds(100); // > 100 at block end
         let res = manager
             .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
             .unwrap();
@@ -974,8 +975,8 @@ fn test_royalty_auction_cw20_happy_path() {
             start: Some(contract_env.block.height + 5),
             end: Some(contract_env.block.height + 100),
             buyout_price: Some(Uint128::from(30u64)),
-            start_timestamp: Some(Uint128::from(contract_env.block.time + 5)),
-            end_timestamp: Some(Uint128::from(contract_env.block.time + 100)),
+            start_timestamp: Some(Uint128::from(contract_env.block.time.seconds() + 5)),
+            end_timestamp: Some(Uint128::from(contract_env.block.time.seconds() + 100)),
             step_price: Some(10),
             royalty: Some(40 * DECIMAL),
         };
@@ -986,12 +987,12 @@ fn test_royalty_auction_cw20_happy_path() {
 
         // bid to claim winner
         let bid_msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
-            sender: Addr::unchecked("bidder1"),
+            sender: "bidder1".to_string(),
             amount: Uint128::from(20u64),
-            msg: Some(to_json_binary(&Cw20HookMsg::BidNft { auction_id: 2 }).unwrap()),
+            msg: to_json_binary(&Cw20HookMsg::BidNft { auction_id: 2 }).unwrap(),
         });
         let mut bid_contract_env = contract_env.clone();
-        bid_contract_env.block.time = contract_env.block.time + 15;
+        bid_contract_env.block.time = contract_env.block.time.plus_seconds(15);
         let _res = manager
             .handle_with_env(bid_contract_env, mock_info("bidder1", &vec![]), bid_msg)
             .unwrap();
@@ -1027,7 +1028,7 @@ fn test_royalty_auction_cw20_happy_path() {
         let claim_info = mock_info("anyone", &coins(0, DENOM));
         let claim_msg = ExecuteMsg::ClaimWinner { auction_id: 2 };
         let mut claim_contract_env = contract_env.clone();
-        claim_contract_env.block.time = contract_env.block.time + DEFAULT_AUCTION_BLOCK; // > 100 at block end
+        claim_contract_env.block.time = contract_env.block.time.plus_seconds(DEFAULT_AUCTION_BLOCK); // > 100 at block end
         let results = manager
             .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
             .unwrap();
@@ -1509,9 +1510,9 @@ fn cancel_bid_cw20_happy_path() {
         );
         // bid auction
         let bid_msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
-            sender: Addr::unchecked(BIDDER),
+            sender: BIDDER.to_string(),
             amount: Uint128::from(20u64),
-            msg: Some(to_json_binary(&Cw20HookMsg::BidNft { auction_id: 1 }).unwrap()),
+            msg: to_json_binary(&Cw20HookMsg::BidNft { auction_id: 1 }).unwrap(),
         });
         let _res = manager
             .handle_with_env(mock_env(MARKET_ADDR), mock_info(BIDDER, &vec![]), bid_msg)
@@ -1667,8 +1668,8 @@ fn claim_winner_return_back_to_owner() {
             start: Some(contract_env.block.height + 5),
             end: Some(contract_env.block.height + 100),
             buyout_price: None,
-            start_timestamp: Some(Uint128::from(contract_env.block.time + 5)),
-            end_timestamp: Some(Uint128::from(contract_env.block.time + 100)),
+            start_timestamp: Some(Uint128::from(contract_env.block.time.seconds() + 5)),
+            end_timestamp: Some(Uint128::from(contract_env.block.time.seconds() + 100)),
             step_price: None,
             royalty: None,
         };
@@ -1690,7 +1691,7 @@ fn claim_winner_return_back_to_owner() {
 
         let bid_msg = ExecuteMsg::BidNft { auction_id: 1 };
         let mut bid_contract_env = contract_env.clone();
-        bid_contract_env.block.time = contract_env.block.time + 15;
+        bid_contract_env.block.time = contract_env.block.time.plus_seconds(15);
 
         // insufficient funds when bid
         assert!(matches!(
@@ -1713,7 +1714,7 @@ fn claim_winner_return_back_to_owner() {
         let claim_info = mock_info("claimer", &coins(0, DENOM));
         let claim_msg = ExecuteMsg::ClaimWinner { auction_id: 1 };
         let mut claim_contract_env = contract_env.clone();
-        claim_contract_env.block.time = contract_env.block.time + 100; // > 100 at block end
+        claim_contract_env.block.time = contract_env.block.time.plus_seconds(100); // > 100 at block end
         let res = manager
             .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
             .unwrap();
@@ -1837,8 +1838,8 @@ fn claim_winner_verify_owner() {
             start: Some(contract_env.block.height + 5),
             end: Some(contract_env.block.height + 100),
             buyout_price: None,
-            start_timestamp: Some(Uint128::from(contract_env.block.time + 5)),
-            end_timestamp: Some(Uint128::from(contract_env.block.time + 100)),
+            start_timestamp: Some(Uint128::from(contract_env.block.time.seconds() + 5)),
+            end_timestamp: Some(Uint128::from(contract_env.block.time.seconds() + 100)),
             step_price: None,
             royalty: None,
         };
@@ -1874,7 +1875,7 @@ fn claim_winner_verify_owner() {
         let claim_info = mock_info("claimer", &coins(0, DENOM));
         let claim_msg = ExecuteMsg::ClaimWinner { auction_id: 1 };
         let mut claim_contract_env = contract_env.clone();
-        claim_contract_env.block.time = contract_env.block.time + 100; // > 100 at block end
+        claim_contract_env.block.time = contract_env.block.time.plus_seconds(100); // > 100 at block end
         manager
             .handle_with_env(claim_contract_env, claim_info.clone(), claim_msg)
             .unwrap();
@@ -2073,15 +2074,14 @@ fn test_royalties() {
         let contract_info: ContractInfo =
             from_json(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
         for result in results {
-            for message in result.clone().messages {
-                if let CosmosMsg::Bank(msg) = message {
+            for message in &result.messages {
+                if let CosmosMsg::Bank(msg) = message.msg.clone() {
                     match msg {
                         cosmwasm_std::BankMsg::Send { to_address, amount } => {
                             println!("to address: {}", to_address);
                             println!("amount: {:?}", amount);
                             let amount = amount[0].amount;
-                            to_addrs.push(to_address.clone());
-                            amounts.push(amount);
+
                             // check royalty sent to seller
                             if to_address.eq(&offering.clone().seller) {
                                 total_payment = total_payment + amount;
@@ -2107,6 +2107,8 @@ fn test_royalties() {
                                     amount
                                 );
                             }
+                            to_addrs.push(Addr::unchecked(to_address));
+                            amounts.push(amount);
                         }
 
                         _ => continue,
@@ -2198,9 +2200,9 @@ fn test_royalties_ow20() {
         println!("offerings: {:?}", result);
 
         let buy_msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
-            sender: Addr::unchecked("buyer"),
+            sender: "buyer".to_string(),
             amount: Uint128::from(50u64),
-            msg: Some(to_json_binary(&Cw20HookMsg::BuyNft { offering_id: 1 }).unwrap()),
+            msg: to_json_binary(&Cw20HookMsg::BuyNft { offering_id: 1 }).unwrap(),
         });
         let _res = manager
             .execute(mock_info("buyer", &vec![]), buy_msg)
@@ -2239,9 +2241,9 @@ fn test_royalties_ow20() {
 
         // other buyer
         let buy_msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
-            sender: Addr::unchecked("buyer1"),
+            sender: "buyer1".to_string(),
             amount: Uint128::from(70u64),
-            msg: Some(to_json_binary(&Cw20HookMsg::BuyNft { offering_id: 2 }).unwrap()),
+            msg: to_json_binary(&Cw20HookMsg::BuyNft { offering_id: 2 }).unwrap(),
         });
         let _res = manager
             .execute(mock_info("buyer1", &vec![]), buy_msg)
@@ -2275,9 +2277,9 @@ fn test_royalties_ow20() {
         let info_buy = mock_info("buyer2", &coins(9000000, DENOM));
 
         let buy_msg = ExecuteMsg::Receive(Cw20ReceiveMsg {
-            sender: Addr::unchecked("buyer2"),
+            sender: "buyer2".to_string(),
             amount: Uint128::from(9000000u64),
-            msg: Some(to_json_binary(&Cw20HookMsg::BuyNft { offering_id: 3 }).unwrap()),
+            msg: to_json_binary(&Cw20HookMsg::BuyNft { offering_id: 3 }).unwrap(),
         });
         // before the final buy
         let result_royalty: OfferingRoyalty = from_json(
@@ -2327,8 +2329,8 @@ fn test_royalties_ow20() {
         let contract_info: ContractInfo =
             from_json(&manager.query(QueryMsg::GetContractInfo {}).unwrap()).unwrap();
         for result in results {
-            for message in result.clone().messages {
-                if let CosmosMsg::Wasm(wasm_msg) = message {
+            for message in &result.messages {
+                if let CosmosMsg::Wasm(wasm_msg) = message.msg.clone() {
                     match wasm_msg {
                         cosmwasm_std::WasmMsg::Execute {
                             contract_addr,
@@ -2340,7 +2342,7 @@ fn test_royalties_ow20() {
                             if cw20_msg_result.is_ok() {
                                 let cw20_msg: (Addr, Uint128) = match cw20_msg_result.unwrap() {
                                     cw20::Cw20ExecuteMsg::Transfer { recipient, amount } => {
-                                        (recipient, amount)
+                                        (Addr::unchecked(recipient), amount)
                                     }
                                     _ => (Addr::unchecked("abcd"), Uint128::from(0u64)),
                                 };
