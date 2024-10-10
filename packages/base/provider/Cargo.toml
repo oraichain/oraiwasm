@@ -1,6 +1,6 @@
 [package]
 authors = ["Le Duc Pham <duc@orai.io>"]
-edition = "2018"
+edition = { workspace = true }
 name = "provider"
 version = "0.1.0"
 
@@ -23,6 +23,4 @@ cw-storage-plus = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
-
-[dev-dependencies]
 cosmwasm-schema = { workspace = true }

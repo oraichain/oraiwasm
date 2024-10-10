@@ -2,7 +2,7 @@
 name = "market_datahub_ai_marketplace"
 version = "0.1.0"
 authors = ["tupt <tubackkhoa@gmail.com>", "tuanpt <tuan.pt@orai.io>"]
-edition = "2018"
+edition = { workspace = true }
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -29,6 +29,4 @@ schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 cosmwasm-storage = { workspace = true, features = ["iterator"] }
-
-[dev-dependencies]
 cosmwasm-schema = { workspace = true }

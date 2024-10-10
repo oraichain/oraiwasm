@@ -1,3 +1,6 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
@@ -7,10 +10,10 @@ use crate::state::{
 use market_1155::{MarketExecuteMsg, MarketQueryMsg, Offering};
 
 use cosmwasm_std::{
-    attr, to_json_binary, Binary, Deps, DepsMut, Env, Response, Response, MessageInfo, Order,
+    attr, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo, Order, Record, Response,
     StdError, StdResult,
 };
-use cosmwasm_std::{Addr, KV};
+
 use cw_storage_plus::Bound;
 use std::convert::TryInto;
 use std::usize;
@@ -125,9 +128,9 @@ pub fn try_update_info(
         Ok(contract_info)
     })?;
 
-    Ok(Response::new().add_attributes()vec![attr("action", "update_info")]).set_data(
-        to_json_binary(&new_contract_info)?,
-    ))
+    Ok(Response::new()
+        .add_attributes(vec![attr("action", "update_info")])
+        .set_data(to_json_binary(&new_contract_info)?))
 }
 
 pub fn try_update_offering(
@@ -151,12 +154,10 @@ pub fn try_update_offering(
 
     offerings().save(deps.storage, &offering.id.unwrap().to_be_bytes(), &offering)?;
 
-    return Ok(Response::new().
-        add_attributes(vec![
-            attr("action", "update_offering"),
-            attr("offering_id", offering.id.unwrap()),
-        ],
-        ));
+    return Ok(Response::new().add_attributes(vec![
+        attr("action", "update_offering"),
+        attr("offering_id", offering.id.unwrap_or_default().to_string()),
+    ]));
 }
 
 pub fn try_withdraw_offering(
@@ -175,9 +176,10 @@ pub fn try_withdraw_offering(
     // remove offering
     offerings().remove(deps.storage, &id.to_be_bytes())?;
 
-    return Ok(Response::new().
-        add_attributes(vec![attr("action", "remove_offering"), attr("offering_id", id)],
-        ));
+    return Ok(Response::new().add_attributes(vec![
+        attr("action", "remove_offering"),
+        attr("offering_id", id.to_string()),
+    ]));
 }
 
 // ============================== Query Handlers ==============================
@@ -186,10 +188,15 @@ fn _get_range_params(
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> (usize, Option<Bound>, Option<Bound>, Order) {
+) -> (
+    usize,
+    Option<Bound<'static, &'static [u8]>>,
+    Option<Bound<'static, &'static [u8]>>,
+    Order,
+) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let mut min: Option<Bound> = None;
-    let mut max: Option<Bound> = None;
+    let mut min = None;
+    let mut max = None;
     let mut order_enum = Order::Ascending;
     if let Some(num) = order {
         if num == 2 {
@@ -199,7 +206,7 @@ fn _get_range_params(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
+        let offset_value = Some(Bound::ExclusiveRaw(offset.to_be_bytes().to_vec()));
         match order_enum {
             Order::Ascending => min = offset_value,
             Order::Descending => max = offset_value,
@@ -244,7 +251,8 @@ pub fn query_offerings_by_seller(
     let offerings_result: StdResult<Vec<Offering>> = offerings()
         .idx
         .seller
-        .items(deps.storage, seller.as_bytes(), min, max, order_enum)
+        .prefix(seller.as_bytes().to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(kv_item))
         .collect();
@@ -263,7 +271,8 @@ pub fn query_offerings_by_contract(
     let offerings_result: StdResult<Vec<Offering>> = offerings()
         .idx
         .contract
-        .items(deps.storage, contract.as_bytes(), min, max, order_enum)
+        .prefix(contract.as_bytes().to_vec())
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(kv_item))
         .collect();
@@ -283,13 +292,8 @@ pub fn query_offerings_by_contract_token_id(
     let offerings_result: StdResult<Vec<Offering>> = offerings()
         .idx
         .contract_token_id
-        .items(
-            deps.storage,
-            &get_contract_token_id(&contract, &token_id),
-            min,
-            max,
-            order_enum,
-        )
+        .prefix(get_contract_token_id(&contract, &token_id))
+        .range(deps.storage, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(kv_item))
         .collect();
@@ -310,7 +314,7 @@ pub fn query_unique_offering(
 ) -> StdResult<Offering> {
     let offering = offerings().idx.unique_offering.item(
         deps.storage,
-        get_unique_offering(&contract, &token_id, &seller),
+        get_unique_offering(&contract, &token_id, seller.as_str()),
     )?;
     if let Some(offering_obj) = offering {
         let off = offering_obj.1;

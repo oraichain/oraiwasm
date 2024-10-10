@@ -2,7 +2,7 @@
 name = "cw1155"
 version = "1.0.1"
 authors = ["Huang Yi <huang@crypto.com>"]
-edition = "2018"
+edition = { workspace = true }
 description = "Definition and types for the CosmWasm-1155 interface"
 license = "Apache-2.0"
 repository = "https://github.com/CosmWasm/cosmwasm-plus"
@@ -14,6 +14,4 @@ cw-utils = { workspace = true }
 cosmwasm-std = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-
-[dev-dependencies]
 cosmwasm-schema = { workspace = true }

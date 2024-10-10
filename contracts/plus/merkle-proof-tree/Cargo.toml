@@ -6,7 +6,7 @@ authors = [
   "Terraform Labs, PTE.",
   "duc@orai.io",
 ]
-edition = "2018"
+edition = { workspace = true }
 description = "An Airdrop contract for allowing users to claim rewards with Merkle Tree based proof"
 license = "Apache-2.0"
 

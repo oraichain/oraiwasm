@@ -2,7 +2,7 @@
 name = "blsdkg_js"
 version = "0.0.1"
 authors = ["Ian Coleman", "Thanh tu <tu@orai.io>", "Duc Pham <duc@orai.io>"]
-edition = "2018"
+edition = { workspace = true }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

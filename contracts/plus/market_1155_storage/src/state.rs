@@ -3,7 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, StdResult, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
@@ -27,10 +27,10 @@ pub fn increment_offerings(storage: &mut dyn Storage) -> StdResult<u64> {
 }
 
 pub struct OfferingIndexes<'a> {
-    pub seller: MultiIndex<'a, Offering>,
-    pub contract: MultiIndex<'a, Offering>,
-    pub contract_token_id: MultiIndex<'a, Offering>,
-    pub unique_offering: UniqueIndex<'a, PkOwned, Offering>,
+    pub seller: MultiIndex<'a, Vec<u8>, Offering, &'a [u8]>,
+    pub contract: MultiIndex<'a, Vec<u8>, Offering, &'a [u8]>,
+    pub contract_token_id: MultiIndex<'a, Vec<u8>, Offering, &'a [u8]>,
+    pub unique_offering: UniqueIndex<'a, Vec<u8>, Offering>,
 }
 
 impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
@@ -46,11 +46,11 @@ impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
 }
 
 // contract nft + token id => unique id
-pub fn get_unique_offering(contract: &Addr, token_id: &str, seller: &str) -> PkOwned {
+pub fn get_unique_offering(contract: &Addr, token_id: &str, seller: &str) -> Vec<u8> {
     let mut vec = contract.as_bytes().to_vec();
     vec.extend(token_id.as_bytes());
     vec.extend(seller.as_bytes());
-    PkOwned(vec)
+    vec
 }
 
 // contract nft + token id => unique id
@@ -64,22 +64,22 @@ pub fn get_contract_token_id(contract: &Addr, token_id: &str) -> Vec<u8> {
 pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>> {
     let indexes = OfferingIndexes {
         seller: MultiIndex::new(
-            |o| o.seller.as_bytes().to_vec(),
+            |_pk, o| o.seller.as_bytes().to_vec(),
             "offerings",
             "offerings__seller",
         ),
         contract: MultiIndex::new(
-            |o| o.contract_addr.as_bytes().to_vec(),
+            |_pk, o| o.contract_addr.as_bytes().to_vec(),
             "offerings",
             "offerings__contract",
         ),
         contract_token_id: MultiIndex::new(
-            |o| get_contract_token_id(&o.contract_addr, &o.token_id),
+            |_pk, o| get_contract_token_id(&o.contract_addr, &o.token_id),
             "offerings",
             "offerings__contract__tokenid",
         ),
         unique_offering: UniqueIndex::new(
-            |o| get_unique_offering(&o.contract_addr, &o.token_id, &o.seller),
+            |o| get_unique_offering(&o.contract_addr, &o.token_id, o.seller.as_str()),
             "offerings__unique",
         ),
     };

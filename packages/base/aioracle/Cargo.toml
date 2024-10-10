@@ -1,5 +1,5 @@
 [package]
-edition = "2018"
+edition = { workspace = true }
 name = "aioracle"
 version = "0.1.0"
 

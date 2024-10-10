@@ -2,7 +2,7 @@
 name = "market_rejected_storage"
 version = "0.1.0"
 authors = ["oraichain <tu@orai.io>"]
-edition = "2018"
+edition = { workspace = true }
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -28,6 +28,4 @@ schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 market_rejected = { workspace = true }
-
-[dev-dependencies]
 cosmwasm-schema = { workspace = true }

@@ -1,6 +1,6 @@
 [package]
 authors = ["Confio, Thanh tu <tu@orai.io> and Duc Pham <duc@orai.io>"]
-edition = "2018"
+edition = { workspace = true }
 license = "AGPL-3.0"
 name = "oraichain_vrf_v1"
 version = "0.1.0"

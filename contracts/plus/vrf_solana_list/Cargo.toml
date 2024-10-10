@@ -1,6 +1,6 @@
 [package]
 authors = ["Oraichain orai.io"]
-edition = "2018"
+edition = { workspace = true }
 license = "AGPL-3.0"
 name = "vrf_solana_list"
 version = "0.1.0"

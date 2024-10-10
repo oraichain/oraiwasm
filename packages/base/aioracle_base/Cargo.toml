@@ -2,7 +2,7 @@
 name = "aioracle_base"
 version = "0.6.0"
 authors = ["Oraichain "]
-edition = "2018"
+edition = { workspace = true }
 repository = "https://github.com/oraichain/oraiwasm"
 homepage = "https://orai.io"
 
@@ -11,7 +11,4 @@ cosmwasm-std = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 cw-utils = { workspace = true }
-
-
-[dev-dependencies]
 cosmwasm-schema = { workspace = true }

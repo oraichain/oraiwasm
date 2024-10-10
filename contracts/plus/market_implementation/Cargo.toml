@@ -2,7 +2,7 @@
 name = "market_implementation"
 version = "0.1.0"
 authors = ["oraichain <tu@orai.io>"]
-edition = "2018"
+edition = { workspace = true }
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -36,9 +36,9 @@ cw20 = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
+cosmwasm-schema = { workspace = true }
 
 [dev-dependencies]
-cosmwasm-schema = { workspace = true }
 market_hub = { workspace = true }
 market_auction_storage = { workspace = true }
 market_offering_storage = { workspace = true }

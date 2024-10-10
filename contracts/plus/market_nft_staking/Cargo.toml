@@ -1,7 +1,7 @@
 [package]
 name = "market_nft_staking"
 version = "0.1.0"
-edition = "2018"
+edition = { workspace = true }
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -29,8 +29,8 @@ tiny-keccak = { workspace = true, features = ["sha3", "keccak"] }
 schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
+cosmwasm-schema = { workspace = true }
 
 [dev-dependencies]
-cosmwasm-schema = { workspace = true }
 ow1155 = { workspace = true }
 oraichain_nft = { workspace = true }

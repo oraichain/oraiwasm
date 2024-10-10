@@ -1,6 +1,6 @@
 [package]
 authors = ["Le Duc Pham <duc@orai.io>"]
-edition = "2018"
+edition = { workspace = true }
 name = "locked_ow721"
 version = "0.1.0"
 
@@ -24,6 +24,4 @@ schemars = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
-
-[dev-dependencies]
 cosmwasm-schema = { workspace = true }
