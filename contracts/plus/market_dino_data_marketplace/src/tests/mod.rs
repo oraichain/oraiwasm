@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     coins,
-    testing::{mock_dependencies, MockApi, MockQuerier, MockStorage},
+    testing::{mock_dependencies_with_balance, MockApi, MockQuerier, MockStorage},
     Addr, OwnedDeps,
 };
 
