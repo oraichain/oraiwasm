@@ -1148,7 +1148,7 @@ fn cancel_auction_happy_path() {
         // Auction should not be listed
         let res = manager
             .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctionsByBidder {
-                bidder: Some(BIDDER.into()),
+                bidder: Some(Addr::unchecked(BIDDER)),
                 options: PagingOptions {
                     limit: None,
                     offset: None,
@@ -1323,7 +1323,7 @@ fn cancel_auction_verify_owner() {
         // Auction should not be listed
         let res = manager
             .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctionsByBidder {
-                bidder: Some(BIDDER.into()),
+                bidder: Some(Addr::unchecked(BIDDER)),
                 options: PagingOptions {
                     limit: None,
                     offset: None,
@@ -1428,7 +1428,7 @@ fn cancel_bid_happy_path() {
         // Auction should be listed
         let res = manager
             .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctionsByBidder {
-                bidder: Some(BIDDER.into()),
+                bidder: Some(Addr::unchecked(BIDDER)),
                 options: PagingOptions {
                     limit: None,
                     offset: None,
@@ -1523,7 +1523,7 @@ fn cancel_bid_cw20_happy_path() {
         // Auction should be listed
         let res = manager
             .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctionsByBidder {
-                bidder: Some(BIDDER.into()),
+                bidder: Some(Addr::unchecked(BIDDER)),
                 options: PagingOptions {
                     limit: None,
                     offset: None,

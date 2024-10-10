@@ -121,18 +121,17 @@ pub fn try_handle_mint(
     msg: Binary,
 ) -> Result<Response, ContractError> {
     let mint_msg = WasmMsg::Execute {
-        contract_addr: contract.clone(),
+        contract_addr: contract.to_string(),
         msg: msg.clone(),
         funds: vec![],
-    }
-    .into();
+    };
 
     let response = Response::new()
         .add_messages(vec![mint_msg])
         .add_attributes(vec![
             attr("action", "mint_nft"),
             attr("invoker", info.sender),
-            attr("mint_msg", msg),
+            attr("mint_msg", msg.to_string()),
         ]);
 
     Ok(response)
@@ -146,7 +145,7 @@ pub fn try_withdraw_funds(
 ) -> Result<Response, ContractError> {
     let contract_info = CONTRACT_INFO.load(deps.storage)?;
     let bank_msg: CosmosMsg = BankMsg::Send {
-        to_address: Addr::unchecked(contract_info.creator.clone()), // as long as we send to the contract info creator => anyone can help us withdraw the fees
+        to_address: contract_info.creator.to_string(), // as long as we send to the contract info creator => anyone can help us withdraw the fees
         amount: vec![fund.clone()],
     }
     .into();
@@ -210,7 +209,7 @@ pub fn try_buy(
 
     let seller_addr = deps.api.addr_humanize(&off.seller)?;
 
-    let mut cosmos_msgs = vec![];
+    let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
     // check for enough coins, if has price then payout to all participants
     if !off.price.is_zero() {
         let contract_info = CONTRACT_INFO.load(deps.storage)?;
@@ -231,10 +230,10 @@ pub fn try_buy(
                 let fee_amount = off.price.mul(Decimal::permille(contract_info.fee));
                 // Rust will automatically floor down the value to 0 if amount is too small => error
                 if fee_amount.gt(&Uint128::zero()) {
-                    seller_amount = seller_amount.sub(fee_amount)?;
+                    seller_amount = seller_amount.checked_sub(fee_amount)?;
                     cosmos_msgs.push(
                         BankMsg::Send {
-                            to_address: Addr::unchecked(contract_info.creator),
+                            to_address: contract_info.creator.to_string(),
                             amount: coins(fee_amount.u128(), &contract_info.denom),
                         }
                         .into(),
@@ -248,10 +247,10 @@ pub fn try_buy(
             {
                 let creator_amount = off.price.mul(Decimal::percent(creator_royalty));
                 if creator_amount.gt(&Uint128::zero()) {
-                    seller_amount = seller_amount.sub(creator_amount)?;
+                    seller_amount = seller_amount.checked_sub(creator_amount)?;
                     cosmos_msgs.push(
                         BankMsg::Send {
-                            to_address: deps.api.addr_humanize(&creator_addr)?,
+                            to_address: deps.api.addr_humanize(&creator_addr)?.to_string(),
                             amount: coins(creator_amount.u128(), &contract_info.denom),
                         }
                         .into(),
@@ -263,10 +262,10 @@ pub fn try_buy(
             if let Some(owner_royalty) = off.royalty {
                 let owner_amount = off.price.mul(Decimal::percent(owner_royalty));
                 if owner_amount.gt(&Uint128::zero()) {
-                    seller_amount = seller_amount.sub(owner_amount)?;
+                    seller_amount = seller_amount.checked_sub(owner_amount)?;
                     cosmos_msgs.push(
                         BankMsg::Send {
-                            to_address: deps.api.addr_humanize(&off.seller)?,
+                            to_address: deps.api.addr_humanize(&off.seller)?.to_string(),
                             amount: coins(owner_amount.u128(), &contract_info.denom),
                         }
                         .into(),
@@ -277,7 +276,7 @@ pub fn try_buy(
             // pay the left to the seller
             cosmos_msgs.push(
                 BankMsg::Send {
-                    to_address: seller_addr.clone(),
+                    to_address: seller_addr.to_string(),
                     amount: coins(seller_amount.u128(), &contract_info.denom),
                 }
                 .into(),
@@ -299,7 +298,7 @@ pub fn try_buy(
     // if everything is fine transfer NFT token to buyer
     cosmos_msgs.push(
         WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&off.contract_addr)?,
+            contract_addr: deps.api.addr_humanize(&off.contract_addr)?.to_string(),
             msg: to_json_binary(&transfer_cw721_msg)?,
             funds: vec![],
         }
@@ -313,7 +312,7 @@ pub fn try_buy(
             attr("buyer", info.sender),
             attr("seller", seller_addr),
             attr("token_id", off.token_id),
-            attr("offering_id", offering_id),
+            attr("offering_id", offering_id.to_string()),
         ]))
 }
 
@@ -415,7 +414,7 @@ pub fn try_withdraw_all(deps: DepsMut, info: MessageInfo) -> Result<Response, Co
         };
 
         let exec_cw721_transfer = WasmMsg::Execute {
-            contract_addr: deps.api.addr_humanize(&off.contract_addr)?,
+            contract_addr: deps.api.addr_humanize(&off.contract_addr)?.to_string(),
             msg: to_json_binary(&transfer_cw721_msg)?,
             funds: vec![],
         };

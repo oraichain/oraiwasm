@@ -114,7 +114,7 @@ pub fn try_buy(
         )?;
 
         // Rust will automatically floor down the value to 0 if amount is too small => error
-        seller_amount = seller_amount.sub(fee_amount);
+        seller_amount = seller_amount.checked_sub(fee_amount)?;
 
         let remaining_for_royalties = seller_amount;
 

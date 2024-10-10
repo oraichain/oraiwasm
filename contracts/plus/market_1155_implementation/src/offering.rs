@@ -224,7 +224,7 @@ pub fn try_buy(
         // pay for the owner of this minter contract if there is fee set in marketplace
         let fee_amount = price.mul(Decimal::permille(contract_info.fee));
         // Rust will automatically floor down the value to 0 if amount is too small => error
-        seller_amount = seller_amount.sub(fee_amount);
+        seller_amount = seller_amount.checked_sub(fee_amount)?;
         MARKET_FEES.update(deps.storage, |current_fees| -> StdResult<_> {
             Ok(current_fees.add(fee_amount))
         })?;
@@ -285,7 +285,7 @@ pub fn try_buy(
         )?);
     } else {
         // if not equal => reduce amount
-        off.amount = off.amount.sub(&amount);
+        off.amount = off.amount.checked_sub(amount)?;
         cosmos_msgs.push(get_handle_msg(
             &governance,
             STORAGE_1155,

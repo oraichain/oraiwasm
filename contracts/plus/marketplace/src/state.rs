@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{CanonicalAddr, StdResult, Storage, Uint128};
 use cosmwasm_storage::{Bucket, ReadonlyBucket};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, U128Key, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
 use sha2::{Digest, Sha256};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -43,9 +43,9 @@ pub fn increment_offerings(storage: &mut dyn Storage) -> StdResult<u64> {
 }
 
 pub struct OfferingIndexes<'a> {
-    pub seller: MultiIndex<'a, Offering>,
-    pub contract: MultiIndex<'a, Offering>,
-    pub contract_token_id: UniqueIndex<'a, U128Key, Offering>,
+    pub seller: MultiIndex<'a, Vec<u8>, Offering, &'a [u8]>,
+    pub contract: MultiIndex<'a, Vec<u8>, Offering, &'a [u8]>,
+    pub contract_token_id: UniqueIndex<'a, u128, Offering>,
 }
 
 impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
@@ -68,14 +68,14 @@ pub fn get_contract_token_id(contract: Vec<u8>, token_id: &str) -> u128 {
 // this IndexedMap instance has a lifetime
 pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>> {
     let indexes = OfferingIndexes {
-        seller: MultiIndex::new(|o| o.seller.to_vec(), "offerings", "offerings__seller"),
+        seller: MultiIndex::new(|_pk, o| o.seller.to_vec(), "offerings", "offerings__seller"),
         contract: MultiIndex::new(
-            |o| o.contract_addr.to_vec(),
+            |_pk, o| o.contract_addr.to_vec(),
             "offerings",
             "offerings__contract",
         ),
         contract_token_id: UniqueIndex::new(
-            |o| U128Key::new(get_contract_token_id(o.contract_addr.to_vec(), &o.token_id)),
+            |o| get_contract_token_id(o.contract_addr.to_vec(), &o.token_id),
             "request__id",
         ),
     };

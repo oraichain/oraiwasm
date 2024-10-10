@@ -79,7 +79,7 @@ pub fn pay_royalties(
         let creator_amount =
             price.mul(Uint128::from(royalty.royalty)) / Uint128::from(decimal_point);
         if creator_amount.gt(&Uint128::zero()) {
-            *remaining = remaining.sub(creator_amount);
+            *remaining = remaining.checked_sub(creator_amount)?;
             cosmos_msgs.push(parse_transfer_msg(
                 asset_info.clone(),
                 creator_amount,

@@ -6,6 +6,9 @@ pub enum ContractError {
     #[error("{0}")]
     Std(#[from] StdError),
 
+    #[error("{0}")]
+    Overflow(#[from] cosmwasm_std::OverflowError),
+
     #[error("No data in ReceiveMsg")]
     NoData {},
 

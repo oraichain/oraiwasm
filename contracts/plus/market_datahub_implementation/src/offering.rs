@@ -214,7 +214,7 @@ pub fn try_buy(
             // pay for the owner of this minter contract if there is fee set in marketplace
             let fee_amount = price.mul(Decimal::permille(contract_info.fee));
             // Rust will automatically floor down the value to 0 if amount is too small => error
-            seller_amount = seller_amount.sub(fee_amount)?;
+            seller_amount = seller_amount.checked_sub(fee_amount)?;
             // // comment this line because it is redundant, no need to pay the creator immediately since we have the withdraw funds function
             // cosmos_msgs.push(
             //     BankMsg::Send {
@@ -234,10 +234,9 @@ pub fn try_buy(
                     let creator_amount =
                         price.mul(Decimal::from_ratio(royalty.royalty, decimal_point));
                     if creator_amount.gt(&Uint128::zero()) {
-                        seller_amount = seller_amount.sub(creator_amount)?;
+                        seller_amount = seller_amount.checked_sub(creator_amount)?;
                         cosmos_msgs.push(
-                            BankMsg::Send {
-                                from_address: env.contract.address.clone(),
+                            BankMsg::Send {                                
                                 to_address: royalty.creator,
                                 amount: coins(creator_amount.u128(), &contract_info.denom),
                             }
@@ -282,7 +281,7 @@ pub fn try_buy(
         .into(),
     );
 
-    if off.amount.sub(Uint128::from(1u128))?.is_zero() {
+    if off.amount.checked_sub(Uint128::from(1u128))?.is_zero() {
         // remove offering in the offering storage when left amount is 0
         cosmos_msgs.push(get_handle_msg(
             governance.as_str(),
@@ -291,7 +290,7 @@ pub fn try_buy(
         )?);
     } else {
         // decrease sell amount by 1
-        off.amount = off.amount.sub(Uint128::from(1u64))?;
+        off.amount = off.amount.checked_sub(Uint128::from(1u64))?;
         cosmos_msgs.push(get_handle_msg(
             governance.as_str(),
             DATAHUB_STORAGE,

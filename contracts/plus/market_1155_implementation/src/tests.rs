@@ -1,16 +1,16 @@
 use crate::auction::calculate_price;
-use crate::contract::{handle, init, query, MAX_ROYALTY_PERCENT};
+use crate::contract::{execute, instantiate, query, MAX_ROYALTY_PERCENT};
 use crate::error::ContractError;
 use crate::msg::*;
 use crate::state::ContractInfo;
 use cosmwasm_std::testing::{mock_info, MockApi, MockStorage};
 use cosmwasm_std::{
-    coin, coins, from_json, from_json, to_json_binary, Addr, Binary, ContractResult, CosmosMsg,
-    Decimal, Env, MessageInfo, OwnedDeps, QuerierResult, Response, StdError, StdResult,
-    SystemError, SystemResult, Uint128, WasmMsg, WasmQuery,
+    coin, coins, from_json, to_json_binary, Addr, Binary, ContractResult, CosmosMsg, Decimal, Env,
+    MessageInfo, OwnedDeps, QuerierResult, Response, StdError, StdResult, SystemError,
+    SystemResult, Uint128, WasmMsg, WasmQuery,
 };
 use cw1155::{BalanceResponse, Cw1155ExecuteMsg, Cw1155QueryMsg};
-use cw20::{Cw20CoinHuman, Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
+use cw20::{Cw20Coin, Cw20ExecuteMsg, Cw20ReceiveMsg, MinterResponse};
 use market::mock::{mock_dependencies, mock_env, MockQuerier};
 use market_1155::{Cw20HookMsg, MarketQueryMsg, MintIntermediate, MintMsg, MintStruct, Offering};
 use market_ai_royalty::{AiRoyaltyQueryMsg, Royalty};
@@ -148,16 +148,17 @@ impl DepsManager {
             ow20.as_mut(),
             mock_env(OW20),
             info.clone(),
-            ow20::msg::InstantiateMsg {
+            cw20_base::msg::InstantiateMsg {
+                marketing: None,
                 name: "AIRI".into(),
                 symbol: "AIRI".into(),
                 decimals: 6u8,
-                initial_balances: vec![Cw20CoinHuman {
+                initial_balances: vec![Cw20Coin {
                     amount: Uint128::from(1000000000000000000u64),
-                    address: Addr::unchecked(OW20_MINTER),
+                    address: OW20_MINTER.to_string(),
                 }],
                 mint: Some(MinterResponse {
-                    minter: Addr::unchecked(OW20_MINTER),
+                    minter: OW20_MINTER.to_string(),
                     cap: None,
                 }),
             },
@@ -169,8 +170,8 @@ impl DepsManager {
             ow20.as_mut(),
             mock_env(OW20),
             mock_info(OW20_MINTER, &[]),
-            ow20::msg::ExecuteMsg::Mint {
-                recipient: Addr::unchecked(BIDDER),
+            cw20_base::msg::ExecuteMsg::Mint {
+                recipient: BIDDER.to_string(),
                 amount: Uint128::from(1000000000000000000u64),
             },
         )
@@ -180,8 +181,8 @@ impl DepsManager {
             ow20.as_mut(),
             mock_env(OW20),
             mock_info(OW20_MINTER, &[]),
-            ow20::msg::ExecuteMsg::Mint {
-                recipient: Addr::unchecked("bidder1"),
+            cw20_base::msg::ExecuteMsg::Mint {
+                recipient: "bidder1".to_string(),
                 amount: Uint128::from(1000000000000000000u64),
             },
         )
@@ -301,7 +302,7 @@ impl DepsManager {
             // only clone required properties
             if let CosmosMsg::Wasm(WasmMsg::Execute {
                 contract_addr, msg, ..
-            }) = msg
+            }) = msg.msg.clone()
             {
                 let result = match contract_addr.as_str() {
                     HUB_ADDR => market_hub::contract::execute(
@@ -377,7 +378,6 @@ impl DepsManager {
         res.push(ret);
     }
 
-    #[cfg_attr(not(feature = "library"), entry_point)]
     pub fn execute(
         &mut self,
         info: MessageInfo,
@@ -564,29 +564,25 @@ fn handle_approve(manager: &mut DepsManager) {
 
 fn generate_msg_bid_cw20(auction_id: u64, amount: u64, per_price: u64) -> ExecuteMsg {
     ExecuteMsg::Receive(Cw20ReceiveMsg {
-        sender: Addr::unchecked(BIDDER),
+        sender: BIDDER.to_string(),
         amount: Uint128::from(amount),
-        msg: Some(
-            to_json_binary(&Cw20HookMsg::BidNft {
-                auction_id,
-                per_price: Uint128::from(per_price),
-            })
-            .unwrap(),
-        ),
+        msg: to_json_binary(&Cw20HookMsg::BidNft {
+            auction_id,
+            per_price: Uint128::from(per_price),
+        })
+        .unwrap(),
     })
 }
 
 fn generate_msg_buy_cw20(offering_id: u64, amount: u64, nft_amount: u64) -> ExecuteMsg {
     ExecuteMsg::Receive(Cw20ReceiveMsg {
-        sender: Addr::unchecked(BIDDER),
+        sender: BIDDER.to_string(),
         amount: Uint128::from(amount),
-        msg: Some(
-            to_json_binary(&Cw20HookMsg::BuyNft {
-                offering_id,
-                amount: Uint128::from(nft_amount),
-            })
-            .unwrap(),
-        ),
+        msg: to_json_binary(&Cw20HookMsg::BuyNft {
+            offering_id,
+            amount: Uint128::from(nft_amount),
+        })
+        .unwrap(),
     })
 }
 
@@ -878,7 +874,7 @@ fn cancel_auction_happy_path() {
         // Auction should not be listed
         let res = manager
             .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctionsByBidder {
-                bidder: Some(BIDDER.into()),
+                bidder: Some(Addr::unchecked(BIDDER)),
                 options: PagingOptions {
                     limit: None,
                     offset: None,
@@ -929,7 +925,7 @@ fn cancel_auction_cw20_happy_path() {
         // Auction should not be listed
         let res = manager
             .query(QueryMsg::Auction(AuctionQueryMsg::GetAuctionsByBidder {
-                bidder: Some(BIDDER.into()),
+                bidder: Some(Addr::unchecked(BIDDER)),
                 options: PagingOptions {
                     limit: None,
                     offset: None,
@@ -1376,11 +1372,10 @@ fn claim_winner_with_market_fees() {
             .unwrap();
         for result in _res {
             for message in result.clone().messages {
-                if let CosmosMsg::Bank(msg) = message {
+                if let CosmosMsg::Bank(msg) = message.msg {
                     // total pay is 50000. Fee is 2% => remaining is 49000. Creator has royalty as 1% => total royalty is 49000 * (1 - 0.01) = 48510. Seller receives 48510
                     match msg {
                         cosmwasm_std::BankMsg::Send { to_address, amount } => {
-                            println!("from address: {}", from_address);
                             println!("to address: {}", to_address);
                             println!("amount: {:?}", amount);
                             let amount = amount[0].amount;
@@ -2079,20 +2074,21 @@ fn test_royalties() {
         let mut amounts: Vec<Uint128> = vec![];
 
         for result in results {
-            for message in result.clone().messages {
-                if let CosmosMsg::Bank(msg) = message {
+            for message in result.messages {
+                if let CosmosMsg::Bank(msg) = message.msg {
                     match msg {
                         cosmwasm_std::BankMsg::Send { to_address, amount } => {
-                            println!("from address: {}", from_address);
                             println!("to address: {}", to_address);
                             println!("amount: {:?}", amount);
                             let amount = amount[0].amount;
-                            to_addrs.push(to_address.clone());
-                            amounts.push(amount);
+
                             // check royalty sent to seller
                             if to_address.eq(&offering.clone().seller) {
                                 total_payment = total_payment + amount;
                             }
+
+                            to_addrs.push(Addr::unchecked(to_address));
+                            amounts.push(amount);
                         }
                         _ => todo!(),
                     }
@@ -2232,7 +2228,7 @@ fn test_royalties_cw20() {
 
         for result in results {
             for message in result.clone().messages {
-                if let CosmosMsg::Wasm(wasm_msg) = message {
+                if let CosmosMsg::Wasm(wasm_msg) = message.msg {
                     match wasm_msg {
                         cosmwasm_std::WasmMsg::Execute {
                             contract_addr,
@@ -2244,7 +2240,7 @@ fn test_royalties_cw20() {
                             if cw20_msg_result.is_ok() {
                                 let cw20_msg: (Addr, Uint128) = match cw20_msg_result.unwrap() {
                                     cw20::Cw20ExecuteMsg::Transfer { recipient, amount } => {
-                                        (recipient, amount)
+                                        (Addr::unchecked(recipient), amount)
                                     }
                                     _ => (Addr::unchecked("abcd"), Uint128::from(0u64)),
                                 };

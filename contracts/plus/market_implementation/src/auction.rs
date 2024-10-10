@@ -538,7 +538,7 @@ pub fn try_cancel_bid(
             if let Some(cancel_fee) = off.cancel_fee {
                 let asker_addr = deps.api.addr_humanize(&off.asker)?;
                 let asker_amount = sent_amount.mul(Decimal::permille(cancel_fee));
-                sent_amount = sent_amount.sub(&asker_amount);
+                sent_amount = sent_amount.checked_sub(asker_amount)?;
                 // only allow sending if asker amount is greater than 0
                 if !asker_amount.is_zero() {
                     // transfer fee to asker

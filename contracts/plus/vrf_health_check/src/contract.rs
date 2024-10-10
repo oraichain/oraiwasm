@@ -155,7 +155,7 @@ pub fn add_ping(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, 
     }
 
     // if add ping too soon & it's not the initial case (case where no one has the first round info) => error
-    if env.block.height.sub(round_info.height) < round_jump && round_info.height.ne(&0u64) {
+    if (env.block.height - round_info.height) < round_jump && round_info.height.ne(&0u64) {
         return Err(ContractError::PingTooEarly {});
     }
 
