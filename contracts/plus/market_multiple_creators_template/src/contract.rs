@@ -1,18 +1,21 @@
+#[cfg(not(feature = "library"))]
+use cosmwasm_std::entry_point;
+
 use std::ops::Mul;
 use std::rc::Rc;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ApproveAll, ApproveAllMsg, ChangeCreatorMsg, ExecuteMsg, InstantiateMsg, QueryMsg, RevokeAllMsg,
-    WrapMintMsg, WrapMintMsg721,
+    ApproveAll, ApproveAllMsg, ChangeCreatorMsg, ExecuteMsg, InstantiateMsg, QueryMsg,
+    RevokeAllMsg, WrapMintMsg, WrapMintMsg721,
 };
 use crate::state::{
     config, config_read, increment_changes, num_changes, Change, ChangeStatus, Founder, State,
     SHARE_CHANGES,
 };
 use cosmwasm_std::{
-    attr, coins, to_json_binary, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
-    Response, Addr, Response, MessageInfo, StdError, StdResult, Uint128, WasmMsg,
+    attr, coins, to_json_binary, Addr, BankMsg, Binary, CosmosMsg, Decimal, Deps, DepsMut, Env,
+    MessageInfo, Response, StdError, StdResult, Uint128, WasmMsg,
 };
 pub const MAX_REVENUE: u64 = 1_000_000_000;
 pub const DEFAULT_END_HEIGHT: u64 = 300000;
@@ -20,7 +23,12 @@ pub const DEFAULT_END_HEIGHT: u64 = 300000;
 // Note, you can use StdResult in some functions where you do not
 // make use of the custom errors
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn instantiate(deps: DepsMut, _env: Env, info: MessageInfo, init: InstantiateMsg) -> StdResult<Response> {
+pub fn instantiate(
+    deps: DepsMut,
+    _env: Env,
+    info: MessageInfo,
+    init: InstantiateMsg,
+) -> StdResult<Response> {
     if init
         .co_founders
         .iter()
@@ -102,7 +110,7 @@ pub fn mint_1155(
     }
 
     let mint_cosmos_msg = WasmMsg::Execute {
-        contract_addr: contract_addr.clone(),
+        contract_addr: contract_addr.to_string(),
         msg: to_json_binary(&mint_msg)?,
         funds: vec![],
     }
@@ -110,7 +118,7 @@ pub fn mint_1155(
 
     // approve for the marketplace after mint by default
     let approve_msg = WasmMsg::Execute {
-        contract_addr: mint_msg.mint_nft.contract_addr.clone(),
+        contract_addr: mint_msg.mint_nft.contract_addr.to_string(),
         msg: to_json_binary(&ApproveAllMsg {
             approve_all: ApproveAll {
                 operator: contract_addr.to_string(),
@@ -126,10 +134,12 @@ pub fn mint_1155(
     cosmos_msgs.push(mint_cosmos_msg);
     cosmos_msgs.push(approve_msg);
 
-    Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![attr("action", "mint_1155"), attr("caller", info.sender)],
-        ..Response::default()
-    })
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
+            attr("action", "mint_1155"),
+            attr("caller", info.sender),
+        ]))
 }
 
 pub fn mint_721(
@@ -144,7 +154,7 @@ pub fn mint_721(
     }
 
     let mint_cosmos_msg = WasmMsg::Execute {
-        contract_addr: contract_addr.clone(),
+        contract_addr: contract_addr.to_string(),
         msg: to_json_binary(&mint_msg)?,
         funds: vec![],
     }
@@ -152,7 +162,7 @@ pub fn mint_721(
 
     // approve for the marketplace after mint by default
     let approve_msg = WasmMsg::Execute {
-        contract_addr: mint_msg.mint_nft.contract_addr,
+        contract_addr: mint_msg.mint_nft.contract_addr.to_string(),
         msg: to_json_binary(&ApproveAllMsg {
             approve_all: ApproveAll {
                 operator: contract_addr.to_string(),
@@ -170,10 +180,12 @@ pub fn mint_721(
     cosmos_msgs.push(mint_cosmos_msg);
     cosmos_msgs.push(approve_msg);
 
-    Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![attr("action", "mint_721"), attr("caller", info.sender)],
-        ..Response::default()
-    })
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
+            attr("action", "mint_721"),
+            attr("caller", info.sender),
+        ]))
 }
 
 // this shall be called when approving for the co-founder
@@ -189,7 +201,7 @@ pub fn approve_all(
     }
 
     let approve_msg = WasmMsg::Execute {
-        contract_addr,
+        contract_addr: contract_addr.to_string(),
         msg: to_json_binary(&approve_msg)?,
         funds: vec![],
     }
@@ -199,10 +211,12 @@ pub fn approve_all(
 
     cosmos_msgs.push(approve_msg);
 
-    Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![attr("action", "approve all"), attr("caller", info.sender)],
-        ..Response::default()
-    })
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
+            attr("action", "approve all"),
+            attr("caller", info.sender),
+        ]))
 }
 
 // this shall be called when approving for the co-founder
@@ -222,7 +236,7 @@ pub fn revoke_all(
 
     for msg in revoke_msgs {
         let revoke_msg = WasmMsg::Execute {
-            contract_addr: Addr::unchecked(Rc::clone(&contract).as_str()),
+            contract_addr: contract.to_string(),
             msg: to_json_binary(&msg)?,
             funds: vec![],
         }
@@ -231,10 +245,12 @@ pub fn revoke_all(
         cosmos_msgs.push(revoke_msg);
     }
 
-    Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![attr("action", "revoke all"), attr("caller", info.sender)],
-        ..Response::default()
-    })
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
+            attr("action", "revoke all"),
+            attr("caller", info.sender),
+        ]))
 }
 
 pub fn change_creator(
@@ -249,7 +265,7 @@ pub fn change_creator(
     }
 
     let change_creator_cosmos_msg = WasmMsg::Execute {
-        contract_addr,
+        contract_addr: contract_addr.to_string(),
         msg: to_json_binary(&change_creator_msg)?,
         funds: vec![],
     }
@@ -258,13 +274,12 @@ pub fn change_creator(
     let mut cosmos_msgs: Vec<CosmosMsg> = vec![];
     cosmos_msgs.push(change_creator_cosmos_msg);
 
-    Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
             attr("action", "change_creator"),
             attr("caller", info.sender),
-        ],
-        ..Response::default()
-    })
+        ]))
 }
 
 pub fn change_state(
@@ -324,10 +339,10 @@ pub fn change_state(
     };
     SHARE_CHANGES.save(deps.storage, &new_num_change.to_be_bytes(), &share_change)?;
 
-    Ok(Response {
-        add_attributes(vec![attr("action", "change_state"), attr("caller", info.sender)],
-        ..Response::default()
-    })
+    Ok(Response::new().add_attributes(vec![
+        attr("action", "change_state"),
+        attr("caller", info.sender),
+    ]))
 }
 
 pub fn vote(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, ContractError> {
@@ -340,10 +355,10 @@ pub fn vote(deps: DepsMut, info: MessageInfo, env: Env) -> Result<Response, Cont
         return Err(ContractError::Unauthorized {});
     }
     let mut state = config_read(deps.storage).load()?;
-    let handle_response: Response = Response {
-        add_attributes(vec![attr("action", "change_state"), attr("caller", info.sender)],
-        ..Response::default()
-    };
+    let handle_response = Response::new().add_attributes(vec![
+        attr("action", "change_state"),
+        attr("caller", info.sender),
+    ]);
 
     // if reach end block, still cannot decide => change to finished and change nothing
     if change.end_height.le(&env.block.height) && change.vote_count < state.threshold {
@@ -403,8 +418,7 @@ pub fn share_revenue(
         if revenue.u128() > 0u128 {
             cosmos_msgs.push(
                 BankMsg::Send {
-                    from_address: Addr::unchecked(Rc::clone(&contract_addr).as_str()),
-                    to_address: co_founder.address,
+                    to_address: co_founder.address.to_string(),
                     amount: coins(revenue.u128(), denom.as_str()),
                 }
                 .into(),
@@ -412,23 +426,24 @@ pub fn share_revenue(
         }
     }
 
-    Ok(Response::new().add_messages( cosmos_msgs,
-        add_attributes(vec![
+    Ok(Response::new()
+        .add_messages(cosmos_msgs)
+        .add_attributes(vec![
             attr("action", "share_revenue"),
             attr("caller", info.sender),
-            attr("royalty", true),
+            attr("royalty", "true"),
             attr("amount", amount),
             attr("denom", denom),
-        ],
-        ..Response::default()
-    })
+        ]))
 }
 
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetState {} => to_json_binary(&query_state(deps)?),
         QueryMsg::GetShareChange { round } => to_json_binary(&query_share_change(deps, round)?),
-        QueryMsg::GetCoFounder { co_founder } => to_json_binary(&query_co_founder(deps, co_founder)?),
+        QueryMsg::GetCoFounder { co_founder } => {
+            to_json_binary(&query_co_founder(deps, co_founder)?)
+        }
     }
 }
 
@@ -454,7 +469,7 @@ pub fn check_authorization(deps: Deps, sender: &str) -> bool {
         if state
             .co_founders
             .iter()
-            .find(|co| co.address.eq(sender))
+            .find(|co| co.address.as_str().eq(sender))
             .is_none()
         {
             return false;

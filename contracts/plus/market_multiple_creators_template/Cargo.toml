@@ -26,6 +26,6 @@ serde = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 market_1155 = { workspace = true }
 market_royalty = { workspace = true }
-
+cw-utils = { workspace = true }
 
 [dev-dependencies]

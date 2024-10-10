@@ -6,7 +6,7 @@ use crate::state::ChangeStatus;
 use crate::state::Founder;
 use crate::state::State;
 use cosmwasm_std::from_json;
-use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
+use cosmwasm_std::testing::{mock_dependencies_with_balance, mock_env, mock_info};
 use cosmwasm_std::Addr;
 use cosmwasm_std::{coins, Uint128};
 
