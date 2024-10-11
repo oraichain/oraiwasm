@@ -14,7 +14,7 @@ use cw1155::{
     TransferEvent,
 };
 
-use crate::error::{ContractError, DivideByZeroError, OverflowError, OverflowOperation};
+use crate::error::ContractError;
 use crate::msg::{InstantiateMsg, MigrateMsg};
 use crate::state::{APPROVES, BALANCES, MINTER, OWNER, TOKENS};
 

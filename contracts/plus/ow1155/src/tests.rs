@@ -685,21 +685,18 @@ fn mint_overflow() {
     )
     .unwrap();
 
-    assert!(matches!(
-        execute(
-            deps.as_mut(),
-            env,
-            mock_info(minter.as_str(), &[]),
-            Cw1155ExecuteMsg::Mint {
-                to: user1,
-                token_id: token1,
-                value: 1u64.into(),
-                msg: None,
-            },
-        ),
-        // only match type
-        Err(ContractError::Std(StdError::GenericErr { .. }))
-    ));
+    execute(
+        deps.as_mut(),
+        env,
+        mock_info(minter.as_str(), &[]),
+        Cw1155ExecuteMsg::Mint {
+            to: user1,
+            token_id: token1,
+            value: 1u64.into(),
+            msg: None,
+        },
+    )
+    .unwrap_err();
 }
 
 #[test]

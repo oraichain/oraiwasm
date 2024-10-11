@@ -1,5 +1,5 @@
 {
-    "rust-analyzer.runnables.command": "env RUST_TEST_THREADS=1 cargo -q",
+    "rust-analyzer.runnables.command": "env RUST_TEST_THREADS=1 cargo",
     "rust-analyzer.cargo.extraEnv": {
         "CARGO_TARGET_DIR": "${userHome}/.cargo/target/analyzer"
     }

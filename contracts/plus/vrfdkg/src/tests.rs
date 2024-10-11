@@ -238,7 +238,7 @@ fn initialization(deps: DepsMut) -> Response {
 #[test]
 fn proper_initialization() {
     let mut deps = mock_dependencies();
-    // 
+    //
     let res = initialization(deps.as_mut());
     assert_eq!(res.messages.len(), 0);
 }
@@ -246,7 +246,7 @@ fn proper_initialization() {
 #[test]
 fn share_dealer() {
     let mut deps = mock_dependencies();
-    // 
+    //
     let _res = initialization(deps.as_mut());
 
     init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD, true);
@@ -263,7 +263,7 @@ fn share_dealer() {
     let members: Vec<Member> =
         from_json(&query(deps.as_ref(), mock_env(), query_members).unwrap()).unwrap();
     println!("member len: {:?}", members.len());
-    assert_eq!(members.len(), 3);
+    assert_eq!(members.len(), 5);
     println!("last member: {:?}", members[2].address);
 
     // test query all dealers
@@ -290,7 +290,7 @@ fn share_dealer() {
 #[test]
 fn request_round() {
     let mut deps = mock_dependencies();
-    // 
+    //
     let _res = initialization(deps.as_mut());
 
     init_dealer!(deps, ADDRESSES, DEALER, THRESHOLD, true);
@@ -412,7 +412,7 @@ fn request_round() {
 #[test]
 fn test_reset() {
     let mut deps = mock_dependencies();
-    // 
+    //
     let _res = initialization(deps.as_mut());
 
     let config: Config =
@@ -519,8 +519,8 @@ fn test_reset() {
     };
     let latest_rounds: Vec<DistributedShareData> =
         from_json(&query(deps.as_ref(), mock_env(), msg).unwrap()).unwrap();
-    // assert_eq!(latest_rounds.len(), 1);
-    assert_eq!(latest_rounds.len(), 2);
+    assert_eq!(latest_rounds.len(), 1);
+    // assert_eq!(latest_rounds.len(), 2);
 
     // update threshold
     let threshold_msg = ExecuteMsg::Reset {

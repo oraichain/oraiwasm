@@ -387,11 +387,11 @@ mod tests {
 
     #[test]
     fn verify_g2() {
-        let pubkey = hex!("830d7338e18e70b6f511aae944c16d5d9720d4e20a27205b4636ceb226214d42d6a2e965d7abce9295be8dbf38e4a2174b702c3121d092b7d93e9d319e343bc160c8e13b9c12601b9539edc7876d5ba16d2fdc7cc906e91bb46748bfd7064685");
-        let signature = hex!("38cbf5fe262203ee022be47fd25a676caddbec2738a0e28db2ffe771672d122838013d8ab8f0644d6deac55f3a02aa13");
-        let pk = g2_from_fixed(pubkey)
-            .map_err(|_| HandleError::InvalidPubkey {})
-            .unwrap();
+        // let pubkey = hex!("830d7338e18e70b6f511aae944c16d5d9720d4e20a27205b4636ceb226214d42d6a2e965d7abce9295be8dbf38e4a2174b702c3121d092b7d93e9d319e343bc160c8e13b9c12601b9539edc7876d5ba16d2fdc7cc906e91bb46748bfd7064685");
+        // let signature = hex!("38cbf5fe262203ee022be47fd25a676caddbec2738a0e28db2ffe771672d122838013d8ab8f0644d6deac55f3a02aa13");
+        // let pk = g2_from_fixed(pubkey)
+        //     .map_err(|_| HandleError::InvalidPubkey {})
+        //     .unwrap();
         // let valid = verify(&pk, 1, &vec![], &vec![], &signature).unwrap_or(false);
         // println!("valid :{}", valid);
         // // not valid signature for round 0

@@ -1110,10 +1110,11 @@ fn test_add_annotation_reviewer() {
         println!("wrong annotator result position {:?}", res);
 
         // Error: A reviewer can commit result only one time
-        assert!(matches!(
-            manager.execute(mock_info("r1", &vec![]), msg.clone()),
-            Err(ContractError::AddResultError {})
-        ));
+        assert!(manager
+            .execute(mock_info("r1", &vec![]), msg.clone())
+            .unwrap_err()
+            .to_string()
+            .contains("Invalid Anotator results"));
 
         let withdraw_msg = ExecuteMsg::WithdrawAnnotation { annotation_id: 1 };
         // Error: try to withdraw a annotation that had reviewer committed results
