@@ -392,6 +392,7 @@ pub fn query_minter(deps: Deps) -> StdResult<Option<MinterResponse>> {
     Ok(minter)
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     // let old_version = get_contract_version(deps.storage)?;
     // if old_version.contract != CONTRACT_NAME {
