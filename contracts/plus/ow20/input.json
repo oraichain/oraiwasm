@@ -1,0 +1,9 @@
+{
+  "init": {
+    "decimals": 6,
+    "initial_balances": [{ "address": "fake_sender_addr", "amount": "300000" }],
+    "mint": { "minter": "fake_sender_addr", "cap": "300000" },
+    "name": "OW20 Token",
+    "symbol": "ORAI"
+  }
+}
