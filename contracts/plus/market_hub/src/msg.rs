@@ -1,8 +1,8 @@
-use cosmwasm_schema::cw_serde;
+use cosmwasm_schema::{cw_serde, QueryResponses};
 
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Binary};
 
-use market::{StorageExecuteMsg, StorageItem, StorageQueryMsg};
+use market::{Registry, StorageExecuteMsg, StorageItem, StorageQueryMsg};
 
 #[cw_serde]
 pub struct InstantiateMsg {
@@ -39,17 +39,21 @@ pub enum ExecuteMsg {
 }
 
 #[cw_serde]
+#[derive(QueryResponses)]
 pub enum QueryMsg {
     /// Shows all admins and whether or not it is mutable
+    #[returns(AdminListResponse)]
     AdminList {},
     /// Checks permissions of the caller on this proxy.
     /// If CanExecute returns true then a call to `Execute` with the same message,
     /// before any further state changes, should also succeed.
-    CanExecute {
-        sender: Addr,
-    },
+    #[returns(CanExecuteResponse)]
+    CanExecute { sender: Addr },
 
+    #[returns(Registry)]
     Registry {},
+
+    #[returns(StorageResponse)]
     Storage(StorageQueryMsg),
 }
 
@@ -63,6 +67,12 @@ pub struct AdminListResponse {
 #[cw_serde]
 pub struct CanExecuteResponse {
     pub can_execute: bool,
+}
+
+#[cw_serde]
+pub enum StorageResponse {
+    Addr(Addr),
+    Binary(Binary),
 }
 
 #[cw_serde]
