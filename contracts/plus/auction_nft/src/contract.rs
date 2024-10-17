@@ -555,6 +555,7 @@ pub fn try_emergency_cancel_auction(
         ]));
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::GetAuctions { options } => to_json_binary(&query_auctions(deps, &options)?),

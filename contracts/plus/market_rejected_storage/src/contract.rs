@@ -102,6 +102,7 @@ fn check_reject(deps: Deps, env: &Env, nft_info: &NftInfo) -> StdResult<bool> {
     })
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Msg(auction_query) => match auction_query {

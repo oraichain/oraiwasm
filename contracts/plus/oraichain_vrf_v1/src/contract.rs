@@ -256,6 +256,7 @@ pub fn try_add(
     Ok(response)
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> Result<Binary, QueryError> {
     let response = match msg {
         QueryMsg::Get { round } => to_json_binary(&query_get(deps, round)?)?,

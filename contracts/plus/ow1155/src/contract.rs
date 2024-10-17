@@ -476,6 +476,7 @@ pub fn execute_revoke_all(env: ExecuteEnv, operator: String) -> Result<Response,
     Ok(rsp)
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: Cw1155QueryMsg) -> StdResult<Binary> {
     match msg {
         Cw1155QueryMsg::Balance { owner, token_id } => {

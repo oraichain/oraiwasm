@@ -410,6 +410,7 @@ fn get_locked_key(token_id: &str, nft_addr: &str) -> String {
     return format!("{}{}{}", token_id, DELIMITER, nft_addr);
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::CheckLock { token_id, nft_addr } => query_lock(deps, token_id, nft_addr),

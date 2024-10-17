@@ -58,6 +58,7 @@ pub fn execute(
     }
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: AIMarketQueryMsg) -> StdResult<Binary> {
     match msg {
         AIMarketQueryMsg::GetPackageOfferingsBySeller {

@@ -245,6 +245,7 @@ fn can_execute(deps: Deps, sender: &Addr) -> StdResult<bool> {
     Ok(can)
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::AdminList {} => to_json_binary(&query_admin_list(deps)?),

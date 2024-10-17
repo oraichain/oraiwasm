@@ -142,6 +142,7 @@ pub fn try_update_info(
         .set_data(to_json_binary(&new_contract_info)?))
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         // implement Query Auction from market base
