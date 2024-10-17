@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Addr};
+use cosmwasm_std::{Addr, Binary};
 use cw721::Expiration;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -18,9 +18,7 @@ pub struct InstantiateMsg {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct MigrateMsg {
-    pub test_field: String,
-}
+pub struct MigrateMsg {}
 
 /// This is like Cw721ExecuteMsg but we add a Mint command for an owner
 /// to make this stand-alone. You will likely want to remove mint and

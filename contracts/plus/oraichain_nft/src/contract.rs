@@ -471,6 +471,7 @@ fn check_can_send(
     }
 }
 
+#[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
         QueryMsg::Minter {} => to_json_binary(&query_minter(deps)?),
