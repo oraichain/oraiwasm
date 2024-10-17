@@ -7,7 +7,7 @@ use cosmwasm_std::{
 };
 
 use crate::error::ContractError;
-use crate::msg::{AdminListResponse, CanExecuteResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{AdminListResponse, CanExecuteResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{admin_list, admin_list_read, registry, registry_read};
 use market::{query_proxy, AdminList, Registry, StorageExecuteMsg, StorageQueryMsg};
 
@@ -258,6 +258,11 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
             StorageQueryMsg::QueryStorage { name, msg } => query_storage(deps, name, msg),
         },
     }
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Ok(Response::default())
 }
 
 pub fn query_admin_list(deps: Deps) -> StdResult<AdminListResponse> {

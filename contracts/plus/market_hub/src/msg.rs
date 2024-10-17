@@ -1,11 +1,10 @@
-use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
+use cosmwasm_schema::cw_serde;
 
 use cosmwasm_std::Addr;
 
 use market::{StorageExecuteMsg, StorageItem, StorageQueryMsg};
 
-#[derive(Serialize, Deserialize, JsonSchema)]
+#[cw_serde]
 pub struct InstantiateMsg {
     pub admins: Vec<Addr>,
     pub mutable: bool,
@@ -13,8 +12,7 @@ pub struct InstantiateMsg {
     pub implementations: Vec<Addr>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum ExecuteMsg {
     /// Execute requests the contract to re-dispatch all these messages with the
     /// contract's address as sender. Every implementation has it's own logic to
@@ -40,8 +38,7 @@ pub enum ExecuteMsg {
     Storage(StorageExecuteMsg),
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+#[cw_serde]
 pub enum QueryMsg {
     /// Shows all admins and whether or not it is mutable
     AdminList {},
@@ -56,14 +53,17 @@ pub enum QueryMsg {
     Storage(StorageQueryMsg),
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[cw_serde]
 pub struct AdminListResponse {
     pub admins: Vec<Addr>,
     pub mutable: bool,
     pub owner: Addr,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[cw_serde]
 pub struct CanExecuteResponse {
     pub can_execute: bool,
 }
+
+#[cw_serde]
+pub struct MigrateMsg {}
