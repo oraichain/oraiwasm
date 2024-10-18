@@ -1,10 +1,12 @@
-use cosmwasm_std::{Addr, Uint128};
+use cosmwasm_schema::{cw_serde, QueryResponses};
+use cosmwasm_std::{Addr, ContractInfo, Uint128};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-#[serde(rename_all = "snake_case")]
+use crate::{Offering, OfferingRoyalty};
+
+#[cw_serde]
 pub enum OfferingQueryMsg {
     // GetOfferings returns a list of all offerings
     GetOfferings {
@@ -59,6 +61,22 @@ pub enum OfferingQueryMsg {
         token_id: String,
     },
     GetContractInfo {},
+}
+
+#[cw_serde]
+pub enum OfferingQueryResponse {
+    GetOfferings(OfferingsResponse),
+    GetOfferingsBySeller(OfferingsResponse),
+    GetOfferingsByContract(OfferingsResponse),
+    GetOffering(QueryOfferingsResult),
+    GetOfferingState(Offering),
+    GetOfferingByContractTokenId(QueryOfferingsResult),
+    GetOfferingsRoyalty(OfferingRoyalty),
+    GetOfferingsRoyaltyByCurrentOwner(OfferingRoyalty),
+    GetOfferingsRoyaltyByContract(OfferingRoyalty),
+    GetOfferingRoyalty(OfferingRoyalty),
+    GetOfferingRoyaltyByContractTokenId(OfferingRoyalty),
+    GetContractInfo(ContractInfo),
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]

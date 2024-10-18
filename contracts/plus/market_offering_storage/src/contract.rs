@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, UpdateContractMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{
     get_contract_token_id, get_key_royalty, increment_offerings, offerings, offerings_royalty,
     ContractInfo, CONTRACT_INFO,
@@ -559,4 +559,9 @@ fn parse_offering_royalty<'a>(
         // try_into will box vector to fixed array
         Ok(offering)
     })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Ok(Response::default())
 }
