@@ -1170,8 +1170,7 @@ pub fn query_collection_staker_info_by_collection(
     let result: StdResult<Vec<CollectionStakerInfo>> = collection_staker_infos()
         .idx
         .collection
-        .prefix(collection_id.as_bytes().to_vec())
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, collection_id.as_bytes(), min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_collection_staker_info(kv_item))
         .collect();
@@ -1197,8 +1196,7 @@ pub fn query_collection_staker_info_by_staker(
     let result: StdResult<Vec<CollectionStakerInfo>> = collection_staker_infos()
         .idx
         .staker
-        .prefix(staker_addr.as_bytes().to_vec())
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, staker_addr.as_bytes(), min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_collection_staker_info(kv_item))
         .collect();
@@ -1234,12 +1232,7 @@ fn _get_range_params(
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> (
-    usize,
-    Option<Bound<'static, &'static [u8]>>,
-    Option<Bound<'static, &'static [u8]>>,
-    Order,
-) {
+) -> (usize, Option<Bound>, Option<Bound>, Order) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min = None;
     let mut max = None;
@@ -1252,7 +1245,7 @@ fn _get_range_params(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::ExclusiveRaw(offset.to_be_bytes().to_vec()));
+        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
         match order_enum {
             Order::Ascending => min = offset_value,
             Order::Descending => max = offset_value,

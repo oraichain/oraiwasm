@@ -175,9 +175,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 // ============================== Query Handlers ==============================
 
-fn _get_range_params(
-    options: &PagingOptions,
-) -> (usize, Option<Bound<&[u8]>>, Option<Bound<&[u8]>>, Order) {
+fn _get_range_params(options: &PagingOptions) -> (usize, Option<Bound>, Option<Bound>, Order) {
     let limit = options.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     // let mut max: Option<Bound> = None;
     let mut order_enum = Order::Descending;
@@ -190,7 +188,7 @@ fn _get_range_params(
     // if there is offset, assign to min or max
     let min = options
         .offset
-        .map(|offset| Bound::ExclusiveRaw(offset.to_be_bytes().to_vec()));
+        .map(|offset| Bound::Exclusive(offset.to_be_bytes().to_vec()));
 
     (limit, min, None, order_enum)
 }
@@ -217,8 +215,7 @@ pub fn query_auctions_by_asker(
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .asker
-        .prefix(asker_raw.to_vec())
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, &asker_raw, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_auction(deps.api, kv_item))
         .collect();
@@ -240,8 +237,7 @@ pub fn query_auctions_by_bidder(
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .bidder
-        .prefix(bidder_raw)
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, &bidder_raw, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_auction(deps.api, kv_item))
         .collect();
@@ -259,8 +255,7 @@ pub fn query_auctions_by_contract(
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .contract
-        .prefix(contract_raw.to_vec())
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, &contract_raw, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_auction(deps.api, kv_item))
         .collect();

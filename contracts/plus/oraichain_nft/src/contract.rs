@@ -573,7 +573,7 @@ fn query_all_approvals(
     let start_canon = start_after
         .map(|x| deps.api.addr_canonicalize(x.as_str()))
         .transpose()?;
-    let start = start_canon.map(|c| Bound::ExclusiveRaw(c.to_vec()));
+    let start = start_canon.map(|c| Bound::Exclusive(c.to_vec()));
 
     let owner_raw = deps.api.addr_canonicalize(owner.as_str())?;
     let res: StdResult<Vec<_>> = OPERATORS
@@ -603,14 +603,13 @@ fn query_tokens(
     limit: Option<u32>,
 ) -> StdResult<TokensResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|k| Bound::ExclusiveRaw(k.as_bytes().to_vec()));
+    let start = start_after.map(|k| Bound::Exclusive(k.as_bytes().to_vec()));
 
     let owner_raw = deps.api.addr_canonicalize(owner.as_str())?;
     let tokens: Result<Vec<String>, _> = tokens()
         .idx
         .owner
-        .prefix(owner_raw.to_vec())
-        .keys_raw(deps.storage, start, None, Order::Ascending)
+        .pks(deps.storage, &owner_raw, start, None, Order::Ascending)
         .take(limit)
         .map(String::from_utf8)
         .collect();
@@ -624,12 +623,12 @@ fn query_all_tokens(
     limit: Option<u32>,
 ) -> StdResult<TokensResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|k| Bound::ExclusiveRaw(k.as_bytes().to_vec()));
+    let start = start_after.map(|k| Bound::Exclusive(k.as_bytes().to_vec()));
 
     let tokens: StdResult<Vec<String>> = tokens()
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)
-        .map(|item| item.map(|(k, _)| String::from_utf8_lossy(k.as_bytes()).to_string()))
+        .map(|item| item.map(|(k, _)| String::from_utf8_lossy(&k).to_string()))
         .collect();
     Ok(TokensResponse { tokens: tokens? })
 }

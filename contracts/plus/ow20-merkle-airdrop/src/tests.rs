@@ -42,7 +42,7 @@ fn test_range() {
     let all: StdResult<Vec<_>> = CLAIM
         .range(
             &deps.storage,
-            Some(Bound::ExclusiveRaw(1u64.to_be_bytes().to_vec())),
+            Some(Bound::Exclusive(1u64.to_be_bytes().to_vec())),
             None,
             Order::Ascending,
         )

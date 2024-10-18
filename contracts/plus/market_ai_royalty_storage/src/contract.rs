@@ -10,7 +10,7 @@ use cosmwasm_std::{
     StdResult,
 };
 use cosmwasm_std::{Addr, Order};
-use cw_storage_plus::Bound;
+use cw_storage_plus::{Bound, PkOwned};
 use market_ai_royalty::{
     sanitize_royalty, AiRoyaltyExecuteMsg, AiRoyaltyQueryMsg, OffsetMsg, Royalty, RoyaltyMsg,
 };
@@ -289,11 +289,11 @@ pub fn query_royalty(
         .unique_royalty
         .item(
             deps.storage,
-            get_key_royalty(
+            PkOwned(get_key_royalty(
                 contract_addr.as_bytes(),
                 token_id.as_bytes(),
                 creator.as_bytes(),
-            ),
+            )),
         )
         .transpose()
     {
@@ -308,12 +308,7 @@ fn _get_range_params(
     limit: Option<u8>,
     offset: Option<OffsetMsg>,
     order: Option<u8>,
-) -> (
-    usize,
-    Option<Bound<'static, &'static [u8]>>,
-    Option<Bound<'static, &'static [u8]>>,
-    Order,
-) {
+) -> (usize, Option<Bound>, Option<Bound>, Order) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min = None;
     // let mut max: Option<Bound> = None;
@@ -326,7 +321,7 @@ fn _get_range_params(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::ExclusiveRaw(get_key_royalty(
+        let offset_value = Some(Bound::Exclusive(get_key_royalty(
             offset.contract.as_bytes(),
             offset.token_id.as_bytes(),
             offset.creator.as_bytes(),
@@ -367,8 +362,7 @@ pub fn query_royalties_by_token_id(
     let royalties: StdResult<Vec<Royalty>> = royalties_map()
         .idx
         .token_id
-        .prefix(token_id.as_bytes().to_vec())
-        .range(deps.storage, min, max, order)
+        .items(deps.storage, token_id.as_bytes(), min, max, order)
         .take(limit)
         .map(|kv_item| parse_royalty(kv_item))
         .collect();
@@ -386,8 +380,7 @@ pub fn query_royalties_by_creator(
     let royalties: StdResult<Vec<Royalty>> = royalties_map()
         .idx
         .creator
-        .prefix(creator.as_bytes().to_vec())
-        .range(deps.storage, min, max, order)
+        .items(deps.storage, creator.as_bytes(), min, max, order)
         .take(limit)
         .map(|kv_item| parse_royalty(kv_item))
         .collect();
@@ -406,8 +399,7 @@ pub fn query_royalties_map_by_contract(
     let royalties: StdResult<Vec<Royalty>> = royalties_map()
         .idx
         .contract_addr
-        .prefix(contract_addr.as_bytes().to_vec())
-        .range(deps.storage, min, max, order)
+        .items(deps.storage, contract_addr.as_bytes(), min, max, order)
         .take(limit)
         .map(|kv_item| parse_royalty(kv_item))
         .collect();
@@ -427,11 +419,13 @@ pub fn query_royalties_map_by_contract_token_id(
     let royalties: StdResult<Vec<Royalty>> = royalties_map()
         .idx
         .contract_token_id
-        .prefix(get_contract_token_id(
-            contract.as_bytes(),
-            token_id.as_bytes(),
-        ))
-        .range(deps.storage, min, max, order)
+        .items(
+            deps.storage,
+            &get_contract_token_id(contract.as_bytes(), token_id.as_bytes()),
+            min,
+            max,
+            order,
+        )
         .take(limit)
         .map(|kv_item| parse_royalty(kv_item))
         .collect();

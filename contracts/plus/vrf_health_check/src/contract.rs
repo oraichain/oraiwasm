@@ -225,7 +225,7 @@ fn query_rounds(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::ExclusiveRaw(offset.as_bytes().to_vec()));
+        let offset_value = Some(Bound::Exclusive(offset.as_bytes().to_vec()));
         // match order_enum {
         //     Order::Ascending => min = offset_value,
         //     Order::Descending => max = offset_value,

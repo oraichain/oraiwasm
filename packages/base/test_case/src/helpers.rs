@@ -182,7 +182,7 @@ fn query_testcases(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::ExclusiveRaw(offset.to_vec()));
+        let offset_value = Some(Bound::Exclusive(offset.to_vec()));
         match order_enum {
             Order::Ascending => min = offset_value,
             Order::Descending => max = offset_value,

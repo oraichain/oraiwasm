@@ -197,7 +197,7 @@ fn query_all_approvals(
     limit: Option<u32>,
 ) -> StdResult<ApprovedForAllResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|approved| Bound::ExclusiveRaw(approved.as_bytes().to_vec()));
+    let start = start_after.map(|approved| Bound::Exclusive(approved.as_bytes().to_vec()));
 
     let operators = APPROVES
         .range(deps.storage, start, None, Order::Ascending)

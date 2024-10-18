@@ -3,7 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, StdResult, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
@@ -35,10 +35,10 @@ pub fn increment_offerings(storage: &mut dyn Storage) -> StdResult<u64> {
 }
 
 pub struct OfferingIndexes<'a> {
-    pub seller: MultiIndex<'a, Vec<u8>, Offering, &'a [u8]>,
-    pub contract: MultiIndex<'a, Vec<u8>, Offering, &'a [u8]>,
-    pub contract_token_id: MultiIndex<'a, Vec<u8>, Offering, &'a [u8]>,
-    pub unique_offering: UniqueIndex<'a, Vec<u8>, Offering>,
+    pub seller: MultiIndex<'a, Offering>,
+    pub contract: MultiIndex<'a, Offering>,
+    pub contract_token_id: MultiIndex<'a, Offering>,
+    pub unique_offering: UniqueIndex<'a, PkOwned, Offering>,
 }
 
 impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
@@ -54,11 +54,11 @@ impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
 }
 
 // contract nft + token id + owner => unique id
-pub fn get_unique_key(contract: &Addr, token_id: &str, owner: &str) -> Vec<u8> {
+pub fn get_unique_key(contract: &Addr, token_id: &str, owner: &str) -> PkOwned {
     let mut vec = contract.as_bytes().to_vec();
     vec.extend(token_id.as_bytes());
     vec.extend(owner.as_bytes());
-    vec
+    PkOwned(vec)
 }
 
 pub fn get_contract_token_id(contract: &Addr, token_id: &str) -> Vec<u8> {
@@ -71,17 +71,17 @@ pub fn get_contract_token_id(contract: &Addr, token_id: &str) -> Vec<u8> {
 pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>> {
     let indexes = OfferingIndexes {
         seller: MultiIndex::new(
-            |_pk, o| o.seller.as_bytes().to_vec(),
+            |o| o.seller.as_bytes().to_vec(),
             "offerings",
             "offerings__seller",
         ),
         contract: MultiIndex::new(
-            |_pk, o| o.contract_addr.as_bytes().to_vec(),
+            |o| o.contract_addr.as_bytes().to_vec(),
             "offerings",
             "offerings__contract",
         ),
         contract_token_id: MultiIndex::new(
-            |_pk, o| get_contract_token_id(&o.contract_addr, &o.token_id),
+            |o| get_contract_token_id(&o.contract_addr, &o.token_id),
             "offerings",
             "offerings__contract",
         ),
@@ -104,9 +104,9 @@ pub fn increment_annotations(storage: &mut dyn Storage) -> StdResult<u64> {
 }
 
 pub struct AnnotationIndexes<'a> {
-    pub contract: MultiIndex<'a, Vec<u8>, Annotation, &'a [u8]>,
-    pub contract_token_id: MultiIndex<'a, Vec<u8>, Annotation, &'a [u8]>,
-    pub requester: MultiIndex<'a, Vec<u8>, Annotation, &'a [u8]>,
+    pub contract: MultiIndex<'a, Annotation>,
+    pub contract_token_id: MultiIndex<'a, Annotation>,
+    pub requester: MultiIndex<'a, Annotation>,
 }
 
 impl<'a> IndexList<Annotation> for AnnotationIndexes<'a> {
@@ -121,17 +121,17 @@ impl<'a> IndexList<Annotation> for AnnotationIndexes<'a> {
 pub fn annotations<'a>() -> IndexedMap<'a, &'a [u8], Annotation, AnnotationIndexes<'a>> {
     let indexes = AnnotationIndexes {
         contract: MultiIndex::new(
-            |_pk, o| o.contract_addr.as_bytes().to_vec(),
+            |o| o.contract_addr.as_bytes().to_vec(),
             "annotations",
             "annotations__contract",
         ),
         contract_token_id: MultiIndex::new(
-            |_pk, o| get_contract_token_id(&o.contract_addr, &o.token_id),
+            |o| get_contract_token_id(&o.contract_addr, &o.token_id),
             "annotations",
             "annotations__contract__tokenid",
         ),
         requester: MultiIndex::new(
-            |_pk, o| o.requester.as_bytes().to_vec(),
+            |o| o.requester.as_bytes().to_vec(),
             "annotations",
             "annotations__requester",
         ),
@@ -153,9 +153,9 @@ pub fn increment_annotation_result(storage: &mut dyn Storage) -> StdResult<u64> 
 }
 
 pub struct AnnotationResultIndexes<'a> {
-    pub annotation: MultiIndex<'a, Vec<u8>, AnnotationResult, &'a [u8]>,
-    pub annotation_reviewer: UniqueIndex<'a, Vec<u8>, AnnotationResult>,
-    pub reviewer: MultiIndex<'a, Vec<u8>, AnnotationResult, &'a [u8]>,
+    pub annotation: MultiIndex<'a, AnnotationResult>,
+    pub annotation_reviewer: UniqueIndex<'a, PkOwned, AnnotationResult>,
+    pub reviewer: MultiIndex<'a, AnnotationResult>,
 }
 
 impl<'a> IndexList<AnnotationResult> for AnnotationResultIndexes<'a> {
@@ -166,22 +166,22 @@ impl<'a> IndexList<AnnotationResult> for AnnotationResultIndexes<'a> {
     }
 }
 
-fn get_annotation_reviewer_id(annotation_id: u64, reviewer_address: &Addr) -> Vec<u8> {
+fn get_annotation_reviewer_id(annotation_id: u64, reviewer_address: &Addr) -> PkOwned {
     let mut vec = annotation_id.to_be_bytes().to_vec();
     vec.extend(reviewer_address.as_bytes());
-    vec
+    PkOwned(vec)
 }
 
 pub fn annotation_results<'a>(
 ) -> IndexedMap<'a, &'a [u8], AnnotationResult, AnnotationResultIndexes<'a>> {
     let indexes = AnnotationResultIndexes {
         annotation: MultiIndex::new(
-            |_pk, o| o.annotation_id.to_be_bytes().to_vec(),
+            |o| o.annotation_id.to_be_bytes().to_vec(),
             "annotation_results",
             "annotation_results_request",
         ),
         reviewer: MultiIndex::new(
-            |_pk, o| o.reviewer_address.as_bytes().to_vec(),
+            |o| o.reviewer_address.as_bytes().to_vec(),
             "annotation_results",
             "annotation_results_reviewer",
         ),
@@ -208,16 +208,16 @@ pub fn increment_annotation_reviewer(storage: &mut dyn Storage) -> StdResult<u64
     Ok(val)
 }
 
-pub fn get_unique_annotation_reviewer_key(annotation_id: &u64, reviewer_address: &Addr) -> Vec<u8> {
+pub fn get_unique_annotation_reviewer_key(annotation_id: &u64, reviewer_address: &Addr) -> PkOwned {
     let mut vec = annotation_id.to_be_bytes().to_vec();
     vec.extend(reviewer_address.as_bytes());
-    vec
+    PkOwned(vec)
 }
 
 pub struct AnnotationReviewerIndexes<'a> {
-    pub annotation: MultiIndex<'a, Vec<u8>, AnnotationReviewer, &'a [u8]>,
-    pub reviewer: MultiIndex<'a, Vec<u8>, AnnotationReviewer, &'a [u8]>,
-    pub unique_key: UniqueIndex<'a, Vec<u8>, AnnotationReviewer>,
+    pub annotation: MultiIndex<'a, AnnotationReviewer>,
+    pub reviewer: MultiIndex<'a, AnnotationReviewer>,
+    pub unique_key: UniqueIndex<'a, PkOwned, AnnotationReviewer>,
 }
 
 impl<'a> IndexList<AnnotationReviewer> for AnnotationReviewerIndexes<'a> {
@@ -232,12 +232,12 @@ pub fn annotation_reviewers<'a>(
 ) -> IndexedMap<'a, &'a [u8], AnnotationReviewer, AnnotationReviewerIndexes<'a>> {
     let indexes = AnnotationReviewerIndexes {
         annotation: MultiIndex::new(
-            |_pk, o| o.annotation_id.to_be_bytes().to_vec(),
+            |o| o.annotation_id.to_be_bytes().to_vec(),
             "annotation_reviewer",
             "annotation_reviewer_annotation",
         ),
         reviewer: MultiIndex::new(
-            |_pk, o| o.reviewer_address.as_bytes().to_vec(),
+            |o| o.reviewer_address.as_bytes().to_vec(),
             "annotation_reviewer",
             "annotation_reviewer_reviewer",
         ),
@@ -264,12 +264,12 @@ pub fn reviewed_uploads<'a>(
 ) -> IndexedMap<'a, &'a [u8], AnnotationResult, AnnotationResultIndexes<'a>> {
     let indexes = AnnotationResultIndexes {
         annotation: MultiIndex::new(
-            |_pk, o| o.annotation_id.to_be_bytes().to_vec(),
+            |o| o.annotation_id.to_be_bytes().to_vec(),
             "reviewed_upload",
             "reviewed_upload_annotation",
         ),
         reviewer: MultiIndex::new(
-            |_pk, o| o.reviewer_address.as_bytes().to_vec(),
+            |o| o.reviewer_address.as_bytes().to_vec(),
             "reviewed_upload",
             "reviewed_upload_reviewer",
         ),

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use cosmwasm_std::Addr;
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
@@ -15,9 +15,9 @@ pub struct ContractInfo {
 pub const CONTRACT_INFO: Item<ContractInfo> = Item::new("marketplace_info");
 
 pub struct FirstLvRoyaltyIndexes<'a> {
-    pub current_owner: MultiIndex<'a, Vec<u8>, FirstLvRoyalty, &'a [u8]>,
-    pub contract: MultiIndex<'a, Vec<u8>, FirstLvRoyalty, &'a [u8]>,
-    pub unique_royalty: UniqueIndex<'a, Vec<u8>, FirstLvRoyalty>,
+    pub current_owner: MultiIndex<'a, FirstLvRoyalty>,
+    pub contract: MultiIndex<'a, FirstLvRoyalty>,
+    pub unique_royalty: UniqueIndex<'a, PkOwned, FirstLvRoyalty>,
 }
 
 impl<'a> IndexList<FirstLvRoyalty> for FirstLvRoyaltyIndexes<'a> {
@@ -41,17 +41,22 @@ pub fn first_lv_royalties<'a>(
 ) -> IndexedMap<'a, &'a [u8], FirstLvRoyalty, FirstLvRoyaltyIndexes<'a>> {
     let indexes = FirstLvRoyaltyIndexes {
         current_owner: MultiIndex::new(
-            |_pk, o| o.current_owner.as_bytes().to_vec(),
+            |o| o.current_owner.as_bytes().to_vec(),
             "first_lv_royalties",
             "first_lv_royalty_current_owner",
         ),
         contract: MultiIndex::new(
-            |_pk, o| o.contract_addr.as_bytes().to_vec(),
+            |o| o.contract_addr.as_bytes().to_vec(),
             "first_lv_royalties",
             "first_lv_royalty_contract",
         ),
         unique_royalty: UniqueIndex::new(
-            |o| get_key_royalty(o.contract_addr.as_bytes(), o.token_id.as_bytes()),
+            |o| {
+                PkOwned(get_key_royalty(
+                    o.contract_addr.as_bytes(),
+                    o.token_id.as_bytes(),
+                ))
+            },
             "first_lv_royalty",
         ),
     };

@@ -311,8 +311,8 @@ fn _get_range_params(
     order: Option<u8>,
 ) -> StdResult<(
     usize,
-    Option<Bound<'static, &'static [u8]>>,
-    Option<Bound<'static, &'static [u8]>>,
+    Option<Bound>,
+    Option<Bound>,
     Order,
 )> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
@@ -328,7 +328,7 @@ fn _get_range_params(
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
         let payment: PaymentMsg = from_json(&offset)?;
-        let offset_value = Some(Bound::ExclusiveRaw(parse_payment_key(
+        let offset_value = Some(Bound::Exclusive(parse_payment_key(
             payment.contract_addr.as_str(),
             payment.token_id.as_str(),
             payment.sender,

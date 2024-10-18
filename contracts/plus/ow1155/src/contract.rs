@@ -557,7 +557,7 @@ fn query_all_approvals(
     limit: Option<u32>,
 ) -> StdResult<ApprovedForAllResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|addr| Bound::ExclusiveRaw(addr.as_bytes().to_vec()));
+    let start = start_after.map(|addr| Bound::Exclusive(addr.as_bytes().to_vec()));
 
     let operators = APPROVES
         .prefix(owner.as_bytes())
@@ -586,7 +586,7 @@ fn query_tokens(
     limit: Option<u32>,
 ) -> StdResult<TokensResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|s| Bound::ExclusiveRaw(s.as_bytes().to_vec()));
+    let start = start_after.map(|s| Bound::Exclusive(s.as_bytes().to_vec()));
 
     let tokens = BALANCES
         .prefix(owner.as_bytes())
@@ -603,7 +603,7 @@ fn query_all_tokens(
     limit: Option<u32>,
 ) -> StdResult<TokensResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
-    let start = start_after.map(|s| Bound::ExclusiveRaw(s.as_bytes().to_vec()));
+    let start = start_after.map(|s| Bound::Exclusive(s.as_bytes().to_vec()));
     let tokens = TOKENS
         .range(deps.storage, start, None, Order::Ascending)
         .take(limit)

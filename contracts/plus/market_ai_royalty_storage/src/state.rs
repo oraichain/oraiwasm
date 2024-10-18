@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use cosmwasm_std::Addr;
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, Map, MultiIndex, PkOwned, UniqueIndex};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
@@ -20,11 +20,11 @@ pub const PREFERENCES: Map<&[u8], u64> = Map::new("preferences");
 
 // for structures
 pub struct RoyaltyIndexes<'a> {
-    pub contract_addr: MultiIndex<'a, Vec<u8>, Royalty, &'a [u8]>,
-    pub token_id: MultiIndex<'a, Vec<u8>, Royalty, &'a [u8]>,
-    pub creator: MultiIndex<'a, Vec<u8>, Royalty, &'a [u8]>,
-    pub contract_token_id: MultiIndex<'a, Vec<u8>, Royalty, &'a [u8]>,
-    pub unique_royalty: UniqueIndex<'a, Vec<u8>, Royalty>,
+    pub contract_addr: MultiIndex<'a, Royalty>,
+    pub token_id: MultiIndex<'a, Royalty>,
+    pub creator: MultiIndex<'a, Royalty>,
+    pub contract_token_id: MultiIndex<'a, Royalty>,
+    pub unique_royalty: UniqueIndex<'a, PkOwned, Royalty>,
 }
 
 pub fn get_key_royalty<'a>(contract: &'a [u8], token_id: &'a [u8], creator: &'a [u8]) -> Vec<u8> {
@@ -60,32 +60,32 @@ impl<'a> IndexList<Royalty> for RoyaltyIndexes<'a> {
 pub fn royalties_map<'a>() -> IndexedMap<'a, &'a [u8], Royalty, RoyaltyIndexes<'a>> {
     let indexes = RoyaltyIndexes {
         contract_addr: MultiIndex::new(
-            |_pk, d| d.contract_addr.to_string().into_bytes(),
+            |d| d.contract_addr.to_string().into_bytes(),
             "royalties",
             "royalties__contract_addr",
         ),
         token_id: MultiIndex::new(
-            |_pk, d| d.token_id.to_owned().into_bytes(),
+            |d| d.token_id.to_owned().into_bytes(),
             "royalties",
             "royalties__tokenid",
         ),
         creator: MultiIndex::new(
-            |_pk, d| d.creator.to_string().into_bytes(),
+            |d| d.creator.to_string().into_bytes(),
             "royalties",
             "royalties__owner",
         ),
         contract_token_id: MultiIndex::new(
-            |_pk, d| get_contract_token_id(d.contract_addr.as_bytes(), d.token_id.as_bytes()),
+            |d| get_contract_token_id(d.contract_addr.as_bytes(), d.token_id.as_bytes()),
             "royalties",
             "royalties__contract_token_id",
         ),
         unique_royalty: UniqueIndex::new(
             |o| {
-                get_key_royalty(
+                PkOwned(get_key_royalty(
                     o.contract_addr.as_bytes(),
                     o.token_id.as_bytes(),
                     o.creator.as_bytes(),
-                )
+                ))
             },
             "royalties_unique",
         ),

@@ -267,12 +267,7 @@ fn _get_range_params(
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> (
-    usize,
-    Option<Bound<'static, &'static [u8]>>,
-    Option<Bound<'static, &'static [u8]>>,
-    Order,
-) {
+) -> (usize, Option<Bound>, Option<Bound>, Order) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min = None;
     let mut max = None;
@@ -280,7 +275,7 @@ fn _get_range_params(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::ExclusiveRaw(offset.to_be_bytes().to_vec()));
+        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
         match order_enum {
             Order::Ascending => min = offset_value,
             Order::Descending => max = offset_value,
@@ -303,8 +298,7 @@ pub fn query_package_offerings_by_seller(
     package_offerings()
         .idx
         .seller
-        .prefix(seller.as_bytes().to_vec())
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, seller.as_bytes(), min, max, order_enum)
         .take(limit)
         .map(|kv_item| kv_item.and_then(|(_, package_offering)| Ok(package_offering)))
         .collect()

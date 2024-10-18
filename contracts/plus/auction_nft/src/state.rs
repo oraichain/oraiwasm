@@ -3,7 +3,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{CanonicalAddr, StdResult, Storage, Uint128};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, U128Key, UniqueIndex};
 use sha2::{Digest, Sha256};
 
 #[cw_serde]
@@ -55,10 +55,10 @@ pub fn increment_auctions(storage: &mut dyn Storage) -> StdResult<u64> {
 
 // bidder is who is willing to pay the maximum price for the contract_token_id
 pub struct AuctionIndexes<'a> {
-    pub asker: MultiIndex<'a, Vec<u8>, Auction, &'a [u8]>, // pk, item, key
-    pub bidder: MultiIndex<'a, Vec<u8>, Auction, &'a [u8]>,
-    pub contract: MultiIndex<'a, Vec<u8>, Auction, &'a [u8]>,
-    pub contract_token_id: UniqueIndex<'a, u128, Auction>,
+    pub asker: MultiIndex<'a, Auction>, // pk, item, key
+    pub bidder: MultiIndex<'a, Auction>,
+    pub contract: MultiIndex<'a, Auction>,
+    pub contract_token_id: UniqueIndex<'a, U128Key, Auction>,
 }
 
 impl<'a> IndexList<Auction> for AuctionIndexes<'a> {
@@ -86,10 +86,10 @@ pub fn get_contract_token_id(contract: Vec<u8>, token_id: &str) -> u128 {
 // this IndexedMap instance has a lifetime
 pub fn auctions<'a>() -> IndexedMap<'a, &'a [u8], Auction, AuctionIndexes<'a>> {
     let indexes = AuctionIndexes {
-        asker: MultiIndex::new(|_pk, o| o.asker.to_vec(), "auctions", "auctions__asker"),
+        asker: MultiIndex::new(|o| o.asker.to_vec(), "auctions", "auctions__asker"),
         // do not copy the value, if we put None bidder, we got all pending bids
         bidder: MultiIndex::new(
-            |_pk, o| {
+            |o| {
                 o.bidder
                     .as_ref()
                     .map(|addr| addr.to_vec())
@@ -99,12 +99,12 @@ pub fn auctions<'a>() -> IndexedMap<'a, &'a [u8], Auction, AuctionIndexes<'a>> {
             "auctions__bidder",
         ),
         contract: MultiIndex::new(
-            |_pk, o| o.contract_addr.to_vec(),
+            |o| o.contract_addr.to_vec(),
             "auctions",
             "auctions__contract",
         ),
         contract_token_id: UniqueIndex::new(
-            |o| get_contract_token_id(o.contract_addr.to_vec(), &o.token_id),
+            |o| U128Key::new(get_contract_token_id(o.contract_addr.to_vec(), &o.token_id)),
             "request__id",
         ),
     };

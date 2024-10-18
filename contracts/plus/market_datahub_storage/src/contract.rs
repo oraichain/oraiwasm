@@ -526,12 +526,7 @@ fn _get_range_params(
     limit: Option<u8>,
     offset: Option<u64>,
     order: Option<u8>,
-) -> (
-    usize,
-    Option<Bound<'static, &'static [u8]>>,
-    Option<Bound<'static, &'static [u8]>>,
-    Order,
-) {
+) -> (usize, Option<Bound>, Option<Bound>, Order) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min = None;
     let mut max = None;
@@ -544,7 +539,7 @@ fn _get_range_params(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::ExclusiveRaw(offset.to_be_bytes().to_vec()));
+        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
         match order_enum {
             Order::Ascending => min = offset_value,
             Order::Descending => max = offset_value,
@@ -589,8 +584,7 @@ pub fn query_offerings_by_seller(
     let offerings_result: StdResult<Vec<Offering>> = offerings()
         .idx
         .seller
-        .prefix(seller.as_bytes().to_vec())
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, seller.as_bytes(), min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(kv_item))
         .collect();
@@ -609,8 +603,7 @@ pub fn query_offerings_by_contract(
     let offerings_result: StdResult<Vec<Offering>> = offerings()
         .idx
         .contract
-        .prefix(contract.as_bytes().to_vec())
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, contract.as_bytes(), min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_offering(kv_item))
         .collect();
@@ -630,8 +623,13 @@ pub fn query_offerings_by_contract_token_id(
     let offerings_result: StdResult<Vec<Offering>> = offerings()
         .idx
         .contract_token_id
-        .prefix(get_contract_token_id(&contract, &token_id))
-        .range(deps.storage, min, max, order_enum)
+        .items(
+            deps.storage,
+            &get_contract_token_id(&contract, &token_id),
+            min,
+            max,
+            order_enum,
+        )
         .take(limit)
         .map(|kv_item| parse_offering(kv_item))
         .collect();
@@ -717,8 +715,7 @@ pub fn query_annotations_by_contract(
     let annotations_result: StdResult<Vec<Annotation>> = annotations()
         .idx
         .contract
-        .prefix(contract.as_bytes().to_vec())
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, contract.as_bytes(), min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_annotation(kv_item))
         .collect();
@@ -743,8 +740,13 @@ pub fn query_annotations_by_contract_tokenid(
     let annotations_result: StdResult<Vec<Annotation>> = annotations()
         .idx
         .contract_token_id
-        .prefix(get_contract_token_id(&contract, &token_id))
-        .range(deps.storage, min, max, order_enum)
+        .items(
+            deps.storage,
+            &get_contract_token_id(&contract, &token_id),
+            min,
+            max,
+            order_enum,
+        )
         .take(limit)
         .map(|kv_item| parse_annotation(kv_item))
         .collect();
@@ -763,8 +765,7 @@ pub fn query_annotations_by_requester(
     let annotations_result: StdResult<Vec<Annotation>> = annotations()
         .idx
         .requester
-        .prefix(requester.as_bytes().to_vec())
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, requester.as_bytes(), min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_annotation(kv_item))
         .collect();
@@ -802,8 +803,13 @@ pub fn query_annotation_results_by_annotation_id(
     let results: StdResult<Vec<AnnotationResult>> = annotation_results()
         .idx
         .annotation
-        .prefix(annotation_id.to_be_bytes().to_vec())
-        .range(deps.storage, None, None, Order::Ascending)
+        .items(
+            deps.storage,
+            annotation_id.to_be_bytes().as_slice(),
+            None,
+            None,
+            Order::Ascending,
+        )
         .map(|kv_item| parse_annotation_result(kv_item))
         .collect();
 
@@ -817,8 +823,13 @@ pub fn query_annotation_results_by_reviewer(
     let results: StdResult<Vec<AnnotationResult>> = annotation_results()
         .idx
         .reviewer
-        .prefix(reviewer_address.as_bytes().to_vec())
-        .range(deps.storage, None, None, Order::Ascending)
+        .items(
+            deps.storage,
+            reviewer_address.as_bytes(),
+            None,
+            None,
+            Order::Ascending,
+        )
         .map(|kv_item| parse_annotation_result(kv_item))
         .collect();
 
@@ -867,8 +878,13 @@ pub fn query_annotation_reviewer_by_annotation_id(
     let items: StdResult<Vec<AnnotationReviewer>> = annotation_reviewers()
         .idx
         .annotation
-        .prefix(annotation_id.to_be_bytes().to_vec())
-        .range(deps.storage, None, None, Order::Ascending)
+        .items(
+            deps.storage,
+            annotation_id.to_be_bytes().as_slice(),
+            None,
+            None,
+            Order::Ascending,
+        )
         .map(|item| parse_annotation_reviewer(item))
         .collect();
 
@@ -918,8 +934,13 @@ pub fn query_reviewed_upload_by_annotation_id(
     let results: StdResult<Vec<AnnotationResult>> = reviewed_uploads()
         .idx
         .annotation
-        .prefix(annotation_id.to_be_bytes().to_vec())
-        .range(deps.storage, None, None, Order::Ascending)
+        .items(
+            deps.storage,
+            annotation_id.to_be_bytes().as_slice(),
+            None,
+            None,
+            Order::Ascending,
+        )
         .map(|kv_item| parse_annotation_result(kv_item))
         .collect();
 

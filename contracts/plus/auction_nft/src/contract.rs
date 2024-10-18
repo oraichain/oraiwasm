@@ -17,7 +17,7 @@ use cosmwasm_std::{Addr, Record};
 use cw721::{Cw721ExecuteMsg, Cw721ReceiveMsg};
 use cw_storage_plus::Bound;
 use std::convert::TryInto;
-use std::ops::{Add, Mul, Sub};
+use std::ops::{Add, Mul};
 use std::usize;
 
 // settings for pagination
@@ -578,9 +578,7 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 // ============================== Query Handlers ==============================
 
-fn _get_range_params(
-    options: &PagingOptions,
-) -> (usize, Option<Bound<&[u8]>>, Option<Bound<&[u8]>>, Order) {
+fn _get_range_params(options: &PagingOptions) -> (usize, Option<Bound>, Option<Bound>, Order) {
     let limit = options.limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min = None;
     // let mut max: Option<Bound> = None;
@@ -593,7 +591,7 @@ fn _get_range_params(
 
     // if there is offset, assign to min or max
     if let Some(offset) = options.offset {
-        let offset_value = Some(Bound::ExclusiveRaw(offset.to_be_bytes().to_vec()));
+        let offset_value = Some(Bound::Exclusive(offset.to_be_bytes().to_vec()));
         // match order_enum {
         //     Order::Ascending => min = offset_value,
         //     Order::Descending => min = offset_value,
@@ -621,12 +619,11 @@ pub fn query_auctions_by_asker(
     options: &PagingOptions,
 ) -> StdResult<AuctionsResponse> {
     let (limit, min, max, order_enum) = _get_range_params(options);
-    let asker_raw = deps.api.addr_canonicalize(asker.as_str())?.to_vec();
+    let asker_raw = deps.api.addr_canonicalize(asker.as_str())?;
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .asker
-        .prefix(asker_raw)
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, &asker_raw, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_auction(deps.api, kv_item))
         .collect();
@@ -648,8 +645,7 @@ pub fn query_auctions_by_bidder(
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .bidder
-        .prefix(bidder_raw)
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, &bidder_raw, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_auction(deps.api, kv_item))
         .collect();
@@ -667,8 +663,7 @@ pub fn query_auctions_by_contract(
     let res: StdResult<Vec<QueryAuctionsResult>> = auctions()
         .idx
         .contract
-        .prefix(contract_raw)
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, &contract_raw, min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_auction(deps.api, kv_item))
         .collect();

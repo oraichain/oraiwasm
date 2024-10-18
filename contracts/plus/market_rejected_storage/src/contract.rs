@@ -225,7 +225,7 @@ fn query_all_rejected(
 ) -> StdResult<RejectedForAllResponse> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let start = start_after.map(|rejected| {
-        Bound::ExclusiveRaw(get_key_nft_info(
+        Bound::Exclusive(get_key_nft_info(
             rejected.contract_addr.as_bytes(),
             rejected.token_id.as_bytes(),
         ))

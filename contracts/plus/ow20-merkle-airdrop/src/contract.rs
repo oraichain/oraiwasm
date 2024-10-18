@@ -144,7 +144,7 @@ pub fn execute_remove_merkle_root(
         return Err(ContractError::Unauthorized {});
     }
 
-    MERKLE_ROOT.save(deps.storage, stage, &String::new())?;
+    MERKLE_ROOT.save(deps.storage, stage.into(), &String::new())?;
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "remove_merkle_root"),
@@ -176,24 +176,24 @@ pub fn execute_register_merkle_root(
 
     let stage = LATEST_STAGE.update(deps.storage, |stage| -> StdResult<_> { Ok(stage + 1) })?;
 
-    MERKLE_ROOT.save(deps.storage, stage, &merkle_root)?;
+    MERKLE_ROOT.save(deps.storage, stage.into(), &merkle_root)?;
     LATEST_STAGE.save(deps.storage, &stage)?;
 
     // save expiration
     let exp = expiration.unwrap_or(Expiration::Never {});
-    STAGE_EXPIRATION.save(deps.storage, stage, &exp)?;
+    STAGE_EXPIRATION.save(deps.storage, stage.into(), &exp)?;
 
     // save start
     if let Some(start) = start {
-        STAGE_START.save(deps.storage, stage, &start)?;
+        STAGE_START.save(deps.storage, stage.into(), &start)?;
     }
 
     // save total airdropped amount
     let amount = total_amount.unwrap_or_else(Uint128::zero);
-    STAGE_AMOUNT.save(deps.storage, stage, &amount)?;
-    STAGE_AMOUNT_CLAIMED.save(deps.storage, stage, &Uint128::zero())?;
+    STAGE_AMOUNT.save(deps.storage, stage.into(), &amount)?;
+    STAGE_AMOUNT_CLAIMED.save(deps.storage, stage.into(), &Uint128::zero())?;
 
-    STAGE_METADATA.save(deps.storage, stage, &metadata)?;
+    STAGE_METADATA.save(deps.storage, stage.into(), &metadata)?;
 
     Ok(Response::new().add_attributes(vec![
         attr("action", "register_merkle_root"),
@@ -213,14 +213,14 @@ pub fn execute_claim(
     proof: Vec<String>,
 ) -> Result<Response, ContractError> {
     // airdrop begun
-    let start = STAGE_START.may_load(deps.storage, stage)?;
+    let start = STAGE_START.may_load(deps.storage, stage.into())?;
     if let Some(start) = start {
         if !start.is_triggered(&_env.block) {
             return Err(ContractError::StageNotBegun { stage, start });
         }
     }
     // not expired
-    let expiration = STAGE_EXPIRATION.load(deps.storage, stage)?;
+    let expiration = STAGE_EXPIRATION.load(deps.storage, stage.into())?;
     if expiration.is_expired(&_env.block) {
         return Err(ContractError::StageExpired { stage, expiration });
     }
@@ -233,7 +233,7 @@ pub fn execute_claim(
         return Err(ContractError::Claimed {});
     }
 
-    let merkle_root = MERKLE_ROOT.load(deps.storage, stage)?;
+    let merkle_root = MERKLE_ROOT.load(deps.storage, stage.into())?;
 
     // let user_input = format!("{{\"address\":\"{}\",\"data\":{}}}", info.sender, data);
     let user_input = format!("{}{}", info.sender, amount);
@@ -468,17 +468,13 @@ fn get_range_params(
     offset: Option<Vec<u8>>,
     limit: Option<u64>,
     order_enum: Order,
-) -> (
-    usize,
-    Option<Bound<'static, &'static [u8]>>,
-    Option<Bound<'static, &'static [u8]>>,
-) {
+) -> (usize, Option<Bound>, Option<Bound>) {
     let limit = limit.unwrap_or(1000u64).min(1000u64) as usize;
 
     let mut min = None;
     let mut max = None;
 
-    let offset_value = offset.map(|offset| Bound::ExclusiveRaw(offset));
+    let offset_value = offset.map(|offset| Bound::Exclusive(offset));
     match order_enum {
         Order::Ascending => min = offset_value,
         Order::Descending => max = offset_value,

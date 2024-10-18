@@ -1,6 +1,6 @@
 use cosmwasm_std::StdError::NotFound;
 use cosmwasm_std::{DepsMut, StdResult};
-use cw_storage_plus::{Index, IndexList, IndexedMap, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, PkOwned, UniqueIndex};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +24,7 @@ impl StorageMapper<TestcaseDB> for Testcase {
 }
 
 pub struct TestcaseIndexes<'a> {
-    pub token_id: UniqueIndex<'a, Vec<u8>, TestcaseDB>,
+    pub token_id: UniqueIndex<'a, PkOwned, TestcaseDB>,
 }
 
 impl<'a> IndexList<TestcaseDB> for TestcaseIndexes<'a> {
@@ -38,7 +38,7 @@ impl<'a> IndexList<TestcaseDB> for TestcaseIndexes<'a> {
 
 pub fn storage_testcases<'a>() -> IndexedMap<'a, &'a [u8], TestcaseDB, TestcaseIndexes<'a>> {
     let indexes = TestcaseIndexes {
-        token_id: UniqueIndex::new(|o| o.token_id.as_bytes().to_vec(), "testcase"),
+        token_id: UniqueIndex::new(|o| PkOwned(o.token_id.as_bytes().to_vec()), "testcase"),
     };
     IndexedMap::new("testcase", indexes)
 }

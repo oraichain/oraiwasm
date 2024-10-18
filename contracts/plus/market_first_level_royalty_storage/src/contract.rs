@@ -9,7 +9,7 @@ use cosmwasm_std::{
     StdResult,
 };
 use cosmwasm_std::{Addr, Record};
-use cw_storage_plus::Bound;
+use cw_storage_plus::{Bound, PkOwned};
 use market_first_lv_royalty::{
     FirstLvRoyalty, FirstLvRoyaltyExecuteMsg, FirstLvRoyaltyQueryMsg, OffsetMsg,
 };
@@ -185,12 +185,7 @@ fn _get_range_params_first_lv_royalty(
     limit: Option<u8>,
     offset: Option<OffsetMsg>,
     order: Option<u8>,
-) -> (
-    usize,
-    Option<Bound<'static, &'static [u8]>>,
-    Option<Bound<'static, &'static [u8]>>,
-    Order,
-) {
+) -> (usize, Option<Bound>, Option<Bound>, Order) {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min = None;
     let max = None;
@@ -203,7 +198,7 @@ fn _get_range_params_first_lv_royalty(
 
     // if there is offset, assign to min or max
     if let Some(offset) = offset {
-        let offset_value = Some(Bound::ExclusiveRaw(get_key_royalty(
+        let offset_value = Some(Bound::Exclusive(get_key_royalty(
             offset.contract.as_bytes(),
             offset.token_id.as_bytes(),
         )));
@@ -244,8 +239,7 @@ pub fn query_first_lv_royalties_by_current_owner(
     let res: StdResult<Vec<FirstLvRoyalty>> = first_lv_royalties()
         .idx
         .current_owner
-        .prefix(current_owner.as_bytes().to_vec())
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, current_owner.as_bytes(), min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_first_lv_royalty(kv_item))
         .collect();
@@ -264,8 +258,7 @@ pub fn query_first_lv_royalties_by_contract(
     let res: StdResult<Vec<FirstLvRoyalty>> = first_lv_royalties()
         .idx
         .contract
-        .prefix(contract.as_bytes().to_vec())
-        .range(deps.storage, min, max, order_enum)
+        .items(deps.storage, contract.as_bytes(), min, max, order_enum)
         .take(limit)
         .map(|kv_item| parse_first_lv_royalty(kv_item))
         .collect();
@@ -280,7 +273,7 @@ pub fn query_first_lv_royalty(
 ) -> StdResult<FirstLvRoyalty> {
     let first_lv_royalty = first_lv_royalties().idx.unique_royalty.item(
         deps.storage,
-        get_key_royalty(contract.as_bytes(), token_id.as_bytes()),
+        PkOwned(get_key_royalty(contract.as_bytes(), token_id.as_bytes())),
     )?;
     if let Some(first_lv) = first_lv_royalty {
         Ok(first_lv.1)

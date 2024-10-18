@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use cosmwasm_std::{Addr, CanonicalAddr, StdResult, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
 use market_auction::Auction;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
@@ -27,10 +27,10 @@ pub fn increment_auctions(storage: &mut dyn Storage) -> StdResult<u64> {
 
 // bidder is who is willing to pay the maximum price for the contract_token_id
 pub struct AuctionIndexes<'a> {
-    pub asker: MultiIndex<'a, Vec<u8>, Auction, &'a [u8]>,
-    pub bidder: MultiIndex<'a, Vec<u8>, Auction, &'a [u8]>,
-    pub contract: MultiIndex<'a, Vec<u8>, Auction, &'a [u8]>,
-    pub contract_token_id: UniqueIndex<'a, Vec<u8>, Auction>,
+    pub asker: MultiIndex<'a, Auction>,
+    pub bidder: MultiIndex<'a, Auction>,
+    pub contract: MultiIndex<'a, Auction>,
+    pub contract_token_id: UniqueIndex<'a, PkOwned, Auction>,
 }
 
 impl<'a> IndexList<Auction> for AuctionIndexes<'a> {
@@ -46,19 +46,19 @@ impl<'a> IndexList<Auction> for AuctionIndexes<'a> {
 }
 
 // contract nft + token id => unique id
-pub fn get_contract_token_id(contract: &CanonicalAddr, token_id: &str) -> Vec<u8> {
+pub fn get_contract_token_id(contract: &CanonicalAddr, token_id: &str) -> PkOwned {
     let mut vec = contract.as_slice().to_vec();
     vec.extend(token_id.as_bytes());
-    vec
+    PkOwned(vec)
 }
 
 // this IndexedMap instance has a lifetime
 pub fn auctions<'a>() -> IndexedMap<'a, &'a [u8], Auction, AuctionIndexes<'a>> {
     let indexes = AuctionIndexes {
-        asker: MultiIndex::new(|_pk, o| o.asker.to_vec(), "auctions", "auctions__asker"),
+        asker: MultiIndex::new(|o| o.asker.to_vec(), "auctions", "auctions__asker"),
         // do not copy the value, if we put None bidder, we got all pending bids
         bidder: MultiIndex::new(
-            |_pk, o| {
+            |o| {
                 o.bidder
                     .as_ref()
                     .map(|addr| addr.to_vec())
@@ -68,7 +68,7 @@ pub fn auctions<'a>() -> IndexedMap<'a, &'a [u8], Auction, AuctionIndexes<'a>> {
             "auctions__bidder",
         ),
         contract: MultiIndex::new(
-            |_pk, o| o.contract_addr.to_vec(),
+            |o| o.contract_addr.to_vec(),
             "auctions",
             "auctions__contract",
         ),

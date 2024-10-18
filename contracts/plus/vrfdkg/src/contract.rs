@@ -625,8 +625,8 @@ fn query_rounds(
     let rounds: Vec<DistributedShareData> = BEACONS
         .range(
             deps.storage,
-            min.map(Bound::ExclusiveRaw),
-            max.map(Bound::ExclusiveRaw),
+            min.map(Bound::Exclusive),
+            max.map(Bound::Exclusive),
             order_enum,
         )
         .take(limit)

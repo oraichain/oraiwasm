@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use cosmwasm_std::{Addr, CanonicalAddr, StdResult, Storage};
-use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, UniqueIndex};
+use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, PkOwned, UniqueIndex};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfo {
@@ -27,9 +27,9 @@ pub fn increment_offerings(storage: &mut dyn Storage) -> StdResult<u64> {
 }
 
 pub struct OfferingIndexes<'a> {
-    pub seller: MultiIndex<'a, Vec<u8>, Offering, &'a [u8]>,
-    pub contract: MultiIndex<'a, Vec<u8>, Offering, &'a [u8]>,
-    pub contract_token_id: UniqueIndex<'a, Vec<u8>, Offering>,
+    pub seller: MultiIndex<'a, Offering>,
+    pub contract: MultiIndex<'a, Offering>,
+    pub contract_token_id: UniqueIndex<'a, PkOwned, Offering>,
 }
 
 impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
@@ -41,18 +41,18 @@ impl<'a> IndexList<Offering> for OfferingIndexes<'a> {
 }
 
 // contract nft + token id => unique id
-pub fn get_contract_token_id(contract: &CanonicalAddr, token_id: &str) -> Vec<u8> {
+pub fn get_contract_token_id(contract: &CanonicalAddr, token_id: &str) -> PkOwned {
     let mut vec = contract.as_slice().to_vec();
     vec.extend(token_id.as_bytes());
-    vec
+    PkOwned(vec)
 }
 
 // this IndexedMap instance has a lifetime
 pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>> {
     let indexes = OfferingIndexes {
-        seller: MultiIndex::new(|_pk, o| o.seller.to_vec(), "offerings", "offerings__seller"),
+        seller: MultiIndex::new(|o| o.seller.to_vec(), "offerings", "offerings__seller"),
         contract: MultiIndex::new(
-            |_pk, o| o.contract_addr.to_vec(),
+            |o| o.contract_addr.to_vec(),
             "offerings",
             "offerings__contract",
         ),
@@ -65,9 +65,9 @@ pub fn offerings<'a>() -> IndexedMap<'a, &'a [u8], Offering, OfferingIndexes<'a>
 }
 
 pub struct OfferingRoyaltyIndexes<'a> {
-    pub current_owner: MultiIndex<'a, Vec<u8>, OfferingRoyalty, &'a [u8]>,
-    pub contract: MultiIndex<'a, Vec<u8>, OfferingRoyalty, &'a [u8]>,
-    pub contract_token_id: UniqueIndex<'a, Vec<u8>, OfferingRoyalty>,
+    pub current_owner: MultiIndex<'a, OfferingRoyalty>,
+    pub contract: MultiIndex<'a, OfferingRoyalty>,
+    pub contract_token_id: UniqueIndex<'a, PkOwned, OfferingRoyalty>,
 }
 
 impl<'a> IndexList<OfferingRoyalty> for OfferingRoyaltyIndexes<'a> {
@@ -91,17 +91,22 @@ pub fn offerings_royalty<'a>(
 ) -> IndexedMap<'a, &'a [u8], OfferingRoyalty, OfferingRoyaltyIndexes<'a>> {
     let indexes = OfferingRoyaltyIndexes {
         current_owner: MultiIndex::new(
-            |_pk, o| o.current_owner.as_bytes().to_vec(),
+            |o| o.current_owner.as_bytes().to_vec(),
             "offerings_royalty",
             "offerings_royalty_current_owner",
         ),
         contract: MultiIndex::new(
-            |_pk, o| o.contract_addr.as_bytes().to_vec(),
+            |o| o.contract_addr.as_bytes().to_vec(),
             "offerings_royalty",
             "offerings_royalty_contract",
         ),
         contract_token_id: UniqueIndex::new(
-            |o| get_key_royalty(o.contract_addr.as_bytes(), o.token_id.as_bytes()),
+            |o| {
+                PkOwned(get_key_royalty(
+                    o.contract_addr.as_bytes(),
+                    o.token_id.as_bytes(),
+                ))
+            },
             "offerings_royalty_id",
         ),
     };
