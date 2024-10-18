@@ -1,0 +1,32 @@
+[package]
+name = "market_datahub_ai_marketplace"
+version = "0.1.0"
+authors = ["tupt <tubackkhoa@gmail.com>", "tuanpt <tuan.pt@orai.io>"]
+edition = { workspace = true }
+
+exclude = [
+  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+  "artifacts/*",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all init/handle/query exports
+library = []
+
+[dependencies]
+cw721 = { workspace = true }
+cw-storage-plus = { workspace = true, features = ["iterator"] }
+cosmwasm-std = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+cosmwasm-storage = { workspace = true, features = ["iterator"] }
+cosmwasm-schema = { workspace = true }
