@@ -30,3 +30,7 @@ pub enum QueryMsg {
     Auction(AuctionQueryMsg),
     GetContractInfo {},
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+
+pub struct MigrateMsg {}
