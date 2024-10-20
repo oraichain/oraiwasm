@@ -15,7 +15,7 @@ library = []
 
 [dependencies]
 
-cosmwasm-crypto = { workspace = true }
+cosmwasm-crypto = "0.14.0"
 cosmwasm-std = { workspace = true }
 cosmwasm-storage = { workspace = true, features = ["iterator"] }
 cw-storage-plus = { workspace = true, features = ["iterator"] }

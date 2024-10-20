@@ -4,8 +4,8 @@ use cosmwasm_std::entry_point;
 use crate::{
     error::ContractError,
     msg::{
-        ExecuteMsg, InstantiateMsg, LockNft, NftQueryMsg, NonceResponse, OwnerOfResponse, PubKey,
-        PubKeyResponse, QueryMsg, UnlockNft, UnlockRaw,
+        ExecuteMsg, InstantiateMsg, LockNft, MigrateMsg, NftQueryMsg, NonceResponse,
+        OwnerOfResponse, PubKey, PubKeyResponse, QueryMsg, UnlockNft, UnlockRaw,
     },
     state::{
         nonce, nonce_read, owner, owner_read, Locked, Nonce, Owner, ALLOWED, LOCKED,
@@ -537,6 +537,10 @@ fn parse_pubkey(_api: &dyn Api, item: StdResult<Record<bool>>) -> StdResult<PubK
         let pub_key = Binary::from(k);
         Ok(PubKey { pub_key })
     })
+}
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
 
 #[cfg(test)]

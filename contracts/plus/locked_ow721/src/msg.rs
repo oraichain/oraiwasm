@@ -1,4 +1,4 @@
-use cosmwasm_std::{Binary, Addr};
+use cosmwasm_std::{Addr, Binary};
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -147,3 +147,7 @@ pub struct PubKeyResponse {
 pub struct PubKey {
     pub pub_key: Binary,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+
+pub struct MigrateMsg {}
