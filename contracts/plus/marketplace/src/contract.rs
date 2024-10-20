@@ -3,7 +3,7 @@ use cosmwasm_std::entry_point;
 
 use crate::error::ContractError;
 use crate::msg::{
-    ExecuteMsg, InfoMsg, InstantiateMsg, OfferingsResponse, PayoutMsg, QueryMsg,
+    ExecuteMsg, InfoMsg, InstantiateMsg, MigrateMsg, OfferingsResponse, PayoutMsg, QueryMsg,
     QueryOfferingsResult, SellNft,
 };
 use crate::state::{
@@ -671,4 +671,9 @@ fn parse_offering<'a>(
             royalty_owner,
         })
     })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
