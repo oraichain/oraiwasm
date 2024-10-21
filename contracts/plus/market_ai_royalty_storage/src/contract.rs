@@ -15,7 +15,7 @@ use market_ai_royalty::{
     sanitize_royalty, AiRoyaltyExecuteMsg, AiRoyaltyQueryMsg, OffsetMsg, Royalty, RoyaltyMsg,
 };
 
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, UpdateContractMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UpdateContractMsg};
 
 pub const MAX_ROYALTY_PERCENT: u64 = 50;
 pub const DEFAULT_ROYALTY_PERCENT: u64 = 10;
@@ -439,4 +439,9 @@ fn parse_royalty<'a>(item: StdResult<Record<Royalty>>) -> StdResult<Royalty> {
         // try_into will box vector to fixed array
         Ok(payout)
     })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, ContractError> {
+    Ok(Response::default())
 }
