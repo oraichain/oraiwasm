@@ -1,4 +1,4 @@
-use cosmwasm_std::{Coin, Addr, Uint128};
+use cosmwasm_std::{Addr, Coin, Uint128};
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -122,3 +122,7 @@ pub struct QueryAuctionsResult {
 pub struct AuctionsResponse {
     pub items: Vec<QueryAuctionsResult>,
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+
+pub struct MigrateMsg {}

@@ -3,8 +3,8 @@ use cosmwasm_std::entry_point;
 
 use crate::error::ContractError;
 use crate::msg::{
-    AskNftMsg, AuctionsResponse, ExecuteMsg, InstantiateMsg, PagingOptions, QueryAuctionsResult,
-    QueryMsg, UpdateContractMsg,
+    AskNftMsg, AuctionsResponse, ExecuteMsg, InstantiateMsg, MigrateMsg, PagingOptions,
+    QueryAuctionsResult, QueryMsg, UpdateContractMsg,
 };
 use crate::state::{
     auctions, get_contract_token_id, increment_auctions, Auction, ContractInfo, CONTRACT_INFO,
@@ -743,4 +743,9 @@ fn parse_auction(
             step_price: auction.step_price,
         })
     })
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
