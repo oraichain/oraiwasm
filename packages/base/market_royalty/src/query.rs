@@ -1,5 +1,5 @@
-use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::{Addr, ContractInfo, Uint128};
+use cosmwasm_schema::{cw_serde};
+use cosmwasm_std::{Addr, Binary, ContractInfo, Uint128};
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -41,6 +41,11 @@ pub enum OfferingQueryMsg {
         limit: Option<u8>,
         order: Option<u8>,
     },
+    GetOfferingsRoyaltyWithKeys {
+        offset: Option<OffsetMsg>,
+        limit: Option<u8>,
+        order: Option<u8>,
+    },
     GetOfferingsRoyaltyByCurrentOwner {
         current_owner: Addr,
         offset: Option<OffsetMsg>,
@@ -54,7 +59,7 @@ pub enum OfferingQueryMsg {
         order: Option<u8>,
     },
     GetOfferingRoyalty {
-        offering_id: u64,
+        offering_id: Binary,
     },
     GetOfferingRoyaltyByContractTokenId {
         contract: Addr,
@@ -71,9 +76,9 @@ pub enum OfferingQueryResponse {
     GetOffering(QueryOfferingsResult),
     GetOfferingState(Offering),
     GetOfferingByContractTokenId(QueryOfferingsResult),
-    GetOfferingsRoyalty(OfferingRoyalty),
-    GetOfferingsRoyaltyByCurrentOwner(OfferingRoyalty),
-    GetOfferingsRoyaltyByContract(OfferingRoyalty),
+    GetOfferingsRoyalty(Vec<OfferingRoyalty>),
+    GetOfferingsRoyaltyByCurrentOwner(Vec<OfferingRoyalty>),
+    GetOfferingsRoyaltyByContract(Vec<OfferingRoyalty>),
     GetOfferingRoyalty(OfferingRoyalty),
     GetOfferingRoyaltyByContractTokenId(OfferingRoyalty),
     GetContractInfo(ContractInfo),

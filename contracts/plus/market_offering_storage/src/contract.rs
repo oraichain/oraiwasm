@@ -7,7 +7,7 @@ use crate::state::{
     get_contract_token_id, get_key_royalty, increment_offerings, offerings, offerings_royalty,
     ContractInfo, CONTRACT_INFO,
 };
-use market_royalty::{OfferingExecuteMsg, OfferingRoyalty, OffsetMsg};
+use market_royalty::{OfferingExecuteMsg, OfferingRoyalty, OfferingRoyaltyResponse, OffsetMsg};
 use market_royalty::{OfferingQueryMsg, OfferingsResponse, QueryOfferingsResult};
 
 use cosmwasm_std::Addr;
@@ -107,6 +107,14 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
                 offset,
                 order,
             } => to_json_binary(&query_offerings_royalty(deps, limit, offset, order)?),
+
+            OfferingQueryMsg::GetOfferingsRoyaltyWithKeys {
+                limit,
+                offset,
+                order,
+            } => to_json_binary(&query_offerings_royalty_with_keys(
+                deps, limit, offset, order,
+            )?),
 
             OfferingQueryMsg::GetOfferingsRoyaltyByContract {
                 contract,
@@ -456,6 +464,23 @@ pub fn query_offerings_royalty(
     Ok(res?)
 }
 
+pub fn query_offerings_royalty_with_keys(
+    deps: Deps,
+    limit: Option<u8>,
+    offset: Option<OffsetMsg>,
+    order: Option<u8>,
+) -> StdResult<Vec<OfferingRoyaltyResponse>> {
+    let (limit, min, max, order_enum) = _get_range_params_offering_royalty(limit, offset, order);
+
+    let res: StdResult<Vec<OfferingRoyaltyResponse>> = offerings_royalty()
+        .range(deps.storage, min, max, order_enum)
+        .take(limit)
+        .map(|kv_item| parse_offering_royalty_response(kv_item))
+        .collect();
+
+    Ok(res?)
+}
+
 pub fn query_offerings_royalty_by_current_owner(
     deps: Deps,
     current_owner: Addr,
@@ -494,8 +519,8 @@ pub fn query_offerings_royalty_by_contract(
     Ok(res?)
 }
 
-pub fn query_offering_royalty(deps: Deps, offering_id: u64) -> StdResult<OfferingRoyalty> {
-    let offering = offerings_royalty().load(deps.storage, &offering_id.to_be_bytes())?;
+pub fn query_offering_royalty(deps: Deps, offering_id: Binary) -> StdResult<OfferingRoyalty> {
+    let offering = offerings_royalty().load(deps.storage, &offering_id.to_vec())?;
     Ok(offering)
 }
 
@@ -544,6 +569,24 @@ fn parse_offering_royalty<'a>(
         // will panic if length is greater than 8, but we can make sure it is u64
         // try_into will box vector to fixed array
         Ok(offering)
+    })
+}
+
+fn parse_offering_royalty_response<'a>(
+    item: StdResult<Record<OfferingRoyalty>>,
+) -> StdResult<OfferingRoyaltyResponse> {
+    item.and_then(|(k, offering)| {
+        // will panic if length is greater than 8, but we can make sure it is u64
+        // try_into will box vector to fixed array
+        Ok(OfferingRoyaltyResponse {
+            offering_id: to_json_binary(&k)?,
+            token_id: offering.token_id,
+            contract_addr: offering.contract_addr,
+            previous_owner: offering.previous_owner,
+            current_owner: offering.current_owner,
+            prev_royalty: offering.prev_royalty,
+            cur_royalty: offering.cur_royalty,
+        })
     })
 }
 

@@ -67,6 +67,17 @@ pub struct OfferingRoyalty {
     pub cur_royalty: Option<u64>,
 }
 
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+pub struct OfferingRoyaltyResponse {
+    pub offering_id: Binary,
+    pub token_id: String,
+    pub contract_addr: Addr,
+    pub previous_owner: Option<Addr>,
+    pub current_owner: Addr,
+    pub prev_royalty: Option<u64>,
+    pub cur_royalty: Option<u64>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum OfferingExecuteMsg {
