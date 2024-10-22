@@ -1,0 +1,27 @@
+[package]
+name = "ow1155"
+version = "1.0.1"
+authors = ["Huang Yi <huang@crypto.com>"]
+edition = { workspace = true }
+description = "Basic implementation of a CosmWasm-1155 compliant token"
+license = "Apache-2.0"
+repository = "https://github.com/CosmWasm/cosmwasm-plus"
+homepage = "https://cosmwasm.com"
+documentation = "https://docs.cosmwasm.com"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all init/handle/query exports
+library = []
+
+[dependencies]
+cw1155 = { workspace = true }
+cw-storage-plus = { workspace = true, features = ["iterator"] }
+cosmwasm-std = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+cosmwasm-schema = { workspace = true }
