@@ -1,8 +1,8 @@
 [package]
+authors = ["tupt <tubackkhoa@gmail.com>"]
+edition = {workspace = true}
 name = "oraichain_nft"
 version = "0.1.0"
-authors = ["tupt <tubackkhoa@gmail.com>"]
-edition = { workspace = true }
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -14,7 +14,6 @@ exclude = [
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-
 [features]
 # for more explicit tests, cargo test --features=backtraces
 backtraces = ["cosmwasm-std/backtraces"]
@@ -22,10 +21,10 @@ backtraces = ["cosmwasm-std/backtraces"]
 library = []
 
 [dependencies]
-cw721 = { workspace = true }
-cw-storage-plus = { workspace = true, features = ["iterator"] }
-cosmwasm-std = { workspace = true }
-schemars = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-thiserror = { workspace = true }
-cosmwasm-schema = { workspace = true }
+cosmwasm-schema = {workspace = true}
+cosmwasm-std = {workspace = true}
+cw-storage-plus = {workspace = true, features = ["iterator"]}
+cw721 = {workspace = true}
+schemars = {workspace = true}
+serde = {workspace = true, features = ["derive"]}
+thiserror = {workspace = true}

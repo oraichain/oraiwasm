@@ -89,10 +89,11 @@ pub struct NumTokensResponse {
     pub count: u64,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Default, Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct ContractInfoResponse {
     pub name: String,
     pub symbol: String,
+    #[serde(default)]
     pub version: String,
 }
 
