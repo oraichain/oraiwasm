@@ -18,7 +18,13 @@ pub enum ExecuteMsg {
         executor: Option<Addr>,
         wallet: Option<Addr>,
         amm_v3: Option<Addr>,
-    }
+    },
+    BurnPosition {
+        token_id: u64,
+    },
+    SendToken {
+        denom: String,
+    },
 }
 
 #[cw_serde]
