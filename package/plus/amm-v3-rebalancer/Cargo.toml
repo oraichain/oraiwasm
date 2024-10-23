@@ -26,6 +26,7 @@ backtraces = ["cosmwasm-std/backtraces"]
 cosmwasm-std = { version = "1.5" }
 cosmwasm-storage = { version = "1.5", features = ["iterator"] }
 cosmwasm-schema = { version = "1.5" }
+cw20 = { version = "1.0.1" }
 schemars = "0.8"
 serde = { version = "1.0.204", default-features = false, features = ["derive"] }
 oraiswap-v3 = { git = "https://github.com/oraichain/oraiswap-v3.git", rev = "7f2b8ac", features = [

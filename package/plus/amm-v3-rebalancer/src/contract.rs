@@ -1,8 +1,12 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_json_binary, Addr, Binary, Deps, DepsMut, Env, MessageInfo,
-    Response, StdResult,
+    entry_point, to_json_binary, Addr, Binary, CosmosMsg, Deps, DepsMut, Env, MessageInfo,
+    Response, StdResult, WasmMsg,
 };
+use cw20::BalanceResponse as Cw20BalanceResponse;
+use cw20::Cw20QueryMsg::Balance as Cw20Balance;
+use oraiswap_v3::msg::{ExecuteMsg as OraiswapV3ExecuteMsg, QueryMsg as OraiswapV3QueryMsg};
+use oraiswap_v3::storage::Position;
 
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
@@ -34,7 +38,7 @@ pub fn instantiate(
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn execute(
     deps: DepsMut,
-    _env: Env,
+    env: Env,
     info: MessageInfo,
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
@@ -45,6 +49,8 @@ pub fn execute(
             wallet,
             amm_v3,
         } => update_config(deps, info, owner, executor, wallet, amm_v3),
+        ExecuteMsg::RemovePosition { index } => remove_position(deps, info, env, index),
+        ExecuteMsg::SendToken { denom } => send_token(deps, info, env, denom),
     }
 }
 
@@ -76,6 +82,93 @@ fn update_config(
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_attributes(vec![("action", "update_config")]))
+}
+
+fn remove_position(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    index: u32,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.executor {
+        return Err(ContractError::Unauthorized {});
+    }
+    let position_info: Position = deps.querier.query_wasm_smart(
+        config.amm_v3.to_string(),
+        &OraiswapV3QueryMsg::Position {
+            owner_id: env.contract.address.clone(),
+            index: index,
+        },
+    )?;
+
+    let messages = vec![
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: config.amm_v3.to_string(),
+            msg: to_json_binary(&OraiswapV3ExecuteMsg::RemovePosition { index })?,
+            funds: vec![],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_json_binary(&ExecuteMsg::SendToken {
+                denom: position_info.pool_key.token_x,
+            })?,
+            funds: vec![],
+        }),
+        CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: env.contract.address.to_string(),
+            msg: to_json_binary(&ExecuteMsg::SendToken {
+                denom: position_info.pool_key.token_y,
+            })?,
+            funds: vec![],
+        }),
+    ];
+
+    Ok(Response::new()
+        .add_attributes(vec![
+            ("action", "remove_position"),
+            ("position_index", &index.to_string()),
+        ])
+        .add_messages(messages))
+}
+
+fn send_token(
+    deps: DepsMut,
+    _info: MessageInfo,
+    env: Env,
+    denom: String,
+) -> Result<Response, ContractError> {
+    match deps.api.addr_validate(&denom) {
+        Ok(_) => {
+            let bal: Cw20BalanceResponse = deps.querier.query_wasm_smart(
+                denom,
+                &Cw20Balance {
+                    address: env.contract.address.to_string(),
+                },
+            )?;
+            if bal.balance.is_zero() {
+                return Ok(Response::default());
+            }
+
+            return Ok(Response::new().add_attributes(vec![
+                ("action", "send_token"),
+                ("token", "denom"),
+                ("amount", &bal.balance.to_string()),
+            ]));
+        }
+        Err(_) => {
+            let bal = deps.querier.query_balance(env.contract.address, denom)?;
+            if bal.amount.is_zero() {
+                return Ok(Response::default());
+            }
+
+            return Ok(Response::new().add_attributes(vec![
+                ("action", "send_token"),
+                ("token", "denom"),
+                ("amount", &bal.amount.to_string()),
+            ]));
+        }
+    }
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]

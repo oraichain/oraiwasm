@@ -18,6 +18,12 @@ pub enum ExecuteMsg {
         executor: Option<Addr>,
         wallet: Option<Addr>,
         amm_v3: Option<Addr>,
+    },
+    RemovePosition {
+        index: u32
+    },
+    SendToken {
+        denom: String,
     }
 }
 
