@@ -18,14 +18,20 @@ pub enum ExecuteMsg {
         executor: Option<Addr>,
         wallet: Option<Addr>,
         amm_v3: Option<Addr>,
-    }
+    },
+    RemovePosition {
+        index: u32,
+    },
+    SendToken {
+        denom: String,
+    },
 }
 
 #[cw_serde]
 #[derive(QueryResponses)]
 pub enum QueryMsg {
     #[returns(Config)]
-    Config
+    Config,
 }
 
 #[cw_serde]
