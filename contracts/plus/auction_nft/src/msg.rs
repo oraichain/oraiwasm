@@ -1,7 +1,10 @@
+use cosmwasm_schema::QueryResponses;
 use cosmwasm_std::{Addr, Coin, Uint128};
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::state::{Auction, ContractInfo};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -71,32 +74,29 @@ pub struct PagingOptions {
     pub order: Option<u8>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, QueryResponses)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     // GetOfferings returns a list of all offerings
-    GetAuctions {
-        options: PagingOptions,
-    },
-    GetAuctionsByAsker {
-        asker: Addr,
-        options: PagingOptions,
-    },
+    #[returns(AuctionsResponse)]
+    GetAuctions { options: PagingOptions },
+    #[returns(AuctionsResponse)]
+    GetAuctionsByAsker { asker: Addr, options: PagingOptions },
+    #[returns(AuctionsResponse)]
     GetAuctionsByBidder {
         bidder: Option<Addr>,
         options: PagingOptions,
     },
+    #[returns(AuctionsResponse)]
     GetAuctionsByContract {
         contract: Addr,
         options: PagingOptions,
     },
-    GetAuction {
-        auction_id: u64,
-    },
-    GetAuctionByContractTokenId {
-        contract: Addr,
-        token_id: String,
-    },
+    #[returns(Auction)]
+    GetAuction { auction_id: u64 },
+    #[returns(QueryAuctionsResult)]
+    GetAuctionByContractTokenId { contract: Addr, token_id: String },
+    #[returns(ContractInfo)]
     GetContractInfo {},
 }
 
