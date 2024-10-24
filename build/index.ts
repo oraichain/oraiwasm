@@ -1,2 +1,2 @@
-export * as MarketNftStakingTypes from './MarketNftStaking.types';
-export * from './MarketNftStaking.client';
+export * as MarketPaymentStorageTypes from './MarketPaymentStorage.types';
+export * from './MarketPaymentStorage.client';

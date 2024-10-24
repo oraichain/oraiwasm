@@ -1,7 +1,10 @@
-use cosmwasm_std::Addr;
+use cosmwasm_schema::QueryResponses;
+use cosmwasm_std::{Addr, Binary};
 use market_payment::{PaymentExecuteMsg, PaymentQueryMsg};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::state::ContractInfo;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -26,10 +29,12 @@ pub struct UpdateContractMsg {
     pub default_denom: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, QueryResponses)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     // GetOfferings returns a list of all offerings
+    #[returns(Binary)]
     Msg(PaymentQueryMsg),
+    #[returns(ContractInfo)]
     GetContractInfo {},
 }
