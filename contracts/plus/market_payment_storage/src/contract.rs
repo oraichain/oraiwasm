@@ -71,7 +71,7 @@ pub fn execute(
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
-pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
     Ok(Response::default())
 }
 
@@ -309,12 +309,7 @@ fn _get_range_params(
     limit: Option<u8>,
     offset: Option<Binary>,
     order: Option<u8>,
-) -> StdResult<(
-    usize,
-    Option<Bound>,
-    Option<Bound>,
-    Order,
-)> {
+) -> StdResult<(usize, Option<Bound>, Option<Bound>, Order)> {
     let limit = limit.unwrap_or(DEFAULT_LIMIT).min(MAX_LIMIT) as usize;
     let mut min = None;
     let max = None;

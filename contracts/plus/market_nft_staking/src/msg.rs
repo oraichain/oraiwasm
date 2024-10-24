@@ -1,10 +1,13 @@
+use cosmwasm_schema::QueryResponses;
 use cosmwasm_std::{Addr, Uint128};
 use cw1155::Cw1155ReceiveMsg;
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::state::CollectionStakedTokenInfo;
+use crate::state::{
+    CollectionPoolInfo, CollectionStakedTokenInfo, CollectionStakerInfo, ContractInfo,
+};
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 pub struct InstantiateMsg {
@@ -35,6 +38,9 @@ pub enum ExecuteMsg {
         staker: Addr,
     },
 }
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct MigrateMsg {}
 
 #[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -76,28 +82,32 @@ pub struct StakeMsgDetail {
     pub nft: CollectionStakedTokenInfo,
 }
 
-#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug)]
+#[derive(Serialize, Deserialize, Clone, PartialEq, JsonSchema, Debug, QueryResponses)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
+    #[returns(ContractInfo)]
     GetContractInfo {},
-    GetCollectionPoolInfo {
-        collection_id: String,
-    },
+    #[returns(Option<CollectionPoolInfo>)]
+    GetCollectionPoolInfo { collection_id: String },
+    #[returns(Vec<CollectionPoolInfo>)]
     GetCollectionPoolInfos {
         limit: Option<u8>,
         offset: Option<u64>,
         order: Option<u8>,
     },
+    #[returns(Option<CollectionStakerInfo>)]
     GetUniqueCollectionStakerInfo {
         collection_id: String,
         staker_addr: Addr,
     },
+    #[returns(Vec<CollectionStakerInfo>)]
     GetCollectionStakerInfoByCollection {
         collection_id: String,
         limit: Option<u8>,
         offset: Option<u64>,
         order: Option<u8>,
     },
+    #[returns(Vec<CollectionStakerInfo>)]
     GetCollectionStakerInfoByStaker {
         staker_addr: Addr,
         limit: Option<u8>,

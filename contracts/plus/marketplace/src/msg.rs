@@ -1,8 +1,11 @@
+use cosmwasm_schema::QueryResponses;
 use cosmwasm_std::{Addr, Binary, Coin, Uint128};
 
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+
+use crate::state::ContractInfo;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InstantiateMsg {
@@ -56,38 +59,37 @@ pub struct InfoMsg {
     pub max_royalty: Option<u64>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, QueryResponses)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     // GetOfferings returns a list of all offerings
+    #[returns(OfferingsResponse)]
     GetOfferings {
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
     },
+    #[returns(OfferingsResponse)]
     GetOfferingsBySeller {
         seller: Addr,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
     },
+    #[returns(OfferingsResponse)]
     GetOfferingsByContract {
         contract: Addr,
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
     },
-    GetOffering {
-        offering_id: u64,
-    },
-    GetPayoutsByContractTokenId {
-        contract: Addr,
-        token_id: String,
-    },
-    GetOfferingByContractTokenId {
-        contract: Addr,
-        token_id: String,
-    },
+    #[returns(QueryOfferingsResult)]
+    GetOffering { offering_id: u64 },
+    #[returns(PayoutMsg)]
+    GetPayoutsByContractTokenId { contract: Addr, token_id: String },
+    #[returns(QueryOfferingsResult)]
+    GetOfferingByContractTokenId { contract: Addr, token_id: String },
+    #[returns(ContractInfo)]
     GetContractInfo {},
 }
 
