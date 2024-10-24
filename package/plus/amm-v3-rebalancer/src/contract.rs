@@ -1,17 +1,20 @@
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::{
-    entry_point, to_json_binary, Addr, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
-    MessageInfo, Response, StdResult, WasmMsg,
+    entry_point, to_json_binary, Addr, Api, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Response, StdResult, Uint128, WasmMsg,
 };
 use cw20::{
     BalanceResponse as Cw20BalanceResponse, Cw20ExecuteMsg, Cw20QueryMsg::Balance as Cw20Balance,
 };
 use oraiswap_v3_common::{
+    asset::AssetInfo,
     interface::NftInfoResponse,
+    math::{liquidity::Liquidity, sqrt_price::SqrtPrice},
     oraiswap_v3_msg::{ExecuteMsg as OraiswapV3ExecuteMsg, QueryMsg as OraiswapV3QueryMsg},
-    storage::Pool,
+    storage::{Pool, PoolKey},
 };
 
+use crate::asset::Asset;
 use crate::error::ContractError;
 use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg};
 use crate::state::{Config, CONFIG};
@@ -53,6 +56,28 @@ pub fn execute(
             wallet,
             amm_v3,
         } => update_config(deps, info, owner, executor, wallet, amm_v3),
+        ExecuteMsg::CreatePosition {
+            pool_key,
+            lower_tick,
+            upper_tick,
+            liquidity_delta,
+            slippage_limit_lower,
+            slippage_limit_upper,
+            amount_x,
+            amount_y,
+        } => create_position(
+            deps,
+            info,
+            env,
+            pool_key,
+            lower_tick,
+            upper_tick,
+            liquidity_delta,
+            slippage_limit_lower,
+            slippage_limit_upper,
+            amount_x,
+            amount_y,
+        ),
         ExecuteMsg::BurnPosition { token_id } => burn_position(deps, info, env, token_id),
         ExecuteMsg::SendToken { denom } => send_token(deps, info, env, denom),
     }
@@ -86,6 +111,100 @@ fn update_config(
     CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new().add_attributes(vec![("action", "update_config")]))
+}
+
+fn create_position(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+    pool_key: PoolKey,
+    lower_tick: i32,
+    upper_tick: i32,
+    liquidity_delta: Liquidity,
+    slippage_limit_lower: SqrtPrice,
+    slippage_limit_upper: SqrtPrice,
+    amount_x: Uint128,
+    amount_y: Uint128,
+) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if info.sender != config.executor {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let mut funds: Vec<Coin> = vec![];
+    let mut messages = vec![];
+
+    collect_and_increase_funds(
+        deps.api,
+        &env,
+        &pool_key.token_x,
+        amount_x,
+        &mut funds,
+        &mut messages,
+        config.wallet.to_string(),
+        config.amm_v3.to_string(),
+    )?;
+    collect_and_increase_funds(
+        deps.api,
+        &env,
+        &pool_key.token_y,
+        amount_y,
+        &mut funds,
+        &mut messages,
+        config.wallet.to_string(),
+        config.amm_v3.to_string(),
+    )?;
+
+    messages.push(CosmosMsg::Wasm(WasmMsg::Execute {
+        contract_addr: config.amm_v3.to_string(),
+        msg: to_json_binary(&OraiswapV3ExecuteMsg::CreatePosition {
+            pool_key,
+            lower_tick,
+            upper_tick,
+            liquidity_delta,
+            slippage_limit_lower,
+            slippage_limit_upper,
+        })?,
+        funds,
+    }));
+
+    Ok(Response::new()
+        .add_attributes(vec![("action", "create_position")])
+        .add_messages(messages))
+}
+
+fn collect_and_increase_funds(
+    api: &dyn Api,
+    env: &Env,
+    denom: &String,
+    amount: Uint128,
+    coins: &mut Vec<Coin>,
+    msgs: &mut Vec<CosmosMsg>,
+    collect_from: String,
+    spender: String,
+) -> Result<(), ContractError> {
+    let asset = Asset::new(AssetInfo::from_denom(api, &denom), amount);
+
+    // collect tokens
+    asset.transfer_from(env, msgs, collect_from, env.contract.address.to_string())?;
+
+    match api.addr_validate(denom) {
+        Ok(_) => {
+            asset.info.increase_allowance(
+                coins,
+                msgs,
+                spender,
+                Uint128::from(amount.u128() * 2),
+            )?;
+        }
+        Err(_) => {
+            asset
+                .info
+                .increase_allowance(coins, msgs, spender, amount)?;
+        }
+    }
+
+    Ok(())
 }
 
 fn burn_position(

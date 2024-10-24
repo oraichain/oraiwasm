@@ -1,5 +1,9 @@
 use cosmwasm_schema::{cw_serde, QueryResponses};
-use cosmwasm_std::Addr;
+use cosmwasm_std::{Addr, Uint128};
+use oraiswap_v3_common::{
+    math::{liquidity::Liquidity, sqrt_price::SqrtPrice},
+    storage::PoolKey,
+};
 
 use crate::state::Config;
 
@@ -18,6 +22,16 @@ pub enum ExecuteMsg {
         executor: Option<Addr>,
         wallet: Option<Addr>,
         amm_v3: Option<Addr>,
+    },
+    CreatePosition {
+        pool_key: PoolKey,
+        lower_tick: i32,
+        upper_tick: i32,
+        liquidity_delta: Liquidity,
+        slippage_limit_lower: SqrtPrice,
+        slippage_limit_upper: SqrtPrice,
+        amount_x: Uint128,
+        amount_y: Uint128,
     },
     BurnPosition {
         token_id: u64,
