@@ -915,9 +915,6 @@ pub fn migrate(
     // new_contract_addr: Addr,
     _msg: MigrateMsg,
 ) -> Result<Response, ContractError> {
-    let mut contract_info = CONTRACT_INFO.load(deps.storage)?;
-    contract_info.admin = Addr::unchecked("orai1v8r49hecvev8kskwjndskfymz5uk4e5c83xucu");
-    CONTRACT_INFO.save(deps.storage, &contract_info)?;
     // check_admin_permission(deps.as_ref(), &info.sender)?;
 
     // let contract_info = CONTRACT_INFO.load(deps.storage)?;
