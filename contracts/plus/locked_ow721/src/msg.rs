@@ -1,3 +1,4 @@
+use cosmwasm_schema::QueryResponses;
 use cosmwasm_std::{Addr, Binary};
 use cw721::Cw721ReceiveMsg;
 use schemars::JsonSchema;
@@ -67,24 +68,24 @@ pub struct LockNft {
     pub nft_addr: String,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema, QueryResponses)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     // GetCount returns the current count as a json-encoded number
-    CheckLock {
-        token_id: String,
-        nft_addr: String,
-    },
+    #[returns(Binary)]
+    CheckLock { token_id: String, nft_addr: String },
+    #[returns(PubKeyResponse)]
     QueryPubKeys {
         offset: Option<u64>,
         limit: Option<u8>,
         order: Option<u8>,
     },
+    #[returns(Binary)]
     Owner {},
+    #[returns(Binary)]
     LatestNonce {},
-    NonceVal {
-        nonce: u64,
-    },
+    #[returns(Binary)]
+    NonceVal { nonce: u64 },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

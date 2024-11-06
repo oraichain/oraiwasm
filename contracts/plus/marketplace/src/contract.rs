@@ -675,5 +675,15 @@ fn parse_offering<'a>(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    CONTRACT_INFO.save(
+        _deps.storage,
+        &ContractInfo {
+            name: "marketplace".to_string(),
+            creator: "".to_string(),
+            denom: "orai".to_string(),
+            fee: 0,
+            max_royalty: 0,
+        },
+    )?;
     Ok(Response::default())
 }

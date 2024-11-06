@@ -90,10 +90,6 @@ pub fn execute(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
-    // migrate_v02_to_v03(deps.storage)?;
-
-    // // once we have "migrated", set the new version and return success
-    // set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
     Ok(Response::new().add_attributes(vec![
         attr("new_contract_name", CONTRACT_NAME),
         attr("new_contract_version", CONTRACT_VERSION),

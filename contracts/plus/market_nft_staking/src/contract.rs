@@ -16,8 +16,8 @@ use cw_storage_plus::Bound;
 use crate::{
     error::ContractError,
     msg::{
-        CreateCollectionPoolMsg, DepositeMsg, ExecuteMsg, InstantiateMsg, QueryMsg, StakeMsgDetail,
-        UpdateCollectionPoolMsg, UpdateContractInfoMsg,
+        CreateCollectionPoolMsg, DepositeMsg, ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg,
+        StakeMsgDetail, UpdateCollectionPoolMsg, UpdateContractInfoMsg,
     },
     state::{
         collection_staker_infos, get_unique_collection_staker, increment_collection_stakers,
@@ -27,6 +27,8 @@ use crate::{
     utils::verify_stake_msg_signature,
 };
 
+const CONTRACT_NAME: &str = "crates.io:nft_staking";
+const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 // settings for pagination
 const MAX_LIMIT: u8 = 100;
 const DEFAULT_LIMIT: u8 = 20;
@@ -908,10 +910,10 @@ pub fn handle_reset_earned_rewards(
 
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn migrate(
-    _deps: DepsMut,
+    deps: DepsMut,
     _env: Env,
     // new_contract_addr: Addr,
-    _msg: Empty,
+    _msg: MigrateMsg,
 ) -> Result<Response, ContractError> {
     // check_admin_permission(deps.as_ref(), &info.sender)?;
 
