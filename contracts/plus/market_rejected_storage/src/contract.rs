@@ -2,7 +2,7 @@
 use cosmwasm_std::entry_point;
 
 use crate::error::ContractError;
-use crate::msg::{ExecuteMsg, InstantiateMsg, QueryMsg, UpdateContractMsg};
+use crate::msg::{ExecuteMsg, InstantiateMsg, MigrateMsg, QueryMsg, UpdateContractMsg};
 use crate::state::{get_key_nft_info, ContractInfo, CONTRACT_INFO, REJECTS};
 use market_rejected::{
     Event, Expiration, IsRejectedForAllResponse, MarketRejectedExecuteMsg, MarketRejectedQueryMsg,
@@ -249,4 +249,9 @@ fn parse_rejected(item: StdResult<Record<Expiration>>) -> StdResult<Rejected> {
 
 pub fn query_contract_info(deps: Deps) -> StdResult<ContractInfo> {
     CONTRACT_INFO.load(deps.storage)
+}
+
+#[cfg_attr(not(feature = "library"), entry_point)]
+pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> StdResult<Response> {
+    Ok(Response::default())
 }
