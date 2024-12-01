@@ -1,0 +1,26 @@
+[package]
+edition = { workspace = true }
+name = "vrf_health_check"
+version = "0.1.0"
+
+exclude = [
+  "artifacts/*",
+] # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cosmwasm-std = { workspace = true }
+cosmwasm-storage = { workspace = true }
+cw-storage-plus = { workspace = true, features = ["iterator"] }
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+cosmwasm-schema = { workspace = true }

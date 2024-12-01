@@ -1,0 +1,50 @@
+[package]
+name = "market_implementation"
+version = "0.1.0"
+authors = ["oraichain <tu@orai.io>"]
+edition = { workspace = true }
+
+exclude = [
+  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+  "contract.wasm",
+  "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+
+[dependencies]
+cosmwasm-std = { workspace = true }
+cw-storage-plus = { workspace = true, features = ["iterator"] }
+cosmwasm-storage = { workspace = true, features = ["iterator"] }
+cw721 = { workspace = true }
+market_auction = { workspace = true }
+market_royalty = { workspace = true }
+market_payment = { workspace = true }
+market_ai_royalty = { workspace = true }
+market_first_lv_royalty = { workspace = true }
+market_whitelist = { workspace = true }
+market = { workspace = true }
+cw20 = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+thiserror = { workspace = true }
+cosmwasm-schema = { workspace = true }
+
+[dev-dependencies]
+market_hub = { workspace = true }
+market_auction_storage = { workspace = true }
+market_offering_storage = { workspace = true }
+market_ai_royalty_storage = { workspace = true }
+market_payment_storage = { workspace = true }
+market_first_level_royalty_storage = { workspace = true }
+market_whitelist_storage = { workspace = true }
+oraichain_nft = { workspace = true }
+cw20-base = { workspace = true }

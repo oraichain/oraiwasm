@@ -1,0 +1,25 @@
+[package]
+name = "blsdkg_js"
+version = "0.0.1"
+authors = ["Ian Coleman", "Thanh tu <tu@orai.io>", "Duc Pham <duc@orai.io>"]
+edition = { workspace = true }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2.78"
+wasm-bindgen-test = "0.3.28"
+serde = { workspace = true, features = ["derive"] }
+blsdkg = { workspace = true }
+rand = { workspace = true, features = ["wasm-bindgen"] }
+js-sys = "0.3.55"
+pairing = "0.16.0"
+
+
+# # patch blst to be single_thread
+# [patch.crates-io]
+# blst = { git = "https://github.com/iancoleman/blst", branch = "single_thread" }
+
+[dev-dependencies]
+base64 = { workspace = true }
