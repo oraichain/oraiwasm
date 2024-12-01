@@ -88,7 +88,9 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 fn query_tx(deps: Deps, hash: Binary) -> StdResult<Binary> {
     // same StdErr can use ?
-    let hash = MAPPED_TXS.load(deps.storage, hash.as_slice())?;
+    let hash = MAPPED_TXS
+        .load(deps.storage, hash.as_slice())
+        .unwrap_or_default();
     to_json_binary(&hash)
 }
 
